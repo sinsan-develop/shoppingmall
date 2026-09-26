@@ -35,6 +35,43 @@ export class AuthRepository {
     });
   }
 
+  async createPhoneCustomerAfterVerification(phone: string) {
+    if (typeof phone !== 'string' || !/^01[016789]\d{7,8}$/.test(phone)) throw new Error('Invalid phone');
+    const accountId = await this.db.transaction(async (tx) => {
+      const [existing] = await tx.select({ id: schema.accountIdentities.id })
+        .from(schema.accountIdentities)
+        .where(and(eq(schema.accountIdentities.kind, 'phone'), eq(schema.accountIdentities.identifier, phone)))
+        .limit(1);
+      if (existing) throw new Error('Phone already registered');
+      const [account] = await tx.insert(schema.accounts).values({}).returning({ id: schema.accounts.id });
+      await tx.insert(schema.accountIdentities).values({
+        accountId: account.id, kind: 'phone', identifier: phone, verifiedAt: new Date(),
+      });
+      await tx.insert(schema.accountRoles).values({ accountId: account.id, role: 'customer' });
+      await tx.insert(schema.auditEvents).values({
+        actorAccountId: account.id, activeRole: 'customer', action: 'auth.phone_signup',
+        targetType: 'account', targetId: account.id,
+      });
+      return account.id;
+    });
+    return { accountId, ...(await this.issueSession(accountId, 'customer')) };
+  }
+
+  async loginPhoneAfterVerification(phone: string) {
+    if (typeof phone !== 'string' || !/^01[016789]\d{7,8}$/.test(phone)) throw new Error('Invalid phone');
+    const [identity] = await this.db.select({
+      accountId: schema.accountIdentities.accountId,
+      disabledAt: schema.accounts.disabledAt,
+    }).from(schema.accountIdentities)
+      .innerJoin(schema.accounts, eq(schema.accounts.id, schema.accountIdentities.accountId))
+      .where(and(eq(schema.accountIdentities.kind, 'phone'), eq(schema.accountIdentities.identifier, phone)))
+      .limit(1);
+    if (!identity || identity.disabledAt || !(await this.isGranted(identity.accountId, 'customer'))) {
+      throw new Error('Phone account unavailable');
+    }
+    return this.issueSession(identity.accountId, 'customer');
+  }
+
   async linkPhoneIdentity(actor: AccessContext, proof: { phone: string; accountId: string }): Promise<void> {
     if (actor.role !== 'customer' || actor.accountId !== proof?.accountId ||
         typeof proof.phone !== 'string' || !/^01[016789]\d{7,8}$/.test(proof.phone)) {

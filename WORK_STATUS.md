@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1 휴대폰 전용 mock 계정 DB 경계
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `AuthRepository.createPhoneCustomerAfterVerification`와 `loginPhoneAfterVerification`를 추가했다. 인증 완료한 번호를 새 고객 계정의 전화 신원으로 저장하거나 기존 전화 신원 고객에게 세션을 발급하며, 기존 번호의 중복 신규 가입/다른 계정 자동 병합은 차단한다. 신규 가입·로그인 감사 이력을 남긴다. 메서드 부재 시험 RED→GREEN, 로컬 API typecheck 통과.
+- `apps/api/test/phone-entry-db.test.mjs`의 실제 DB 생성→세션 확인→동일 번호 로그인→중복 가입 거부→정확한 accountId cleanup은 WSL 실행 전. 이 메서드는 **검증 완료 후에만 호출해야 하는 내부 경계**이며 외부 문자 송신/실번호 검증을 제공하지 않는다. 개발용 HTTP mock 계약·화면 연결은 후속. 실제 고객/운영 DB는 변경하지 않았다.
+
 ## 최신 상태 — 2026-09-27 로컬 빌드 EPERM 원인 분리
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 동일 `pnpm -r --if-present build`를 일반 샌드박스에서 실행하면 기존 API `dist/*.js` 쓰기 `EPERM`으로 실패했다. 작업 worktree에 대한 쓰기 허용으로 **같은 명령**을 다시 실행하자 API tsc 및 Next `/`, `/login`, `/account`, `/account/customer` production build 모두 통과. 따라서 앞선 로컬 `.next/trace-build`/`dist` EPERM은 코드 오류로 판정하지 않고 이 세션 파일시스템 권한 경계로 분리한다. WSL 빌드도 별도 통과. 산출물만 생성했고 추적 파일 변경 없음.
