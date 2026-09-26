@@ -145,4 +145,45 @@ export class ProductDrafts {
       client.release();
     }
   }
+
+  async submit(actor: AccessContext, productId: string, revisionId: string) {
+    if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
+      throw new Error('Forbidden');
+    }
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(productId) || !uuid.test(revisionId)) throw new Error('Invalid proposal target');
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query<{ seller_id: string; status: string }>(
+        `SELECT p.seller_id,r.status FROM product_revisions r JOIN products p ON p.id=r.product_id
+         WHERE p.id=$1 AND r.id=$2 FOR UPDATE OF r`, [productId, revisionId],
+      );
+      if (result.rows[0]?.seller_id !== actor.sellerId) throw new Error('Forbidden');
+      if (result.rows[0].status !== 'draft') throw new Error('Draft required');
+      const requirements = await client.query<{ thumbnails: number; options: number }>(
+        `SELECT
+          (SELECT count(*)::int FROM product_images WHERE revision_id=$1 AND purpose='thumbnail') AS thumbnails,
+          (SELECT count(*)::int FROM product_options WHERE revision_id=$1) AS options`, [revisionId],
+      );
+      if (!requirements.rows[0].thumbnails || !requirements.rows[0].options) {
+        throw new Error('Thumbnail and option required');
+      }
+      await client.query(
+        `UPDATE product_revisions SET status='pending',proposed_at=now() WHERE id=$1`, [revisionId],
+      );
+      await client.query(
+        `INSERT INTO audit_events (actor_account_id,active_role,seller_id,action,target_type,target_id)
+         VALUES ($1,'seller',$2,'product.proposal_submit','product_revision',$3)`,
+        [actor.accountId, actor.sellerId, revisionId],
+      );
+      await client.query('COMMIT');
+      return { productId, revisionId, status: 'pending' as const };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }

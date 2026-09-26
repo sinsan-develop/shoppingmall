@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.2 판매자 제출 경계 DB GREEN 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@e1e52d9721372b520baca4c171618703e07605c2` (SSH 원격/WSL 일치). 앞선 사진 HTTP 전체 실제 DB 회귀 41건 중 36 pass·0 fail·무DB 전용 5 skip, QA 핵심 행 0 및 시험 컨테이너 0.
+- 다음 계약은 소유 판매자만 자기 `draft` revision을 `pending`으로 제출하고, 대표 사진·옵션을 요구하며 감사 이력을 남기고 공개 포인터는 변경하지 않는 것이다. WSL DB에서 `drafts.submit is not a function` RED 1회 및 시험 QA 행 0 확인. `ProductDrafts.submit`과 HTTP POST 제출 경로를 구현했고 로컬 전체 workspace typecheck·lint·무DB 이미지 HTTP 시험 통과; 실제 DB GREEN은 아직 미검증.
+- 변경 파일: `apps/api/src/catalog/product-drafts.ts`, `apps/api/src/catalog/controller.ts`, `apps/api/test/product-image-db.test.mjs`, `apps/api/test/product-drafts-db.test.mjs`, 본 현황. 오류 누적: 의도한 제출 기능 부재 RED 1회. 다음은 SSH push→WSL DB 제출 전후·전체 회귀·QA 정리. 관리자 승인, 이미지 안전화/공개 저장, 고객 공개는 미구현이며 `pending`만으로 노출하지 않는다.
+
 ## 최신 상태 — 2026-09-27 사진 HTTP DB 시험 정리 오류 수정
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@ceac18495518b671aeab1fb5f21fa57873dd04d1` (SSH 원격/WSL 일치). 실제 DB HTTP 시험 1회는 테스트 `finally`가 판매자 B를 삭제하기 전에 해당 판매자에 매인 인증 세션을 지우지 않아 FK `23503` 실패. 본문 검증은 최종 PASS로 간주하지 않는다.

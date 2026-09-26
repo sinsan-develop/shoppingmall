@@ -50,6 +50,7 @@ test('a seller creates only its own non-public product draft in a minor category
     assert.equal((await drafts.listOwned(seller)).length, 1);
     assert.equal((await drafts.listOwned({ accountId, role: 'seller', sellerId: sellerB })).length, 0);
     await assert.rejects(drafts.listOwned({ accountId, role: 'customer' }), /Forbidden/);
+    await assert.rejects(drafts.submit(seller, created.productId, created.revisionId), /Thumbnail and option required/);
     const audit = await pool.query('SELECT action,seller_id FROM audit_events WHERE actor_account_id=$1 AND target_id=$2', [accountId, productId]);
     assert.equal(audit.rows[0].action, 'product.draft_create');
     assert.equal(audit.rows[0].seller_id, sellerA);

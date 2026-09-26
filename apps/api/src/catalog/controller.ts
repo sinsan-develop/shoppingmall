@@ -131,6 +131,21 @@ export class CatalogController {
     }
   }
 
+  @Post('seller/products/:productId/revisions/:revisionId/submit')
+  async submitProductDraft(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    try { return await this.drafts().submit(actor, productId, revisionId); }
+    catch (error) {
+      if (error instanceof Error && ['Invalid proposal target', 'Draft required', 'Thumbnail and option required'].includes(error.message)) {
+        throw new BadRequestException({ status: 'invalid_proposal', reason: error.message });
+      }
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
   @Post('seller/products/:productId/revisions/:revisionId/images')
   async stageProductImage(@Req() request: IncomingMessage,
     @Param('productId') productId: string, @Param('revisionId') revisionId: string) {
