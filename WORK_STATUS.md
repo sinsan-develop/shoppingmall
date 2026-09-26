@@ -1,7 +1,15 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.1 분류·판매자 등록 착수
+
+- 담당·브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 신산님 승인 계획에 따라 S1 인증 작업과 연계된 S2.1의 관리자 대분류→소분류·판매자 분류→판매자 모델을 착수했다. `shoppingmall` DB 기존 `sellers`·`accounts` 각각 0행을 읽기 전용 확인했으며 기존 다른 DB는 건드리지 않는다.
+- 변경: `apps/api/src/db/schema.ts`에 상품/판매자 분류와 판매자 분류 FK, root/child 중복명 제약을 추가했고 Drizzle `0001_s2_categories.sql`을 생성·check 통과했다. `apps/api/src/catalog/taxonomy.ts`에는 관리자 역할 검사, 대분류·소분류 2단계 제한, 판매자 분류/판매자 등록 및 같은 트랜잭션 감사 기록을 구현 중이다. `apps/api/src/access.ts`의 관리자 action을 추가했고 권한 시험은 RED→GREEN, `apps/api/test/taxonomy-db.test.mjs`는 WSL DB에서 검증할 계약이다.
+- 사전 DB 변경 기록: 정확한 대상 `WSL-server`의 `local-postgres` 안 `shoppingmall` DB. 현재 두 번째 migration은 미적용. source/SQL을 기존 SSH 브랜치에 안전하게 push하고 WSL에서 BEGIN/ROLLBACK 문법 시험 후 공식 ORM migrator로 이력을 남겨 적용한다. 일회성 QA 컨테이너 `shoppingmall-s2-taxonomy`는 적용·시험 동안만 사용하고 `--rm` 정리; 시험 행은 식별 가능한 `qa+UUID@example.invalid` 계정과 고유 이름 분류/판매자를 대상으로만 정리한다. 실제 운영 분류·판매자 자료 없음.
+- 미검증·다음: 로컬 전체 회귀, SQL WSL dry-run, 실제 migration/DB·HTTP 분류 통합, 상품·옵션·재고, 역할별 UI 전부 미검증. 오류 횟수: 이번 S2.1 코드/DB 0회.
+
 ## 최신 상태 — 2026-09-27 S1.2 권한 경계 착수
 
+- 감사 이력 GREEN: WSL 정확한 `359a8f505cd85e617461db3fba0f0702a5ec6128`에서 계정 저장소 및 HTTP+DB 통합 2통과·0실패. `auth.login`/`auth.switch_role`/`auth.logout`은 역할과 계정 근거를 남기고 세션 변경과 같은 트랜잭션으로 처리한다. 시험 QA 이메일 잔류 0, 일회성 `shoppingmall-s1-audit-green` 컨테이너 잔류 0, 지정 checkout clean을 확인했다. 정식 고객·판매자 화면, OTP와 실제 외부 계정·배포는 미검증이다.
 - 인증 감사 이력 TDD: `apps/api/test/auth-db.test.mjs`에 로그인·역할 전환·로그아웃 역할별 사건 검사를 추가해 WSL DB에서 `auth.login` 누락 RED(1실패)를 실제 확인했다. `apps/api/src/auth/repository.ts`의 세션 생성·전환·해지를 각 감사 기록과 같은 트랜잭션으로 묶었다. 시험 계정과 종속 자료는 실패 후에도 `finally`에서 해당 accountId만 정리했다. 로컬 타입검사와 비DB 시험 통과, WSL 재검증은 다음 checkpoint에서 수행한다.
 - HTTP 연결 진행: `apps/api/src/auth/controller.ts`를 추가해 `/auth/login`, `/auth/me`, `/auth/switch-role`, `/auth/logout`을 DB가 있는 경우에만 동작하도록 연결했다. 세션 토큰은 HttpOnly/SameSite=Lax 쿠키에만 전달하고 서버는 DB의 실제 grant를 재확인한다. 상태 변경 요청은 설정된 웹 Origin만 허용하고 운영 모드에서는 WEB_ORIGIN 미설정 시 닫힌다. `apps/api/test/auth-http.test.mjs`는 헤더 역할 가장 거부와 DB 미설정 503을 확인했다. 첫 구현은 DB 미설정 예외를 잘못 401로 바꾼 1회가 있어 예외 구분을 수정한 뒤 통과. `apps/api/test/auth-http-db.test.mjs`는 WSL 실제 HTTP+DB 경로 시험용으로 추가했으며 아직 실행 전이다. 로그인 시도 제한·이메일 검증·휴대폰 OTP·소셜 공급자·웹 화면은 미구현.
 - WSL 계정 DB 통합 결과: 정확한 checkout `6fdff9b256ae4b27149cfabf47cedc29236e0b0a`에서 시험용 `qa+UUID@example.invalid` 계정으로 중복 이메일 거부, 잘못된 암호 거부, 고객 세션 조회, 미부여 판매자/관리자 역할 거부, DB에 관리자 역할을 명시 부여한 뒤 관리자 전환·기존 세션 해지·로그아웃을 통합 검사해 1통과·0실패했다. 시험 계정·종속 세션/역할/식별자는 해당 UUID로 정리했고 QA 이메일 잔류 0을 DB 조회로 확인했다. 일회성 `shoppingmall-s1-auth-test` 컨테이너 제거, 정확한 `.pnpm-store` 캐시 48MB 제거(재설치 가능), WSL Git checkout clean. 실제 HTTP 로그인·고객 웹 사용 경로는 아직 미검증이다.

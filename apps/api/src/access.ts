@@ -12,6 +12,7 @@ export type AccessAction =
   | 'change-stock'
   | 'request-proposal'
   | 'approve-proposal'
+  | 'manage-taxonomy'
   | 'decide-refund'
   | 'complete-settlement';
 
@@ -33,6 +34,7 @@ export function canAccess(
     case 'request-proposal':
       return actor.role === 'seller' && !!resource.sellerId && !!actor.sellerId && actor.sellerId === resource.sellerId;
     case 'approve-proposal':
+    case 'manage-taxonomy':
     case 'decide-refund':
     case 'complete-settlement':
       return actor.role === 'admin';

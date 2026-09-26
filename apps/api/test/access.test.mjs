@@ -21,12 +21,14 @@ test('seller belongs only to its own seller and cannot elevate to admin', () => 
   assert.equal(canAccess(sellerA, 'approve-proposal', { sellerId: 'farm-a' }), false);
   assert.equal(canAccess(sellerA, 'decide-refund', { sellerId: 'farm-a' }), false);
   assert.equal(canAccess(sellerA, 'complete-settlement', { sellerId: 'farm-a' }), false);
+  assert.equal(canAccess(sellerA, 'manage-taxonomy', {}), false);
 });
 
 test('same account may act separately as seller or admin, with separate request and approval', () => {
   assert.equal(canAccess(admin, 'approve-proposal', { sellerId: 'farm-a' }), true);
   assert.equal(canAccess(admin, 'decide-refund', { sellerId: 'farm-a' }), true);
   assert.equal(canAccess(admin, 'complete-settlement', { sellerId: 'farm-a' }), true);
+  assert.equal(canAccess(admin, 'manage-taxonomy', {}), true);
   assert.equal(canApproveProposal(sellerA, { id: 'request-1', requestedBy: 'seller-person' }), false);
   assert.equal(canApproveProposal(admin, { id: 'request-1', requestedBy: 'seller-person' }), true);
 });

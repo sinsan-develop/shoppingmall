@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 export const identityKind = pgEnum('identity_kind', ['email', 'phone', 'kakao', 'apple']);
 export const activeRole = pgEnum('active_role', ['customer', 'seller', 'admin']);
@@ -10,8 +10,29 @@ export const accounts = pgTable('accounts', {
   disabledAt: timestamp('disabled_at', { withTimezone: true }),
 });
 
+export const sellerCategories = pgTable('seller_categories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull().unique(),
+  displayOrder: integer('display_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [check('seller_categories_name_ck', sql`length(trim(${table.name})) > 0`)]);
+
+export const productCategories = pgTable('product_categories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  parentId: uuid('parent_id').references((): AnyPgColumn => productCategories.id),
+  name: text('name').notNull(),
+  displayOrder: integer('display_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('product_categories_root_name_uq').on(table.name).where(sql`${table.parentId} IS NULL`),
+  uniqueIndex('product_categories_child_name_uq').on(table.parentId, table.name).where(sql`${table.parentId} IS NOT NULL`),
+  index('product_categories_parent_idx').on(table.parentId),
+  check('product_categories_name_ck', sql`length(trim(${table.name})) > 0`),
+]);
+
 export const sellers = pgTable('sellers', {
   id: uuid('id').primaryKey().defaultRandom(),
+  categoryId: uuid('category_id').notNull().references(() => sellerCategories.id),
   displayName: text('display_name').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
