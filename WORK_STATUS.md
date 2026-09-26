@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.2 상품 revision migration 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@f41292169e2a42dd0215a1643e965a241441cb3d` (SSH 원격/WSL 일치). 실제 WSL DB 신규 시험 1 fail·0 pass: `42P01 relation "products" does not exist`, 의도한 migration 전 RED. 생성·정리한 가상 계정/분류/판매자 잔류 확인은 migration 이후 전체 점검에서 수행한다.
+- Drizzle migration `0003_s2_product_revisions`를 생성하고, 공개 포인터가 다른 상품의 revision을 가리키지 못하도록 `(product_id, revision_id)` 복합 FK와 해당 unique index를 schema·시험에 보강했다. 기존 0000~0002는 변경하지 않는다. 로컬 API typecheck 통과. 이 migration은 아직 WSL DB 미적용/시험 GREEN 전이다.
+- 변경 파일: `apps/api/src/db/schema.ts`, `apps/api/test/product-schema-db.test.mjs`, `apps/api/migrations/0003_s2_product_revisions.sql`, snapshot/journal, 본 현황. 오류 누적: 의도한 42P01 RED 1회. 추가 생성물 재생성은 미적용 0003만 대상으로 했고 지속 DB에는 영향 없음. 다음은 migration checkpoint→WSL 적용·GREEN/복합 FK·QA 잔류 점검.
+
 ## 최신 상태 — 2026-09-27 S2.2 상품 revision DB 계약 RED 준비
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 상품 소유 판매자·소분류와 제안 revision을 분리하고 옵션·이미지 메타데이터 및 명시적 공개 포인터를 추가하는 schema 초안. 고객 공개 자료는 제안과 별도 `product_publications`를 통해서만 선택하도록 설계한다. 배송 방식은 상품별 `seller_direct` 또는 `owool_fulfillment` 단일 값, 산지 문자열에는 지역 제한 없음.

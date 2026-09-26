@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { boolean, check, foreignKey, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 export const identityKind = pgEnum('identity_kind', ['email', 'phone', 'kakao', 'apple']);
 export const activeRole = pgEnum('active_role', ['customer', 'seller', 'admin']);
@@ -65,6 +65,7 @@ export const productRevisions = pgTable('product_revisions', {
   reviewReason: text('review_reason'),
 }, (table) => [
   uniqueIndex('product_revisions_product_version_uq').on(table.productId, table.version),
+  uniqueIndex('product_revisions_product_id_uq').on(table.productId, table.id),
   index('product_revisions_status_idx').on(table.status),
   check('product_revisions_version_ck', sql`${table.version} > 0`),
   check('product_revisions_title_ck', sql`length(trim(${table.title})) > 0`),
@@ -100,10 +101,14 @@ export const productImages = pgTable('product_images', {
 // No proposal becomes customer-visible without an explicit operator publication.
 export const productPublications = pgTable('product_publications', {
   productId: uuid('product_id').primaryKey().references(() => products.id),
-  revisionId: uuid('revision_id').notNull().references(() => productRevisions.id),
+  revisionId: uuid('revision_id').notNull(),
   publishedAt: timestamp('published_at', { withTimezone: true }).notNull().defaultNow(),
   publishedByAccountId: uuid('published_by_account_id').notNull().references(() => accounts.id),
-}, (table) => [uniqueIndex('product_publications_revision_uq').on(table.revisionId)]);
+}, (table) => [
+  uniqueIndex('product_publications_revision_uq').on(table.revisionId),
+  foreignKey({ columns: [table.productId, table.revisionId],
+    foreignColumns: [productRevisions.productId, productRevisions.id] }),
+]);
 
 export const accountIdentities = pgTable('account_identities', {
   id: uuid('id').primaryKey().defaultRandom(),
