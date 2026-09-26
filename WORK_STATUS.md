@@ -1,6 +1,14 @@
 # 어울몰 작업현황
 
-## 최신 상태 — 2026-09-27 Flat v2 Task 2 완료, Task 3 진행 전
+## 최신 상태 — 2026-09-27 Flat v2 Task 3 문서·정적 검증 완료, 시각 인수 대기
+
+- 단계·담당: 승인된 Flat v2 구현 계획 Task 3 / 어울 단일 writer / `codex/flat-v2-prototypes`, 기준 `origin/main` `34b4186`
+- 변경: `docs/design/prototypes/README.md`에 v1과 Flat v2 비교 경로·가상 기능 경계 추가, `docs/design/DESIGN.md`에 v2를 미승인 후보로 명시, `prototype-shell.test.mjs`에 안내 링크 검사 추가. 계획 문서의 오래된 무커밋 `master`/commit 보류 전제를 신산님의 최신 작업 브랜치 지시에 맞게 정정. 원본 시안·역할별 JS·공유 CSS는 수정하지 않음
+- 검증: 안내 링크 누락 RED 1건 확인 후 전체 Node 검사 43통과·0실패. 실제 인앱 브라우저에서 `file://` 시안 열기는 브라우저 보안 정책이 프로토콜을 거부했으며 다른 표면·로컬 서버 우회는 시도하지 않음. 따라서 1920×1080/1440×900/430×844, 200% 확대, 키보드 focus, 상태 구분, 인쇄/PDF·스크린샷은 **미검증**. 신산님의 직접 시각 확인 필요
+- 오류·조치: Task 3 코드 검사 오류 0건; 브라우저 URL 정책 거부 1회. 원본 9개 파일의 SHA256 불변과 `git diff --check` 오류 0건을 재확인. 임시 `.superpowers/sdd/2026-09-26-balanced-flat-prototypes/` 기록과 활성 worktree는 검토 전 보존
+- 다음 조치: 원본 불변·전체 검사 재확인 후 Task 3 작업 브랜치 commit, 전체 diff 검토. 신산님께 Flat v2 시각 후보를 제시해 승인/수정 의견 요청. 제품 개발 Stage·WSL/Oracle 배포·`main` 병합은 별도 경계
+
+## 이전 상태 — 2026-09-27 Flat v2 Task 2 완료, Task 3 진행 전
 
 - 단계·담당: 승인된 Flat v2 구현 계획 Task 2 / 어울 단일 writer / `codex/flat-v2-prototypes`, 기준 커밋 `02cffbe`
 - 변경: `docs/design/prototypes/flat-v2/`에 고객·판매자·관리자 HTML 및 역할별 동등성 검사 추가. 원본 역할 HTML·JS와 `shared.css`는 수정하지 않음. v2는 기존 classic 역할 스크립트를 상대경로로 공유

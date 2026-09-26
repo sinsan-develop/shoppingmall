@@ -32,6 +32,17 @@ test('review guide links each prototype and states the mock boundary', () => {
   assert.match(guide, /브라우저.*미검증/);
 });
 
+test('review guide retains v1 and links unapproved flat v2 comparisons', () => {
+  const guide = read('README.md');
+  for (const role of roles) {
+    assert.match(guide, new RegExp(`\\(${role}\\.html\\)`));
+    assert.match(guide, new RegExp(`\\(flat-v2/${role}\\.html\\)`));
+  }
+  assert.match(guide, /home-flat-v2\.html/);
+  assert.match(guide, /미승인/);
+  assert.match(guide, /실제 결제/);
+});
+
 test('customer checkout heading uses the current shipment count', () => {
   assert.match(read('customer.html'), /data-shipment-count/);
   assert.match(read('customer.js'), /\[data-shipment-count\]/);

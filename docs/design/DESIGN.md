@@ -61,6 +61,8 @@
 
 정적 시안의 검토 방법은 [정적 시안 안내](assets/README.md)에 있다. 주요 역할 흐름은 독립된 [고객](prototypes/customer.html)·[판매자](prototypes/seller.html)·[관리자](prototypes/admin.html) 클릭형 시안으로 제작했으며, [검토 순서와 가상 기능 경계](prototypes/README.md)를 따른다. 신산님 검토 의견에 따라 고객 상품 수량·장바구니 수량 수정/제거와 단가×수량 계산, 판매자 재고 수량 직접 입력, 관리자 농가별/전체 조회의 인쇄·PDF 저장 창을 시안에 추가했다. 클릭형 화면의 실제 브라우저 동작·인쇄/PDF 결과·반응형·접근성은 아직 미검증이고 신산님 최종 승인 전이다. 상품 상세·배송 조회·문의·리뷰 등 제품 상세 화면은 이 시안에 포함되지 않는다.
 
+균형형 [Flat v2 시각 비교 설계](../superpowers/specs/2026-09-26-balanced-flat-prototype-design.md)에 따라 [홈](assets/home-flat-v2.html)과 [고객](prototypes/flat-v2/customer.html)·[판매자](prototypes/flat-v2/seller.html)·[관리자](prototypes/flat-v2/admin.html)의 별도 비교본을 제작했다. 이들은 **신산님 검토 전 미승인 시각 후보**이며 기존 정적 v1 승인본과 원본 클릭형 시안을 대체하지 않는다. 기능·가상 자료·역할 권한·거래 규칙은 변경하지 않았고 실제 브라우저/인쇄·반응형 검증은 별도 증거를 따른다.
+
 ### 어울몰 디자인 프로필(정적 시안 승인)
 
 - 제품 유형: mixed / 고객 화면은 여유 있는 정보 밀도, 판매자·관리자 화면은 업무 가독성을 우선한다.
