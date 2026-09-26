@@ -2,6 +2,8 @@
 
 ## 최신 상태 — 2026-09-27 S1.2 권한 경계 착수
 
+- DB 변경 사전 기록: 대상은 `WSL-server`의 정확한 `local-postgres` 컨테이너 안 `shoppingmall` DB 한 개이며 현재 사용자 테이블 0개. 목적은 승인된 S1.2 계정·역할·세션·감사 migration과 이력 테이블 생성. 이전 커밋 `179e94f`의 SQL을 `BEGIN/ROLLBACK` 시험하여 오류 0, 시험 후 `accounts` 테이블 0개를 확인했다. 적용은 별도 일회성 `shoppingmall-s1-migrate` 컨테이너(소유 어울, 해당 migration 실행 동안만, `--rm` 정리)를 통해 실행하고 적용 테이블·이력을 확인한다. 실패하면 임의로 다른 DB를 초기화하지 않고 오류와 현재 상태를 기록한다. 기존 PostgreSQL 컨테이너·타 DB·운영 자료는 그대로 둔다.
+- DB 준비 경로 추가: 앱 `/ready`는 DB 연결과 `accounts` schema가 모두 확인된 경우에만 200, 미설정·오류·schema 부재는 503. 신규 테스트 RED 후 구현했고 Nest 테스트 환경에서 생성자 metadata 자동 주입이 없어 500이 된 1회는 `@Inject(DatabaseService)` 명시로 복구했다. `apps/api/src/db/readiness.ts`, `service.ts`, `health.controller.ts`, `app.module.ts`, `test/database-readiness.test.mjs` 변경. 현재 실제 DB 연결 200은 미검증.
 - 계정 DB 계약 추가: `apps/api/src/db/schema.ts`에 계정, 식별자(이메일/전화/카카오/Apple), 판매자, 계정별 활성 역할, 토큰 해시 세션, 행위 감사 테이블을 선언했다. 역할/판매자 소속 불일치와 빈 식별자를 DB 제약으로 막고 `apps/api/migrations/0000_s1_accounts.sql`을 Drizzle Kit에서 생성했다. `pg`·Drizzle 정확 버전 및 lockfile이 변경됐다. 기존 `shoppingmall` DB의 사용자 테이블은 0개임을 적용 전 읽기 전용 확인했다. 아직 migration을 적용하거나 계정을 생성하지 않았다.
 - 스키마 검증: API `tsc --noEmit`, Drizzle Kit `check` 통과. 최초 생성물을 제약 추가 전 제거하면서 빈 기존 `drizzle/meta` 폴더의 journal 누락으로 재생성 실패 1회; 신규 표준 `migrations/` 경로로 생성하여 통과했다. 생성 SQL의 PostgreSQL 실제 실행/rollback·API 연동은 아직 미검증.
 - 신산님은 상세 개발 작업계획 전체를 이미 승인했으며, 내부 Stage의 인증·권한·DB를 다시 승인받지 말고 구축 완료까지 중단 없이 진행하라고 재확인했다. 앞선 별도 승인 재요구는 담당자의 해석 오류로 정정한다. 외부 PG 시험상점/Oracle 접속 상세는 후속 실연동·인수 준비 항목으로 기록하고 독립 개발을 계속한다.
