@@ -16,7 +16,7 @@
 - 브랜드명 어울몰, 황금 `#c79a3e`·크림·먹빛, 고운바탕 제목·가격, Noto Sans KR 본문·UI를 유지한다.
 - 본문 12px, 주요 제목 18px, 상품명 13px, 가격 14px, 모바일 주요 입력 16px 기준을 유지한다.
 - 카드·패널 8px, 버튼·입력 6px을 후보값으로 사용하고 그림자·hover 상승·장식용 히어로 그라데이션을 제거한다. 상태 문구와 focus 표시는 유지한다.
-- v2는 시각 검토 후보이며 승인된 v1을 대체하지 않는다. 프로모션 결제 적용·비용 부담·정산 로직은 포함하지 않는다.
+- 2026-09-27 신산님은 v2를 향후 제품 시각 기준으로 채택했다. v1은 비교·복구용으로 보존한다. 시각 채택은 실제 브라우저 QA 완료가 아니며 프로모션 결제 적용·비용 부담·정산 로직은 포함하지 않는다.
 - 2026-09-27 신산님 지시·승인에 따라 `origin/main`의 `34b4186`에서 `codex/flat-v2-prototypes` 격리 worktree를 생성했다. 기존 `main`과 미추적 자료를 보존하며 각 Task를 작업 브랜치에 commit한다. 원격 push·PR·병합은 필수 검증과 승인 경계를 별도로 확인한다.
 
 ## 검토 중점
@@ -85,13 +85,13 @@ for (const role of ['customer', 'seller', 'admin']) {
 
 **파일:**
 - 수정: `docs/design/prototypes/README.md` — v1/v2 역할별 시작 경로와 가상 기능 경계
-- 수정: `docs/design/DESIGN.md` — Flat v2를 미승인 시각 후보로 연결, v1 승인 상태 유지
+- 수정: `docs/design/DESIGN.md` — Flat v2를 제품 시각 기준으로 연결, v1은 비교·복구용으로 유지
 - 수정: `WORK_STATUS.md` — 실제 확인 결과와 남은 인수 항목
 
 **연결:** Task 1·2의 진입점만 안내한다. 새 상태 모델이나 실제 프로모션 기능을 추가하지 않는다.
 
 - [x] **1. 링크 검사 작성:** 기존 `prototype-shell.test.mjs`에 v2 링크와 v1 유지·가상 경계 안내 검사를 먼저 추가하고 실패를 확인한다.
-- [x] **2. 문서 반영:** README와 DESIGN에 별도 비교 경로·미승인 상태를 명시한다.
+- [x] **2. 문서 반영:** README와 DESIGN에 별도 비교 경로·현재 채택 상태 및 미검증 범위를 명시한다.
 - [x] **3. 전체 정적 회귀:** `node --test docs/design/assets/typography.test.cjs docs/design/assets/flat-v2.test.mjs docs/design/prototypes/customer.test.mjs docs/design/prototypes/seller.test.mjs docs/design/prototypes/admin.test.mjs docs/design/prototypes/prototype-shell.test.mjs docs/design/prototypes/flat-v2/flat-v2.test.mjs` → 0실패.
 - [ ] **4. 실제 화면 점검:** 허용된 브라우저에서 홈·고객·판매자·관리자 v1/v2를 1920×1080, 1440×900, 430×844와 200% 확대, 키보드 focus, 상태 구분, 인쇄 미리보기로 비교한다. 로컬 파일 열기가 정책상 차단되면 우회하지 않고 해당 항목을 미검증으로 남긴다.
 - [ ] **5. 최종 기록·검토 요청:** 차이, 스크린샷/실행 증거, 미검증, 원본 해시 불변, 임시 자원 잔류를 `WORK_STATUS.md`에 적고 신산님께 Flat v2 승인 여부를 요청한다. 제품 UI 확정·개발 Stage 착수는 별도 게이트다.

@@ -15,7 +15,7 @@ test('flat home preserves v1 content and loads styles in order', () => {
   assert.match(flatHome, /<body data-flat-v2>/);
   const flatBody = bodyMarkup(flatHome)
     .replace('<body data-flat-v2>', '<body>')
-    .replace('정적 디자인 시안 Flat v2 · 실제 쇼핑몰/구매 기능이 아닙니다 · 미승인 시각 후보',
+    .replace('정적 디자인 시안 Flat v2 · 제품 디자인 기준 채택 · 실제 화면 검증 전',
       '정적 디자인 시안 v1 · 실제 쇼핑몰/구매 기능이 아닙니다 · 신산님 시안 승인')
     .replace(/\r\n/g, '\n');
   const originalBody = bodyMarkup(originalHome).replace(/\r\n/g, '\n');
@@ -29,8 +29,8 @@ test('flat rules are scoped and remove depth without changing type sizes', () =>
   assert.doesNotMatch(flatCss, /font-size\s*:/);
 });
 
-test('flat home labels itself as an unapproved visual candidate', () => {
+test('flat home labels the adopted design and pending visual QA', () => {
   const flatHome = read('home-flat-v2.html');
-  assert.match(flatHome, /<div class="draft">정적 디자인 시안 Flat v2 · 실제 쇼핑몰\/구매 기능이 아닙니다 · 미승인 시각 후보<\/div>/);
-  assert.doesNotMatch(flatHome, /신산님 시안 승인/);
+  assert.match(flatHome, /<div class="draft">정적 디자인 시안 Flat v2 · 제품 디자인 기준 채택 · 실제 화면 검증 전<\/div>/);
+  assert.doesNotMatch(flatHome, /미승인 시각 후보/);
 });
