@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 고객 설정 브라우저 검증 및 정리
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@7694d45b0f85ebe116ef7122c358f98acb007e23` (로컬/SSH 원격/WSL 일치). WSL 시험 API 주소를 명시한 Next production build `/account/customer` 포함 통과. QA 실행 `c5d7e9f1`의 가상 고객으로 실제 브라우저 로그인→고객 설정 화면 진입→가상 배송지 저장 확인→연락처 끝 4자리만 목록 표시→이메일 수신 동의 저장→새로고침 후 배송지·동의 유지 확인.
+- 탈퇴 요청 버튼의 확인 대화상자까지 열렸지만 시험 브라우저의 대화상자 조작이 응답하지 않아 **브라우저 최종 접수는 미검증**. DB 사전 조회 `account_deletion_requests=0`, 즉 이 브라우저 시도는 접수되지 않았다. API/DB 직접 통합시험의 탈퇴 요청 접수·중복 409는 별도로 통과한 범위다. 브라우저 시험 탭은 대화상자 때문에 명시적 닫기 실패; 에이전트 생성 임시 탭의 턴 종료 정리에 맡기고 기존 사용자 탭은 건드리지 않는다.
+- 직접 띄운 `shoppingmall-s1-api`·`shoppingmall-s1-web`만 종료하고 정확한 `QA_RUN_ID=c5d7e9f1`로 fixture reset(`accounts=5`)했다. 사후 accounts/account_identities/customer_addresses/notification_preferences/account_deletion_requests/sellers 각 0행, `shoppingmall-s1-*` 컨테이너 0, WSL checkout clean. DB migration/스키마 보존. 고객 주소·동의 다른 역할 IDOR 및 웹 모바일·200% 확대·키보드는 추가 검증 필요.
+- 오류 횟수: 브라우저 JS confirm 상호작용 1회 실패·재시도 1회 실패, 탭 닫기 1회 실패; 서버/DB 기능 오류로 판정하지 않음. 추가 근거 없이 UI 탈퇴 PASS로 표시하지 않는다. 다음: S1 남은 시험과 Stage gate, 다른 제품 기능 진행.
+
 ## 최신 상태 — 2026-09-27 S1 고객 배송지·동의·탈퇴 요청 웹 연결
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `apps/web/app/account/customer/page.tsx`에서 고객 세션 확인 후 배송지 목록/입력, 이메일·문자·푸시 마케팅 수신 동의, 계정 탈퇴 **요청 접수**를 기존 고객 API에 연결했다. 고객 이외 역할은 내용을 불러오지 않는다. 연락처는 화면 목록에서 끝 4자리만 노출하고 마케팅 수신은 기본 false로 시작한다. 실제 계정 삭제/법정 보존은 아직 구현되지 않는다.
