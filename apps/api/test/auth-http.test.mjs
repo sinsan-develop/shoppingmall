@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createApp } from '../src/app.ts';
 
-test('auth HTTP rejects role-spoofing headers and unconfigured login', async () => {
+test('auth HTTP rejects role-spoofing headers and unconfigured login', {
+  skip: !!process.env.DATABASE_URL,
+}, async () => {
   const app = await createApp();
   try {
     await app.listen(0, '127.0.0.1');

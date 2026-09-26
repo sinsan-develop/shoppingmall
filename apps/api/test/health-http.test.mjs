@@ -18,7 +18,9 @@ test('GET /health serves the public liveness contract', async () => {
   }
 });
 
-test('GET /ready does not claim database readiness before a connection is configured', async () => {
+test('GET /ready does not claim database readiness before a connection is configured', {
+  skip: !!process.env.DATABASE_URL,
+}, async () => {
   const app = await createApp();
   try {
     await app.listen(0, '127.0.0.1');
