@@ -15,6 +15,10 @@ export class DatabaseService implements OnModuleDestroy {
     ));
   }
 
+  getPool(): Pool | undefined {
+    return this.pool;
+  }
+
   async onModuleDestroy() {
     await this.pool?.end();
   }
