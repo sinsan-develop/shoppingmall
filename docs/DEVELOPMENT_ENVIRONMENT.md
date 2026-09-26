@@ -1,5 +1,12 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-09-27 S1.1 WSL 시험 결과 (현재 사실)
+
+- 지정 SSH 별칭 `WSL-server`의 `/home/daon/deploy/shopping`에 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git`의 `codex/flat-v2-prototypes` 브랜치를 clone했다. 시험 HEAD는 `eb74e536cb3464cd9032256bd56619302355fcb8`이며 당시 원격과 일치했다. 아래 과거 항목의 `checkout 부재`는 생성 전 역사 기록이다.
+- WSL 시스템 Node 18.19.1에는 pnpm이 없다. 시스템 런타임은 바꾸지 않고 기존 `node:24-bookworm-slim` 이미지를 일회성 `shoppingmall-s1-verify` 컨테이너에 사용했다. 동일 checkout에서 `npx pnpm@11.19.0 install --frozen-lockfile`, test(56통과), typecheck, lint, build가 통과했다. 이것은 일회성 자체 검증이며 정식 DB 통합·E2E 검증은 아니다.
+- 동일 commit의 빌드 API `/health`는 HTTP 200과 정상 본문, Next 웹 `/`는 HTTP 200과 `서비스 구축 중` 본문을 반환했다. `shoppingmall-s1-api`, `shoppingmall-s1-web` 일회성 컨테이너를 중지·제거하고 포트 점유 잔류를 확인했다. DB 미연결 상태의 `/ready`는 503을 의도하며, 실제 DB 연동 성공으로 해석하지 않는다.
+- 일회성 패키지 캐시 `/home/daon/deploy/shopping/.pnpm-store`만 안전 확인 후 제거했다. Git checkout은 clean, `node_modules`는 무시 대상으로 남겨 두었다. `local-postgres`/`shoppingmall` DB는 기존 상태로 보존했다. GitHub CI 실행, 모바일 빌드/실기기, 실제 제품 브라우저 흐름, 외부 연동은 아직 미검증이다.
+
 ## 2026-09-27 S1.1 착수 중 확인
 
 - 신산님은 상세 작업계획에 따른 전체 구축과 외부 서비스 가입·실연동의 구축 후 일괄 처리를 지시했다. Flat v2 로컬 정적 시안 자체의 브라우저 QA는 제품 코드 착수의 차단조건에서 제외했다. 실제 제품의 브라우저 QA는 해당 Stage에서 수행한다.

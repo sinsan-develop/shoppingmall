@@ -1,7 +1,17 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1.1 WSL 재현·실행 확인
+
+- 담당·기준: 어울 단일 writer, `codex/flat-v2-prototypes@eb74e536cb3464cd9032256bd56619302355fcb8`. 지정 SSH 별칭으로 `/home/daon/deploy/shopping`을 정확한 Git branch에서 clone했고 해당 HEAD를 원격과 대조했다. 기존 `local-postgres`의 `shoppingmall` DB는 읽기 전용으로만 확인했으며 schema·계정·Secret은 변경하지 않았다.
+- WSL 자체 개발 검증: 기존 `node:24-bookworm-slim` 이미지의 일회성 `shoppingmall-s1-verify`에서 frozen install, `pnpm test` 48+8=56통과·0실패, typecheck, ESLint lint, Nest/Next build 모두 통과했다. 이는 정식 DB·E2E나 GitHub CI 실행 증거가 아니다.
+- WSL 런타임 smoke: 동일 commit 빌드의 API `/health` HTTP 200 및 `{"status":"ok","service":"shoppingmall-api"}`, 고객 웹 `/` HTTP 200 및 `서비스 구축 중` 본문을 확인했다. 별도 일회성 `shoppingmall-s1-api`, `shoppingmall-s1-web` 컨테이너는 종료·`--rm` 제거했으며 9091 포트 LISTEN 잔류가 없다. API의 DB 준비 상태는 별개로 503이며 DB 통합 준비 완료를 뜻하지 않는다.
+- 정리: 검증 컨테이너가 checkout에 남긴 정확한 `.pnpm-store` 캐시(약 697MB)를 경로·소유자·사용 중 여부 확인 후 제거했다. 패키지 lock/source와 무시 대상 `node_modules`는 보존했다. 캐시는 재설치로 복구 가능하다. 다른 프로젝트의 컨테이너와 DB는 건드리지 않았다.
+- 변경 파일: 이번 기록은 `WORK_STATUS.md`, `docs/DEVELOPMENT_ENVIRONMENT.md`. 이전 제품 골격 commit과 테스트 결과는 아래 S1.1 항목에 보존한다. 오류 횟수: WSL 접속 제한 샌드박스 1회(허용된 SSH 별칭 실행에서 성공), 제품 오류 0회.
+- 미검증·다음: GitHub CI 실제 실행, DB schema/권한/계정, 브라우저 역할별 경로, Android 앱/아이콘, 실제 Provider·Oracle 인수는 `UNVERIFIED`. S1.2의 인증·권한·DB 계약은 별도 승인 경계로 분리하고 영향받지 않는 작업을 계속한다. Flat v2 **로컬 정적 시안** QA는 신산님 지시로 제품 구축의 차단 조건에서 제외한다.
+
 ## 최신 상태 — 2026-09-27 S1.1 최소 실행 골격 작업 중
 
+- WSL 시험 자원 사전 기록: `/home/daon/deploy/shopping` 정식 checkout을 지정 SSH alias에서 Git clone하여 `eb74e536cb3464cd9032256bd56619302355fcb8`과 원격 SHA 일치를 확인했다. WSL 시스템 Node는 18.19.1이고 pnpm이 없어 기존 `node:24-bookworm-slim` 이미지를 사용한 일회성 `shoppingmall-s1-verify` 컨테이너에서 checkout을 마운트해 설치·검사를 실행할 예정이다. 소유자 어울, 수명 이번 S1.1 검증 명령 동안, 종료 시 `--rm`으로 컨테이너 제거하고 정확한 이름의 잔류를 확인한다. 정식 DB·다른 컨테이너·시스템 Node는 변경하지 않는다.
 - 담당·브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes` 격리 worktree. 원격 `main@207e7961c12f87f88a229d443a70ed764db2c24a`를 정상 merge하고 상세 계획 로컬 브랜치 `74a814d`를 이 브랜치에 정상 merge했다. 계획 브랜치와 기본 `main`의 사용자 자료는 삭제·수정하지 않았다. 신산님 최신 지시에 따라 Flat v2 로컬 정적 시안 QA 자체는 제품 착수의 차단조건이 아니며 실제 제품 QA는 후속 Stage로 남긴다.
 - S1.1 변경: pnpm 모노레포 골격, Next.js 고객 웹 진입 화면, NestJS `/health` HTTP와 DB 연결 전 `/ready`의 503 응답, Expo 앱의 빌드 전 최소 진입점, 공유 계약 타입, 무비밀값 `.env.example`, Git 무시 규칙, 실제 ESLint 및 test/typecheck/build 스크립트, 읽기 권한만 가진 `.github/workflows/ci.yml`. 새 코드와 설정은 `apps/`, `packages/`, 루트 package/lock/config와 CI에 한정된다. 계정·상품·결제·DB schema·Secret·실연동은 아직 구현하지 않았다.
 - TDD: health payload 시험은 누락/미구현 RED 뒤 GREEN, Nest HTTP `/health` 시험은 미구현 RED 뒤 GREEN, 웹 진입 화면 시험은 빈 화면 RED 뒤 GREEN을 확인했다. 환경 오류: pnpm이 `esbuild` 설치 스크립트를 거부해 해당 패키지만 승인 후 재설치(1회); 루트 TSX decorator 설정 누락으로 Nest 시험 실패 후 root tsconfig 보정(1회); 웹 ESM/JSX 테스트 설정 오류 2회 보정 후 실제 본문 누락 RED 확인; 일반 샌드박스의 pnpm 임시파일·tsbuildinfo 쓰기 거부는 허용된 실행 또는 비증분 타입검사로 검증했다.
