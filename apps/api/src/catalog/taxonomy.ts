@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 import { canAccess, type AccessContext } from '../access.js';
@@ -20,6 +20,33 @@ export class CatalogTaxonomy {
 
   constructor(pool: Pool) {
     this.db = drizzle(pool, { schema });
+  }
+
+  async listProductCategories() {
+    return this.db.select({
+      id: schema.productCategories.id,
+      parentId: schema.productCategories.parentId,
+      name: schema.productCategories.name,
+      displayOrder: schema.productCategories.displayOrder,
+    }).from(schema.productCategories)
+      .orderBy(asc(schema.productCategories.displayOrder), asc(schema.productCategories.name));
+  }
+
+  async listSellerCategories() {
+    return this.db.select({
+      id: schema.sellerCategories.id,
+      name: schema.sellerCategories.name,
+      displayOrder: schema.sellerCategories.displayOrder,
+    }).from(schema.sellerCategories)
+      .orderBy(asc(schema.sellerCategories.displayOrder), asc(schema.sellerCategories.name));
+  }
+
+  async listSellers() {
+    return this.db.select({
+      id: schema.sellers.id,
+      categoryId: schema.sellers.categoryId,
+      displayName: schema.sellers.displayName,
+    }).from(schema.sellers).orderBy(asc(schema.sellers.displayName));
   }
 
   async createMajor(actor: AccessContext, input: string): Promise<string> {

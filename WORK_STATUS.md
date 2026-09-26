@@ -1,5 +1,17 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.1 분류 HTTP 계약 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 관리자 대·소분류와 판매자 분류·판매자 등록을 실제 세션의 admin 역할로 제한하고, 고객 공개 분류/판매자 조회를 연결했다. 헤더의 가짜 역할은 인정하지 않는다. 하위 분류의 3단계 생성, 빈 이름, 다른 Origin, 중복 이름을 거부하며 등록 감사 이력을 남긴다.
+- 로컬 무DB HTTP 시험 RED(없는 경로 404)→GREEN(조회 503·무세션 401) 1통과, API typecheck 및 lint 통과. 실제 WSL DB의 HTTP 경계 시험은 아직 실행 전. 정적 분류 DB 시험은 이전 커밋에서 통과했지만 화면 등록·상품 등록/검색·운영 배포는 미구현/미검증. S2 Stage 완료로 표시하지 않는다.
+- 이번 변경 파일: `apps/api/src/catalog/controller.ts`, `taxonomy.ts`, `app.module.ts`, `apps/api/test/catalog-http*.test.mjs`, 본 현황. 의도한 RED 1회 외 오류 0. 다음 조치: SSH 별칭으로 체크포인트 push→WSL fast-forward pull→DB HTTP 검증과 QA 행/컨테이너 정리→관리자 분류 화면.
+
+## 최신 상태 — 2026-09-27 S1 개발 mock 회귀·S2 분류 API 준비
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@e79564549f5814c287b91c8aac6c1b60038700c0` (SSH 원격/WSL 일치). WSL 실제 `shoppingmall` DB API 전체 30개 중 28 pass·0 fail·2 무DB 전용 skip, 약 57초. 전화 mock 가입·로그인/번호 연결·role 전환, 고객 프로필·탈퇴 요청, QA fixture·분류 서비스가 동일 커밋에서 통과. 시험 뒤 accounts/account_identities/auth_sessions/audit_events/customer_addresses/sellers 각 0행, `shoppingmall-s1-*` 컨테이너 0, WSL checkout clean. migration 이력 3건과 표는 보존.
+- S1 범위 경계: 휴대폰 mock은 루프백 개발 전용이고 실문자/공급자 검증이 아니다. 고객 역할 브라우저·배송지/수신 동의 확인은 통과했으나 탈퇴 확인창 최종 클릭, 휴대폰 mock UI, 모바일/확대/키보드 전체와 운영 배포는 미검증. 로컬/WSL production build는 앞선 체크포인트에서 통과. S1 Stage PR/병합/merged-main smoke는 없다. S1 완료 선언 없이 기존에 먼저 적용된 S2.1 분류 코드를 HTTP/화면과 연결하는 독립 작업을 이어간다.
+- 오류 누적: 개발 mock 공개 인터페이스 노출 RED 1회 수정·전체 재검증 통과. QA 행·컨테이너 잔류 없음. 기존 로컬 EPERM은 worktree 쓰기 권한 경계로 분리됐고 허용된 동일 빌드 통과.
+
 ## 최신 상태 — 2026-09-27 휴대폰 mock 가입·로그인 DB/노출 경계
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@664adcc464cc29a99b94587f9ab073dfe4f173c0` (SSH 원격/WSL 일치). WSL 실제 DB의 `mock-phone-entry-http-db.test.mjs`에서 개발 전용 코드 발급→가입 목적과 로그인 목적 혼용 차단→신규 고객 세션→같은 번호 재로그인 동일 accountId→중복 가입 409→정확한 전화 identity 계정 정리 1통과·0실패. 실제 SMS/실번호 소유 증명은 아니다.
