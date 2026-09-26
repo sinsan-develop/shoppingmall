@@ -71,7 +71,9 @@ export class CustomerController {
     try {
       return await profile.requestDeletion(actor, actor.accountId);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('account_deletion_requests_open_uq')) {
+      const cause = error && typeof error === 'object' && 'cause' in error ? error.cause : undefined;
+      if (cause && typeof cause === 'object' && 'code' in cause && 'constraint' in cause &&
+          cause.code === '23505' && cause.constraint === 'account_deletion_requests_open_uq') {
         throw new ConflictException({ status: 'already_requested' });
       }
       throw error;

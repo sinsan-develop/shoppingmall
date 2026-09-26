@@ -6,6 +6,7 @@
 - DB/검증: `WSL-server`의 `local-postgres`/`shoppingmall`에서 `0002_s1_customer_privacy.sql`을 BEGIN/ROLLBACK 사전 검증 후 공식 ORM migrator로 적용. migration 이력 3건. 가상 고객 A/B의 배송지 IDOR, 수신 동의, 탈퇴 요청, 감사 DB 통합시험 1통과·0실패·0skip. 시험 후 accounts/addresses/deletion_requests/preferences 각 0행, 일회성 `shoppingmall-s1-profile` 컨테이너 잔류 0, WSL checkout clean. 기존 DB 이력/신규 테이블은 보존.
 - 후속 구현: `apps/api/src/customer/controller.ts`에서 검증된 세션의 고객만 배송지·동의·탈퇴 요청 API에 접근하도록 연결하고 쓰기 요청 Origin을 검사했다. 무DB HTTP 접근 차단 시험 RED(404)→GREEN(401/403), 타입검사 통과. DB를 사용하는 HTTP 통합시험을 추가했으나 WSL 실행 전이며, 실제 브라우저 UI·QA seed/reset·보존규칙·OTP mock 등 S1 잔여는 미완료다.
 - 로컬 재검증: `pnpm test` 57 pass/5 DB skip 및 PR 본문 검증 8 pass, typecheck/lint 통과. `pnpm -r build`는 `apps/web/.next/trace-build` 쓰기 `EPERM`으로 실패했다. 기존 `.next` 산출물과 다수 공용 Node 프로세스를 발견하여 무분별한 삭제/종료 없이 WSL의 분리된 checkout 빌드로 확인할 예정이다. 로컬 전체 빌드 PASS 아님.
+- WSL HTTP DB 시험 첫 실행: 탈퇴 중복 요청 시 Drizzle가 원본 PostgreSQL `23505`를 `cause`로 감싸는데 controller가 겉 Error 메시지만 확인해 HTTP 500이 됐다(1회, 1 fail). SQL unique 제약 자체는 동작했고 시험 finally의 정확한 accountId 정리 후 재검증 예정. `cause.code`와 constraint를 확인해 409로 매핑하도록 수정했다. 성공 재시험 전.
 - 오류 횟수: 이 단계 새 구현 오류 0회. 최초 QA 잔류 조회 명령의 shell quoting 오류 1회는 자료 변경 없이 단순 전체 건수 조회로 재검증했다.
 
 ## 최신 상태 — 2026-09-27 Stage 순서 대조 및 S1.3 복귀
