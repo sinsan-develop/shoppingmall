@@ -59,13 +59,13 @@ test('a seller creates only its own non-public product draft in a minor category
       await pool.query('DELETE FROM product_revisions WHERE product_id=$1', [productId]);
       await pool.query('DELETE FROM products WHERE id=$1', [productId]);
     }
+    if (accountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
     if (minorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [minorId]);
     if (majorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [majorId]);
     if (sellerB) await pool.query('DELETE FROM sellers WHERE id=$1', [sellerB]);
     if (sellerA) await pool.query('DELETE FROM sellers WHERE id=$1', [sellerA]);
     if (sellerCategoryId) await pool.query('DELETE FROM seller_categories WHERE id=$1', [sellerCategoryId]);
     if (accountId) {
-      await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
       await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [accountId]);
       await pool.query('DELETE FROM account_roles WHERE account_id=$1', [accountId]);
       await pool.query('DELETE FROM account_identities WHERE account_id=$1', [accountId]);

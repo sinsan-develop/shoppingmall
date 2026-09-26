@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 상품 초안 시험 정리 순서 보정
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@534c7ec18c5e991109cf6fa8b81183b824bc859a` (SSH 원격/WSL 일치). WSL 상품 초안 DB 시험은 검증 중 마지막 QA 정리에서 감사 이력이 판매자를 참조하는 FK `23503`으로 실패했다. 기능 검증 결과를 PASS로 취급하지 않는다. 시험 코드에서 감사 이력 삭제를 판매자 삭제보다 앞으로 옮겼다.
+- 잔류를 읽기 전용으로 계정 1·판매자 1·판매자 분류 1·감사 1행으로 식별. 수동 정리 첫 시도는 `account_identities.id`를 account_id로 착각해 `DELETE 0`·FK 거부 후 트랜잭션 롤백. 실제 `account_identities.account_id`와 감사 actor FK를 재조회하고 정확한 6개 종속 행을 단일 트랜잭션에서 각 `DELETE 1`로 정리했다. 최종 accounts/sellers/seller_categories/product_categories/products/audit_events `0|0|0|0|0|0`, 시험 컨테이너 0. 고객·운영 데이터 삭제 없음.
+- 오류 횟수: 시험 정리 순서 1회, 수동 정리 ID 오인 1회. 원인별 후속 조치 완료; 동일 근본 원인 3회 연속 아님. 변경 파일: `apps/api/test/product-drafts-db.test.mjs`, 본 현황. 다음은 수정 시험을 정확한 WSL 커밋에서 재실행하여 GREEN/잔류 0을 확인.
+
 ## 최신 상태 — 2026-09-27 S2.2 판매자 전용 상품 초안 서비스 DB 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@0209285334fb36acbf81f5752b2b0b3eb8ca18bc` (SSH 원격, WSL은 앞선 `011707c`이므로 다음 pull 필요). `ProductDrafts`에 인증 세션에서 받은 판매자 범위만으로 초안을 만들고 해당 판매자의 초안만 조회하는 DB 트랜잭션을 추가했다. 소분류만 지정, 상품별 출고 방식 단일값, 제목·산지·옵션/가격 검증, 감사 이력; 초안은 `product_publications`를 건드리지 않는다.
