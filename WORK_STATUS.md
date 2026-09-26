@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.1 웹 production 빌드 확인
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@38e7d0fdd34bd368d50e8ae8c34f30ffce833cf2`. SSH 원격과 WSL checkout의 SHA 일치. WSL `node:24-bookworm-slim`에서 `NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:9092`로 Next production build 통과: `/`, `/login`, `/account`, `/account/customer`, `/account/admin/catalog` 정적 경로 생성. 앞선 실제 DB HTTP 시험 1통과 후 QA 행/시험 컨테이너 0.
+- S2.1 API/화면의 테스트·빌드 범위와 실제 브라우저 입력/모바일·200% 확대·키보드 검증은 구분한다. 관리자 화면 실사용·개별 역할 차단 브라우저 검증은 아직 미검증. S1 Stage PR/병합과 S2.2 이후 상품·이미지·재고·승인·고객 검색/홈은 남아 있으며 전체 구축 완료가 아니다. 이번 기록 변경만 추가; 오류 0. 다음은 S2.1 브라우저 등록 및 S2.2 상품 계약/DB 시험.
+
 ## 최신 상태 — 2026-09-27 S2.1 관리자 분류 화면 연결
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 앞선 `29550ef4d8f014e4a37b5a7379b317e00ab81e4f`는 SSH 원격/WSL 일치. WSL 실제 DB 분류 HTTP 1통과·0실패: 관리자/고객 권한, Origin, 대·소분류/판매자 등록과 공개 조회, 감사 이력. 시험 후 accounts/sellers/product_categories/seller_categories 0행, 시험 컨테이너 0, checkout clean.
