@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1.1 최소 실행 골격 작업 중
+
+- 담당·브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes` 격리 worktree. 원격 `main@207e7961c12f87f88a229d443a70ed764db2c24a`를 정상 merge하고 상세 계획 로컬 브랜치 `74a814d`를 이 브랜치에 정상 merge했다. 계획 브랜치와 기본 `main`의 사용자 자료는 삭제·수정하지 않았다. 신산님 최신 지시에 따라 Flat v2 로컬 정적 시안 QA 자체는 제품 착수의 차단조건이 아니며 실제 제품 QA는 후속 Stage로 남긴다.
+- S1.1 변경: pnpm 모노레포 골격, Next.js 고객 웹 진입 화면, NestJS `/health` HTTP와 DB 연결 전 `/ready`의 503 응답, Expo 앱의 빌드 전 최소 진입점, 공유 계약 타입, 무비밀값 `.env.example`, Git 무시 규칙, 실제 ESLint 및 test/typecheck/build 스크립트, 읽기 권한만 가진 `.github/workflows/ci.yml`. 새 코드와 설정은 `apps/`, `packages/`, 루트 package/lock/config와 CI에 한정된다. 계정·상품·결제·DB schema·Secret·실연동은 아직 구현하지 않았다.
+- TDD: health payload 시험은 누락/미구현 RED 뒤 GREEN, Nest HTTP `/health` 시험은 미구현 RED 뒤 GREEN, 웹 진입 화면 시험은 빈 화면 RED 뒤 GREEN을 확인했다. 환경 오류: pnpm이 `esbuild` 설치 스크립트를 거부해 해당 패키지만 승인 후 재설치(1회); 루트 TSX decorator 설정 누락으로 Nest 시험 실패 후 root tsconfig 보정(1회); 웹 ESM/JSX 테스트 설정 오류 2회 보정 후 실제 본문 누락 RED 확인; 일반 샌드박스의 pnpm 임시파일·tsbuildinfo 쓰기 거부는 허용된 실행 또는 비증분 타입검사로 검증했다.
+- 로컬 검증: `/ready` 미등록 404 RED→DB 연결 전 503·본문 GREEN. 최종 `pnpm test` 48+8=56통과·0실패, `pnpm typecheck` 전 패키지 통과, `pnpm lint` ESLint 10 검사 통과, `pnpm build` Nest API·Next 웹 통과. 빌드 API `/health`와 Next 웹 `/` HTTP 200·응답 본문 확인, 종료 뒤 9091/9092 LISTEN 잔류 0. Android 앱 빌드/에뮬레이터는 아이콘 시안 승인 전이라 미실행. 깨끗한 checkout 재설치, WSL 동일 commit·DB/API/웹, CI 실제 실행, 실제 제품 브라우저 흐름은 `UNVERIFIED`.
+- 환경: 로컬·WSL 9091/9092 현재 무점유 확인, `SINSAN`의 `/home/daon/deploy/shopping` 부재와 정확한 `local-postgres`의 `shoppingmall` DB 읽기 전용 확인. 새로운 WSL checkout/DB 사용자·schema는 생성하지 않았다. npm 패키지 설치 외 외부 서비스 가입·비용 없음. 실제 Secret 값은 파일·로그에 기록하지 않았다.
+- 다음 조치: S1.1 최소 골격의 clean-checkout 재현·CI/실패 health 상태·환경 gate 잔여를 확인하고 안전한 commit/push로 exact SHA를 보존한다. 별도 승인 대상인 인증/권한·DB schema·Secret은 선행 계약 승인 전 구현·변경하지 않는다. 첫 PR Broker 경쟁 조건과 실제 제품 화면 QA는 각각 독립 미검증으로 남긴다.
+
 ## 최신 상태 — 2026-09-27 전체 구축 재지시와 정적 시안 QA 우선순위 변경
 
 - 신산님은 `D:\tmp\shoppingmall2-end-to-end-work-plan\docs\WORK_PLAN.md` 전체 구축을 재지시하고 외부 서비스 가입·실연동을 구축 후 일괄 처리하기로 했다. 이어서 Flat v2 로컬 시안은 실제 제품이 아닌 참고 시안이므로 그 자체의 브라우저 QA를 무시하고 제품 구축을 진행하도록 직접 지시했다. 따라서 시안 QA를 제품 코드 착수의 선행 차단조건으로 두지 않는다. 실제 제품 브라우저·접근성·인쇄 QA는 해당 Stage에서 별도로 수행한다. 이 판정은 시안 QA를 PASS로 바꾸지 않는다.

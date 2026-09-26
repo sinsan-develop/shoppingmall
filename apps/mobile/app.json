@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "어울몰 개발판",
+    "slug": "owoolmall-dev",
+    "scheme": "owoolmall-dev",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": { "package": "kr.owool.mall.dev" }
+  }
+}

@@ -1,4 +1,4 @@
-# 어울몰 실서비스 개발 작업계획서 — 상세 실행 보완 초안
+# 어울몰 실서비스 개발 작업계획서
 
 > 구현 담당자는 승인 후 단계별 RED→GREEN→로컬·WSL 통합검증을 수행한다. 이 문서 작성은 제품 구현·Git 초기화·DB 변경·외부 계약·배포 승인이 아니다.
 
@@ -8,14 +8,14 @@
 
 **기술:** TypeScript, Next.js/React, Expo/React Native, NestJS, PostgreSQL/Drizzle. Better Auth·토스페이먼츠·SENS·Oracle Object Storage 등은 검증 후보이지 최종 계약·공급자 확정이 아니다.
 
-**설계 기준:** [승인된 DESIGN 1.0](design/DESIGN.md), [승인된 PRD 범위](PRD.md), [승인된 기술 방향](TECH_STACK_PROPOSAL.md), [신산님 검토 대기인 최신 범위 보완안](design/DELIVERY_SCOPE_ADDENDUM.md). 문서 승인과 별개로 화면 시안·개발환경 준비 판정 및 단계별 별도 승인 경계를 충족해야 한다. 개발 뒤의 설치·인수는 [별도 작업계획](DEPLOYMENT_UAT_PLAN.md)을 따른다.
+**설계 기준:** [승인된 DESIGN 1.0](design/DESIGN.md), [승인된 PRD 범위](PRD.md), [승인된 기술 방향](TECH_STACK_PROPOSAL.md), [범위 보완안](design/DELIVERY_SCOPE_ADDENDUM.md). 신산님은 이 상세 계획에 따른 전체 구축을 직접 지시했다. 외부 서비스 가입·실연동은 구축 후 일괄 처리하며, 별도 승인 경계는 유지한다. 개발 뒤의 설치·인수는 [별도 작업계획](DEPLOYMENT_UAT_PLAN.md)을 따른다.
 
 ## 1. 상태·담당·착수 게이트
 
-- 상태: 원래 S1~S8 초안은 신산님 승인(2026-09-26). **2026-09-27 상세 실행·범위 보완은 검토 대기**이며 승인 전 제품 구현 근거로 사용하지 않는다. 작성자 어울 / 실제 제품 Stage 시작 0건.
+- 상태: 신산님이 2026-09-27 이 상세 계획을 기준으로 전체 구축을 직접 지시했다. 구현·검증은 단계별로 진행하며 완료 증거가 없는 Stage는 미완료다. 작성자·단일 writer 어울.
 - 단일 writer: 같은 기능·파일에는 한 writer. 각 Stage의 담당·branch·HEAD·시험 증거는 시작·종료 시 이 문서와 `WORK_STATUS.md`에 기록한다.
-- 현재 정본 프로젝트는 `D:\Project\shoppingmall2`이고 이 계획 수정은 격리된 `D:\tmp\shoppingmall2-end-to-end-work-plan`의 `codex/end-to-end-work-plan`에서 수행한다. 확인한 `origin/main`은 `34b4186561a9c1f960bdea58ece4264cb95e100e`(2026-09-27)이며 시간이 지나면 다시 확인한다. WSL `~/deploy/shopping` checkout은 아직 없다. 기본 `main`의 별개 `.github` 자동화 두 파일은 미추적으로 보존 중이다. 기존 `D:\Project\shoppingmall`는 참고 자료다.
-- 착수 전 필요: 현재 **Flat v2 시각 기준 채택**과 별개로 미병합 시안의 브라우저·viewport·인쇄·키보드 검증/PR 반영, 코드 정본 저장소·최신 `origin/main` 기준선·격리 branch/worktree, 로컬/WSL 포트·QA 자원·Secret 참조 위치, 환경 게이트 판정. 준비는 [개발환경 문서](DEVELOPMENT_ENVIRONMENT.md)에 실제 확인 결과로 기록한다.
+- 현재 정본 프로젝트는 `D:\Project\shoppingmall2`다. 기존 계획 브랜치의 문서는 보존된 커밋에서 기존 `codex/flat-v2-prototypes` 격리 브랜치에 정상 병합했다. 2026-09-27 확인한 원격 `main`은 `207e7961c12f87f88a229d443a70ed764db2c24a`이며 시간이 지나면 다시 확인한다. WSL `~/deploy/shopping` checkout은 아직 없다. 기본 `main`의 별개 미추적 `.github` 자료를 보존한다. 기존 `D:\Project\shoppingmall`는 참고 자료다.
+- 착수 전 필요: 신산님은 **Flat v2 로컬 정적 시안 자체의 브라우저 QA를 제품 구축의 차단 조건으로 두지 말라**고 직접 지시했다. 채택된 시각 방향은 실제 제품 화면에 반영하되, 제품의 브라우저·반응형·키보드·인쇄 QA는 해당 Stage에서 수행한다. 코드 정본 저장소·최신 `origin/main` 기준선·격리 branch/worktree, 로컬/WSL 포트·QA 자원·Secret 참조 위치, 환경 게이트 판정은 [개발환경 문서](DEVELOPMENT_ENVIRONMENT.md)에 실제 확인 결과로 기록한다.
 - 데이터 schema/migration, 인증·권한·Secret, 외부 비용·계약, Oracle 배포와 운영 전환 등 별도 승인 경계를 통과하지 않은 작업은 해당 Stage에서 실행하지 않는다. 승인 안 된 부분과 독립적인 문서·테스트 설계는 계속할 수 있다.
 - 배포·인수·운영 설치는 **이 개발 작업계획의 Stage가 아니다**. S8 개발 완료 후보가 [설치·배포·인수 계획](DEPLOYMENT_UAT_PLAN.md)의 U0~U4로 넘어가며, 해당 계획과 별도 신산님 승인으로 진행한다. 공개 운영 전환은 인수 승인과도 구분한다.
 
@@ -44,11 +44,11 @@ S2 상품 조회 화면은 S1 웹 기반에 의존한다. S3는 S2의 판매 가
 ### S0 — 설계·시안·환경 준비 판정(제품 기능 구현 전)
 
 - 입력: `origin/main` 최신 상태, 승인된 DESIGN/PRD/기술 방향, 신산님 최신 직접 결정, Flat v2 branch, PMO/프로젝트 지침, `DEVELOPMENT_ENVIRONMENT.md`. 담당은 어울; 신산님은 범위·별도 승인 경계만 결정한다.
-- [ ] `origin/main`·현재 checkout·원격 URL·dirty 파일 소유자·기존 worktree/PR·자동화 효과를 읽기 전용으로 조사한다. Flat v2의 실제 브라우저 1920×1080/1440×900/430×844, 200% 확대·키보드·인쇄 결과를 확보하고 PR/병합 상태를 대조한다. 이 문서 branch와 선행 시안 branch를 조용히 합치거나 현재 `main`을 덮지 않는다.
+- [ ] `origin/main`·현재 checkout·원격 URL·dirty 파일 소유자·기존 worktree/PR·자동화 효과를 읽기 전용으로 조사한다. Flat v2 로컬 정적 시안의 실제 브라우저 QA는 신산님의 직접 지시에 따라 이 게이트에서 제외한다. 실제 제품 화면의 1920×1080/1440×900/430×844, 200% 확대·키보드·인쇄는 해당 Stage에서 검증한다. 선행 브랜치의 문서 이력은 보존하며 현재 `main`을 덮지 않는다.
 - [ ] 상품/판매자 분류, 홈 다섯 영역, 실제 금액 프로모션, 관제 범위, Android 아이콘·에뮬레이터/실기기, iOS 후속, 시험 정책을 `DELIVERY_SCOPE_ADDENDUM.md`와 추적표로 승인받는다. 충돌하는 DESIGN 1.0 항목은 명시적 설계 변경 승인으로 처리하고 계획 승인만으로 계약을 바꾸지 않는다.
 - [ ] Windows 로컬·`WSL-server`·GitHub 접속/포트 점유·기존 서비스 영향·정확한 `local-postgres`의 `shoppingmall` DB·WSL `/home/daon/deploy/shopping` 부재/생성 경계·QA 계정/데이터 수명·Secret 저장 위치(값 제외)를 확인한다. WSL checkout 생성/DB 계정·schema 변경은 해당 승인을 받아 실행한다.
 - [ ] 반복 가능한 명령표(설치, test, typecheck, lint, build, DB migration dry-run, seed, WSL pull/exact SHA, 브라우저/E2E)를 실제 package scripts가 생기면 고정한다. 특정 명령/포트/이미지 이름을 지금 존재하는 것으로 가장하지 않는다.
-- 종료 증거: 승인된 범위 보완안/환경 판정, 시안 브라우저 QA 또는 명시적 미검증 결정, 최신 Git 기준선·선행 PR 상태, 테스트 자료·Secret/자원 소유·rollback 방법, 승인 게이트 목록. 미충족 시 독립 문서/계약 시험만 계속하고 S1 제품 코드 착수는 하지 않는다.
+- 종료 증거: 승인된 범위 보완안/환경 판정, 시안 자체 QA의 명시적 제외와 실제 제품 QA의 후속 Stage 배정, 최신 Git 기준선·선행 PR 상태, 테스트 자료·Secret/자원 소유·rollback 방법, 승인 게이트 목록. DB·인증·Secret 등 별도 승인 전에는 그 영향을 받는 코드를 활성화하지 않고, 독립적인 무상태 기반·시험은 계속한다.
 
 ### S1 — 개발 기반·계정·역할
 
@@ -173,8 +173,8 @@ S2 상품 조회 화면은 S1 웹 기반에 의존한다. S3는 S2의 판매 가
 
 - 출고 후 환불/반송비 법률 검토 전에는 잠정 정책을 실서비스 기본값으로 확정하지 않는다. 개발 시험은 사유별 처리·변경 가능한 정책과 증빙으로 수행한다.
 - 실제 PG 시험상점은 현재 없음, 카카오 앱 사용 가능, 문자·메일 서비스 준비됨, Expo·Firebase 계정은 미확인. 모두 U0에서 권한·비용·시험 설정을 재검증한다. 준비 전 개발 mock/계약 시험은 계속하되 실연동 PASS가 아니다. Apple/iOS는 후속이고 Oracle staging은 별도 인수 계획 대상이다.
-- 디자인 시안과 공통 표준의 폰트·본문 크기 차이는 DESIGN에 기록했다. 신산님이 Flat v2를 제품 시각 기준으로 채택했으나 실제 브라우저·인쇄/반응형 QA와 선행 branch 통합은 미완료다. UI 구현 전에 S0에서 이를 해소한다.
-- 변경 이력: 2026-09-26 최초 초안 신산님 승인. 2026-09-27 최신 사용자 결정에 맞춘 이 **상세 실행 보완 초안은 검토 대기**. 이전 승인을 새 범위 전체의 자동 승인으로 확대하지 않는다. 단계 착수·검증·범위 변경 결과는 이후 누적한다.
+- 디자인 시안과 공통 표준의 폰트·본문 크기 차이는 DESIGN에 기록했다. 신산님은 Flat v2의 시각 방향을 제품 기준으로 채택했고 로컬 정적 시안 자체의 브라우저 QA는 제품 착수의 차단조건에서 제외했다. 실제 제품의 브라우저·인쇄/반응형 QA는 각 Stage에서 증명한다.
+- 변경 이력: 2026-09-26 최초 초안 승인, 2026-09-27 신산님이 이 상세 실행 계획에 따른 전체 구축을 직접 지시했다. 이 지시는 별도 승인 대상인 인증·권한, DB schema/migration, Secret, 외부 비용·실연동, Oracle 배포의 승인을 자동으로 대신하지 않는다. 단계 착수·검증·범위 변경 결과는 이후 누적한다.
 
 ## 6. 상세 실행 단위·선행조건·완료 증거(2026-09-27 보완)
 
