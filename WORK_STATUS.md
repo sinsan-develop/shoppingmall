@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.2 migration 생성 순서 오류 수정
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@b64a2ad12977fae463b4eea427dc6dc98cbe754b` (SSH 원격/WSL 일치). 적용 전 DB QA 핵심 행 0. Drizzle ORM migrator가 0003 복합 FK를 참조 고유 인덱스보다 먼저 실행해 PostgreSQL `42830`으로 실패했다. 읽기 전용 확인: 적용 migration 이력은 3건 그대로이고 `public.products`/`product_revisions` 모두 없음. 따라서 실패가 DB에 부분 지속 변경을 남기지 않았다.
+- 미적용 `apps/api/migrations/0003_s2_product_revisions.sql`에서 해당 고유 인덱스 생성만 복합 FK 앞쪽으로 옮겼다. schema/snapshot 의미 변경 없음. 오류 누적: 의도한 42P01 RED 1회, migration 순서 오류 1회. 다음은 같은 0003 재적용→실제 DB 상품 시험 GREEN→전체 회귀 및 QA 잔류 확인. 통과 전 상품 schema 완료로 표시하지 않는다.
+
 ## 최신 상태 — 2026-09-27 S2.2 상품 revision migration 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@f41292169e2a42dd0215a1643e965a241441cb3d` (SSH 원격/WSL 일치). 실제 WSL DB 신규 시험 1 fail·0 pass: `42P01 relation "products" does not exist`, 의도한 migration 전 RED. 생성·정리한 가상 계정/분류/판매자 잔류 확인은 migration 이후 전체 점검에서 수행한다.

@@ -55,6 +55,7 @@ CREATE TABLE "products" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX "product_revisions_product_id_uq" ON "product_revisions" USING btree ("product_id","id");--> statement-breakpoint
 ALTER TABLE "product_images" ADD CONSTRAINT "product_images_revision_id_product_revisions_id_fk" FOREIGN KEY ("revision_id") REFERENCES "public"."product_revisions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_options" ADD CONSTRAINT "product_options_revision_id_product_revisions_id_fk" FOREIGN KEY ("revision_id") REFERENCES "public"."product_revisions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_publications" ADD CONSTRAINT "product_publications_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -69,7 +70,6 @@ CREATE UNIQUE INDEX "product_images_revision_key_uq" ON "product_images" USING b
 CREATE UNIQUE INDEX "product_options_revision_name_uq" ON "product_options" USING btree ("revision_id","name");--> statement-breakpoint
 CREATE UNIQUE INDEX "product_publications_revision_uq" ON "product_publications" USING btree ("revision_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "product_revisions_product_version_uq" ON "product_revisions" USING btree ("product_id","version");--> statement-breakpoint
-CREATE UNIQUE INDEX "product_revisions_product_id_uq" ON "product_revisions" USING btree ("product_id","id");--> statement-breakpoint
 CREATE INDEX "product_revisions_status_idx" ON "product_revisions" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "products_seller_idx" ON "products" USING btree ("seller_id");--> statement-breakpoint
 CREATE INDEX "products_category_idx" ON "products" USING btree ("category_id");
