@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 실제 고객 홈 구조 착수
+
+- 담당·브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes` worktree. 정적 Flat v2 시안 QA는 제품 착수 게이트로 사용하지 않고, 제품 Next.js 고객 홈에 승인된 다섯 영역(검색·메뉴·기획전·상품 카테고리·공통 추천)의 **데이터 연결 전 뼈대**를 구현했다.
+- 변경 전/후: `apps/web/app/page.tsx`는 단일 구축 중 문구였고, 변경 후 의미 있는 헤더·섹션과 준비 중 표시가 있다. `apps/web/app/styles.css`는 기존 황금·크림·서체/최대 1180px을 유지하면서 균형형 Flat 카드·반응형 배열을 적용했다. 검색·메뉴·카테고리·추천은 아직 데이터/동작이 없으며 구매 가능한 상품으로 오인되지 않게 명시했다. `apps/web/test/page.test.mjs`에 다섯 영역 및 허위 결제 노출 금지 검사를 추가했다.
+- TDD·검증: 추가 테스트가 `/상품 검색/` 누락으로 실제 RED(1실패) 후 GREEN(2통과). 전체 로컬 `pnpm test` 49+8=57통과·0실패, typecheck, ESLint lint, Nest/Next build 모두 통과했다. 제품 화면의 실제 브라우저·모바일·200% 확대·키보드·인쇄는 `UNVERIFIED`; 정적 HTML 시안 검사 통과로 대체하지 않는다.
+- 오류·조치: 존재하지 않는 웹 test 스크립트를 filter로 호출해 검증이 실행되지 않은 1회는 root의 실제 `node --import tsx --test`로 재실행했다. CSS patch의 이전 내용 불일치/동일 파일 중복 패치 거절 각 1회 후 정확한 현 파일 기준으로 적용했다. 데이터·Secret·DB 변경 없음.
+- 다음: 안전한 commit/push 후 지정 WSL checkout에서 exact SHA를 pull해 실제 웹 build/smoke를 확인한다. S1.2 인증·권한·DB 계약과 상품 데이터는 별도 승인 경계 및 후속 기능으로 남긴다.
+
 ## 최신 상태 — 2026-09-27 S1.1 WSL 재현·실행 확인
 
 - 담당·기준: 어울 단일 writer, `codex/flat-v2-prototypes@eb74e536cb3464cd9032256bd56619302355fcb8`. 지정 SSH 별칭으로 `/home/daon/deploy/shopping`을 정확한 Git branch에서 clone했고 해당 HEAD를 원격과 대조했다. 기존 `local-postgres`의 `shoppingmall` DB는 읽기 전용으로만 확인했으며 schema·계정·Secret은 변경하지 않았다.
