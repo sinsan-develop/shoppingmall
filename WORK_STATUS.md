@@ -1,6 +1,22 @@
 # 어울몰 작업현황
 
-## 최신 상태 — 2026-09-26 초기 Git main 기준선 생성·원격 확인
+## 최신 상태 — 2026-09-27 상세 개발·설치/인수 작업계획 초안 작성
+
+- 판정: 계획 수립 중. 제품 구현·WSL/Oracle 배포·사용자 인수테스트는 미시작.
+- 담당·Git: 어울 단일 writer, `D:\tmp\shoppingmall2-end-to-end-work-plan`의 `codex/end-to-end-work-plan` / `34b4186561a9c1f960bdea58ece4264cb95e100e` (`origin/main` 기준). 신산님이 Flat v2 미병합 상태에서 별도 계획서 브랜치를 만드는 예외를 직접 승인했다.
+- 기존 작업 보존: `codex/flat-v2-prototypes`는 별도 worktree에서 clean·push 상태로 유지하고 실제 브라우저 점검·PR·병합은 미완료. 기본 `main`의 미추적 `.github/` 자료는 변경하지 않았다. 계획서 작성 후 Flat v2 병합 여부와 문서 기준을 대조한다.
+- 확정된 인수 범위: Flat v2를 제품 디자인 기준으로 채택. PG 시험환경의 카드 결제·부분 환불·실패/중복 통지를 확인하고 실금액 거래는 인수 합격 조건에서 제외. Android는 신산님이 제시한 에뮬레이터에서 반복 시험하고 연결된 실기기에서도 최종 설치·로그인·결제 복귀·푸시를 확인할 계획이다. iPhone 실기기 검증은 후속. 카카오 로그인은 웹·Android 실제 연동, Apple 로그인은 후속 iPhone 인수 단계. 문자·이메일·Android 푸시는 시험 계정의 실제 수신까지 확인한다. Android 앱 아이콘은 앱 빌드 전 어울몰 전용 시안을 제작·신산님 승인 후 적용한다.
+- Oracle 준비 현황: 신산님 답변에 따르면 Oracle Cloud 계정과 서버가 모두 있다. 정확한 서버 식별자·기존 서비스 점유·격리 배포 가능 여부·접속 권한·비용·도메인·DB/저장소 구성은 아직 확인하지 않았다. 기존 지시대로 환경 구성 결정과 배포 승인은 인수 준비 게이트에서 수행한다.
+- 프로모션 인수 범위: 관리자 등록 프로모션은 배너 표시만이 아니라 상품·주문 할인과 배송비 지원을 실제 주문 견적·PG 시험 결제·환불·정산 발생 자료에 반영한다. 할인 쿠폰은 한 결제에 최대 1개, 배송비 지원은 발송 주문마다 최대 1개이며 두 종류는 함께 적용 가능하다. 5만 원 무료배송은 혜택 적용 전 해당 발송 주문의 상품금액으로 판정한다. 시험값과 실제 운영 혜택 예산은 구분한다.
+- 외부 계정 준비 상태: 신산님 후속 답변에서 PG 개발자 **시험상점 없음**, 카카오 개발자 앱은 **가능**, 문자·메일 발송 서비스는 **준비됨**, Expo/Firebase는 **모름**. 각각의 소유·권한·실제 설정/비용은 미확인이다. 비밀값 수집 없이 인수 준비 단계의 접근·권한 확인 항목으로 둔다. PG 시험상점이 없더라도 mock·계약 시험은 진행하고 실제 PG 연동 PASS로 표시하지 않는다. 신산님이 에뮬레이터 화면과 연결된 실기기 보유를 알렸으나 실제 앱/푸시 시험은 미수행.
+- 출고 후 교환·환불 인수 기준: 신산님은 변경 가능한 시험용 정책으로 접수·관리자 판단·PG 시험 환불 흐름을 인수하고, 최종 법률 검토·고객 약관 확정은 공개 출시 전 필수로 두는 권장안을 선택했다. 기능 인수 합격을 출시 승인으로 간주하지 않는다.
+- 문서 변경: `docs/WORK_PLAN.md`의 S0~S8 상세 Task·gate 보완, `docs/design/DELIVERY_SCOPE_ADDENDUM.md`와 별도 `docs/DEPLOYMENT_UAT_PLAN.md` 초안 작성. 세 문서는 신산님 검토 전이며 제품 설계/개별 환경·비용 승인을 대신하지 않는다. 변경 전에는 S1~S8의 추상적 목록, 변경 후에는 분류·홈·프로모션 금액·정산/인쇄·아이콘·앱·Oracle 인수의 선행/증거/미검증/rollback 경계를 연결했다.
+- 검증: 새 worktree의 기존 Node 시안 검사 37통과·0실패, `git diff --check` 0오류, 새 계획 문서 3개의 상대 링크 존재 검사 통과. 최신 사용자 결정과 오래된 문구의 충돌을 점검해 Android 에뮬레이터/실기기 시험 시점·카카오 계정 존재 미확인·판매자별 정산 표현을 정정했다. 이는 브라우저·제품·외부 연동 검증이 아니다. Flat v2 비교 시안의 브라우저·viewport·인쇄 검증도 여전히 미수행.
+- WSL 읽기 전용 재확인: `WSL-server`의 `/home/daon/deploy/shopping`은 아직 없고, 정확한 `local-postgres` 컨테이너는 실행 중이다. 유사 이름의 다른 PostgreSQL 컨테이너도 존재하므로 정식 DB 작업 때 이름을 정확히 지정한다. `ss -ltn`에서 9091 포트 점유는 보이지 않았으나 로컬·Oracle까지 공통 포트 확정으로 보지 않는다. 서버 설정·DB·checkout 변경 없음.
+- 오류·조치: 제한된 셸의 `git ls-remote`에서 SSH alias를 해석하지 못한 1회. 승인된 권한에서 같은 읽기 전용 조회가 성공했고 `origin/main` SHA가 `34b4186`으로 일치함을 확인. SSH 설정·credential 변경 없음. PMO 환경 가이드의 신규 worktree `D:\tmp` 규칙을 늦게 확인해 계획서 worktree를 한때 `D:\Project\shoppingmall2\.worktrees\end-to-end-work-plan`에 생성한 경로 판단 오류 1회; 즉시 보고 후 정확한 소스·대상·dirty 상태를 확인하고 `git worktree move`로 `D:\tmp\shoppingmall2-end-to-end-work-plan`에 이동했다. 원래 경로 부재·새 경로 정상·기존 Flat v2 불변 확인.
+- 미결정·다음 조치: 신산님에게 보낸 **이번 인수의 관리자 관제 필수 범위** 질문 답변을 기다린다. 그 답에 따라 S5.4·UAT-11을 확정하고, 보완 설계·계획의 링크/모순/누락을 검토해 신산님께 계획 전체의 승인·수정 요청을 한다. PG 시험상점 준비, Oracle 격리·비용, schema/인증/Secret, 공개 출시 법률/약관은 각 별도 승인 경계다. 문서는 작업 branch의 검토 초안으로만 보존하고 PR/병합은 하지 않는다. 제품 구현·인수는 미착수.
+
+## 이전 상태 — 2026-09-26 초기 Git main 기준선 생성·원격 확인
 
 - 단계·담당: 신산님 직접 지시의 `sinsan-develop/shoppingmall` 초기 `main` 생성·커밋·push / 어울
 - 현재 판정: `D:\Project\shoppingmall2`의 초기 `main` root commit `6c249b0be8b60604a86c4ddf7c3ea68159749d50` 생성. `origin=git@github-sinsan-develop:sinsan-develop/shoppingmall.git`; 비강제 `git push -u origin main` 성공. 이후 `git ls-remote --symref origin HEAD refs/heads/main`에서 원격 HEAD가 `main`을 가리키고 원격 SHA가 초기 커밋과 일치함을 확인
