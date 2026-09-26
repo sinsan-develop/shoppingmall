@@ -8,7 +8,7 @@ type Challenge = {
   attempts: number;
 };
 
-function normalizePhone(value: string): string {
+export function normalizePhone(value: string): string {
   if (typeof value !== 'string') throw new Error('Invalid phone');
   const digits = value.replace(/-/g, '');
   if (!/^01[016789]\d{7,8}$/.test(digits)) throw new Error('Invalid phone');

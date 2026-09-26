@@ -41,11 +41,38 @@ test('production never exposes the mock challenge even if its toggle is accident
       body: JSON.stringify({ phone: '010-1234-5678' }),
     });
     assert.equal(response.status, 404);
+    const entry = await fetch(`${base}/auth/mock-phone/start`, {
+      method: 'POST', headers: { origin: 'http://127.0.0.1:9091', 'content-type': 'application/json' },
+      body: JSON.stringify({ phone: '010-1234-5678', action: 'signup' }),
+    });
+    assert.equal(entry.status, 404);
   } finally {
     await app.close();
     if (previousMode === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = previousMode;
     if (previousToggle === undefined) delete process.env.ENABLE_MOCK_OTP;
     else process.env.ENABLE_MOCK_OTP = previousToggle;
+  }
+});
+
+test('development mock permits an anonymous phone entry challenge without creating an account yet', async () => {
+  const previous = process.env.ENABLE_MOCK_OTP;
+  process.env.ENABLE_MOCK_OTP = '1';
+  const app = await createApp();
+  try {
+    await app.listen(0, '127.0.0.1');
+    const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+    const response = await fetch(`${base}/auth/mock-phone/start`, {
+      method: 'POST', headers: { origin: 'http://127.0.0.1:9091', 'content-type': 'application/json' },
+      body: JSON.stringify({ phone: '010-1234-5678', action: 'signup' }),
+    });
+    assert.equal(response.status, 201);
+    const result = await response.json();
+    assert.equal(result.mockOnly, true);
+    assert.match(result.testCode, /^\d{6}$/);
+  } finally {
+    await app.close();
+    if (previous === undefined) delete process.env.ENABLE_MOCK_OTP;
+    else process.env.ENABLE_MOCK_OTP = previous;
   }
 });

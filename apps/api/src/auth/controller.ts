@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '../db/service.js';
 import { AuthRepository } from './repository.js';
-import { MockPhoneOtp } from './mock-phone-otp.js';
+import { MockPhoneOtp, normalizePhone } from './mock-phone-otp.js';
 import type { ActiveRole } from '../access.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string } };
@@ -55,6 +55,59 @@ export class AuthController {
     if (!actor) throw new UnauthorizedException();
     if (actor.role !== 'customer') throw new ForbiddenException();
     return actor;
+  }
+
+  @Post('mock-phone/start')
+  async startMockPhoneEntry(@Req() request: RequestHeaders, @Body() body: unknown) {
+    this.requireMockOtp();
+    requireOrigin(request);
+    if (!body || typeof body !== 'object') throw new BadRequestException();
+    const input = body as Record<string, unknown>;
+    if (typeof input.phone !== 'string' || !['signup', 'login'].includes(String(input.action))) {
+      throw new BadRequestException();
+    }
+    try {
+      const phone = normalizePhone(input.phone);
+      const issued = this.mockPhoneOtp.issue(phone, `entry:${input.action}:${phone}`);
+      const testCode = this.mockCodes.get(issued.challengeId);
+      this.mockCodes.delete(issued.challengeId);
+      return { ...issued, testCode, mockOnly: true };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid phone') throw new BadRequestException();
+      throw error;
+    }
+  }
+
+  @Post('mock-phone/confirm')
+  async confirmMockPhoneEntry(@Req() request: RequestHeaders, @Body() body: unknown,
+    @Res({ passthrough: true }) reply: CookieResponse) {
+    this.requireMockOtp();
+    requireOrigin(request);
+    if (!body || typeof body !== 'object') throw new BadRequestException();
+    const input = body as Record<string, unknown>;
+    if (typeof input.phone !== 'string' || typeof input.code !== 'string' ||
+        typeof input.challengeId !== 'string' || !['signup', 'login'].includes(String(input.action))) {
+      throw new BadRequestException();
+    }
+    let phone: string;
+    try { phone = normalizePhone(input.phone); } catch { throw new BadRequestException(); }
+    const proof = this.mockPhoneOtp.verify(input.challengeId, input.code, `entry:${input.action}:${phone}`);
+    if (!proof || proof.phone !== phone) throw new UnauthorizedException({ status: 'invalid_mock_otp' });
+    try {
+      const session = input.action === 'signup'
+        ? await this.repository().createPhoneCustomerAfterVerification(phone)
+        : await this.repository().loginPhoneAfterVerification(phone);
+      setSessionCookie(reply, session.token);
+      return { status: 'ok', mockOnly: true };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Phone already registered') {
+        throw new ConflictException({ status: 'phone_already_registered' });
+      }
+      if (error instanceof Error && error.message === 'Phone account unavailable') {
+        throw new UnauthorizedException({ status: 'phone_account_unavailable' });
+      }
+      throw error;
+    }
   }
 
   @Post('mock-phone/start-link')

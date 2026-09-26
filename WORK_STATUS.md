@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 휴대폰 전용 개발 mock HTTP 검증 준비
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 개발 전용 `/auth/mock-phone/start`, `/auth/mock-phone/confirm`에서 가입/로그인 목적과 정규화된 전화번호를 challenge에 묶고 확인 결과가 일치할 때만 `AuthRepository`의 신규 고객 생성 또는 기존 고객 로그인으로 전달한다. 시험 코드는 개발 응답에 `mockOnly:true`로 표시; 운영 모드·토글 미설정에서는 404. 인증 전 목적 바꿔 확인하는 요청은 거부한다.
+- 무DB HTTP 시험은 endpoint 없음 RED(404)→GREEN(201), 운영 모드 mock 차단 등 3 pass·0 fail; API typecheck 통과. `apps/api/test/mock-phone-entry-http-db.test.mjs`는 WSL 실제 DB로 신규 가입→같은 계정 재로그인→중복 가입 409→정확한 phone identity accountId cleanup을 검증할 예정이며 아직 실행 전. 실 SMS 수신/실전화번호 인증/외부 계정 가입은 범위 밖이다.
+- 현재 기존 브랜치 SSH 원격/WSL은 `1e8a742328dc8fe0ab1ce93f4fc43a418ada4770` 일치. 해당 커밋에서 전화번호 신규 고객 DB 시험 2통과·0실패. 이번 HTTP 변경은 커밋 전.
+
 ## 최신 상태 — 2026-09-27 S1 휴대폰 전용 mock 계정 DB 경계
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `AuthRepository.createPhoneCustomerAfterVerification`와 `loginPhoneAfterVerification`를 추가했다. 인증 완료한 번호를 새 고객 계정의 전화 신원으로 저장하거나 기존 전화 신원 고객에게 세션을 발급하며, 기존 번호의 중복 신규 가입/다른 계정 자동 병합은 차단한다. 신규 가입·로그인 감사 이력을 남긴다. 메서드 부재 시험 RED→GREEN, 로컬 API typecheck 통과.
