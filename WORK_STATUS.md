@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1 역할별 브라우저 로그인·정리
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@efdc3c1f9f2edef6b9af60c944b4b8f0e3dd4350` (로컬/SSH 원격/지정 WSL checkout 일치). WSL `node:24-bookworm-slim` 일회성 빌드에서 Next `/`, `/login`, `/account` production build 통과. 시험 브라우저 호출을 위해 `NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:9092`로 별도 빌드했으며 이는 운영 배포 설정이 아니다.
+- 실제 HTTP: WSL 127.0.0.1:9092 `/health` 200, `/ready` 200, 웹 9091 `/login`·`/account` 200; Windows 127.0.0.1:9091 로그인 페이지 200. 실제 브라우저에서 QA 고객·판매자 A·운영자 각각 로그인→`/account`에 `구매자`·`판매자`·`운영자` 표시 확인, 각 계정 로그아웃 후 다음 계정 사용. 판매자 A 이메일로 운영자 역할 로그인을 시도하면 화면에서 권한 오류를 표시하고 `/login`에 머무름. 시험 계정/비밀번호는 가상 자료만 사용했다. 모바일·200% 확대·키보드 전 과정은 아직 미검증.
+- 정리: 브라우저 시험 탭 닫음, 직접 띄운 `shoppingmall-s1-api`·`shoppingmall-s1-web` 두 컨테이너만 종료. 정확한 `QA_RUN_ID=b4c6d8e0` fixture reset으로 5계정 정리. 사후 `accounts/account_identities/auth_sessions/audit_events/sellers/seller_categories` 각각 0행, `shoppingmall-s1-*` 컨테이너 0, WSL checkout clean. DB 자체/기존 migration은 보존.
+- 오류: QA 실행 ID별 사전 잔류 조회 SQL의 shell quoting 오류 1회(읽기 실패, 자료 변경 없음); 전체 행 수 5/5/3/1 확인 후 reset했고 사후 0행 재검증. 로컬 Windows Next build `EPERM`은 여전히 미해결. 고객 배송지·동의·탈퇴 실제 화면, 역할별 업무 화면 및 나머지 Stage/인수는 미완료. 다음: S1 사용자 화면·권한 없는 상태, 회귀/환경 gate를 마무리하고 S2 설계 순서대로 진행.
+
 ## 최신 상태 — 2026-09-27 S1 역할 로그인 웹 진입 화면
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`; `d355d1fa6375280879ffc464088a5e1f9536f84e` WSL 실제 DB에서 판매자 단일 소속 자동 선택/다중 소속 명시 선택/타 판매자 거부 1통과·0실패. QA fixture reset 완료.
