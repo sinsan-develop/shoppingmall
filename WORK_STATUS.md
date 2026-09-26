@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 로컬 빌드 EPERM 원인 분리
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 동일 `pnpm -r --if-present build`를 일반 샌드박스에서 실행하면 기존 API `dist/*.js` 쓰기 `EPERM`으로 실패했다. 작업 worktree에 대한 쓰기 허용으로 **같은 명령**을 다시 실행하자 API tsc 및 Next `/`, `/login`, `/account`, `/account/customer` production build 모두 통과. 따라서 앞선 로컬 `.next/trace-build`/`dist` EPERM은 코드 오류로 판정하지 않고 이 세션 파일시스템 권한 경계로 분리한다. WSL 빌드도 별도 통과. 산출물만 생성했고 추적 파일 변경 없음.
+- 남은 미검증은 실제 PG/문자·메일·앱/Oracle/인수, 고객 탈퇴 확인창의 브라우저 최종 접수, 모바일·확대·키보드, S1 휴대폰 전용 가입/로그인과 이후 S2~S8 기능이다. 테스트/빌드 통과를 전체 제품 완료로 표시하지 않는다.
+
 ## 최신 상태 — 2026-09-27 고객 설정 브라우저 검증 및 정리
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@7694d45b0f85ebe116ef7122c358f98acb007e23` (로컬/SSH 원격/WSL 일치). WSL 시험 API 주소를 명시한 Next production build `/account/customer` 포함 통과. QA 실행 `c5d7e9f1`의 가상 고객으로 실제 브라우저 로그인→고객 설정 화면 진입→가상 배송지 저장 확인→연락처 끝 4자리만 목록 표시→이메일 수신 동의 저장→새로고침 후 배송지·동의 유지 확인.
