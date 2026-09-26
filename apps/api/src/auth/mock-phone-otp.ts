@@ -32,6 +32,13 @@ export class MockPhoneOtp {
   issue(phoneInput: string, accountId: string) {
     const phone = normalizePhone(phoneInput);
     if (!accountId) throw new Error('Account required');
+    for (const [id, item] of this.challenges) {
+      if (item.expiresAt < this.now() || item.accountId === accountId) this.challenges.delete(id);
+    }
+    if (this.challenges.size >= 1024) {
+      const oldest = this.challenges.keys().next().value;
+      if (oldest) this.challenges.delete(oldest);
+    }
     const code = this.generateCode();
     if (!/^\d{6}$/.test(code)) throw new Error('Invalid OTP generator');
     const challengeId = randomUUID();

@@ -26,3 +26,26 @@ test('mock phone challenge is off unless explicitly enabled and never trusts a r
     await app.close();
   }
 });
+
+test('production never exposes the mock challenge even if its toggle is accidentally set', async () => {
+  const previousMode = process.env.NODE_ENV;
+  const previousToggle = process.env.ENABLE_MOCK_OTP;
+  process.env.NODE_ENV = 'production';
+  process.env.ENABLE_MOCK_OTP = '1';
+  const app = await createApp();
+  try {
+    await app.listen(0, '127.0.0.1');
+    const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+    const response = await fetch(`${base}/auth/mock-phone/start-link`, {
+      method: 'POST', headers: { origin: 'http://127.0.0.1:9091', 'content-type': 'application/json' },
+      body: JSON.stringify({ phone: '010-1234-5678' }),
+    });
+    assert.equal(response.status, 404);
+  } finally {
+    await app.close();
+    if (previousMode === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousMode;
+    if (previousToggle === undefined) delete process.env.ENABLE_MOCK_OTP;
+    else process.env.ENABLE_MOCK_OTP = previousToggle;
+  }
+});

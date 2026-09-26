@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1.2 mock 휴대폰 연결 검증
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`; 현재 원격/WSL `6e0b76b8bbd6b11adca8a7ff0d4cb90c69a2c7e0`. WSL 실제 DB/HTTP에서 고객 로그인→개발용 코드 발급→틀린 코드 차단→전화번호 신원 연결→코드 재사용 차단 시험 1통과·0실패. 실 SMS와 휴대폰 단독 가입/로그인은 미검증/미구현.
+- 추가 안전 회귀: 운영 환경에서 `ENABLE_MOCK_OTP=1`이어도 mock API 404 시험 통과. 같은 계정의 새 challenge가 이전 것을 무효화하도록 `MockPhoneOtp`를 보강했고, 만료 항목 제거 및 메모리 최대 1024건 상한을 적용했다. 이 시험 RED(이전 코드 수용)→GREEN. 로컬 해당 시험 3통과 및 타입검사 통과. 변경 커밋/WSL 전체 재시험 전.
+- 오류 횟수: 이 보강 시험 1회 RED는 의도한 결함 재현이며 수정·국소 재시험 통과. 외부 자격증명/실문자 사용 없음. Stage S1의 역할별 실제 브라우저 동선·앱·고객 탈퇴 운영 절차·전체 게이트는 아직 미완료.
+
 ## 최신 상태 — 2026-09-27 S1.2 개발 전용 휴대폰 연결 HTTP 준비
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `AuthController`의 `/auth/mock-phone/start-link`, `/auth/mock-phone/confirm-link`는 `ENABLE_MOCK_OTP=1`이면서 비운영 환경일 때만 동작한다. 고객의 검증된 세션·Origin을 요구하고, 1회용 코드의 확인 결과로 기존 계정에 전화 신원을 명시 연결한다. 반환되는 `testCode`는 **개발 mock**이며 실문자 송신이 아니다. 무설정 404 및 설정 뒤 무인증 401 시험 RED(404)→GREEN, mock 코드/만료 시험과 API 타입검사 통과.
