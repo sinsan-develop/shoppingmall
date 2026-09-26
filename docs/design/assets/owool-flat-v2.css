@@ -1,0 +1,34 @@
+/* Flat v2 is an opt-in visual comparison. The approved v1 stays unchanged. */
+body[data-flat-v2]{background:var(--cream)}
+body[data-flat-v2] .hero{background:var(--cream)}
+body[data-flat-v2] .hero-art{transform:none}
+body[data-flat-v2] .ms-ph{background:#ead6aa;border-radius:8px}
+body[data-flat-v2] .card,
+body[data-flat-v2] .panel,
+body[data-flat-v2] .metric{background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:none}
+body[data-flat-v2] .product .ms-ph{border-radius:0}
+body[data-flat-v2] .dark-banner{border-radius:8px}
+body[data-flat-v2] .btn,
+body[data-flat-v2] .field,
+body[data-flat-v2] .prototype-tabs button{border-radius:6px;box-shadow:none;transform:none}
+body[data-flat-v2] .btn{background:var(--gold);border-color:var(--gold);color:#241b0b}
+body[data-flat-v2] .btn.secondary{background:transparent;border-color:var(--gold-deep);color:var(--gold-deep)}
+body[data-flat-v2] .btn:hover{background:#b4862f;border-color:#b4862f}
+body[data-flat-v2] .btn.secondary:hover{background:var(--gold-soft);border-color:var(--gold-deep)}
+body[data-flat-v2] .btn:active{background:var(--gold-deep);border-color:var(--gold-deep);transform:none}
+body[data-flat-v2] .field{background:var(--card)}
+body[data-flat-v2] .note,
+body[data-flat-v2] .notice{border-radius:6px}
+body[data-flat-v2] .tab,
+body[data-flat-v2] .prototype-tabs button{background:transparent;border:1px solid var(--line);color:var(--ink)}
+body[data-flat-v2] .tab.active,
+body[data-flat-v2] .prototype-tabs button[aria-current="step"]{background:var(--gold-soft);border-color:var(--gold-deep);color:var(--ink)}
+body[data-flat-v2] .side .item{border-radius:6px}
+body[data-flat-v2] .side .item.active{background:#55462b;border-left:3px solid var(--gold);color:#fff}
+body[data-flat-v2] .chip{background:var(--gold-soft)}
+body[data-flat-v2] .chip.green{background:#f4f9f1}
+body[data-flat-v2] .chip.red{background:#fff3f1}
+body[data-flat-v2] .prototype-main button:focus-visible,
+body[data-flat-v2] .header button:focus-visible,
+body[data-flat-v2] input:focus-visible,
+body[data-flat-v2] select:focus-visible{outline:3px solid #6b551f;outline-offset:3px}

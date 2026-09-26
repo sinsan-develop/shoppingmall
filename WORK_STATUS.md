@@ -1,6 +1,15 @@
 # 어울몰 작업현황
 
-## 최신 상태 — 2026-09-26 초기 Git main 기준선 생성·원격 확인
+## 최신 상태 — 2026-09-27 Flat v2 Task 1 완료, Task 2 진행 전
+
+- 단계·담당: 신산님이 Flat v2 제작 계획을 승인하고 `main`에서 작업 브랜치를 만들도록 지시 / 어울 단일 writer
+- 기준: `origin/main` `34b4186561a9c1f960bdea58ece4264cb95e100e`에서 `codex/flat-v2-prototypes`와 `D:\Project\shoppingmall2\.worktrees\flat-v2-prototypes`를 생성. 로컬 기존 `main`과 미추적 `.github` 사본은 변경하지 않음. 이 격리 폴더는 Flat v2 검토·병합 뒤 포함 여부와 dirty 상태를 확인하고 정리할 대상
+- Task 1 변경: `docs/design/assets/flat-v2.test.mjs`, `home-flat-v2.html`, `owool-flat-v2.css`. 원본 홈 HTML·CSS는 불변 SHA256 `D31050A8…`, `5C45CE70…`. 본문·글자 크기·가상 상품 흐름은 보존하고 Flat 시각 규칙만 별도 적용
+- 검증: 시작 기준 Node 37통과. Task 1 신규 검사에서 파일 부재 RED 2건 확인 후 2통과·0실패. 원본/비교본 줄끝 CRLF·LF 차이만 정규화해 본문 내용을 비교. 실제 브라우저·viewport·인쇄는 미검증
+- 오류·조치: 제한된 셸에서 계획 기록 폴더 생성 권한 거부 1회; 반복 실행을 중단하고 지정 작업 경로에 허용된 권한으로 재실행하여 생성. 임시 계획 기록은 `.superpowers/sdd/2026-09-26-balanced-flat-prototypes/`에 격리·ignore. 업무 코드 오류 없음
+- 다음 조치: Task 1 변경을 작업 브랜치에 안전하게 commit한 뒤 Task 2 역할별 비교 화면을 테스트 우선으로 제작. 계획의 과거 무커밋 `master` 전제는 최신 사용자 지시·실제 Git에 따라 적용하지 않음
+
+## 이전 상태 — 2026-09-26 초기 Git main 기준선 생성·원격 확인
 
 - 단계·담당: 신산님 직접 지시의 `sinsan-develop/shoppingmall` 초기 `main` 생성·커밋·push / 어울
 - 현재 판정: `D:\Project\shoppingmall2`의 초기 `main` root commit `6c249b0be8b60604a86c4ddf7c3ea68159749d50` 생성. `origin=git@github-sinsan-develop:sinsan-develop/shoppingmall.git`; 비강제 `git push -u origin main` 성공. 이후 `git ls-remote --symref origin HEAD refs/heads/main`에서 원격 HEAD가 `main`을 가리키고 원격 SHA가 초기 커밋과 일치함을 확인
