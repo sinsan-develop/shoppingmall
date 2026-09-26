@@ -54,6 +54,13 @@ test('only the owning seller stages private image metadata for its draft revisio
     assert.equal(rows.rows[0].object_key, objectKey);
     assert.deepEqual(await store.read(objectKey), png);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
+    await assert.rejects(drafts.submit({ accountId, role: 'seller', sellerId: sellerB }, productId, revisionId), /Forbidden/);
+    const submitted = await drafts.submit(seller, productId, revisionId);
+    assert.equal(submitted.status, 'pending');
+    assert.equal((await pool.query('SELECT status FROM product_revisions WHERE id=$1', [revisionId])).rows[0].status, 'pending');
+    await assert.rejects(drafts.submit(seller, productId, revisionId), /Draft required/);
+    await assert.rejects(drafts.addImage(seller, productId, revisionId, 'detail', png, 'image/png', store), /Draft required/);
+    assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
   } finally {
     if (accountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
     if (revisionId) {
