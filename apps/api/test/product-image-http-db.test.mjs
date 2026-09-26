@@ -82,6 +82,8 @@ test('the local-only HTTP upload accepts an owned draft, rejects cross-seller ac
   } finally {
     if (app) await app.close();
     if (accountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
+    if (accountId) await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [accountId]);
+    if (accountId) await pool.query('DELETE FROM account_roles WHERE account_id=$1', [accountId]);
     if (revisionId) {
       await pool.query('DELETE FROM product_images WHERE revision_id=$1', [revisionId]);
       await pool.query('DELETE FROM product_options WHERE revision_id=$1', [revisionId]);
@@ -94,8 +96,6 @@ test('the local-only HTTP upload accepts an owned draft, rejects cross-seller ac
     if (sellerA) await pool.query('DELETE FROM sellers WHERE id=$1', [sellerA]);
     if (sellerCategoryId) await pool.query('DELETE FROM seller_categories WHERE id=$1', [sellerCategoryId]);
     if (accountId) {
-      await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [accountId]);
-      await pool.query('DELETE FROM account_roles WHERE account_id=$1', [accountId]);
       await pool.query('DELETE FROM account_identities WHERE account_id=$1', [accountId]);
       await pool.query('DELETE FROM accounts WHERE id=$1', [accountId]);
     }
