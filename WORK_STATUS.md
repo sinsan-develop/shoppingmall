@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.1 관리자 분류 화면 연결
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 앞선 `29550ef4d8f014e4a37b5a7379b317e00ab81e4f`는 SSH 원격/WSL 일치. WSL 실제 DB 분류 HTTP 1통과·0실패: 관리자/고객 권한, Origin, 대·소분류/판매자 등록과 공개 조회, 감사 이력. 시험 후 accounts/sellers/product_categories/seller_categories 0행, 시험 컨테이너 0, checkout clean.
+- 웹 `/account/admin/catalog`에서 운영자 세션 확인 후 대·소분류와 판매자 분류·판매자 등록을 분리하여 조회/입력하고 계정 화면에서 링크한다. 브라우저 실행 전 SSR 시험은 파일 부재 RED→2통과, 로컬 전체 테스트 83개 중 71 pass·12 DB-only skip·0 fail, PR 본문 시험 8 pass, 전 workspace typecheck·lint 통과.
+- 변경 파일: `apps/web/app/account/admin/catalog/page.tsx`, `apps/web/app/account/page.tsx`, `apps/web/app/styles.css`, `apps/web/test/admin-catalog.test.mjs`, 본 현황. 오류 누적: 의도한 파일 부재 RED 1회; 확인된 제품 결함 0. 남은 검증: WSL exact commit production build와 실제 브라우저 등록·모바일/확대/키보드. S2 상품 자체 등록·사진·재고·승인·검색은 아직 미구현이며 Stage 완료가 아니다.
+
 ## 최신 상태 — 2026-09-27 S2.1 분류 HTTP 계약 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 관리자 대·소분류와 판매자 분류·판매자 등록을 실제 세션의 admin 역할로 제한하고, 고객 공개 분류/판매자 조회를 연결했다. 헤더의 가짜 역할은 인정하지 않는다. 하위 분류의 3단계 생성, 빈 이름, 다른 Origin, 중복 이름을 거부하며 등록 감사 이력을 남긴다.
