@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1 QA 계정 fixture 착수
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `apps/api/scripts/qa-fixture.ts`는 8자리 hex `QA_RUN_ID`별로 고객·판매자 A/B·어울몰 판매자·관리자 5개 **서로 다른 가상 계정**을 생성하고 동일 ID의 데이터만 정리하도록 작성. `shoppingmall` DB명 검사, 명시적 `QA_FIXTURE_PASSWORD` 필요, 한 트랜잭션 seed/reset, 비밀번호 미출력. 역할별 세션·브라우저 검증에 사용할 준비 자료이며 실제 계정 아님.
+- `apps/api/test/qa-fixture.test.mjs`에서 위험한 실행 ID 거부 RED(모듈 없음)→GREEN, 타입검사 통과. WSL DB 생성/초기화 통합시험은 아직 실행 전이다. 실패한 시험의 정확한 ID가 있으면 먼저 소유·참조 관계를 확인하고 그 ID만 정리하며 공유 DB 전체 초기화는 하지 않는다.
+- 직전 고객 API 결함: `052a3582d7d21f8e113faa2c051f77a77935183f`를 원격/WSL에 반영했고 탈퇴 중복 409 포함 HTTP DB 시험 1통과·0실패. WSL 독립 웹 production build 통과. 로컬 Windows `.next/trace-build` EPERM은 미해결로 분리 기록하며 빌드 전체 PASS로 바꾸지 않는다. WSL 고객 DB fixture 계정/배송지 0행 여부 최종 재조회 필요.
+
 ## 최신 상태 — 2026-09-27 S1.3 시험 DB 검증 및 고객 API 연결
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`; 새 branch/worktree 없음. `71b607540f54b03793aa9c88115fdc225d1f494d`를 SSH alias 원격에 push하고 WSL 지정 checkout에 fast-forward했다.
