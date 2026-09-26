@@ -2,6 +2,8 @@
 
 ## 최신 상태 — 2026-09-27 실제 고객 홈 구조 착수
 
+- WSL exact SHA 검증: `ca90fd512183d31526d7f997238105cfe064c765`을 지정 checkout에서 `git pull --ff-only`로 반영하고 clean 상태를 확인했다. 일회성 컨테이너의 새 홈 테스트 2통과, Next production build 통과, 빌드 웹 `/` HTTP 200과 `상품 카테고리`·`추천 상품`·`상품 준비 중` 본문을 확인했다. 시험 컨테이너 종료·자동 제거 후 9091 LISTEN 잔류가 없다. 브라우저 시각/상호작용 증거 및 정식 DB 통합은 아니다.
+- WSL 오류·조치: 컨테이너에 없는 `node_modules/.bin/pnpm`을 호출해 테스트 뒤 빌드 명령만 실패한 1회. 같은 checkout의 실제 Next 실행 파일로 빌드를 재실행해 통과했다. 실패/성공 컨테이너 모두 `--rm`으로 제거했다.
 - 담당·브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes` worktree. 정적 Flat v2 시안 QA는 제품 착수 게이트로 사용하지 않고, 제품 Next.js 고객 홈에 승인된 다섯 영역(검색·메뉴·기획전·상품 카테고리·공통 추천)의 **데이터 연결 전 뼈대**를 구현했다.
 - 변경 전/후: `apps/web/app/page.tsx`는 단일 구축 중 문구였고, 변경 후 의미 있는 헤더·섹션과 준비 중 표시가 있다. `apps/web/app/styles.css`는 기존 황금·크림·서체/최대 1180px을 유지하면서 균형형 Flat 카드·반응형 배열을 적용했다. 검색·메뉴·카테고리·추천은 아직 데이터/동작이 없으며 구매 가능한 상품으로 오인되지 않게 명시했다. `apps/web/test/page.test.mjs`에 다섯 영역 및 허위 결제 노출 금지 검사를 추가했다.
 - TDD·검증: 추가 테스트가 `/상품 검색/` 누락으로 실제 RED(1실패) 후 GREEN(2통과). 전체 로컬 `pnpm test` 49+8=57통과·0실패, typecheck, ESLint lint, Nest/Next build 모두 통과했다. 제품 화면의 실제 브라우저·모바일·200% 확대·키보드·인쇄는 `UNVERIFIED`; 정적 HTML 시안 검사 통과로 대체하지 않는다.
