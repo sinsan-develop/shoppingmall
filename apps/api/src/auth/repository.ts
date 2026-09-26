@@ -94,13 +94,27 @@ export class AuthRepository {
         accountId: current.accountId, role, sellerId: sellerId ?? null,
         tokenHash: hashSessionToken(fresh), expiresAt,
       });
+      await tx.insert(schema.auditEvents).values({
+        actorAccountId: current.accountId, activeRole: role, sellerId: sellerId ?? null,
+        action: 'auth.switch_role', targetType: 'account', targetId: current.accountId,
+      });
       return { token: fresh, expiresAt };
     });
   }
 
   async logout(token: string): Promise<void> {
-    await this.db.update(schema.authSessions).set({ revokedAt: new Date() })
-      .where(eq(schema.authSessions.tokenHash, hashSessionToken(token)));
+    const actor = await this.getSession(token);
+    if (!actor) return;
+    await this.db.transaction(async (tx) => {
+      const revoked = await tx.update(schema.authSessions).set({ revokedAt: new Date() })
+        .where(and(eq(schema.authSessions.tokenHash, hashSessionToken(token)), isNull(schema.authSessions.revokedAt)))
+        .returning({ id: schema.authSessions.id });
+      if (revoked.length !== 1) return;
+      await tx.insert(schema.auditEvents).values({
+        actorAccountId: actor.accountId, activeRole: actor.role, sellerId: actor.sellerId ?? null,
+        action: 'auth.logout', targetType: 'account', targetId: actor.accountId,
+      });
+    });
   }
 
   private async isGranted(accountId: string, role: ActiveRole, sellerId?: string): Promise<boolean> {
@@ -118,8 +132,14 @@ export class AuthRepository {
   private async issueSession(accountId: string, role: ActiveRole, sellerId?: string) {
     const token = createSessionToken();
     const expiresAt = new Date(Date.now() + sessionHours * 60 * 60 * 1000);
-    await this.db.insert(schema.authSessions).values({
-      tokenHash: hashSessionToken(token), accountId, role, sellerId: sellerId ?? null, expiresAt,
+    await this.db.transaction(async (tx) => {
+      await tx.insert(schema.authSessions).values({
+        tokenHash: hashSessionToken(token), accountId, role, sellerId: sellerId ?? null, expiresAt,
+      });
+      await tx.insert(schema.auditEvents).values({
+        actorAccountId: accountId, activeRole: role, sellerId: sellerId ?? null,
+        action: 'auth.login', targetType: 'account', targetId: accountId,
+      });
     });
     return { token, expiresAt };
   }
