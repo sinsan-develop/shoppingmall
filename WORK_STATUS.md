@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.2 판매자 전용 상품 초안 서비스 DB 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@0209285334fb36acbf81f5752b2b0b3eb8ca18bc` (SSH 원격, WSL은 앞선 `011707c`이므로 다음 pull 필요). `ProductDrafts`에 인증 세션에서 받은 판매자 범위만으로 초안을 만들고 해당 판매자의 초안만 조회하는 DB 트랜잭션을 추가했다. 소분류만 지정, 상품별 출고 방식 단일값, 제목·산지·옵션/가격 검증, 감사 이력; 초안은 `product_publications`를 건드리지 않는다.
+- DB 시험은 고객 생성 거부, 대분류 직접 연결 거부, 옵션 없음/음수 가격 거부, 소속 판매자 A만 조회, B 조회 0, 미공개, 감사 기록 및 정확한 QA 행 정리를 요구한다. 서비스 파일 부재 로컬 RED 1회 확인 후 구현, API typecheck 통과. 실제 WSL DB 시험은 아직 미실행, 무DB 로컬 시험은 skip이므로 GREEN 아님. `pnpm lint`를 API 서브패키지에서 호출한 오류 1회는 스크립트가 루트에만 정의된 명령 위치 문제이며 루트 lint를 다음에 실행한다.
+- 변경 파일: `apps/api/src/catalog/product-drafts.ts`, `apps/api/test/product-drafts-db.test.mjs`, 본 현황. 다음은 SSH push/WSL pull→DB GREEN·루트 lint·전체 회귀. 이미지 업로드, 초안 제출/승인, 판매자 화면·고객 공개는 여전히 미구현.
+
 ## 최신 상태 — 2026-09-27 S2.2 상품 DB GREEN·회귀
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@011707c8689d1c41303d300224c65d2188355417` (SSH 원격/WSL 일치). WSL 지정 `shoppingmall`에 0003 migration 적용 성공, 상품 revision DB 시험 1통과·0실패. 전체 API 실제 DB 33개 중 30 pass·0 fail·무DB 전용 3 skip. 최종 migration 이력 4건, accounts/sellers/product_categories/seller_categories/products/product_revisions/product_publications/audit_events 모두 0행, 시험 컨테이너 0, WSL checkout clean.
