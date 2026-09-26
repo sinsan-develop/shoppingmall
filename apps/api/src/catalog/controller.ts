@@ -5,6 +5,7 @@ import {
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
+import { ProductDrafts, type DraftInput } from './product-drafts.js';
 import { CatalogTaxonomy } from './taxonomy.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string } };
@@ -29,6 +30,23 @@ export class CatalogController {
     if (!actor) throw new UnauthorizedException();
     if (actor.role !== 'admin') throw new ForbiddenException();
     return actor;
+  }
+
+  private async seller(request: RequestHeaders) {
+    const token = readToken(request.headers.cookie);
+    if (!token) throw new UnauthorizedException();
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    const actor = await new AuthRepository(pool).getSession(token);
+    if (!actor) throw new UnauthorizedException();
+    if (actor.role !== 'seller' || !actor.sellerId) throw new ForbiddenException();
+    return actor;
+  }
+
+  private drafts() {
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    return new ProductDrafts(pool);
   }
 
   private name(body: unknown): string {
@@ -65,6 +83,25 @@ export class CatalogController {
 
   @Get('sellers')
   listSellers() { return this.taxonomy().listSellers(); }
+
+  @Get('seller/products')
+  async listOwnedProducts(@Req() request: RequestHeaders) {
+    const actor = await this.seller(request);
+    return this.drafts().listOwned(actor);
+  }
+
+  @Post('seller/products')
+  async createProductDraft(@Req() request: RequestHeaders, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    try { return await this.drafts().create(actor, body as DraftInput); }
+    catch (error) {
+      if (error instanceof Error && ['Invalid product', 'Invalid option', 'Option required', 'Minor category required'].includes(error.message)) {
+        throw new BadRequestException({ status: 'invalid_draft', reason: error.message });
+      }
+      throw error;
+    }
+  }
 
   @Post('admin/majors')
   async createMajor(@Req() request: RequestHeaders, @Body() body: unknown) {

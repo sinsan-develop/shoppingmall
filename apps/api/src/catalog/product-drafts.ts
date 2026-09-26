@@ -22,6 +22,7 @@ function clean(value: string, maxLength: number): string {
 
 function validate(input: DraftInput) {
   if (!input || typeof input !== 'object' || typeof input.categoryId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.categoryId) ||
       !['seller_direct', 'owool_fulfillment'].includes(input.shippingMode)) throw new Error('Invalid product');
   const title = clean(input.title, 160);
   const description = clean(input.description, 10000);

@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 판매자 상품 초안 HTTP 경계 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@8702db31a6ab3465e4e04470dc107ceca7ca21c5` (SSH 원격/WSL 일치). 보정한 판매자 상품 초안 DB 시험 1통과·0실패, accounts/sellers/seller_categories/product_categories/products/product_revisions/audit_events `0|0|0|0|0|0|0` 및 시험 컨테이너 0.
+- `GET/POST /catalog/seller/products`는 검증된 세션의 판매자 ID로만 조회/생성하며, 요청 헤더의 역할을 신뢰하지 않는다. POST는 신뢰한 Origin·초안 입력 검증을 요구한다. 무DB HTTP 시험은 경로 404 RED→무세션 401 GREEN 1통과. 실제 DB HTTP 시험은 고객 역할 거부, 판매자 A/B 목록 분리, 대분류 직접 지정 거부, 초안 미공개와 정확한 QA 정리를 검증하도록 작성했으나 아직 실행 전.
+- 로컬 전체 87개 중 72 pass·0 fail·DB 전용 15 skip, PR 설명 8 pass, 전 workspace typecheck·root lint 통과. 변경 파일: `apps/api/src/catalog/controller.ts`, `product-drafts.ts`, `apps/api/test/product-http*.test.mjs`, 본 현황. 오류 누적: 의도한 경로 미존재 RED 1회. 다음은 SSH push→WSL DB HTTP·전체 회귀·QA 잔류 확인. 이미지 업로드/승인·화면은 미구현.
+
 ## 최신 상태 — 2026-09-27 상품 초안 시험 정리 순서 보정
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@534c7ec18c5e991109cf6fa8b81183b824bc859a` (SSH 원격/WSL 일치). WSL 상품 초안 DB 시험은 검증 중 마지막 QA 정리에서 감사 이력이 판매자를 참조하는 FK `23503`으로 실패했다. 기능 검증 결과를 PASS로 취급하지 않는다. 시험 코드에서 감사 이력 삭제를 판매자 삭제보다 앞으로 옮겼다.
