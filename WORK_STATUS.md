@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1 고객 API·시험자료 재검증
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@a03343163b5aa33ec791c974ffd41ff303abdb9a` (로컬/SSH 원격/지정 WSL checkout 일치). `docs/QA_DATA_POLICY.md`에 가상 자료 사용, 실행 ID별 정리, 실패 시 보존·기록, 실제 탈퇴 요청과 fixture reset의 구분을 기록했다.
+- WSL 실제 DB 연결 전체 API 재시험: 18개 중 16 pass, 0 fail, 2 skip(무DB 전용). 로컬 무DB 해당 시험 3 pass. QA fixture 단독 WSL 2 pass. 시험 후 DB accounts/sellers/seller_categories/customer_addresses/account_deletion_requests/notification_preferences 순서로 각 0행, `shoppingmall-s1-*` 일회성 컨테이너 0, 지정 WSL checkout clean 확인. 신규 3개 migration/테이블은 보존.
+- 빌드: `052a358` 시점 WSL 분리 checkout의 Next production build 통과. 현재 HEAD의 로컬 typecheck/lint 통과; Windows 로컬 build `.next/trace-build` EPERM 원인 미확정, 따라서 로컬 build gate는 미충족. S1의 OTP mock·명시적 계정 연결·고객/판매자/관리자 실제 브라우저 동선 등은 여전히 미완료. 외부 서비스 실제 연동, Oracle staging, UAT는 미실행.
+- 오류 누적: S1 고객 API 중복 탈퇴 매핑 1회 수정·재시험 통과, DB/무DB 혼합 시험 조건 1회 수정·재시험 통과, QA 잔류 조회 shell quoting 1회 읽기 실패 후 다른 조회로 확인. 미해결 `EPERM` 1건. 다음: S1 인증 잔여, 역할별 HTTP/웹 동선 및 현황 기록 후 Stage gate 판단.
+
 ## 최신 상태 — 2026-09-27 S1 QA 계정 fixture 착수
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `apps/api/scripts/qa-fixture.ts`는 8자리 hex `QA_RUN_ID`별로 고객·판매자 A/B·어울몰 판매자·관리자 5개 **서로 다른 가상 계정**을 생성하고 동일 ID의 데이터만 정리하도록 작성. `shoppingmall` DB명 검사, 명시적 `QA_FIXTURE_PASSWORD` 필요, 한 트랜잭션 seed/reset, 비밀번호 미출력. 역할별 세션·브라우저 검증에 사용할 준비 자료이며 실제 계정 아님.
