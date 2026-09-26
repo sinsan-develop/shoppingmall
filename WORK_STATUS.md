@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.1 실제 브라우저 등록·QA 정리
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@f445c504abe092ce04f54127e38c0afd861d977c` (SSH 원격/WSL 일치). WSL 루프백 임시 API·Next production 서버, 가상 실행 `f7a92026`의 5계정으로 실제 브라우저 운영자 로그인→관리자 링크→대분류·소분류·판매자 분류·판매자 등록→새로고침 뒤 4개 자료 재표시 확인. 이 범위는 브라우저 PASS이며 고객/판매자 역할의 화면 접근, 모바일/200%/키보드, 상품 등록은 미검증.
+- 시험 직후 브라우저 전용 분류·판매자 각 정확한 이름 4행을 트랜잭션에서 `DELETE 1`씩 제거하고 실행 ID fixture reset에서 5계정 제거. 임시 컨테이너는 정리 호출 시 이미 없어 실제 수동 중지 대상이 없었다. 최종 DB accounts/sellers/product_categories/seller_categories/audit_events `0|0|0|0|0`, `shoppingmall-s2-*` 컨테이너 0, WSL checkout clean. 이 기록은 개발·시험 QA 자료 정리이며 지속 schema/migration 3건은 보존.
+- 변경 파일: 본 현황만. 오류/예외: 최초 컨테이너 기동 직후 health `000`은 기동 지연으로 분리되어 재확인 `200/200`; 정리 시 컨테이너 2개는 이미 종료돼 `No such container` 응답, 잔류 확인 0. 기능 결함으로 계산하지 않는다. 다음은 S2.2 상품 제안·공개 버전/옵션/이미지 계약과 DB·권한 시험.
+
 ## 최신 상태 — 2026-09-27 S2.1 웹 production 빌드 확인
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@38e7d0fdd34bd368d50e8ae8c34f30ffce833cf2`. SSH 원격과 WSL checkout의 SHA 일치. WSL `node:24-bookworm-slim`에서 `NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:9092`로 Next production build 통과: `/`, `/login`, `/account`, `/account/customer`, `/account/admin/catalog` 정적 경로 생성. 앞선 실제 DB HTTP 시험 1통과 후 QA 행/시험 컨테이너 0.
