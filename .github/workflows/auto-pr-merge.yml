@@ -2,8 +2,6 @@ name: Request-tag PR Broker
 
 on:
   push:
-    branches:
-      - 'codex/pr-broker-bootstrap'
     tags:
       - 'pr-request/**'
 
@@ -16,73 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  bootstrap-install:
-    if: github.ref == 'refs/heads/codex/pr-broker-bootstrap'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out bootstrap branch
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Validate installation files
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f .github/workflows/auto-pr-merge.yml
-          test -f .github/pr-broker-gate.sh
-          bash -n .github/pr-broker-gate.sh
-          git diff --check
-
-      - name: Create or reuse bootstrap pull request
-        id: bootstrap-pr
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          pr_url="$(gh pr list \
-            --repo "$GITHUB_REPOSITORY" \
-            --base main \
-            --head codex/pr-broker-bootstrap \
-            --state open \
-            --json url \
-            --jq '.[0].url')"
-          if [[ -z "$pr_url" ]]; then
-            pr_url="$(gh pr create \
-              --repo "$GITHUB_REPOSITORY" \
-              --base main \
-              --head codex/pr-broker-bootstrap \
-              --title "Install request-tag PR Broker" \
-              --body "One-time installation of the trusted request-tag PR Broker.")"
-          fi
-          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
-
-      - name: Merge bootstrap pull request
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_URL: ${{ steps.bootstrap-pr.outputs.url }}
-        shell: bash
-        run: gh pr merge "$PR_URL" --squash --delete-branch
-
-      - name: Verify bootstrap merge
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_URL: ${{ steps.bootstrap-pr.outputs.url }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          state="$(gh pr view "$PR_URL" --json state --jq '.state')"
-          if [[ "$state" != "MERGED" ]]; then
-            echo "Bootstrap PR state is not MERGED: $state" >&2
-            exit 1
-          fi
-          merge_sha="$(gh pr view "$PR_URL" --json mergeCommit --jq '.mergeCommit.oid')"
-          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
-          git merge-base --is-ancestor "$merge_sha" refs/remotes/origin/main
-
   validate-create-merge:
-    if: startsWith(github.ref, 'refs/tags/pr-request/')
     runs-on: ubuntu-latest
     steps:
       - name: Check out trusted Broker revision
@@ -161,6 +93,17 @@ jobs:
           remote_head="$(git rev-parse "refs/remotes/origin/$HEAD_BRANCH")"
           test "$remote_head" = "$HEAD_SHA"
 
+      - name: Validate exact-head PR explanation
+        env:
+          BROKER_SHA: ${{ steps.request.outputs.broker_sha }}
+          HEAD_SHA: ${{ steps.request.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "$BROKER_SHA:.github/pr-broker-body.mjs" > "$RUNNER_TEMP/pr-broker-body.mjs"
+          git show "$HEAD_SHA:.github/PR_REQUEST.md" > "$RUNNER_TEMP/pr-body.md"
+          node "$RUNNER_TEMP/pr-broker-body.mjs" "$RUNNER_TEMP/pr-body.md"
+
       - name: Create or reuse pull request
         id: pr
         env:
@@ -184,7 +127,9 @@ jobs:
               --base main \
               --head "$HEAD_BRANCH" \
               --title "Merge $HEAD_BRANCH" \
-              --body "PR Broker request for exact head $HEAD_SHA. The request tag declares that the approved Stage implementation and required verification are complete; it does not declare the whole project complete.")"
+              --body-file "$RUNNER_TEMP/pr-body.md")"
+          else
+            gh pr edit "$pr_url" --body-file "$RUNNER_TEMP/pr-body.md"
           fi
 
           echo "url=$pr_url" >> "$GITHUB_OUTPUT"
@@ -193,8 +138,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_URL: ${{ steps.pr.outputs.url }}
+          HEAD_SHA: ${{ steps.request.outputs.head_sha }}
         shell: bash
-        run: gh pr merge "$PR_URL" --squash --delete-branch
+        run: gh pr merge "$PR_URL" --squash --delete-branch --match-head-commit "$HEAD_SHA"
 
       - name: Verify merged main
         env:

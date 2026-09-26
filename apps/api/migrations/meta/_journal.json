@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790450268943,
+      "tag": "0000_s1_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790452394619,
+      "tag": "0001_s2_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790452936808,
+      "tag": "0002_s1_customer_privacy",
+      "breakpoints": true
+    }
+  ]
+}

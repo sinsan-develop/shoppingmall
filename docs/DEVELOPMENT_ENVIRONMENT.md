@@ -1,5 +1,21 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-09-27 S1.1 WSL 시험 결과 (현재 사실)
+
+- 지정 SSH 별칭 `WSL-server`의 `/home/daon/deploy/shopping`에 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git`의 `codex/flat-v2-prototypes` 브랜치를 clone했다. 시험 HEAD는 `eb74e536cb3464cd9032256bd56619302355fcb8`이며 당시 원격과 일치했다. 아래 과거 항목의 `checkout 부재`는 생성 전 역사 기록이다.
+- WSL 시스템 Node 18.19.1에는 pnpm이 없다. 시스템 런타임은 바꾸지 않고 기존 `node:24-bookworm-slim` 이미지를 일회성 `shoppingmall-s1-verify` 컨테이너에 사용했다. 동일 checkout에서 `npx pnpm@11.19.0 install --frozen-lockfile`, test(56통과), typecheck, lint, build가 통과했다. 이것은 일회성 자체 검증이며 정식 DB 통합·E2E 검증은 아니다.
+- 동일 commit의 빌드 API `/health`는 HTTP 200과 정상 본문, Next 웹 `/`는 HTTP 200과 `서비스 구축 중` 본문을 반환했다. `shoppingmall-s1-api`, `shoppingmall-s1-web` 일회성 컨테이너를 중지·제거하고 포트 점유 잔류를 확인했다. DB 미연결 상태의 `/ready`는 503을 의도하며, 실제 DB 연동 성공으로 해석하지 않는다.
+- 일회성 패키지 캐시 `/home/daon/deploy/shopping/.pnpm-store`만 안전 확인 후 제거했다. Git checkout은 clean, `node_modules`는 무시 대상으로 남겨 두었다. `local-postgres`/`shoppingmall` DB는 기존 상태로 보존했다. GitHub CI 실행, 모바일 빌드/실기기, 실제 제품 브라우저 흐름, 외부 연동은 아직 미검증이다.
+
+## 2026-09-27 S1.1 착수 중 확인
+
+- 신산님은 상세 작업계획에 따른 전체 구축과 외부 서비스 가입·실연동의 구축 후 일괄 처리를 지시했다. Flat v2 로컬 정적 시안 자체의 브라우저 QA는 제품 코드 착수의 차단조건에서 제외했다. 실제 제품의 브라우저 QA는 해당 Stage에서 수행한다.
+- Windows Node `24.18.0`, pnpm `11.19.0`. 승인된 Next.js 16.3.6 / NestJS 12.1.0 / Expo 57.0.25를 현재 격리 worktree의 `pnpm-lock.yaml`에 고정했다. Expo SDK 57의 React 19.2.3·React Native 0.86 호환표에 맞춰 앱 패키지 버전을 지정했다. Android 앱 아이콘 승인 전이므로 앱 빌드·에뮬레이터 실행은 아직 하지 않았다.
+- 9091 웹 공개 포트와 9092 로컬 API 포트는 확인 시 Windows·WSL-server 모두 LISTEN 점유가 없었다. 로컬 빌드된 웹 `http://127.0.0.1:9091/`은 HTTP 200과 한국어 구축 중 화면, API `http://127.0.0.1:9092/health`는 HTTP 200과 `{ "status": "ok", "service": "shoppingmall-api" }`를 반환했다. 시험 프로세스를 종료했고 두 포트의 LISTEN 잔류가 없음을 재확인했다. Oracle 포트/배포 구성은 미결정이며 이 기록은 운영 포트 확정이 아니다.
+- `WSL-server` 호스트명은 `SINSAN`; `/home/daon/deploy/shopping`은 아직 없고 `local-postgres`는 실행 중이며 `shoppingmall` DB 읽기 전용 조회가 성공했다. WSL checkout 생성·DB schema/권한 변경은 수행하지 않았다.
+- 무비밀값 참조 이름은 [`.env.example`](../.env.example)에 있다. 실제 `DATABASE_URL`·결제/발송/로그인 provider Secret은 등록하지 않았다. `.env`는 Git 무시 대상이다.
+- 현재 반복 명령: root에서 `pnpm install --frozen-lockfile`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`; API `pnpm --filter @shoppingmall/api dev`, 웹 `pnpm --filter @shoppingmall/web dev`. 웹 9091/API 9092를 기본 사용한다. `pnpm approve-builds esbuild`로 정확한 설치 빌드 스크립트만 허용했다. 실제 WSL exact commit pull·DB migration dry-run·seed/E2E 명령은 해당 코드·승인 전까지 미정이다.
+
 - 확인일: 2026-09-26
 - 상태: 설계·개발 작업계획 승인 후 착수 전 환경 확인. 2026-09-26 Git `main` 초기 기준선은 생성했으며, 화면 시안 승인·공통 포트·QA/Secret 절차·환경 준비 판정 전에는 제품 구현을 시작하지 않음.
 
