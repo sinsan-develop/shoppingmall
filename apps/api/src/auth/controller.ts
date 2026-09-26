@@ -43,7 +43,9 @@ export class AuthController {
   }
 
   private requireMockOtp() {
-    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_MOCK_OTP !== '1') {
+    const host = process.env.API_HOST ?? '127.0.0.1';
+    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_MOCK_OTP !== '1' ||
+        !['127.0.0.1', '::1', 'localhost'].includes(host)) {
       throw new NotFoundException();
     }
   }

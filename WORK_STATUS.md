@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 휴대폰 mock 가입·로그인 DB/노출 경계
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@664adcc464cc29a99b94587f9ab073dfe4f173c0` (SSH 원격/WSL 일치). WSL 실제 DB의 `mock-phone-entry-http-db.test.mjs`에서 개발 전용 코드 발급→가입 목적과 로그인 목적 혼용 차단→신규 고객 세션→같은 번호 재로그인 동일 accountId→중복 가입 409→정확한 전화 identity 계정 정리 1통과·0실패. 실제 SMS/실번호 소유 증명은 아니다.
+- 추가 보안 RED→GREEN: `ENABLE_MOCK_OTP=1`인 개발 모드가 `API_HOST=0.0.0.0` 등 공용 인터페이스로 바인딩될 때 `/auth/mock-phone/start`가 201로 열린 문제를 시험으로 재현했다. `requireMockOtp`는 비운영 모드·명시 토글뿐 아니라 `API_HOST`의 루프백 값(기본 `127.0.0.1`, `::1`, `localhost`)도 요구하도록 수정했다. 로컬 해당 HTTP 4통과 및 타입검사 통과. 단, 공용 역프록시가 루프백 API를 외부에 다시 공개하면 이 설정만으로 완전한 방어가 아니므로 배포 설정에서 토글을 금지한다.
+- 이번 보강은 아직 커밋/WSL 전체 회귀 전. S1 고객 전화 가입 UI 및 실제 공급자 연동, 모바일·확대·키보드/전체 Stage gate는 남아 있다. 시험 오류 1회는 의도한 공개 바인딩 RED이며 수정·국소 GREEN.
+
 ## 최신 상태 — 2026-09-27 휴대폰 전용 개발 mock HTTP 검증 준비
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 개발 전용 `/auth/mock-phone/start`, `/auth/mock-phone/confirm`에서 가입/로그인 목적과 정규화된 전화번호를 challenge에 묶고 확인 결과가 일치할 때만 `AuthRepository`의 신규 고객 생성 또는 기존 고객 로그인으로 전달한다. 시험 코드는 개발 응답에 `mockOnly:true`로 표시; 운영 모드·토글 미설정에서는 404. 인증 전 목적 바꿔 확인하는 요청은 거부한다.
