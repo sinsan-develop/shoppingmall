@@ -4,6 +4,9 @@ import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp
 export const identityKind = pgEnum('identity_kind', ['email', 'phone', 'kakao', 'apple']);
 export const activeRole = pgEnum('active_role', ['customer', 'seller', 'admin']);
 export const deletionStatus = pgEnum('deletion_status', ['requested', 'in_review', 'completed']);
+export const productProposalStatus = pgEnum('product_proposal_status', ['draft', 'pending', 'approved', 'rejected']);
+export const productShippingMode = pgEnum('product_shipping_mode', ['seller_direct', 'owool_fulfillment']);
+export const productImagePurpose = pgEnum('product_image_purpose', ['thumbnail', 'detail']);
 
 export const accounts = pgTable('accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -37,6 +40,70 @@ export const sellers = pgTable('sellers', {
   displayName: text('display_name').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Seller proposals are immutable revisions. Customer reads use product_publications only.
+export const products = pgTable('products', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sellerId: uuid('seller_id').notNull().references(() => sellers.id),
+  categoryId: uuid('category_id').notNull().references(() => productCategories.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index('products_seller_idx').on(table.sellerId), index('products_category_idx').on(table.categoryId)]);
+
+export const productRevisions = pgTable('product_revisions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  version: integer('version').notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  originLabel: text('origin_label').notNull(),
+  shippingMode: productShippingMode('shipping_mode').notNull(),
+  status: productProposalStatus('status').notNull().default('draft'),
+  proposedByAccountId: uuid('proposed_by_account_id').notNull().references(() => accounts.id),
+  proposedAt: timestamp('proposed_at', { withTimezone: true }).notNull().defaultNow(),
+  reviewedByAccountId: uuid('reviewed_by_account_id').references(() => accounts.id),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  reviewReason: text('review_reason'),
+}, (table) => [
+  uniqueIndex('product_revisions_product_version_uq').on(table.productId, table.version),
+  index('product_revisions_status_idx').on(table.status),
+  check('product_revisions_version_ck', sql`${table.version} > 0`),
+  check('product_revisions_title_ck', sql`length(trim(${table.title})) > 0`),
+  check('product_revisions_origin_ck', sql`length(trim(${table.originLabel})) > 0`),
+]);
+
+export const productOptions = pgTable('product_options', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  revisionId: uuid('revision_id').notNull().references(() => productRevisions.id),
+  name: text('name').notNull(),
+  priceWon: integer('price_won').notNull(),
+  displayOrder: integer('display_order').notNull().default(0),
+}, (table) => [
+  uniqueIndex('product_options_revision_name_uq').on(table.revisionId, table.name),
+  check('product_options_name_ck', sql`length(trim(${table.name})) > 0`),
+  check('product_options_price_ck', sql`${table.priceWon} >= 0`),
+]);
+
+// The key points to a controlled store; untrusted remote URLs are never public image sources.
+export const productImages = pgTable('product_images', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  revisionId: uuid('revision_id').notNull().references(() => productRevisions.id),
+  objectKey: text('object_key').notNull(),
+  purpose: productImagePurpose('purpose').notNull(),
+  mimeType: text('mime_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  displayOrder: integer('display_order').notNull().default(0),
+}, (table) => [
+  uniqueIndex('product_images_revision_key_uq').on(table.revisionId, table.objectKey),
+  check('product_images_size_ck', sql`${table.sizeBytes} > 0`),
+]);
+
+// No proposal becomes customer-visible without an explicit operator publication.
+export const productPublications = pgTable('product_publications', {
+  productId: uuid('product_id').primaryKey().references(() => products.id),
+  revisionId: uuid('revision_id').notNull().references(() => productRevisions.id),
+  publishedAt: timestamp('published_at', { withTimezone: true }).notNull().defaultNow(),
+  publishedByAccountId: uuid('published_by_account_id').notNull().references(() => accounts.id),
+}, (table) => [uniqueIndex('product_publications_revision_uq').on(table.revisionId)]);
 
 export const accountIdentities = pgTable('account_identities', {
   id: uuid('id').primaryKey().defaultRandom(),

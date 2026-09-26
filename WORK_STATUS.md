@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.2 상품 revision DB 계약 RED 준비
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 상품 소유 판매자·소분류와 제안 revision을 분리하고 옵션·이미지 메타데이터 및 명시적 공개 포인터를 추가하는 schema 초안. 고객 공개 자료는 제안과 별도 `product_publications`를 통해서만 선택하도록 설계한다. 배송 방식은 상품별 `seller_direct` 또는 `owool_fulfillment` 단일 값, 산지 문자열에는 지역 제한 없음.
+- `apps/api/test/product-schema-db.test.mjs`는 가상 판매자/분류/상품/옵션/이미지 생성과 미공개 상태, 음수 가격·빈 제목 DB 거부, 정확한 ID 정리를 검증하도록 작성. 로컬 typecheck 통과, 무DB 환경 skip이므로 실제 RED/GREEN 아님. WSL 정확한 커밋 DB에서 migration 전 RED를 확인한 후 migration 생성·적용 예정. 이미지 파일 업로드/형식 검사, 제안·승인 서비스/API·실제 고객 공개는 아직 없으며 S2.2 완료가 아니다.
+- 변경 파일: `apps/api/src/db/schema.ts`, `apps/api/test/product-schema-db.test.mjs`, 본 현황. 현시점 오류 0; 다음 조치: 안전한 checkpoint→WSL RED→migration→WSL GREEN·QA 잔류 0.
+
 ## 최신 상태 — 2026-09-27 S2.1 실제 브라우저 등록·QA 정리
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@f445c504abe092ce04f54127e38c0afd861d977c` (SSH 원격/WSL 일치). WSL 루프백 임시 API·Next production 서버, 가상 실행 `f7a92026`의 5계정으로 실제 브라우저 운영자 로그인→관리자 링크→대분류·소분류·판매자 분류·판매자 등록→새로고침 뒤 4개 자료 재표시 확인. 이 범위는 브라우저 PASS이며 고객/판매자 역할의 화면 접근, 모바일/200%/키보드, 상품 등록은 미검증.
