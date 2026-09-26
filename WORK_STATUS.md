@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 PR 본문 최신 범위 불일치 정정
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@666b7107402cd8f1876a44683f1f8e055f2362fc` (SSH 원격 HEAD; WSL checkout은 직전 코드 `cfeb8ad`로 문서 checkpoint만 아직 pull 전). `.github/PR_REQUEST.md`가 초기 S1.1 상태라 “DB schema 변경 없음/WSL 미검증”이라고 잘못 적혀 있었다. 실제 DB migration 0000~0003, S1 계정·권한, S2 분류/판매자 상품 초안, WSL/브라우저 검증과 미구현 범위를 목적·변경·영향·검증·미검증·롤백 항목에서 바로잡았다.
+- 문서 전체 삭제 후 재작성 시도는 파일 보존 위험으로 도구 승인에서 1회 거부됐고 실제 삭제는 발생하지 않았다. 기존 파일을 유지한 문단별 in-place 수정으로 완료; 로컬 `pr-broker-body.mjs` 검증 통과, `git diff --check` 통과. 이 정정은 PR/병합을 시작하지 않으며 `main` 구버전 Broker와 GitHub 계정 사용 금지 경계는 그대로다.
+- 변경 파일: `.github/PR_REQUEST.md`, 본 현황. 오류/예외 누적: 문서 삭제 시도 정책 거부 1회, 안전한 대체 방법 완료. 다음은 이미지 저장/검사와 승인 흐름 구현에 필요한 내부 계약 작업; 외부 서비스 계정은 구축 후 일괄 확인.
+
 ## 최신 상태 — 2026-09-27 상품 초안 실제 브라우저·회귀·정리
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@cfeb8add58c6c96809a22c57332d1801c3548413` (SSH 원격/WSL 일치). WSL Next production build에 `/account/seller/products` 포함 8개 정적 경로 생성. 전체 API 실제 DB 36개 중 32 pass·0 fail·무DB 전용 4 skip. 회귀 뒤 QA 핵심 행 0.
