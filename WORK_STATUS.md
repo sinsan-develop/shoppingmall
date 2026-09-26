@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 상세 계획 리뷰 정정·SSH PR 경로 확인
+
+- 단계·담당: 기존 두 브랜치 병합 전 계획서 리뷰 대응 / 어울 단일 writer / `codex/end-to-end-work-plan`, 시작 HEAD `e7760ef9efebc1abdf5f66db2215f8fd7d3027f4`, 작업 시작 시 clean. 아래 이전 기록의 `1b40fc9` 및 ‘문서 4개 미커밋’은 과거 checkpoint이며 현재 Git 상태가 아니다.
+- 읽기 전용 리뷰 Important 2건을 정정했다. `docs/WORK_PLAN.md`와 `docs/design/DELIVERY_SCOPE_ADDENDUM.md`에서 기존 승인 대기·실패 결제·미출고/지연·재고 이상·미처리 문의 예외를 유지한다고 명시했다. `docs/DEPLOYMENT_UAT_PLAN.md`의 Oracle staging migration·QA seed는 후보 commit/image/schema 고정 및 별도 승인 뒤 U2에서 실행하도록 옮겼다. 상세 계획 전체는 여전히 신산님 검토 초안이며 병합 요청은 내용 승인과 구별한다.
+- 로컬 `node --test` 37통과·0실패. 실제 브라우저·PG/Oracle/WSL 연동은 시험하지 않았다. Flat v2의 실제 화면 QA 미완료는 두 브랜치 정리 순서의 선행 게이트다.
+- PR 경로 정정: 아래 이전 기록의 ‘GitHub 계정/gh 인증 부재로 PR 불가’는 부정확했다. 원격 `main`의 `.github/workflows/ssh-pr-bridge.yml`은 SSH Git으로 `pr-request/<branch HEAD>/<branch>` 태그를 push하면 GitHub Actions가 PR을 생성·검사·squash 병합·원격 브랜치 삭제하도록 되어 있다. 계정 로그인/PAT/`gh`는 사용하지 않는다. 요청 태그는 필수 검증 완료를 뜻하므로 화면 QA가 미완료인 현재 생성하지 않는다. 같은 workflow의 bootstrap 경로가 실제 파일명과 달라 그 별도 경로는 불일치로 기록한다.
+- 다음 조치: 두 브랜치 변경을 각각 안전한 commit/push로 보존하고, Flat v2의 실제 화면 검증 증거와 필수 리뷰 게이트를 확보한 뒤 기존 브랜치부터 순차 PR/병합·merged-main smoke·원격/로컬 worktree 정리한다. 둘 다 정리되기 전 새 작업 브랜치를 만들지 않는다. 기본 `main`의 미추적 `.github/` 파일은 덮어쓰거나 삭제하지 않는다.
+
 ## 최신 상태 — 2026-09-27 두 기존 브랜치 병합·정리 요청의 검증 게이트
 
 - 판정: 신산님이 `codex/flat-v2-prototypes`와 `codex/end-to-end-work-plan`을 모두 `main`에 병합하고 원격·로컬 브랜치와 worktree를 정리한 **뒤** 최신 `main`에서 새 작업 브랜치를 만들도록 지시했다. 병합·삭제·새 브랜치 생성은 아직 미실행이다. 기존 작업 브랜치 종료 전 새 브랜치 생성의 예외는 없다는 최신 지시를 적용한다.

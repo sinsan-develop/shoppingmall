@@ -34,12 +34,13 @@
 1. 어울이 정확한 서버 식별자·기존 운영 서비스, OS/아키텍처·자원·포트·DNS·TLS·방화벽·백업/복구·스토리지·DB 사용자·로그/관측·접근자 목록을 **읽기 전용**으로 조사한다. 현재 별도 Oracle 환경의 적합성·격리 가능성은 미검증이다.
 2. 웹/API/DB/이미지/Secret을 기존 서비스와 분리할 네임스페이스·계정·포트·데이터 경계, 예상 추가 비용, 배포 전 백업, 설치/검증/롤백 명령과 영향을 한 장의 승인 패킷으로 제시한다. Oracle 관리형 PostgreSQL로 자동 전환하지 않으며, 기존 `WSL-server`의 `local-postgres`를 Oracle 운영 DB로 간주하지 않는다.
 3. 신산님의 **명시적 Oracle 변경·비용·Secret·DB/마이그레이션 승인**을 받은 뒤에만 새 staging 자원을 만든다. 운영 서비스 중지·공유 포트/DB 수정·실사용자 데이터 복제는 이 계획 밖이다.
-4. 새 staging의 DB migration은 승인된 schema 버전과 백업·복구 결과를 대조해 실행한다. 식별 가능한 가상 계정·5개 상품·두 판매자 분류/세 판매자(농가 A·B·어울몰)를 seed하고 외부 실고객 정보·실돈·실운송장은 넣지 않는다. health, HTTPS, 권한, 로그 마스킹, 이미지 업로드, 재기동, 백업 복원 모의 리허설을 검증한다.
+4. 승인된 범위의 빈 staging 자원과 백업·복구 경로만 준비하고 격리·접속·HTTPS를 확인한다. 후보 commit에 종속되는 DB migration, 시험 자료 seed, 애플리케이션 배포·기능 검증은 U2에서 후보를 고정한 뒤 수행한다.
 
 ## 4. U2 — 배포 후보 고정과 이전 단계 증거
 
 - 후보는 S1~S8의 필수 test/typecheck/lint/build·WSL 정확한 commit 통합시험·브라우저 QA·Android **에뮬레이터** 시험 빌드의 완료 증거와 Critical/Important 미해결 0건을 갖춰야 한다. 연결된 실기기의 시험 결과는 U3에서 확인한다. 해당 시점 `origin/main`과 각 Stage PR 포함 여부, Flat v2 통합/시각 QA를 대조한다.
 - 설치 입력은 PR URL, branch, full commit SHA, 빌드 산출물 식별자/해시, migration 버전, Secret **이름**·값 제공 책임자, 테스트 자료 버전, image rollback 기준이다. GitHub `origin/main` 또는 branch의 SHA와 WSL pull SHA, Oracle 배포 SHA를 기록해 서로 다르면 배포하지 않는다. 소스 직접 복사·원격 즉석 수정으로 후보를 바꾸지 않는다.
+- 후보 commit·image·schema/migration·시험 자료 버전을 먼저 고정하고 신산님의 Oracle 변경·DB/마이그레이션·Secret 승인 범위를 대조한다. 그 뒤 해당 후보의 migration을 백업·복구점과 버전 대조 후 staging에서 실행하고, 식별 가능한 가상 계정·5개 상품·두 판매자 분류/세 판매자(농가 A·B·어울몰)를 멱등 seed한다. 실고객 정보·실돈·실운송장은 넣지 않는다. 동일 후보로 health·HTTPS·권한·로그 마스킹·이미지 업로드·재기동·백업 복원 모의 리허설을 검증한다.
 - 개발 PR 단계에서 일반 Stage는 프로젝트 정책의 필수 gate 후 자율 병합할 수 있으나, 실제 신산님 인수가 필요한 release candidate는 **정확한 PR 후보 commit/image를 먼저 Oracle staging에 배포**한다. 인수 승인 전 `main`으로 병합하지 않는다. 배포 자동화가 이 순서를 보장하는지 사전 대조한다.
 - 설치 직전 백업/복구점, 이전 정상 image, DB 전진·역방향 호환성 및 환불·결제 사건 보존을 검증한다. 무손실 역 migration이 불가능하면 서비스 접근 격리 + 이전 호환 image 또는 백업 복구 절차의 데이터 영향과 승인 경계를 명시한다. 운영·공유 DB를 테스트용으로 초기화하지 않는다.
 
