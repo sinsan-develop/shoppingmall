@@ -1,11 +1,14 @@
 import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException,
-  Get, Inject, Post, Req, ServiceUnavailableException, UnauthorizedException,
+  Get, Inject, NotFoundException, Param, PayloadTooLargeException, Post, Req,
+  ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
+import type { IncomingMessage } from 'node:http';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
 import { ProductDrafts, type DraftInput } from './product-drafts.js';
+import { ImageQuarantine } from './image-quarantine.js';
 import { CatalogTaxonomy } from './taxonomy.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string } };
@@ -47,6 +50,31 @@ export class CatalogController {
     const pool = this.database.getPool();
     if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
     return new ProductDrafts(pool);
+  }
+
+  private requireLocalUpload() {
+    const host = process.env.API_HOST ?? '127.0.0.1';
+    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_LOCAL_UPLOAD !== '1' ||
+        !['127.0.0.1', '::1', 'localhost'].includes(host)) throw new NotFoundException();
+  }
+
+  private localUploadStore() {
+    const root = process.env.SHOPPINGMALL_UPLOAD_ROOT;
+    if (!root) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'upload_store' });
+    try { return new ImageQuarantine(root); }
+    catch { throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'upload_store' }); }
+  }
+
+  private async imageBytes(request: IncomingMessage): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of request) {
+      const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += part.length;
+      if (total > 5 * 1024 * 1024) throw new PayloadTooLargeException();
+      chunks.push(part);
+    }
+    return Buffer.concat(chunks, total);
   }
 
   private name(body: unknown): string {
@@ -99,6 +127,35 @@ export class CatalogController {
       if (error instanceof Error && ['Invalid product', 'Invalid option', 'Option required', 'Minor category required'].includes(error.message)) {
         throw new BadRequestException({ status: 'invalid_draft', reason: error.message });
       }
+      throw error;
+    }
+  }
+
+  @Post('seller/products/:productId/revisions/:revisionId/images')
+  async stageProductImage(@Req() request: IncomingMessage,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string) {
+    this.requireLocalUpload();
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    const store = this.localUploadStore();
+    const purpose = request.headers['x-image-purpose'];
+    const mimeType = request.headers['content-type'];
+    if ((purpose !== 'thumbnail' && purpose !== 'detail') ||
+        !['image/png', 'image/jpeg', 'image/webp'].includes(String(mimeType))) {
+      throw new BadRequestException({ status: 'invalid_image_headers' });
+    }
+    const length = Number(request.headers['content-length'] ?? 0);
+    if (length > 5 * 1024 * 1024) throw new PayloadTooLargeException();
+    const bytes = await this.imageBytes(request);
+    try {
+      return await this.drafts().addImage(actor, productId, revisionId, purpose, bytes, mimeType!, store);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Image too large') throw new PayloadTooLargeException();
+      if (error instanceof Error && [
+        'Invalid image target', 'Draft required', 'Image limit reached',
+        'Unsupported image', 'Image MIME mismatch',
+      ].includes(error.message)) throw new BadRequestException({ status: 'invalid_image', reason: error.message });
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
       throw error;
     }
   }

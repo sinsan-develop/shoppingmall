@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 개발 전용 사진 HTTP 업로드 실제 DB 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes` (직전 SSH/WSL 공통 체크포인트 `d41f0a8625268312c9b6a4b3943e140f74118432`). 사진 API는 개발용 토글·로컬 바인딩·전용 저장 경로에 한정하며 판매자 세션/Origin 확인 후 5MiB 이하 PNG/JPEG/WebP 원본만 비공개 격리한다. 실제 공급자 스토리지·바이러스 검사·고객 공개는 구현하지 않았다.
+- 무DB HTTP 시험은 기본 404/가짜 판매자 헤더 401 통과. 소유 판매자 정상 등록, 잘못된 Origin/MIME, 다른 판매자 거부, 공개 0을 검증할 실제 DB HTTP 시험을 추가했다. 로컬 API typecheck, 루트 94건 중 77 pass·0 fail·DB 전용 17 skip, PR 본문 8 pass, lint 및 diff check 통과. `apps/api`에는 `test` script가 없는데 잘못 호출한 오류 1회는 루트 `pnpm test`로 교정했다.
+- 변경 파일: `apps/api/src/catalog/controller.ts`, `apps/api/test/product-image-http*.test.mjs`, 본 현황. 다음은 SSH checkpoint→정확한 WSL 커밋에서 DB HTTP GREEN·전체 회귀·QA 파일/행·컨테이너 정리 확인. 이 단계는 S2.2/전체 구축 완료가 아니다.
+
 ## 최신 상태 — 2026-09-27 판매자 초안 사진 격리 저장 DB GREEN 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1087d9a0cbb142a17b0e9c66848b0b85118feea5` (SSH 원격/WSL 일치). WSL 실제 DB `product-image-db.test.mjs`는 `drafts.addImage is not a function`으로 의도한 RED 1회, 실패 시험 후 accounts/sellers/products/product_images/audit_events 및 컨테이너 0.
