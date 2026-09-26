@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 비공개 이미지 격리 저장 계약 RED 준비
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@8c94393702339791c135c6e130795dbce7fd0933` (SSH 원격, WSL은 앞선 코드 체크포인트라 다음 pull 필요). 비공개 개발용 `ImageQuarantine`는 전용 절대 경로만 허용하고 5MiB 제한·PNG/JPEG/WebP 서명과 선언 MIME 비교·서버 생성 UUID 키·비공개 0600 파일·경로 순회 차단을 적용한다. 이 단계는 바이트를 디코딩/재인코딩하거나 악성 파일을 검사하지 않으므로 고객 공개 또는 운영 이미지 보안 PASS가 아니다.
+- 로컬 이미지 보관/불일치·초과·경로 차단 2통과, API typecheck 통과. `ProductDrafts.addImage`의 판매자 소유·draft revision·메타데이터/파일 원자성에 대한 실제 DB 시험을 작성했으나 메서드는 아직 없고 무DB 로컬 시험은 skip. 의도한 파일 부재 RED 1회→저장기 unit GREEN; DB 기능 RED는 WSL exact commit에서 확인할 예정.
+- 변경 파일: `apps/api/src/catalog/image-quarantine.ts`, `apps/api/test/image-quarantine.test.mjs`, `apps/api/test/product-image-db.test.mjs`, 본 현황. 다음은 push/WSL DB RED→판매자 범위 이미지 등록 구현→DB GREEN·임시 파일/QA 행 정리. S3 호환 저장·실제 AV/업로드 화면·관리자 미리보기는 후속 미구현.
+
 ## 최신 상태 — 2026-09-27 PR 본문 최신 범위 불일치 정정
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@666b7107402cd8f1876a44683f1f8e055f2362fc` (SSH 원격 HEAD; WSL checkout은 직전 코드 `cfeb8ad`로 문서 checkpoint만 아직 pull 전). `.github/PR_REQUEST.md`가 초기 S1.1 상태라 “DB schema 변경 없음/WSL 미검증”이라고 잘못 적혀 있었다. 실제 DB migration 0000~0003, S1 계정·권한, S2 분류/판매자 상품 초안, WSL/브라우저 검증과 미구현 범위를 목적·변경·영향·검증·미검증·롤백 항목에서 바로잡았다.
