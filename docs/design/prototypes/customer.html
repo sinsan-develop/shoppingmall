@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>어울몰 · 고객 클릭형 시안</title><link rel="stylesheet" href="shared.css"><script defer src="customer.js"></script></head>
+<body data-customer-prototype>
+<div class="promo">어울몰 고객 클릭형 시안 · 모든 자료와 결제는 가상입니다</div>
+<header class="header"><div class="header-inner"><div class="logo"><span class="logo-mark" aria-hidden="true">어</span><span class="brand-name">어울몰</span></div><span class="muted">고객 시안 · 다른 역할과 상태를 공유하지 않음</span><button type="button" class="btn small secondary" data-action="reset">처음부터 다시 보기</button></div></header>
+<main class="container prototype-main"><div class="page-intro"><div class="eyebrow">CUSTOMER PREVIEW</div><h1>산지의 정성을 고르는 과정</h1><p>상품 선택부터 발송 주문별 확인과 한 번의 모의 결제까지 눌러 보세요.</p></div>
+<nav class="prototype-tabs" aria-label="고객 시안 단계"><button type="button" data-step="catalog">상품</button><button type="button" data-step="cart">장바구니</button><button type="button" data-step="checkout">결제 확인</button><button type="button" data-step="orders">주문 결과</button></nav>
+<p class="notice" role="status" aria-live="polite" data-notice>상품을 장바구니에 담아 보세요.</p>
+<section data-panel="catalog"><div class="section-head"><h2>제철 농산물</h2><span class="muted">품절 상품은 바로 구매 차단</span></div><div class="product-grid" data-catalog></div><div class="prototype-actions"><button type="button" class="btn" data-step="cart">장바구니 보기</button></div></section>
+<section data-panel="cart" hidden><h2>장바구니 · <span data-cart-count>0개 상품</span></h2><div class="card panel"><ul class="prototype-list" data-cart-items></ul><p class="muted">한 장바구니에 담아도 결제 단계에서는 판매자/발송 주체별 주문으로 나뉩니다.</p><button type="button" class="btn" data-action="checkout">발송 주문 확인하기</button></div></section>
+<section data-panel="checkout" hidden><h2>발송 주문 <span data-shipment-count>0개</span>, 결제는 한 번</h2><div class="prototype-stack" data-quote-groups></div><div class="card panel prototype-summary"><span>한 번에 모의 결제할 금액</span><strong class="total" data-total>0원</strong></div><p class="small-note">무료배송 5만 원 기준은 각 발송 주문의 할인 전 상품금액입니다.</p><div class="prototype-actions"><button type="button" class="btn" data-action="pay-success">모의 결제 성공</button><button type="button" class="btn secondary" data-action="pay-failure">모의 결제 실패 보기</button></div><p class="notice" data-payment-status>실제 결제는 진행되지 않습니다.</p></section>
+<section data-panel="orders" hidden><h2>가상 주문 결과</h2><div class="prototype-stack" data-orders></div><p class="notice" data-refund>출고 후 배송비·반송비는 법률·약관 검토 전 미확정입니다.</p></section>
+</main><div class="draft">독립 클릭형 시안 · 실제 계정/결제/주문/환불이 아닙니다</div>
+</body></html>
