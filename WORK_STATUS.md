@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 PR Broker 본문 보강 구현 검증 중
+
+- 담당·브랜치: 어울 단일 writer / `codex/flat-v2-prototypes`, 시작 HEAD `11fdcbe83f8102e639bcd44779409ad78381b142`. 신산님이 첫 PR 한정으로 필수 설명을 추적 문서에 담고 Broker 수정본을 같은 PR에 포함하는 방식을 직접 승인했다. 원격 `main`의 구버전 Broker가 첫 PR에 실행된다는 한계는 숨기지 않는다.
+- 변경: `.github/PR_REQUEST.md`에 이번 PR의 목적·변경 요약·영향·검증·미검증·롤백을 기록. `.github/pr-broker-body.mjs`와 Node 검사는 필수 여섯 항목의 누락·공백·중복·임시 문구·숨긴 주석·코드 블록 우회를 차단한다. `.github/workflows/auto-pr-merge.yml`은 다음 PR부터 신뢰된 `main` revision의 검사기를 사용해 정확한 branch HEAD의 설명 파일을 검증하고 신규·재사용 PR의 본문에 적용한다. 병합에는 `--match-head-commit`을 사용한다. 원격에 bootstrap branch가 없음을 확인한 후 완료된 bootstrap 자동 병합 경로를 제거했다. 계정 로그인·PAT·GitHub CLI 인증 설정을 바꾸지 않았다.
+- TDD·검증: 검사기 부재 RED 1건, 누락/공백/중복/임시 문구 RED 4건, 숨긴 HTML 주석·코드 블록·목록형 임시 문구 RED 3건 확인 후 GREEN. 기존 시안 44개+신규 PR 본문 검사 8개=총 52개 통과·0실패, `node .github/pr-broker-body.mjs .github/PR_REQUEST.md` 성공, `git diff --check` 오류 0건. 로컬 `gh pr merge --help`에서 `--match-head-commit` 지원을 확인. GitHub Actions 실제 태그 실행·자동 PR·병합은 아직 미검증. Flat v2의 개별 viewport·확대·키보드·인쇄 실행 증거도 미검증이며 사용자 시각 승인과 구별한다.
+- 다음 조치: 읽기 전용 코드 리뷰의 Critical/Important를 해결하고 정확한 파일만 commit/push한다. 필수 화면 검증과 PR 요청 태그의 승인 경계를 재대조한 뒤에만 첫 PR 자동 병합을 시작한다. 이후 두 번째 기존 계획 브랜치에 새 `main`을 정상 병합해 같은 PR 설명 검증을 적용한다. 두 브랜치 정리 전 새 브랜치는 생성하지 않는다.
+
 ## 최신 상태 — 2026-09-27 전체 구축 지시·외부 연동 후행 결정
 
 - 신산님은 Flat v2 시안을 직접 확인하고 시각 기준으로 승인했다. 이는 사용자 시각 승인 기록이며 1920×1080/1440×900/430×844, 200% 확대, 키보드·인쇄/PDF별 실행 증거가 생겼다는 뜻은 아니다. 수행되지 않은 개별 검증은 `UNVERIFIED`로 유지한다.
