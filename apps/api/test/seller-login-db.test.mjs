@@ -24,6 +24,12 @@ test('seller-only fixture logs into its one seller without accepting another sel
     await assert.rejects(auth.loginEmail(names.emails[1], password, 'seller', b.sellerId));
     const admin = await auth.loginEmail(names.emails[4], password, 'admin');
     assert.equal((await auth.getSession(admin.token)).role, 'admin');
+    const adminAccount = await pool.query('SELECT account_id FROM account_identities WHERE identifier = $1', [names.emails[4]]);
+    await pool.query('INSERT INTO account_roles (account_id, role, seller_id) VALUES ($1, $2, $3), ($1, $2, $4)',
+      [adminAccount.rows[0].account_id, 'seller', a.sellerId, b.sellerId]);
+    await assert.rejects(auth.loginEmail(names.emails[4], password, 'seller'));
+    const selected = await auth.loginEmail(names.emails[4], password, 'seller', a.sellerId);
+    assert.equal((await auth.getSession(selected.token)).sellerId, a.sellerId);
   } finally {
     await runQaFixture('reset', runId, process.env.DATABASE_URL);
     await pool.end();

@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1 역할별 로그인 범위 시험
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `45fb2d582e0dfad2eb58f29922bc1f60fd55e0d0`에서 WSL 실제 DB의 `seller-login-db.test.mjs`가 예상대로 RED: 판매자 1곳만 소속된 QA 계정도 판매자 ID를 따로 보내지 않으면 `Invalid credentials`로 실패했다. 시험 fixture는 정확한 실행 ID reset으로 정리됨.
+- `AuthRepository`에서 해당 계정의 판매자 권한이 **정확히 하나**일 때만 로그인/역할 전환의 판매자 범위를 자동 선택하고, 두 곳 이상이면 명시적 sellerId를 요구하도록 변경했다. 다른 판매자의 ID를 지정하는 요청은 기존 DB grant 검사로 차단한다. 시험에 2곳 권한의 모호한 경우 거부와 명시 선택 성공을 추가. 로컬 API typecheck·루트 lint 통과; WSL DB GREEN/전체 회귀 전이다.
+- 직전 `3967ced9019533a8e10705b051fc121556d4e0b8` WSL DB API 전체 24개 중 22 pass·0 fail·2 무DB 전용 skip, 시험 행/컨테이너 잔류 0. 브라우저 역할별 경로·웹 빌드는 이 변경에 대해 아직 시험하지 않았다.
+
 ## 최신 상태 — 2026-09-27 S1.2 mock 휴대폰 연결 검증
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`; 현재 원격/WSL `6e0b76b8bbd6b11adca8a7ff0d4cb90c69a2c7e0`. WSL 실제 DB/HTTP에서 고객 로그인→개발용 코드 발급→틀린 코드 차단→전화번호 신원 연결→코드 재사용 차단 시험 1통과·0실패. 실 SMS와 휴대폰 단독 가입/로그인은 미검증/미구현.

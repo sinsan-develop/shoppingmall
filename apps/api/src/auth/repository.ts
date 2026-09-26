@@ -70,8 +70,9 @@ export class AuthRepository {
         !(await verifyPassword(password, identity.passwordHash))) {
       throw new Error('Invalid credentials');
     }
-    if (!(await this.isGranted(identity.accountId, role, sellerId))) throw new Error('Invalid credentials');
-    return this.issueSession(identity.accountId, role, sellerId);
+    const scope = role === 'seller' && !sellerId ? await this.onlySellerGrant(identity.accountId) : sellerId;
+    if (!(await this.isGranted(identity.accountId, role, scope))) throw new Error('Invalid credentials');
+    return this.issueSession(identity.accountId, role, scope);
   }
 
   async getSession(token: string): Promise<AccessContext | undefined> {
@@ -101,7 +102,9 @@ export class AuthRepository {
 
   async switchRole(token: string, role: ActiveRole, sellerId?: string) {
     const current = await this.getSession(token);
-    if (!current || !(await this.isGranted(current.accountId, role, sellerId))) {
+    const scope = current && role === 'seller' && !sellerId
+      ? await this.onlySellerGrant(current.accountId) : sellerId;
+    if (!current || !(await this.isGranted(current.accountId, role, scope))) {
       throw new Error('Role unavailable');
     }
     return this.db.transaction(async (tx) => {
@@ -112,11 +115,11 @@ export class AuthRepository {
       const fresh = createSessionToken();
       const expiresAt = new Date(Date.now() + sessionHours * 60 * 60 * 1000);
       await tx.insert(schema.authSessions).values({
-        accountId: current.accountId, role, sellerId: sellerId ?? null,
+        accountId: current.accountId, role, sellerId: scope ?? null,
         tokenHash: hashSessionToken(fresh), expiresAt,
       });
       await tx.insert(schema.auditEvents).values({
-        actorAccountId: current.accountId, activeRole: role, sellerId: sellerId ?? null,
+        actorAccountId: current.accountId, activeRole: role, sellerId: scope ?? null,
         action: 'auth.switch_role', targetType: 'account', targetId: current.accountId,
       });
       return { token: fresh, expiresAt };
@@ -148,6 +151,14 @@ export class AuthRepository {
         sellerId ? eq(schema.accountRoles.sellerId, sellerId) : isNull(schema.accountRoles.sellerId),
       )).limit(1);
     return !!grant;
+  }
+
+  private async onlySellerGrant(accountId: string): Promise<string | undefined> {
+    const grants = await this.db.select({ sellerId: schema.accountRoles.sellerId })
+      .from(schema.accountRoles)
+      .where(and(eq(schema.accountRoles.accountId, accountId), eq(schema.accountRoles.role, 'seller')))
+      .limit(2);
+    return grants.length === 1 ? grants[0].sellerId ?? undefined : undefined;
   }
 
   private async issueSession(accountId: string, role: ActiveRole, sellerId?: string) {
