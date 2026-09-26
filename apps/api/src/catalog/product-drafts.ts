@@ -3,6 +3,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 import { canAccess, type AccessContext } from '../access.js';
 import * as schema from '../db/schema.js';
+import type { ImageQuarantine } from './image-quarantine.js';
 
 export type DraftInput = {
   categoryId: string;
@@ -47,8 +48,9 @@ function validate(input: DraftInput) {
 /** Actor must come from a verified session; never from a client role or sellerId header. */
 export class ProductDrafts {
   private readonly db: NodePgDatabase<typeof schema>;
+  private readonly pool: Pool;
 
-  constructor(pool: Pool) { this.db = drizzle(pool, { schema }); }
+  constructor(pool: Pool) { this.db = drizzle(pool, { schema }); this.pool = pool; }
 
   async create(actor: AccessContext, input: DraftInput) {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
@@ -92,5 +94,55 @@ export class ProductDrafts {
       .innerJoin(schema.productRevisions, eq(schema.productRevisions.productId, schema.products.id))
       .where(and(eq(schema.products.sellerId, actor.sellerId), eq(schema.productRevisions.version, 1)))
       .orderBy(asc(schema.productRevisions.proposedAt));
+  }
+
+  async addImage(actor: AccessContext, productId: string, revisionId: string,
+    purpose: 'thumbnail' | 'detail', bytes: Buffer, declaredMimeType: string, store: ImageQuarantine) {
+    if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
+      throw new Error('Forbidden');
+    }
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(productId) || !uuid.test(revisionId) || !['thumbnail', 'detail'].includes(purpose)) {
+      throw new Error('Invalid image target');
+    }
+    const client = await this.pool.connect();
+    let objectKey: string | undefined;
+    try {
+      await client.query('BEGIN');
+      const owned = await client.query<{ seller_id: string; status: string }>(
+        `SELECT p.seller_id,r.status FROM product_revisions r
+         JOIN products p ON p.id=r.product_id WHERE p.id=$1 AND r.id=$2 FOR UPDATE OF r`,
+        [productId, revisionId],
+      );
+      if (owned.rows[0]?.seller_id !== actor.sellerId) throw new Error('Forbidden');
+      if (owned.rows[0].status !== 'draft') throw new Error('Draft required');
+      const count = await client.query<{ total: number }>(
+        'SELECT count(*)::int AS total FROM product_images WHERE revision_id=$1', [revisionId],
+      );
+      if (count.rows[0].total >= 10) throw new Error('Image limit reached');
+      const saved = await store.put(bytes, declaredMimeType);
+      objectKey = saved.objectKey;
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO product_images (revision_id,object_key,purpose,mime_type,size_bytes,display_order)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [revisionId, objectKey, purpose, saved.mimeType, saved.sizeBytes, count.rows[0].total],
+      );
+      await client.query(
+        `INSERT INTO audit_events (actor_account_id,active_role,seller_id,action,target_type,target_id)
+         VALUES ($1,'seller',$2,'product.image_stage','product_image',$3)`,
+        [actor.accountId, actor.sellerId, inserted.rows[0].id],
+      );
+      await client.query('COMMIT');
+      return { id: inserted.rows[0].id, ...saved };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (objectKey) {
+        try { await store.remove(objectKey); }
+        catch (cleanupError) { throw new AggregateError([error, cleanupError], 'Image rollback left a quarantined file'); }
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 판매자 초안 사진 격리 저장 DB GREEN 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1087d9a0cbb142a17b0e9c66848b0b85118feea5` (SSH 원격/WSL 일치). WSL 실제 DB `product-image-db.test.mjs`는 `drafts.addImage is not a function`으로 의도한 RED 1회, 실패 시험 후 accounts/sellers/products/product_images/audit_events 및 컨테이너 0.
+- `ProductDrafts.addImage`는 검증된 판매자 scope와 자기 draft revision만 허용하고 revision 행 잠금 아래 10장 상한·비공개 임시 파일·메타데이터/감사 기록을 처리한다. DB 실패 시 rollback과 해당 임시 파일 제거를 시도하고 제거 실패는 함께 드러낸다. 로컬 API typecheck와 격리 저장 unit 2통과; 실제 DB GREEN 및 전체 회귀는 아직 미검증.
+- 변경 파일: `apps/api/src/catalog/product-drafts.ts`, 본 현황. 오류 누적: 의도한 메서드 부재 RED 1회. 다음은 SSH checkpoint→WSL DB GREEN·파일/QA 행 정리. 이 로컬 격리 저장은 이미지 내용 디코딩·AV 스캔·S3 전송/공개를 제공하지 않으며 운영 승인/고객 공개에 사용하지 않는다.
+
 ## 최신 상태 — 2026-09-27 비공개 이미지 격리 저장 계약 RED 준비
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@8c94393702339791c135c6e130795dbce7fd0933` (SSH 원격, WSL은 앞선 코드 체크포인트라 다음 pull 필요). 비공개 개발용 `ImageQuarantine`는 전용 절대 경로만 허용하고 5MiB 제한·PNG/JPEG/WebP 서명과 선언 MIME 비교·서버 생성 UUID 키·비공개 0600 파일·경로 순회 차단을 적용한다. 이 단계는 바이트를 디코딩/재인코딩하거나 악성 파일을 검사하지 않으므로 고객 공개 또는 운영 이미지 보안 PASS가 아니다.
