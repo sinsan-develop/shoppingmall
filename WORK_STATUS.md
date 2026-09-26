@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.2 상품 DB GREEN·회귀
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@011707c8689d1c41303d300224c65d2188355417` (SSH 원격/WSL 일치). WSL 지정 `shoppingmall`에 0003 migration 적용 성공, 상품 revision DB 시험 1통과·0실패. 전체 API 실제 DB 33개 중 30 pass·0 fail·무DB 전용 3 skip. 최종 migration 이력 4건, accounts/sellers/product_categories/seller_categories/products/product_revisions/product_publications/audit_events 모두 0행, 시험 컨테이너 0, WSL checkout clean.
+- 검증 범위: revision/옵션/이미지 메타데이터와 미공개 분리, 다른 상품 revision을 가리키는 공개 포인터의 DB 차단, 음수 가격·빈 제목 차단. 이미지 실제 업로드·악성 파일/형식 검사, 판매자 제안·관리자 승인·공개 조회 API/화면 및 고객 구매 가능 여부는 미구현·미검증. migration 성공만으로 S2.2 또는 전체 구축 완료를 선언하지 않는다.
+- 이번 변경 파일: 본 현황만. 오류 누적: 의도한 42P01 RED 1회, 0003 인덱스 순서 오류 1회(수정 후 적용·GREEN). 다음은 소유 판매자 범위를 확인하는 상품 제안 서비스/HTTP, 승인 전 공개 불변 시험. 외부 이미지 저장소 연결은 구축 후 일괄 준비 원칙을 유지한다.
+
 ## 최신 상태 — 2026-09-27 S2.2 migration 생성 순서 오류 수정
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@b64a2ad12977fae463b4eea427dc6dc98cbe754b` (SSH 원격/WSL 일치). 적용 전 DB QA 핵심 행 0. Drizzle ORM migrator가 0003 복합 FK를 참조 고유 인덱스보다 먼저 실행해 PostgreSQL `42830`으로 실패했다. 읽기 전용 확인: 적용 migration 이력은 3건 그대로이고 `public.products`/`product_revisions` 모두 없음. 따라서 실패가 DB에 부분 지속 변경을 남기지 않았다.
