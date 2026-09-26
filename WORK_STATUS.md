@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1.2 개발 전용 휴대폰 연결 HTTP 준비
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `AuthController`의 `/auth/mock-phone/start-link`, `/auth/mock-phone/confirm-link`는 `ENABLE_MOCK_OTP=1`이면서 비운영 환경일 때만 동작한다. 고객의 검증된 세션·Origin을 요구하고, 1회용 코드의 확인 결과로 기존 계정에 전화 신원을 명시 연결한다. 반환되는 `testCode`는 **개발 mock**이며 실문자 송신이 아니다. 무설정 404 및 설정 뒤 무인증 401 시험 RED(404)→GREEN, mock 코드/만료 시험과 API 타입검사 통과.
+- `apps/api/test/mock-phone-http-db.test.mjs`에 개발 모드의 로그인→mock challenge→틀린 코드 차단→연결→재사용 차단→DB 소유자 검증을 추가했으나 WSL DB 실행 전. 실문자/휴대폰 단독 가입·로그인/브라우저 시험은 미완료. mock이 운영에 노출되지 않는지 배포 설정 검사도 후속 필수다.
+- 직전 `d8a471ef45255047d68eea8f277cc2d46ed4b518`의 WSL 전화 신원 자동 병합 차단·감사 DB 시험 2통과·0실패. 원격/WSL checkout 동일; 시험 QA 계정은 finally에서 지정 ID로 정리했다. 현재 HTTP 변경은 커밋 전.
+
 ## 최신 상태 — 2026-09-27 S1.2 전화번호 명시적 연결 DB 검증 준비
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `AuthRepository.linkPhoneIdentity`를 별도 행위로 추가했다. 고객 역할·동일 accountId의 OTP 확인 결과만 수용하고, 기존 전화 신원이 있으면 자동 계정 병합 없이 거부하며 검증 시각·PII 없는 감사 행위를 같은 트랜잭션에 저장한다. `apps/api/test/phone-link-db.test.mjs`는 method 부재 RED→GREEN; 고객 A 확인 결과를 B가 재사용하는 것, B가 같은 번호를 연결하는 것, 계정 간 병합 방지, 신원/감사를 DB로 시험하도록 추가했다. WSL DB 실행 전.

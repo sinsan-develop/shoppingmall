@@ -24,7 +24,7 @@ export class MockPhoneOtp {
   private readonly challenges = new Map<string, Challenge>();
 
   constructor(
-    private readonly deliver: (phone: string, code: string) => void,
+    private readonly deliver: (phone: string, code: string, challengeId: string) => void,
     private readonly now: () => number = Date.now,
     private readonly generateCode: () => string = () => String(randomInt(100000, 1000000)),
   ) {}
@@ -37,7 +37,7 @@ export class MockPhoneOtp {
     const challengeId = randomUUID();
     const expiresAt = this.now() + 5 * 60_000;
     this.challenges.set(challengeId, { phone, accountId, codeHash: digest(code), expiresAt, attempts: 0 });
-    this.deliver(phone, code);
+    this.deliver(phone, code, challengeId);
     return { challengeId, expiresAt: new Date(expiresAt) };
   }
 

@@ -1,9 +1,10 @@
 import {
-  BadRequestException, Body, Controller, ForbiddenException, Get, Inject, Post,
-  Req, Res, ServiceUnavailableException, UnauthorizedException,
+  BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Inject,
+  NotFoundException, Post, Req, Res, ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
 import { DatabaseService } from '../db/service.js';
 import { AuthRepository } from './repository.js';
+import { MockPhoneOtp } from './mock-phone-otp.js';
 import type { ActiveRole } from '../access.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string } };
@@ -28,12 +29,72 @@ function setSessionCookie(reply: CookieResponse, token: string, maxAge = 86400) 
 
 @Controller('auth')
 export class AuthController {
+  private readonly mockCodes = new Map<string, string>();
+  private readonly mockPhoneOtp = new MockPhoneOtp((_phone, code, challengeId) => {
+    this.mockCodes.set(challengeId, code);
+  });
+
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
 
   private repository() {
     const pool = this.database.getPool();
     if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
     return new AuthRepository(pool);
+  }
+
+  private requireMockOtp() {
+    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_MOCK_OTP !== '1') {
+      throw new NotFoundException();
+    }
+  }
+
+  private async customerSession(request: RequestHeaders) {
+    const token = readToken(request.headers.cookie);
+    if (!token) throw new UnauthorizedException();
+    const actor = await this.repository().getSession(token);
+    if (!actor) throw new UnauthorizedException();
+    if (actor.role !== 'customer') throw new ForbiddenException();
+    return actor;
+  }
+
+  @Post('mock-phone/start-link')
+  async startMockPhoneLink(@Req() request: RequestHeaders, @Body() body: unknown) {
+    this.requireMockOtp();
+    requireOrigin(request);
+    const actor = await this.customerSession(request);
+    if (!body || typeof body !== 'object' || typeof (body as Record<string, unknown>).phone !== 'string') {
+      throw new BadRequestException();
+    }
+    try {
+      const issued = this.mockPhoneOtp.issue((body as { phone: string }).phone, actor.accountId);
+      const testCode = this.mockCodes.get(issued.challengeId);
+      this.mockCodes.delete(issued.challengeId);
+      return { ...issued, testCode, mockOnly: true };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid phone') throw new BadRequestException();
+      throw error;
+    }
+  }
+
+  @Post('mock-phone/confirm-link')
+  async confirmMockPhoneLink(@Req() request: RequestHeaders, @Body() body: unknown) {
+    this.requireMockOtp();
+    requireOrigin(request);
+    const actor = await this.customerSession(request);
+    if (!body || typeof body !== 'object') throw new BadRequestException();
+    const input = body as Record<string, unknown>;
+    if (typeof input.challengeId !== 'string' || typeof input.code !== 'string') throw new BadRequestException();
+    const proof = this.mockPhoneOtp.verify(input.challengeId, input.code, actor.accountId);
+    if (!proof) throw new UnauthorizedException({ status: 'invalid_mock_otp' });
+    try {
+      await this.repository().linkPhoneIdentity(actor, proof);
+      return { status: 'linked', mockOnly: true };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Phone already linked') {
+        throw new ConflictException({ status: 'phone_already_linked' });
+      }
+      throw error;
+    }
   }
 
   @Get('me')
