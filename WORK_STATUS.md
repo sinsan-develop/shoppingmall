@@ -1,6 +1,14 @@
 # 어울몰 작업현황
 
-## 최신 상태 — 2026-09-27 Flat v2 Task 1 완료, Task 2 진행 전
+## 최신 상태 — 2026-09-27 Flat v2 Task 2 완료, Task 3 진행 전
+
+- 단계·담당: 승인된 Flat v2 구현 계획 Task 2 / 어울 단일 writer / `codex/flat-v2-prototypes`, 기준 커밋 `02cffbe`
+- 변경: `docs/design/prototypes/flat-v2/`에 고객·판매자·관리자 HTML 및 역할별 동등성 검사 추가. 원본 역할 HTML·JS와 `shared.css`는 수정하지 않음. v2는 기존 classic 역할 스크립트를 상대경로로 공유
+- 검증: 신규 세 역할 검사에서 파일 부재 RED 3건 확인 후 역할 검사와 기존 검사 합계 37통과·0실패. 원본 HTML 3개·JS 3개·공유 CSS의 SHA256을 확인했고 `git diff --check` 오류 없음. 실제 브라우저·viewport·인쇄는 미검증
+- 오류·조치: 제한된 셸에서 새 디렉터리 생성 거부 1회; 지정 worktree 안에만 허용된 권한으로 폴더 생성 후 `apply_patch`로 검사 작성. 코드 회귀 0건
+- 다음 조치: Task 2 변경을 작업 브랜치에 commit한 뒤 Task 3 안내·설계 문서 및 가능한 시각 QA를 수행. 원본 시안과 v1 승인 상태 유지
+
+## 이전 상태 — 2026-09-27 Flat v2 Task 1 완료, Task 2 진행 전
 
 - 단계·담당: 신산님이 Flat v2 제작 계획을 승인하고 `main`에서 작업 브랜치를 만들도록 지시 / 어울 단일 writer
 - 기준: `origin/main` `34b4186561a9c1f960bdea58ece4264cb95e100e`에서 `codex/flat-v2-prototypes`와 `D:\Project\shoppingmall2\.worktrees\flat-v2-prototypes`를 생성. 로컬 기존 `main`과 미추적 `.github` 사본은 변경하지 않음. 이 격리 폴더는 Flat v2 검토·병합 뒤 포함 여부와 dirty 상태를 확인하고 정리할 대상
