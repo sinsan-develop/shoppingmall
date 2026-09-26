@@ -38,7 +38,7 @@
 
 **연결:** `home-flat-v2.html`은 `owool-static-v1.css` 다음에 `owool-flat-v2.css`를 읽는다. v2 CSS는 클릭형 Task 2에서도 같은 파일을 소비한다. 검사에서 `flatHome`, `originalHome`, `flatCss`는 각각 해당 파일을 `readFileSync(..., 'utf8')`로 읽은 문자열이며 `bodyMarkup(html)`은 첫 `<body`부터 `</body>`까지의 부분 문자열이다.
 
-- [x] **1. RED 검사 작성:** `flat-v2.test.mjs`에서 아래 이름과 기대값으로 검사한다. `<body>` 뒤 본문 비교는 v2의 `data-flat-v2`만 제거한 뒤 원본과 정확히 같아야 한다. title·추가 stylesheet만 head의 허용 차이다.
+- [x] **1. RED 검사 작성:** `flat-v2.test.mjs`에서 아래 이름과 기대값으로 검사한다. `<body>` 뒤 본문 비교는 v2의 `data-flat-v2`만 제거한 뒤 원본과 정확히 같아야 한다. title·추가 stylesheet만 head의 허용 차이다. 2026-09-27 검토에서 v2가 승인본으로 오인되지 않도록 하단 시안 상태 문구만 추가 예외로 허용했고, Windows CRLF/LF만 정규화했다. 그 밖의 본문은 동일하게 비교한다.
 
 ```js
 test('flat home preserves v1 content and loads styles in order', () => {
