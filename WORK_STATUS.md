@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1.2 권한 경계 착수
+
+- 계정 DB 계약 추가: `apps/api/src/db/schema.ts`에 계정, 식별자(이메일/전화/카카오/Apple), 판매자, 계정별 활성 역할, 토큰 해시 세션, 행위 감사 테이블을 선언했다. 역할/판매자 소속 불일치와 빈 식별자를 DB 제약으로 막고 `apps/api/migrations/0000_s1_accounts.sql`을 Drizzle Kit에서 생성했다. `pg`·Drizzle 정확 버전 및 lockfile이 변경됐다. 기존 `shoppingmall` DB의 사용자 테이블은 0개임을 적용 전 읽기 전용 확인했다. 아직 migration을 적용하거나 계정을 생성하지 않았다.
+- 스키마 검증: API `tsc --noEmit`, Drizzle Kit `check` 통과. 최초 생성물을 제약 추가 전 제거하면서 빈 기존 `drizzle/meta` 폴더의 journal 누락으로 재생성 실패 1회; 신규 표준 `migrations/` 경로로 생성하여 통과했다. 생성 SQL의 PostgreSQL 실제 실행/rollback·API 연동은 아직 미검증.
+- 신산님은 상세 개발 작업계획 전체를 이미 승인했으며, 내부 Stage의 인증·권한·DB를 다시 승인받지 말고 구축 완료까지 중단 없이 진행하라고 재확인했다. 앞선 별도 승인 재요구는 담당자의 해석 오류로 정정한다. 외부 PG 시험상점/Oracle 접속 상세는 후속 실연동·인수 준비 항목으로 기록하고 독립 개발을 계속한다.
+- 담당·브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. S1.2의 첫 부분으로 `apps/api/src/access.ts`의 서버용 역할·판매자/고객 소속 검사와 `apps/api/test/access.test.mjs`를 추가했다. 고객 IDOR, 판매자 A/B 자료 분리, 판매자 권한의 관리자 승인·환불·정산 금지, 같은 계정의 역할별 행위 분리를 검사한다.
+- TDD·검증: 테스트 대상 모듈 부재 RED 후 신규 3개 테스트 GREEN, 전체 API 타입검사 포함 `pnpm typecheck` 통과. 이는 검증된 세션을 입력받아야 하는 순수 권한 검사이며 로그인·세션·PostgreSQL 연결·HTTP 경로에 아직 연결되지 않았다. S1.2 전체 완료나 실제 IDOR 방어 통합 PASS로 표시하지 않는다.
+- 오류 횟수: 승인 경계 해석 오류 1회(사용자 정정 후 재요구 철회), 제품 검사 오류 0회. 다음은 테스트 계정/세션·지속 저장 및 API 경로에 동일 권한 계약을 연결하고 DB/API/웹 통합 검증이다.
+
 ## 최신 상태 — 2026-09-27 실제 고객 홈 구조 착수
 
 - WSL exact SHA 검증: `ca90fd512183d31526d7f997238105cfe064c765`을 지정 checkout에서 `git pull --ff-only`로 반영하고 clean 상태를 확인했다. 일회성 컨테이너의 새 홈 테스트 2통과, Next production build 통과, 빌드 웹 `/` HTTP 200과 `상품 카테고리`·`추천 상품`·`상품 준비 중` 본문을 확인했다. 시험 컨테이너 종료·자동 제거 후 9091 LISTEN 잔류가 없다. 브라우저 시각/상호작용 증거 및 정식 DB 통합은 아니다.
