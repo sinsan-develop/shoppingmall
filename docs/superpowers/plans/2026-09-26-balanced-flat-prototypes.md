@@ -16,8 +16,8 @@
 - 브랜드명 어울몰, 황금 `#c79a3e`·크림·먹빛, 고운바탕 제목·가격, Noto Sans KR 본문·UI를 유지한다.
 - 본문 12px, 주요 제목 18px, 상품명 13px, 가격 14px, 모바일 주요 입력 16px 기준을 유지한다.
 - 카드·패널 8px, 버튼·입력 6px을 후보값으로 사용하고 그림자·hover 상승·장식용 히어로 그라데이션을 제거한다. 상태 문구와 focus 표시는 유지한다.
-- v2는 시각 검토 후보이며 승인된 v1을 대체하지 않는다. 프로모션 결제 적용·비용 부담·정산 로직은 포함하지 않는다.
-- 현재 Git은 무커밋 `master`, remote 없음, 문서·시안은 미추적이다. 초기 Git 기준선 승인 전에는 commit·push·새 worktree를 만들지 않고 `WORK_STATUS.md`에 단계별 변경·검증을 기록한다.
+- 2026-09-27 신산님은 v2를 향후 제품 시각 기준으로 채택했다. v1은 비교·복구용으로 보존한다. 시각 채택은 실제 브라우저 QA 완료가 아니며 프로모션 결제 적용·비용 부담·정산 로직은 포함하지 않는다.
+- 2026-09-27 신산님 지시·승인에 따라 `origin/main`의 `34b4186`에서 `codex/flat-v2-prototypes` 격리 worktree를 생성했다. 기존 `main`과 미추적 자료를 보존하며 각 Task를 작업 브랜치에 commit한다. 원격 push·PR·병합은 필수 검증과 승인 경계를 별도로 확인한다.
 
 ## 검토 중점
 
@@ -38,7 +38,7 @@
 
 **연결:** `home-flat-v2.html`은 `owool-static-v1.css` 다음에 `owool-flat-v2.css`를 읽는다. v2 CSS는 클릭형 Task 2에서도 같은 파일을 소비한다. 검사에서 `flatHome`, `originalHome`, `flatCss`는 각각 해당 파일을 `readFileSync(..., 'utf8')`로 읽은 문자열이며 `bodyMarkup(html)`은 첫 `<body`부터 `</body>`까지의 부분 문자열이다.
 
-- [ ] **1. RED 검사 작성:** `flat-v2.test.mjs`에서 아래 이름과 기대값으로 검사한다. `<body>` 뒤 본문 비교는 v2의 `data-flat-v2`만 제거한 뒤 원본과 정확히 같아야 한다. title·추가 stylesheet만 head의 허용 차이다.
+- [x] **1. RED 검사 작성:** `flat-v2.test.mjs`에서 아래 이름과 기대값으로 검사한다. `<body>` 뒤 본문 비교는 v2의 `data-flat-v2`만 제거한 뒤 원본과 정확히 같아야 한다. title·추가 stylesheet만 head의 허용 차이다. 2026-09-27 검토에서 v2가 승인본으로 오인되지 않도록 하단 시안 상태 문구만 추가 예외로 허용했고, Windows CRLF/LF만 정규화했다. 그 밖의 본문은 동일하게 비교한다.
 
 ```js
 test('flat home preserves v1 content and loads styles in order', () => {
@@ -52,10 +52,10 @@ test('flat rules are scoped and remove depth without changing type sizes', () =>
   assert.doesNotMatch(flatCss, /font-size\s*:/);
 });
 ```
-- [ ] **2. 실패 확인:** `node --test docs/design/assets/flat-v2.test.mjs` → v2 파일 부재로 예상한 실패.
-- [ ] **3. 최소 구현:** 기존 홈 내용을 보존한 별도 HTML과 공통 v2 CSS를 만든다. CSS는 단색 히어로, 카드·패널 경계, 버튼·입력·상태, 선택 메뉴만 덮어쓰며 글자 크기와 실제 사진 자리는 바꾸지 않는다.
-- [ ] **4. 통과 확인:** 위 검사 0실패, `Get-FileHash`로 기록한 v1 CSS·홈 HTML 해시 불변 확인.
-- [ ] **5. 기록:** `WORK_STATUS.md`에 파일·검사·미검증·다음 Task를 기록. Git commit은 초기 기준선 게이트 전까지 보류.
+- [x] **2. 실패 확인:** `node --test docs/design/assets/flat-v2.test.mjs` → v2 파일 부재로 예상한 실패.
+- [x] **3. 최소 구현:** 기존 홈 내용을 보존한 별도 HTML과 공통 v2 CSS를 만든다. CSS는 단색 히어로, 카드·패널 경계, 버튼·입력·상태, 선택 메뉴만 덮어쓰며 글자 크기와 실제 사진 자리는 바꾸지 않는다.
+- [x] **4. 통과 확인:** 위 검사 0실패, `Get-FileHash`로 기록한 v1 CSS·홈 HTML 해시 불변 확인.
+- [x] **5. 기록:** `WORK_STATUS.md`에 파일·검사·미검증·다음 Task를 기록하고 작업 브랜치에 commit.
 
 ### Task 2: 세 역할 클릭형 Flat 진입점
 
@@ -65,7 +65,7 @@ test('flat rules are scoped and remove depth without changing type sizes', () =>
 
 **연결:** 각 v2 HTML은 `../shared.css` → `../../assets/owool-flat-v2.css` 순서로 읽고 역할별 기존 `../customer.js`, `../seller.js`, `../admin.js`를 그대로 사용한다. `body[data-flat-v2]`만 시각 분기점이다. 검사에서 `flatHtml`/`originalHtml`은 반복 중인 역할의 v2/v1을 읽은 문자열이며 `normalizeFlatBody(html)`은 `bodyMarkup(html)`에서 ` data-flat-v2`만 제거한다.
 
-- [ ] **1. RED 검사 작성:** 역할별 `flat-v2.test.mjs`에서 아래 사례를 각각 실행한다. title·CSS link·script 경로와 `data-flat-v2`만 허용 차이로 정규화하고 `<body>` 본문은 원본과 정확히 비교한다.
+- [x] **1. RED 검사 작성:** 역할별 `flat-v2.test.mjs`에서 아래 사례를 각각 실행한다. title·CSS link·script 경로와 `data-flat-v2`만 허용 차이로 정규화하고 `<body>` 본문은 원본과 정확히 비교한다.
 
 ```js
 for (const role of ['customer', 'seller', 'admin']) {
@@ -76,22 +76,22 @@ for (const role of ['customer', 'seller', 'admin']) {
   });
 }
 ```
-- [ ] **2. 실패 확인:** `node --test docs/design/prototypes/flat-v2/flat-v2.test.mjs` → v2 파일 부재로 예상한 실패.
-- [ ] **3. 최소 구현:** 원본 세 HTML을 별도 파일로 보존 복제하고 허용된 title·link·script 경로·body 속성만 변경한다. 기존 역할 JS와 데이터는 수정하지 않는다.
-- [ ] **4. 통과 확인:** 위 검사와 기존 `customer.test.mjs`, `seller.test.mjs`, `admin.test.mjs`, `prototype-shell.test.mjs` 모두 0실패. 원본 HTML·JS·`shared.css` 해시 불변 확인.
-- [ ] **5. 기록:** `WORK_STATUS.md`에 결과와 브라우저 미검증 범위를 기록. Git commit·push 보류.
+- [x] **2. 실패 확인:** `node --test docs/design/prototypes/flat-v2/flat-v2.test.mjs` → v2 파일 부재로 예상한 실패.
+- [x] **3. 최소 구현:** 원본 세 HTML을 별도 파일로 보존 복제하고 허용된 title·link·script 경로·body 속성만 변경한다. 기존 역할 JS와 데이터는 수정하지 않는다.
+- [x] **4. 통과 확인:** 위 검사와 기존 `customer.test.mjs`, `seller.test.mjs`, `admin.test.mjs`, `prototype-shell.test.mjs` 모두 0실패. 원본 HTML·JS·`shared.css` 해시 불변 확인.
+- [x] **5. 기록:** `WORK_STATUS.md`에 결과와 브라우저 미검증 범위를 기록하고 작업 브랜치에 commit. 원격 push는 최종 검증 뒤 결정.
 
 ### Task 3: 검토 안내와 시각 QA
 
 **파일:**
 - 수정: `docs/design/prototypes/README.md` — v1/v2 역할별 시작 경로와 가상 기능 경계
-- 수정: `docs/design/DESIGN.md` — Flat v2를 미승인 시각 후보로 연결, v1 승인 상태 유지
+- 수정: `docs/design/DESIGN.md` — Flat v2를 제품 시각 기준으로 연결, v1은 비교·복구용으로 유지
 - 수정: `WORK_STATUS.md` — 실제 확인 결과와 남은 인수 항목
 
 **연결:** Task 1·2의 진입점만 안내한다. 새 상태 모델이나 실제 프로모션 기능을 추가하지 않는다.
 
-- [ ] **1. 링크 검사 작성:** 기존 `prototype-shell.test.mjs`에 v2 링크와 v1 유지·가상 경계 안내 검사를 먼저 추가하고 실패를 확인한다.
-- [ ] **2. 문서 반영:** README와 DESIGN에 별도 비교 경로·미승인 상태를 명시한다.
-- [ ] **3. 전체 정적 회귀:** `node --test docs/design/assets/typography.test.cjs docs/design/assets/flat-v2.test.mjs docs/design/prototypes/customer.test.mjs docs/design/prototypes/seller.test.mjs docs/design/prototypes/admin.test.mjs docs/design/prototypes/prototype-shell.test.mjs docs/design/prototypes/flat-v2/flat-v2.test.mjs` → 0실패.
+- [x] **1. 링크 검사 작성:** 기존 `prototype-shell.test.mjs`에 v2 링크와 v1 유지·가상 경계 안내 검사를 먼저 추가하고 실패를 확인한다.
+- [x] **2. 문서 반영:** README와 DESIGN에 별도 비교 경로·현재 채택 상태 및 미검증 범위를 명시한다.
+- [x] **3. 전체 정적 회귀:** `node --test docs/design/assets/typography.test.cjs docs/design/assets/flat-v2.test.mjs docs/design/prototypes/customer.test.mjs docs/design/prototypes/seller.test.mjs docs/design/prototypes/admin.test.mjs docs/design/prototypes/prototype-shell.test.mjs docs/design/prototypes/flat-v2/flat-v2.test.mjs` → 0실패.
 - [ ] **4. 실제 화면 점검:** 허용된 브라우저에서 홈·고객·판매자·관리자 v1/v2를 1920×1080, 1440×900, 430×844와 200% 확대, 키보드 focus, 상태 구분, 인쇄 미리보기로 비교한다. 로컬 파일 열기가 정책상 차단되면 우회하지 않고 해당 항목을 미검증으로 남긴다.
 - [ ] **5. 최종 기록·검토 요청:** 차이, 스크린샷/실행 증거, 미검증, 원본 해시 불변, 임시 자원 잔류를 `WORK_STATUS.md`에 적고 신산님께 Flat v2 승인 여부를 요청한다. 제품 UI 확정·개발 Stage 착수는 별도 게이트다.

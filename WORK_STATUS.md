@@ -1,6 +1,48 @@
 # 어울몰 작업현황
 
-## 최신 상태 — 2026-09-26 초기 Git main 기준선 생성·원격 확인
+## 최신 상태 — 2026-09-27 전체 구축 지시·외부 연동 후행 결정
+
+- 신산님은 Flat v2 시안을 직접 확인하고 시각 기준으로 승인했다. 이는 사용자 시각 승인 기록이며 1920×1080/1440×900/430×844, 200% 확대, 키보드·인쇄/PDF별 실행 증거가 생겼다는 뜻은 아니다. 수행되지 않은 개별 검증은 `UNVERIFIED`로 유지한다.
+- 신산님은 `D:/tmp/shoppingmall2-end-to-end-work-plan/docs/WORK_PLAN.md`의 상세 개발 범위로 전체 구축을 지시했다. 외부 서비스 가입·실연동에 필요한 사항은 구축 완료 후 일괄 처리하기로 했다. S1~S8은 mock/계약 검증으로 진행하고 PG·카카오·문자/메일·푸시의 실제 공급자 PASS와 Oracle UAT/공개 출시는 별도 증거·승인 전까지 선언하지 않는다. 계획서의 schema/migration·인증/권한·Secret·비용·Oracle 별도 승인 경계는 그대로다.
+- 기존 두 브랜치의 순차 병합·정리 전 새 브랜치는 만들지 않는다는 신산님 직접 지시가 유지된다. 현재 `main`의 PR Broker는 일반 문구로 즉시 PR을 생성·자동 병합하고, PMO 필수 PR 본문 항목을 채우지 않는다. 신산님은 자동화 수정을 직접 지시했다. 수정본을 기존 Flat v2 브랜치에 작성해도 첫 요청 태그는 현재 `main`의 구버전 자동화를 실행하므로, 첫 병합 경로는 별도 해결이 필요하다. `main` 직접 수정·새 브랜치·GitHub 계정/PAT 사용·미검증 PASS 선언은 하지 않는다.
+- 담당·현재 체크포인트: 어울 단일 writer, `codex/flat-v2-prototypes` 시작 HEAD `1c210a2320620be3570d0b0ed6b295b0feff3fe7`. 다음 안전 작업은 정본·Git 게이트 점검과 허용된 브랜치 내 기록 보존이며 PR 요청 태그·제품 신규 Stage 시작은 선행 경계 해결 뒤다.
+
+## 최신 상태 — 2026-09-27 Flat v2 채택 표기 정정·병합 전 검증
+
+- 단계·담당: Flat v2 병합 전 리뷰 대응 / 어울 단일 writer / `codex/flat-v2-prototypes`, 시작 HEAD `a8aaa4511508f035e594047205014822bf3c1f6b`.
+- 신산님이 Flat v2를 향후 제품 시각 기준으로 채택한 사실을 `docs/design/DESIGN.md`, 시안 안내, 홈 상태 문구, 계획 문서 및 관련 검사에 일치시켰다. v1은 비교·복구용으로 보존하며 역할별 JavaScript·거래 기능은 변경하지 않았다. 채택은 브라우저 QA 완료가 아니다.
+- 읽기 전용 코드 리뷰의 Important 2건 중 상태 표기 불일치를 수정했다. 실제 브라우저의 1920×1080/1440×900/430×844·200% 확대·키보드·인쇄/PDF 검증은 여전히 미완료로 남긴다. 보조 버튼 눌림 표현 Minor는 실제 화면 점검 대상이다.
+- 회귀: 채택 문구 검사 RED 확인 후 `node --test` 44통과·0실패. 실제 화면을 테스트한 것으로 표시하지 않는다. 브라우저 자동화의 로컬 파일 프로토콜 정책 거부를 우회하지 않는다.
+- Git·다음 조치: 채택 표기 정정 commit `572f3e97f2a6089cb9d4777577700202ee48bf6b`을 원격에 보존했다. 그 사이 원격 `main`이 PR Broker workflow 이름 변경 commit `770d7f010233ca9892792ff2f0f9a80c2a638602`로 전진하여 이를 현재 Flat v2 브랜치에 정상 merge했고, 재검사 44통과·0실패 뒤 merge commit `88b5645e7e3e69df068b958ff4ff04d59bf0d791`을 지정 SSH 원격에 push했다. 두 기존 브랜치의 순차 병합·정리와 새 브랜치 생성은 신산님의 직접 지시다. 실제 화면 검증 증거·필수 게이트를 확보한 뒤 PR Broker 요청 태그를 사용한다. 현재 broker가 생성하는 PR 본문에는 PMO 필수 목적·영향·검증·미검증·rollback이 모두 담기지 않아 그 경계도 해소해야 한다. 게이트 전 PR 태그·main 병합·브랜치 삭제는 하지 않는다.
+
+## 최신 상태 — 2026-09-27 Flat v2 Task 3 문서·정적 검증 완료, 시각 인수 대기
+
+- 단계·담당: 승인된 Flat v2 구현 계획 Task 3 / 어울 단일 writer / `codex/flat-v2-prototypes`, 기준 `origin/main` `34b4186`
+- 변경: `docs/design/prototypes/README.md`에 v1과 Flat v2 비교 경로·가상 기능 경계 추가, `docs/design/DESIGN.md`에 v2를 미승인 후보로 명시, `prototype-shell.test.mjs`에 안내 링크 검사 추가. 계획 문서의 오래된 무커밋 `master`/commit 보류 전제를 신산님의 최신 작업 브랜치 지시에 맞게 정정. 원본 시안·역할별 JS·공유 CSS는 수정하지 않음
+- 검증: 안내 링크 누락 RED 1건 확인. 읽기 전용 리뷰가 홈 v2 하단의 잘못된 'v1 승인' 표기를 Important로 찾아, 미승인 후보 표기 검사를 RED→GREEN으로 추가하고 하단 문구만 수정. 전체 Node 검사 44통과·0실패. 모든 v2 HTML의 로컬 CSS·JS 경로 11개 존재 확인. 실제 인앱 브라우저에서 `file://` 시안 열기는 브라우저 보안 정책이 프로토콜을 거부했으며 다른 표면·로컬 서버 우회는 시도하지 않음. 따라서 1920×1080/1440×900/430×844, 200% 확대, 키보드 focus, 상태 구분, 인쇄/PDF·스크린샷은 **미검증**. 신산님의 직접 시각 확인 필요
+- 오류·조치: Task 3 코드 검사 오류 0건; 브라우저 URL 정책 거부 1회. 원본 9개 파일의 SHA256 불변과 `git diff --check` 오류 0건을 재확인. 임시 `.superpowers/sdd/2026-09-26-balanced-flat-prototypes/` 기록과 활성 worktree는 검토 전 보존
+- Git 체크포인트: 작업 브랜치 `codex/flat-v2-prototypes`의 `9dd88603fc6754ef3360ad253aa483851cff045f`를 `origin/codex/flat-v2-prototypes`에 첫 push하고 `git ls-remote`에서 같은 SHA를 확인. 원격 `main`은 기준 `34b4186` 그대로이며 PR·병합·자동 요청 태그 생성 없음. 기본 작업 폴더의 뒤처진 로컬 `main`과 미추적 `.github` 사본도 보존
+- 리뷰 잔여 Minor: 보조 버튼 hover 중 press 색 변화가 뚜렷하지 않음; HTML 검사가 모든 추가 head 요소·상대경로 존재를 자동 보장하지 않음(현재 CSS·JS 11개 경로는 별도 정적 확인). 화면 검토의 필수 차단은 아니나 향후 실제 브라우저 확인 대상
+- 다음 조치: 신산님께 Flat v2 시각 후보를 제시해 검토·수정 의견을 받는다. Task 3 실제 브라우저 점검은 미완료이며 제품 개발 Stage·WSL/Oracle 배포·`main` 병합은 별도 경계
+
+## 이전 상태 — 2026-09-27 Flat v2 Task 2 완료, Task 3 진행 전
+
+- 단계·담당: 승인된 Flat v2 구현 계획 Task 2 / 어울 단일 writer / `codex/flat-v2-prototypes`, 기준 커밋 `02cffbe`
+- 변경: `docs/design/prototypes/flat-v2/`에 고객·판매자·관리자 HTML 및 역할별 동등성 검사 추가. 원본 역할 HTML·JS와 `shared.css`는 수정하지 않음. v2는 기존 classic 역할 스크립트를 상대경로로 공유
+- 검증: 신규 세 역할 검사에서 파일 부재 RED 3건 확인 후 역할 검사와 기존 검사 합계 37통과·0실패. 원본 HTML 3개·JS 3개·공유 CSS의 SHA256을 확인했고 `git diff --check` 오류 없음. 실제 브라우저·viewport·인쇄는 미검증
+- 오류·조치: 제한된 셸에서 새 디렉터리 생성 거부 1회; 지정 worktree 안에만 허용된 권한으로 폴더 생성 후 `apply_patch`로 검사 작성. 코드 회귀 0건
+- 다음 조치: Task 2 변경을 작업 브랜치에 commit한 뒤 Task 3 안내·설계 문서 및 가능한 시각 QA를 수행. 원본 시안과 v1 승인 상태 유지
+
+## 이전 상태 — 2026-09-27 Flat v2 Task 1 완료, Task 2 진행 전
+
+- 단계·담당: 신산님이 Flat v2 제작 계획을 승인하고 `main`에서 작업 브랜치를 만들도록 지시 / 어울 단일 writer
+- 기준: `origin/main` `34b4186561a9c1f960bdea58ece4264cb95e100e`에서 `codex/flat-v2-prototypes`와 `D:\Project\shoppingmall2\.worktrees\flat-v2-prototypes`를 생성. 로컬 기존 `main`과 미추적 `.github` 사본은 변경하지 않음. 이 격리 폴더는 Flat v2 검토·병합 뒤 포함 여부와 dirty 상태를 확인하고 정리할 대상
+- Task 1 변경: `docs/design/assets/flat-v2.test.mjs`, `home-flat-v2.html`, `owool-flat-v2.css`. 원본 홈 HTML·CSS는 불변 SHA256 `D31050A8…`, `5C45CE70…`. 본문·글자 크기·가상 상품 흐름은 보존하고 Flat 시각 규칙만 별도 적용
+- 검증: 시작 기준 Node 37통과. Task 1 신규 검사에서 파일 부재 RED 2건 확인 후 2통과·0실패. 원본/비교본 줄끝 CRLF·LF 차이만 정규화해 본문 내용을 비교. 실제 브라우저·viewport·인쇄는 미검증
+- 오류·조치: 제한된 셸에서 계획 기록 폴더 생성 권한 거부 1회; 반복 실행을 중단하고 지정 작업 경로에 허용된 권한으로 재실행하여 생성. 임시 계획 기록은 `.superpowers/sdd/2026-09-26-balanced-flat-prototypes/`에 격리·ignore. 업무 코드 오류 없음
+- 다음 조치: Task 1 변경을 작업 브랜치에 안전하게 commit한 뒤 Task 2 역할별 비교 화면을 테스트 우선으로 제작. 계획의 과거 무커밋 `master` 전제는 최신 사용자 지시·실제 Git에 따라 적용하지 않음
+
+## 이전 상태 — 2026-09-26 초기 Git main 기준선 생성·원격 확인
 
 - 단계·담당: 신산님 직접 지시의 `sinsan-develop/shoppingmall` 초기 `main` 생성·커밋·push / 어울
 - 현재 판정: `D:\Project\shoppingmall2`의 초기 `main` root commit `6c249b0be8b60604a86c4ddf7c3ea68159749d50` 생성. `origin=git@github-sinsan-develop:sinsan-develop/shoppingmall.git`; 비강제 `git push -u origin main` 성공. 이후 `git ls-remote --symref origin HEAD refs/heads/main`에서 원격 HEAD가 `main`을 가리키고 원격 SHA가 초기 커밋과 일치함을 확인
