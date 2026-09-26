@@ -1,8 +1,9 @@
 import { sql } from 'drizzle-orm';
-import { check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 export const identityKind = pgEnum('identity_kind', ['email', 'phone', 'kakao', 'apple']);
 export const activeRole = pgEnum('active_role', ['customer', 'seller', 'admin']);
+export const deletionStatus = pgEnum('deletion_status', ['requested', 'in_review', 'completed']);
 
 export const accounts = pgTable('accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -89,3 +90,40 @@ export const auditEvents = pgTable('audit_events', {
   details: jsonb('details').notNull().default({}),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index('audit_events_occurred_idx').on(table.occurredAt)]);
+
+export const customerAddresses = pgTable('customer_addresses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  label: text('label').notNull(),
+  recipientName: text('recipient_name').notNull(),
+  phone: text('phone').notNull(),
+  postalCode: text('postal_code').notNull(),
+  line1: text('line1').notNull(),
+  line2: text('line2').notNull().default(''),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (table) => [
+  index('customer_addresses_account_idx').on(table.accountId),
+  uniqueIndex('customer_addresses_one_default_uq').on(table.accountId)
+    .where(sql`${table.isDefault} = true AND ${table.deletedAt} IS NULL`),
+]);
+
+export const notificationPreferences = pgTable('notification_preferences', {
+  accountId: uuid('account_id').primaryKey().references(() => accounts.id),
+  marketingEmail: boolean('marketing_email').notNull().default(false),
+  marketingSms: boolean('marketing_sms').notNull().default(false),
+  push: boolean('push').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const accountDeletionRequests = pgTable('account_deletion_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  status: deletionStatus('status').notNull().default('requested'),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('account_deletion_requests_open_uq').on(table.accountId)
+    .where(sql`${table.status} = 'requested'`),
+]);

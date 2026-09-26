@@ -1,7 +1,17 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 Stage 순서 대조 및 S1.3 복귀
+
+- S1.3 데이터 계약 착수: `apps/api/src/db/schema.ts`에 고객 배송지(계정 소속·기본 배송지 1개), 채널별 마케팅 동의 기본 false, 탈퇴 요청 상태/중복 방지 테이블을 추가하고 `0002_s1_customer_privacy.sql` migration을 Drizzle에서 생성·check 통과. `apps/api/src/customer/profile.ts`는 자기 계정만 배송지를 읽고 추가하며, 마케팅 동의를 명시 저장하고 탈퇴를 **요청 상태로만** 기록한다. 원문 배송지/전화는 감사 details에 저장하지 않으며 연락처 마스킹 도우미를 갖췄다. 실계정 삭제/보존기간 확정은 구현하지 않았다. `apps/api/test/customer-profile-db.test.mjs` RED 후 로컬 DB 미설정으로 SKIP, TypeScript 통과; WSL DB 검증 전이다.
+- S1.3 DB 변경 사전 기록: 정확한 대상은 `WSL-server`의 `local-postgres` 내 `shoppingmall` 한 DB. 현재 세 번째 migration은 미적용. 승인된 계획 범위의 S1.3 테이블만 추가하고 기존 테이블·자료를 삭제하지 않는다. 기존 QA 계정/판매자/분류는 0행으로 확인했다. 커밋→SSH push→지정 WSL checkout pull→BEGIN/ROLLBACK SQL 시험→공식 ORM migrator 적용→이력/테이블·고객 A/B IDOR/감사 통합시험 순서. 일회성 `shoppingmall-s1-profile` 컨테이너는 명령 동안만 사용·`--rm`, QA 계정/배송지는 unique `qa+UUID@example.invalid`로 만들고 정확한 accountId로 정리한다. 실패 시 다른 DB/테이블을 초기화하지 않고 현재 상태를 기록한다.
+- 실제 Git: 기존 단일 writer `codex/flat-v2-prototypes@caa18ac8b1dbc7b02fea67498bd95372e8dd1992`; 원격 `main@207e7961c12f87f88a229d443a70ed764db2c24a`. 별도 기존 `codex/end-to-end-work-plan@74a814d`와 root main worktree는 보존. 현재 S2.1 분류 migration/서비스를 커밋·push했고 WSL DB migration 이력 2건과 시험 1통과를 확인했으나 `main` 병합·merged-main smoke는 없다.
+- 계획 대비 판정: S1.1 기반·S1.2 계정/역할 일부는 구현/시험했으나 S1.3 고객 배송지·알림 동의·탈퇴 요청 안내·QA seed/reset/보존, 휴대폰 OTP mock·명시적 계정 연결, 역할별 브라우저/API 최종 검증, CI 실제 실행 및 S1 Stage PR/병합/merged-main smoke는 **미완료/UNVERIFIED**. 그런데 S2.1에 먼저 착수해 순서가 계획과 어긋났다. S1이나 S2 완료를 선언하지 않는다.
+- 대안: (1) 기존 브랜치·DB 이력을 보존한 채 S1.3과 S1 잔여를 우선 구현·검증하고 이후 S2를 계속한다. 단일 브랜치의 첫 PR에 선행 S2.1 변경이 함께 들어가므로 Stage별 PR 경계를 설명·검토해야 한다. (2) S2 변경을 되돌리거나 별도 분리한다. 이미 적용된 지속 DB 이력 및 사용자 기존 브랜치 보존 원칙에 비춰 위험이 크다. (3) 새 branch/worktree로 재구성한다. 신산님의 선행 브랜치 정리 전 새 branch 금지 지시와 충돌한다. **권장/진행:** (1), 새 branch·파괴적 rollback 없이 S1.3으로 돌아가고 범위/검증을 PR에 명시한다.
+- 이번 작업 오류 횟수: Stage 순서 판단 1회. 수정: 계획과 실제 Git·WSL/DB 증거를 대조하고 현황에 미완료를 기록했다. S2.1 자료를 삭제·재포장하지 않으며 S1.3의 독립 구현을 계속한다.
+
 ## 최신 상태 — 2026-09-27 S2.1 분류·판매자 등록 착수
 
+- WSL 실제 DB 결과: 정확한 `caa18ac8b1dbc7b02fea67498bd95372e8dd1992`에서 `0001_s2_categories.sql`을 BEGIN/ROLLBACK으로 오류 없이 검증한 뒤 공식 ORM migrator로 `shoppingmall` DB에 적용했다. `drizzle.__drizzle_migrations` 2건, 분류 테이블 2개 확인. 관리자 전용 2단계 분류·판매자 분류/판매자 등록·3단계 거부·중복 거부 및 감사 기록의 DB 통합 1통과·0실패. QA 상품/판매자 분류·판매자·이메일 행 모두 잔류 0, 일회성 컨테이너 잔류 0, WSL checkout clean. DB migration 이력/테이블은 지속 보존. HTTP/API·웹 관리 화면은 아직 미검증.
 - 담당·브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 신산님 승인 계획에 따라 S1 인증 작업과 연계된 S2.1의 관리자 대분류→소분류·판매자 분류→판매자 모델을 착수했다. `shoppingmall` DB 기존 `sellers`·`accounts` 각각 0행을 읽기 전용 확인했으며 기존 다른 DB는 건드리지 않는다.
 - 변경: `apps/api/src/db/schema.ts`에 상품/판매자 분류와 판매자 분류 FK, root/child 중복명 제약을 추가했고 Drizzle `0001_s2_categories.sql`을 생성·check 통과했다. `apps/api/src/catalog/taxonomy.ts`에는 관리자 역할 검사, 대분류·소분류 2단계 제한, 판매자 분류/판매자 등록 및 같은 트랜잭션 감사 기록을 구현 중이다. `apps/api/src/access.ts`의 관리자 action을 추가했고 권한 시험은 RED→GREEN, `apps/api/test/taxonomy-db.test.mjs`는 WSL DB에서 검증할 계약이다.
 - 사전 DB 변경 기록: 정확한 대상 `WSL-server`의 `local-postgres` 안 `shoppingmall` DB. 현재 두 번째 migration은 미적용. source/SQL을 기존 SSH 브랜치에 안전하게 push하고 WSL에서 BEGIN/ROLLBACK 문법 시험 후 공식 ORM migrator로 이력을 남겨 적용한다. 일회성 QA 컨테이너 `shoppingmall-s2-taxonomy`는 적용·시험 동안만 사용하고 `--rm` 정리; 시험 행은 식별 가능한 `qa+UUID@example.invalid` 계정과 고유 이름 분류/판매자를 대상으로만 정리한다. 실제 운영 분류·판매자 자료 없음.
