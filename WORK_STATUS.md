@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1.2 휴대폰 OTP mock 검증기 착수
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. `apps/api/src/auth/mock-phone-otp.ts`에 실문자 미발송 OTP mock 검증기를 추가했다. 인증 코드는 주입된 시험 전달자에게만 넘기며 5분 만료·최대 5회 시도·1회 사용·계정 ID 바인딩, 코드 해시 비교를 적용한다. 시험은 RED(모듈 없음)→GREEN 1통과, API 타입검사 통과.
+- 범위 경계: 검증기는 **아직 DB 휴대폰 신원 연결/로그인 API나 화면에 연결되지 않았다.** 따라서 전화번호 가입·실문자 수신·계정 연결 전체 PASS 아님. 생산 환경에 mock 인증을 노출하지 않는다. 다음은 검증 증명과 명시적 계정 연결을 DB/HTTP에서 안전하게 이어 검증할 것.
+- 직전 체크포인트: `ab38a1ba9dafacba0abf86c435e9351dcd27702e` 로컬/SSH 원격/WSL 일치, 모두 clean. 현재 OTP 파일/시험/현황은 커밋 전. 외부 서비스 가입·연동은 미실행.
+
 ## 최신 상태 — 2026-09-27 S1 고객 API·시험자료 재검증
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@a03343163b5aa33ec791c974ffd41ff303abdb9a` (로컬/SSH 원격/지정 WSL checkout 일치). `docs/QA_DATA_POLICY.md`에 가상 자료 사용, 실행 ID별 정리, 실패 시 보존·기록, 실제 탈퇴 요청과 fixture reset의 구분을 기록했다.
