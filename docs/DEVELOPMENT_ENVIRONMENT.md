@@ -1,7 +1,7 @@
 # 어울몰 개발·시험 환경 (초안)
 
 - 확인일: 2026-09-26
-- 상태: 설계·개발 작업계획 승인 후 착수 전 환경 확인. 화면 시안 승인·Git 기준선·공통 포트·QA/Secret 절차·환경 준비 판정 전에는 제품 구현을 시작하지 않음.
+- 상태: 설계·개발 작업계획 승인 후 착수 전 환경 확인. 2026-09-26 Git `main` 초기 기준선은 생성했으며, 화면 시안 승인·공통 포트·QA/Secret 절차·환경 준비 판정 전에는 제품 구현을 시작하지 않음.
 
 ## 환경 역할
 
@@ -18,24 +18,24 @@
 ## 현재 확인한 사실
 
 - 로컬 작업 폴더: `D:\Project\shoppingmall2` (신산님이 2026-09-26 변경 지시). 이전 `C:\Users\cyhuh\OneDrive\문서\ChatGPT\쇼핑몰`은 검증용 원본으로 보존하며 이후 작업 정본으로 사용하지 않음.
-- 로컬 Git: 무커밋 `master`, remote 미설정. 기존 미추적 문서 보존 중.
-- 지정 GitHub SSH URL: `git@github-sinsan-develop:sinsan-develop/shoppingmall.git`. `git ls-remote` 접속은 성공했으나 2026-09-26 현재 조회된 `HEAD`, `main`, `master` ref는 없음. 최초 커밋·기준 브랜치는 아직 만들지 않음.
+- 로컬 Git: 2026-09-26 `main` 초기 root commit `6c249b0be8b60604a86c4ddf7c3ea68159749d50` 생성, `origin/main` 추적. 문서·시안·검사 32개 파일을 최초 기준선으로 push했고 별개 `.github` 자동화 두 파일은 미추적으로 보존.
+- 지정 GitHub SSH URL: `git@github-sinsan-develop:sinsan-develop/shoppingmall.git`. 초기 push 후 `git ls-remote --symref origin HEAD refs/heads/main`에서 원격 HEAD와 `main`이 위 root commit을 가리키는 것을 확인.
 - WSL SSH 별칭: `WSL-server`로 `SINSAN` 접속 확인. 앞선 대화의 `ssh-WSL` 표기보다 사용자가 제공한 실제 SSH 설정의 `WSL-server`를 적용.
 - WSL checkout 경로: `/home/daon/deploy/shopping`은 2026-09-26 현재 없음. 생성·clone·pull 미실행.
 - WSL DB: 실행 중인 정확한 `local-postgres` 컨테이너에 `shoppingmall` 데이터베이스 생성 완료, `psql` 접속과 현재 DB명 확인. 같은 서버의 유사 이름 컨테이너·타 프로젝트 DB는 변경하지 않음.
 
-### 2026-09-26 재확인(읽기 전용)
+### 2026-09-26 초기 push 전 재확인(읽기 전용 역사 기록)
 
 - `git ls-remote git@github-sinsan-develop:sinsan-develop/shoppingmall.git`는 SSH 설정 접근이 허용된 실행에서 종료 코드 0이었으나 ref 출력이 없다. 따라서 원격 저장소 접속은 가능하지만 `main` 기준선은 아직 없다.
 - `ssh WSL-server`로 `SINSAN`을 확인했고 `/home/daon/deploy/shopping`은 없다. 정확한 commit pull·WSL 앱 실행은 아직 미검증이다.
 - `ssh WSL-server`를 통한 `local-postgres`의 `shoppingmall` DB 읽기 전용 `SELECT current_database()` 결과가 `shoppingmall`이다. 애플리케이션 schema·권한·migration은 미준비다.
 - 제한된 로컬 셸에서는 `C:\Users\cyhuh\.ssh\config` 접근이 거부되어 SSH alias가 일반 호스트명처럼 처리됐다. 이는 서버·GitHub 접속 실패의 증거가 아니다. 설정 접근이 허용된 읽기 전용 재시험에서 위 접속이 성공했으며 SSH 설정·credential은 변경하지 않았다.
 - 병렬 조사 시점에 9089·9091 포트 점유는 관찰되지 않았으나 프로젝트 공통 포트로 확정하지 않았다. 실제 선정 때 로컬·WSL·향후 인수환경의 점유와 소유자를 다시 확인한다.
-- 프로젝트 root `AGENTS.md`와 정식 개발 Git 기준선·WSL checkout은 아직 없다. 현재 문서 작업공간의 `docs/` 및 `WORK_STATUS.md`는 무커밋·미추적 상태로 보존한다.
+- 당시 프로젝트 root `AGENTS.md`와 정식 개발 Git 기준선·WSL checkout은 없었고, `docs/` 및 `WORK_STATUS.md`는 미추적 상태였다. 이후 Git `main` 기준선은 위와 같이 생성했다. 프로젝트 root `AGENTS.md`와 WSL checkout은 아직 없다.
 
 ## 향후 준비·검증 항목
 
-- 승인된 설계·개발 작업계획을 기준으로 기본 브랜치, 격리 작업 브랜치·worktree, 첫 push 절차를 정하고 실제 저장소 이력과 대조. 원격이 빈 상태이므로 최초 기준선·로컬 개발 정본 위치는 별도 결정이 필요하다.
+- 승인된 설계·개발 작업계획과 현재 `origin/main` 기준선에서 격리 작업 브랜치·worktree 절차를 준비하고 실제 저장소 이력과 대조한다. 현재 문서·시안 정본 위치는 `D:\Project\shoppingmall2`다.
 - WSL 지정 checkout을 Git으로 구성하고 exact commit을 확인. 소스 복사나 원격 직접 수정은 하지 않음.
 - 앱·API·DB·객체 저장소·발송 mock/sandbox의 포트와 컨테이너·네트워크·볼륨 이름, Secret 저장 위치(값 제외)를 계획에 명시.
 - `shoppingmall` DB의 앱 전용 권한, migration, 테스트 seed/reset·복구 절차는 승인된 설계·작업계획에 따라 정의. 현재 DB는 비어 있으며 스키마·계정은 만들지 않음.

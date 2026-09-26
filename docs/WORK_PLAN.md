@@ -14,7 +14,7 @@
 
 - 상태: 신산님 승인 / 작성·승인 2026-09-26 / 작성자 어울 / 승인자 신산님 / 실제 Stage 시작 0건.
 - 단일 writer: 같은 기능·파일에는 한 writer. 각 Stage의 담당·branch·HEAD·시험 증거는 시작·종료 시 이 문서와 `WORK_STATUS.md`에 기록한다.
-- 현재 로컬 문서 작업공간은 무커밋 `master`, 원격 미설정, 미추적 문서 보존 상태다. `sinsan-develop/shoppingmall` 원격과 WSL `~/deploy/shopping`은 아직 개발 기준선으로 준비되지 않았다. 기존 `D:\Project\shoppingmall`는 참고 자료이며 신규 저장소로 바꾸지 않는다.
+- 현재 로컬 문서 작업공간 `D:\Project\shoppingmall2`에는 2026-09-26 초기 `main` root commit이 있고, 지정 `sinsan-develop/shoppingmall`의 `origin/main`과 원격 HEAD에서 확인했다. WSL `~/deploy/shopping` checkout은 아직 없다. 별개 `.github` 자동화 두 파일은 로컬 미추적 보존 중이다. 기존 `D:\Project\shoppingmall`는 참고 자료이며 신규 저장소로 바꾸지 않는다.
 - 착수 전 필요: 현행 요구에 맞춘 정적/클릭형 화면 시안 검토·승인 또는 명시적 생략 결정, 코드 정본 저장소·`origin/main` 기준선·격리 branch/worktree, 로컬/WSL 공통 포트·QA 자원·Secret 참조 위치, 환경 게이트 판정. 준비는 [개발환경 문서](DEVELOPMENT_ENVIRONMENT.md)에 실제 확인 결과로 기록한다.
 - 데이터 schema/migration, 인증·권한·Secret, 외부 비용·계약, Oracle 배포와 운영 전환 등 별도 승인 경계를 통과하지 않은 작업은 해당 Stage에서 실행하지 않는다. 승인 안 된 부분과 독립적인 문서·테스트 설계는 계속할 수 있다.
 - 배포·인수·운영 설치는 **이 개발 작업계획의 Stage가 아니다**. 개발 검증 후 별도 설치·배포 계획과 신산님 승인으로 진행한다.

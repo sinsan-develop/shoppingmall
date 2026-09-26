@@ -1,13 +1,13 @@
 # 어울몰 작업현황
 
-## 최신 상태 — 2026-09-26 초기 Git main 기준선 준비
+## 최신 상태 — 2026-09-26 초기 Git main 기준선 생성·원격 확인
 
 - 단계·담당: 신산님 직접 지시의 `sinsan-develop/shoppingmall` 초기 `main` 생성·커밋·push / 어울
-- 현재 판정: 로컬 `D:\Project\shoppingmall2`는 무커밋 `master`, remote 미설정. 지정 SSH 별칭으로 원격 `HEAD`·`main`·`master` 조회 종료 코드 0·ref 0건을 확인했다. 이 기록 시점에는 branch 변경·커밋·push 전
-- 기준선 포함: `docs/`와 `WORK_STATUS.md`의 현재 문서·정적/클릭형 시안·검사. `.github/pr-broker-gate.sh`와 `.github/workflows/ssh-pr-bridge.yml`은 자동 PR 병합을 수행하는 별개 자료라 로컬에 보존하고 초기 커밋에서 제외
-- 사전 검증: Node 기존 모델·화면 연결·글자 크기 37통과·0실패. `docs/`와 `WORK_STATUS.md`의 private key·일반 토큰 형태 패턴 스캔 결과 해당 파일 0건. 실제 브라우저·인쇄·외부 연동은 미검증
-- 오류·조치: 제한된 셸에서 SSH 별칭 해석 실패 1회; 설정 접근이 허용된 읽기 전용 원격 재조회는 정상 종료. credential·SSH 설정 변경 없음
-- 다음 조치: `main`으로 이름 변경, 지정 원격을 `origin`으로 등록, 위 두 경로만 명시적으로 stage·검사 후 초기 commit·push. push 성공 후 정확한 SHA·tracking·문서 상태를 재기록하고 별도 commit으로 원격 반영
+- 현재 판정: `D:\Project\shoppingmall2`의 초기 `main` root commit `6c249b0be8b60604a86c4ddf7c3ea68159749d50` 생성. `origin=git@github-sinsan-develop:sinsan-develop/shoppingmall.git`; 비강제 `git push -u origin main` 성공. 이후 `git ls-remote --symref origin HEAD refs/heads/main`에서 원격 HEAD가 `main`을 가리키고 원격 SHA가 초기 커밋과 일치함을 확인
+- 기준선 포함: `docs/`와 `WORK_STATUS.md` 32개 파일. `.github/pr-broker-gate.sh`와 `.github/workflows/ssh-pr-bridge.yml`은 자동 PR 병합을 수행하는 별개 자료라 로컬에 미추적으로 보존하고 초기 커밋·push에서 제외. 다른 자료 삭제·초기화 없음
+- 검증: 기존 Node 모델·화면 연결·글자 크기 37통과·0실패, `git diff --cached --check` 0오류, 포함 파일의 private key·일반 토큰 형태 패턴 스캔 결과 해당 파일 0건. 실제 브라우저·인쇄·외부 연동은 미검증. Flat v2 제작 계획은 여전히 신산님 검토 대기
+- 오류·조치: 제한된 셸의 SSH 별칭 해석 실패 1회와 `.git/HEAD.lock` 쓰기 거부 1회. 읽기 전용 Git 참조 확인 후 허용된 권한으로 동일 명령을 다시 실행해 정상 완료. SSH key·credential 내용·설정 변경 없음
+- 다음 조치: Flat v2 계획의 신산님 검토·승인 여부 확인. 제품 Stage/WSL checkout·DB 변경은 별도 게이트
 
 ## 이전 상태 — 2026-09-26 균형형 Flat v2 시안 제작 계획 검토 대기
 
