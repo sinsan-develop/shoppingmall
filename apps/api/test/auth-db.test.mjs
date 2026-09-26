@@ -36,8 +36,16 @@ test('email login uses persisted roles, scoped sessions and explicit role switch
     assert.equal(await repository.getSession(session.token), undefined);
     await repository.logout(admin.token);
     assert.equal(await repository.getSession(admin.token), undefined);
+    const audit = await pool.query(
+      'SELECT action, active_role FROM audit_events WHERE actor_account_id = $1 ORDER BY occurred_at, id',
+      [accountId],
+    );
+    assert.ok(audit.rows.some((row) => row.action === 'auth.login' && row.active_role === 'customer'));
+    assert.ok(audit.rows.some((row) => row.action === 'auth.switch_role' && row.active_role === 'admin'));
+    assert.ok(audit.rows.some((row) => row.action === 'auth.logout' && row.active_role === 'admin'));
   } finally {
     if (accountId) {
+      await pool.query('DELETE FROM audit_events WHERE actor_account_id = $1', [accountId]);
       await pool.query('DELETE FROM auth_sessions WHERE account_id = $1', [accountId]);
       await pool.query('DELETE FROM account_roles WHERE account_id = $1', [accountId]);
       await pool.query('DELETE FROM account_identities WHERE account_id = $1', [accountId]);

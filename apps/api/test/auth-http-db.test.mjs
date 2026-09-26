@@ -66,6 +66,7 @@ test('HTTP login, role switch and logout use persisted grants, not request heade
   } finally {
     if (app) await app.close();
     if (accountId) {
+      await pool.query('DELETE FROM audit_events WHERE actor_account_id = $1', [accountId]);
       await pool.query('DELETE FROM auth_sessions WHERE account_id = $1', [accountId]);
       await pool.query('DELETE FROM account_roles WHERE account_id = $1', [accountId]);
       await pool.query('DELETE FROM account_identities WHERE account_id = $1', [accountId]);
