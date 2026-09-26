@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1 역할 로그인 웹 진입 화면
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`; `d355d1fa6375280879ffc464088a5e1f9536f84e` WSL 실제 DB에서 판매자 단일 소속 자동 선택/다중 소속 명시 선택/타 판매자 거부 1통과·0실패. QA fixture reset 완료.
+- `apps/web/app/login/page.tsx`에 구매자·판매자·운영자 역할 선택, 이메일/비밀번호, API 응답별 오류와 서버 미설정 상태를 추가했다. 로그인 후 `/account`에서 실제 `/auth/me` 세션을 읽어 역할을 표시하고 로그아웃한다. 홈에 로그인 링크 추가. `apps/web/test/login.test.mjs`, `account.test.mjs` 각 RED(파일 없음)→GREEN, 웹 타입검사 통과. 시각 스타일은 기존 황금/크림 Flat 기조의 단순 계정 폼이며 판매자/운영자 업무 화면을 완료했다고 주장하지 않는다.
+- API 주소는 비운영 로컬 기본 `127.0.0.1:9092`, 운영 빌드에서는 `NEXT_PUBLIC_API_ORIGIN` 없으면 폼을 비활성화한다. 실제 브라우저 로그인·모바일·200% 확대·키보드, WSL/운영 빌드의 API 주소/쿠키 경계는 아직 시험 전. 다중 판매자 계정의 편의 선택 UI도 후속 필요. 단계 전체 완료 아님.
+
 ## 최신 상태 — 2026-09-27 S1 역할별 로그인 범위 시험
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `45fb2d582e0dfad2eb58f29922bc1f60fd55e0d0`에서 WSL 실제 DB의 `seller-login-db.test.mjs`가 예상대로 RED: 판매자 1곳만 소속된 QA 계정도 판매자 ID를 따로 보내지 않으면 `Invalid credentials`로 실패했다. 시험 fixture는 정확한 실행 ID reset으로 정리됨.

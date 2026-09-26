@@ -27,3 +27,18 @@ p{line-height:1.7}
 .category-row span,.product-empty{display:grid;place-items:center;min-height:100px;background:#fffaf1;border:1px solid #e9d2bb;border-radius:8px}
 .product-empty{min-height:190px;color:#675b48}
 @media(max-width:600px){.shell{padding-inline:18px}.header-inner{min-height:74px;gap:18px}.brand{font-size:25px}.search-preview{font-size:0;padding-inline:12px}.search-preview>span:first-child{font-size:24px}.search-hint{font-size:12px}.hero{padding:30px 24px;min-height:250px}.category-row{grid-template-columns:repeat(2,1fr)}.site-menu{gap:18px}}
+.account-shell{padding-block:34px 80px}
+.text-link{color:#75561e;text-decoration:underline;text-underline-offset:3px}
+.account-card{max-width:510px;margin:35px auto 0;padding:32px;background:#fffaf1;border:1px solid #e9d2bb;border-radius:10px}
+.account-card h1{font-size:34px;margin:8px 0}
+.account-card>p{font-size:14px;color:#675b48}
+.account-form{display:grid;gap:10px;margin-top:24px}
+.account-form label{font-size:14px;font-weight:700}
+.account-form input,.account-form select{width:100%;min-height:44px;padding:10px 12px;border:1px solid #bba886;border-radius:6px;background:#fff;color:#302a20;font:inherit}
+.account-form input:focus-visible,.account-form select:focus-visible,.primary-button:focus-visible,.text-link:focus-visible{outline:3px solid #9c2b22;outline-offset:2px}
+.primary-button{min-height:44px;margin-top:10px;border:0;border-radius:6px;background:#9d752d;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.primary-button:hover{background:#815e22}
+.primary-button:disabled{opacity:.55;cursor:not-allowed}
+.form-error{color:#9c2b22;font-size:14px}
+.account-note{margin-top:24px}
+@media(max-width:600px){.account-card{padding:24px;margin-top:24px}}

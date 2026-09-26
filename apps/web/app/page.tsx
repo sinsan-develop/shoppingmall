@@ -7,6 +7,7 @@ export default function Page() {
           <div className="search-preview" aria-label="상품 검색 준비 중">
             <span aria-hidden="true">⌕</span> 상품 검색 <span className="search-hint">상품명 또는 판매자를 찾아보세요</span>
           </div>
+          <a className="text-link" href="/login">로그인</a>
         </div>
         <nav className="shell site-menu" aria-label="어울몰 메뉴">
           <span>홈</span><span>제철 농산물</span><span>기획전</span><span>판매자 이야기</span>
