@@ -60,7 +60,7 @@ export default function AccountPage() {
             <p>현재 역할: <strong>{roleLabel}</strong></p>
             {session.role === 'seller' ? <p>소속 판매자 정보와 주문 관리는 준비 중입니다</p> : null}
             {session.role === 'admin' ? <p>운영 관리 화면은 준비 중입니다</p> : null}
-            {session.role === 'customer' ? <p>배송지·알림 설정과 주문 기능은 순차적으로 연결됩니다</p> : null}
+            {session.role === 'customer' ? <p><a className="text-link" href="/account/customer">배송지·알림 설정</a><br />주문 기능은 준비 중입니다</p> : null}
             <button type="button" className="primary-button" disabled={busy} onClick={logout}>로그아웃</button>
           </div>
         ) : null}

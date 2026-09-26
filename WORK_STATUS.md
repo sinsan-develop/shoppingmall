@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1 고객 배송지·동의·탈퇴 요청 웹 연결
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `apps/web/app/account/customer/page.tsx`에서 고객 세션 확인 후 배송지 목록/입력, 이메일·문자·푸시 마케팅 수신 동의, 계정 탈퇴 **요청 접수**를 기존 고객 API에 연결했다. 고객 이외 역할은 내용을 불러오지 않는다. 연락처는 화면 목록에서 끝 4자리만 노출하고 마케팅 수신은 기본 false로 시작한다. 실제 계정 삭제/법정 보존은 아직 구현되지 않는다.
+- 웹 화면 시험 RED(파일 없음)→GREEN, 로컬 `pnpm test` 74개 중 65 pass·0 fail·9 DB 연결 전용 skip, PR 본문 검증 8 pass, 전체 typecheck/lint 통과. 이 결과는 DB/브라우저 최종 시험 대체가 아니다. WSL 정확한 커밋 production build, 고객 입력·동의·탈퇴 요청 실제 브라우저 검증 및 일회성 QA cleanup은 다음 조치.
+- 현재 변경: `apps/web/app/account/customer/page.tsx`, `apps/web/app/account/page.tsx`, `apps/web/app/styles.css`, `apps/web/test/customer-profile.test.mjs`, `WORK_STATUS.md`. DB schema 추가 없음, 외부 서비스 연동 없음.
+
 ## 최신 상태 — 2026-09-27 S1 역할별 브라우저 로그인·정리
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@efdc3c1f9f2edef6b9af60c944b4b8f0e3dd4350` (로컬/SSH 원격/지정 WSL checkout 일치). WSL `node:24-bookworm-slim` 일회성 빌드에서 Next `/`, `/login`, `/account` production build 통과. 시험 브라우저 호출을 위해 `NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:9092`로 별도 빌드했으며 이는 운영 배포 설정이 아니다.
