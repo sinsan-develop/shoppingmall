@@ -10,12 +10,12 @@ type RequestHeaders = { headers: { cookie?: string; origin?: string } };
 type CookieResponse = { setHeader: (name: string, value: string) => void };
 const cookieName = 'sm_session';
 
-function readToken(cookie: string | undefined): string | undefined {
+export function readToken(cookie: string | undefined): string | undefined {
   return cookie?.split(';').map((part) => part.trim())
     .find((part) => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
 }
 
-function requireOrigin(request: RequestHeaders) {
+export function requireOrigin(request: RequestHeaders) {
   const allowed = process.env.WEB_ORIGIN ??
     (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9091');
   if (!allowed || request.headers.origin !== allowed) throw new ForbiddenException();
