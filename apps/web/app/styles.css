@@ -56,4 +56,11 @@ p{line-height:1.7}
 .catalog-admin-grid h3{font-size:17px;margin:22px 0 0}
 .catalog-admin-grid .account-form{padding-bottom:20px;border-bottom:1px solid #e9d2bb}
 .catalog-list{padding-left:22px;line-height:1.9}
+.account-form textarea{width:100%;padding:10px 12px;border:1px solid #bba886;border-radius:6px;background:#fff;color:#302a20;font:inherit;resize:vertical}
+.account-form textarea:focus-visible,.secondary-button:focus-visible{outline:3px solid #9c2b22;outline-offset:2px}
+.draft-option-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:10px}
+.draft-option-row>div{display:grid;gap:8px}
+.secondary-button{min-height:44px;padding:9px 16px;border:1px solid #b98b3c;border-radius:6px;background:#fffaf1;color:#55462b;font:inherit;cursor:pointer}
+.secondary-button:disabled{opacity:.55;cursor:not-allowed}
 @media(max-width:760px){.catalog-admin-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.draft-option-row{grid-template-columns:1fr 1fr}.draft-option-row .secondary-button{grid-column:1/-1}}

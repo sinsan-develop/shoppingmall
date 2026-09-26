@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 판매자 상품 초안 웹 연결 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@61877f682b025fb32e1a2d78b1f42868af5a94c3` (SSH 원격/WSL 일치). WSL 실제 DB 상품 초안 HTTP 시험 1통과·0실패: 고객 등록 거부·Origin 거부·대분류 직접 지정 거부·판매자 A/B 목록 분리·초안 미공개. accounts/sellers/seller_categories/product_categories/products/product_revisions/product_options/audit_events 모두 0행, 시험 컨테이너 0.
+- 웹 `/account/seller/products`를 계정 판매자 링크에 연결했다. 판매자는 소분류, 이름·설명·산지, 상품별 단일 발송 방식, 최대 20개 옵션 이름/원화 가격을 입력하며 저장된 자기 초안만 본다. 화면은 사진/승인 전이므로 미공개를 명시. SSR 시험은 파일 부재 RED→2통과; 로컬 전체 89개 중 74 pass·0 fail·DB-only 15 skip, PR 설명 8 pass, 전 workspace typecheck·root lint 통과.
+- 변경 파일: `apps/web/app/account/seller/products/page.tsx`, `apps/web/app/account/page.tsx`, `apps/web/app/styles.css`, `apps/web/test/seller-products.test.mjs`, 본 현황. 오류 누적: 의도한 화면 파일 부재 RED 1회. WSL exact commit production build·실제 브라우저 입력과 모바일/확대/키보드는 미검증; 사진 업로드·승인·재고·고객 공개도 미구현. 다음은 push→WSL 빌드/브라우저 QA→안전한 정리.
+
 ## 최신 상태 — 2026-09-27 판매자 상품 초안 HTTP 경계 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@8702db31a6ab3465e4e04470dc107ceca7ca21c5` (SSH 원격/WSL 일치). 보정한 판매자 상품 초안 DB 시험 1통과·0실패, accounts/sellers/seller_categories/product_categories/products/product_revisions/audit_events `0|0|0|0|0|0|0` 및 시험 컨테이너 0.
