@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S1.2 전화번호 명시적 연결 DB 검증 준비
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. `AuthRepository.linkPhoneIdentity`를 별도 행위로 추가했다. 고객 역할·동일 accountId의 OTP 확인 결과만 수용하고, 기존 전화 신원이 있으면 자동 계정 병합 없이 거부하며 검증 시각·PII 없는 감사 행위를 같은 트랜잭션에 저장한다. `apps/api/test/phone-link-db.test.mjs`는 method 부재 RED→GREEN; 고객 A 확인 결과를 B가 재사용하는 것, B가 같은 번호를 연결하는 것, 계정 간 병합 방지, 신원/감사를 DB로 시험하도록 추가했다. WSL DB 실행 전.
+- 로컬 API 타입검사 통과. `apps/api`에는 `lint` 스크립트가 없어 그 디렉터리의 `pnpm lint`는 명령 없음으로 실패했으며 코드 검사 결과가 아니다. 루트 `pnpm lint` 재실행 필요. 실문자 수신, 전화 가입/로그인 및 HTTP UI 연동은 아직 구현되지 않았고 이 결과를 S1 완료로 표시하지 않는다.
+
 ## 최신 상태 — 2026-09-27 S1.2 휴대폰 OTP mock 검증기 착수
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. `apps/api/src/auth/mock-phone-otp.ts`에 실문자 미발송 OTP mock 검증기를 추가했다. 인증 코드는 주입된 시험 전달자에게만 넘기며 5분 만료·최대 5회 시도·1회 사용·계정 ID 바인딩, 코드 해시 비교를 적용한다. 시험은 RED(모듈 없음)→GREEN 1통과, API 타입검사 통과.

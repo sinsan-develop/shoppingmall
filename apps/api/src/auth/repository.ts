@@ -35,6 +35,27 @@ export class AuthRepository {
     });
   }
 
+  async linkPhoneIdentity(actor: AccessContext, proof: { phone: string; accountId: string }): Promise<void> {
+    if (actor.role !== 'customer' || actor.accountId !== proof?.accountId ||
+        typeof proof.phone !== 'string' || !/^01[016789]\d{7,8}$/.test(proof.phone)) {
+      throw new Error('Invalid phone proof');
+    }
+    await this.db.transaction(async (tx) => {
+      const [existing] = await tx.select({ id: schema.accountIdentities.id })
+        .from(schema.accountIdentities)
+        .where(and(eq(schema.accountIdentities.kind, 'phone'), eq(schema.accountIdentities.identifier, proof.phone)))
+        .limit(1);
+      if (existing) throw new Error('Phone already linked');
+      await tx.insert(schema.accountIdentities).values({
+        accountId: actor.accountId, kind: 'phone', identifier: proof.phone, verifiedAt: new Date(),
+      });
+      await tx.insert(schema.auditEvents).values({
+        actorAccountId: actor.accountId, activeRole: 'customer',
+        action: 'auth.link_phone', targetType: 'account', targetId: actor.accountId,
+      });
+    });
+  }
+
   async loginEmail(emailInput: string, password: string, role: ActiveRole = 'customer', sellerId?: string): Promise<{ token: string; expiresAt: Date }> {
     const email = normalizeEmail(emailInput);
     const [identity] = await this.db.select({
