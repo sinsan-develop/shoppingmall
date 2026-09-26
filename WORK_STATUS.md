@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 상품 초안 실제 브라우저·회귀·정리
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@cfeb8add58c6c96809a22c57332d1801c3548413` (SSH 원격/WSL 일치). WSL Next production build에 `/account/seller/products` 포함 8개 정적 경로 생성. 전체 API 실제 DB 36개 중 32 pass·0 fail·무DB 전용 4 skip. 회귀 뒤 QA 핵심 행 0.
+- 실제 브라우저 QA 실행 `7ab42026`: 운영자 로그인→가상 채소/고추 대·소분류 등록→로그아웃→판매자 A 로그인→고추 상품명·설명·산지·직접 발송·옵션 500g 23,000원/1kg 42,000원 초안 저장→새로고침 뒤 자기 목록에 초안 유지. DB에서 해당 revision 상태 `draft`, 옵션 2건, 공개 0건 확인. 고객/판매자 B 실제 브라우저 화면 접근과 모바일/200%/키보드, 사진·승인/공개는 여전히 미검증.
+- 정확한 가상 상품 ID로 옵션 `DELETE 2`, revision·상품·소분류·대분류 각 `DELETE 1`; 시험 API·웹 컨테이너 2개 종료, 실행 ID fixture 5계정 reset. 최종 migration 4건 보존, accounts/sellers/seller_categories/product_categories/products/product_revisions/product_options/product_publications/audit_events 전부 0행, 시험 컨테이너 0, WSL checkout clean. 실제 운영 자료는 변경하지 않았다.
+- 변경 파일: 본 현황만. 브라우저·빌드·회귀 이번 묶음 오류 0. 다음은 상품 다중 사진의 검증된 저장/비공개 미리보기, 제안 제출·관리자 승인, 공개 버전 불변과 재고 정책. 외부 스토리지·PG/알림 공급자 계약은 사용자의 구축 후 일괄 준비 원칙에 따라 mock/교체형 경계를 유지한다.
+
 ## 최신 상태 — 2026-09-27 판매자 상품 초안 웹 연결 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@61877f682b025fb32e1a2d78b1f42868af5a94c3` (SSH 원격/WSL 일치). WSL 실제 DB 상품 초안 HTTP 시험 1통과·0실패: 고객 등록 거부·Origin 거부·대분류 직접 지정 거부·판매자 A/B 목록 분리·초안 미공개. accounts/sellers/seller_categories/product_categories/products/product_revisions/product_options/audit_events 모두 0행, 시험 컨테이너 0.
