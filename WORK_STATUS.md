@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 운영자 상품 검토 WSL build·DB 회귀 통과
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@c7628ff3cb231373c67f417085df7925dc781c0c` (SSH 원격/WSL 일치). Next.js production build는 `/account/admin/proposals`를 포함한 정적 경로 9개 생성·TypeScript 통과. 전체 API 실제 WSL PostgreSQL 회귀 42건 중 37 pass·0 fail·무DB 전용 5 skip.
+- 대기 목록/사유 반려 서비스 실제 DB 계약 및 가짜 관리자 헤더 무DB 401 경계, 운영자 화면 세션 전 비노출 SSR 통과. 최종 accounts/sellers/seller_categories/product_categories/products/revisions/options/images/publications/audit 모두 0행, 시험 컨테이너 0, WSL checkout clean.
+- 변경 파일: 본 현황. 이번 build/회귀 오류 0. 관리자 HTTP의 인증된 실제 DB·브라우저 반려/반응형·접근성은 아직 미검증. 운영 승인/안전 이미지 공개·재고·검색/홈·장바구니/주문/결제/환불·정산·Android 앱은 미구현. 외부 서비스 계정은 사용자 지시대로 구축 뒤 일괄 준비하되 미연동 결과를 PASS로 대체하지 않는다.
+
 ## 최신 상태 — 2026-09-27 운영자 상품 반려 API·화면 WSL 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@90f75881a83c61f56eac2cdd582cb811ffcc9e85` (SSH 원격/WSL 일치). 운영자 전용 대기 목록과 사유 반려 서비스 WSL 실제 DB 1 pass·0 fail; 시험 QA 핵심 행 0. 반려는 별도 요청자/결정자·사유/시각·감사 기록을 남기고 고객 공개 0을 유지한다.
