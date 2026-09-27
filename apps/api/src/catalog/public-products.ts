@@ -59,7 +59,13 @@ export class PublicProducts {
        FROM product_options o LEFT JOIN inventory_levels i ON i.option_id=o.id
        WHERE o.revision_id=$1 ORDER BY o.display_order,o.id`, [publication.rows[0].revisionId],
     );
-    return { ...publication.rows[0], options: options.rows };
+    const images = await this.pool.query<{ id: string; purpose: string; displayOrder: number }>(
+      `SELECT id,purpose,display_order AS "displayOrder" FROM product_images
+       WHERE revision_id=$1 AND mime_type='image/webp'
+       ORDER BY CASE WHEN purpose='thumbnail' THEN 0 ELSE 1 END,display_order,id`,
+      [publication.rows[0].revisionId],
+    );
+    return { ...publication.rows[0], options: options.rows, images: images.rows };
   }
 
   async list(input: PublicSearch = {}) {

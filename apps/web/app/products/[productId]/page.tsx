@@ -4,8 +4,9 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 type Option = { id: string; name: string; priceWon: number; sellableQuantity: number };
+type ProductImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number };
 type Product = { productId: string; title: string; description: string; originLabel: string;
-  sellerName: string; shippingMode: string; options: Option[] };
+  sellerName: string; shippingMode: string; options: Option[]; images?: ProductImage[] };
 type ViewProps = { product?: Product; loading?: boolean; error?: string };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -17,7 +18,16 @@ export function ProductDetailView({ product, loading = false, error }: ViewProps
     {loading ? <p role="status">상품을 불러오고 있습니다</p> : !product ?
       <p role="alert">{error ?? '상품을 찾을 수 없습니다'}</p> : <>
         <div className="detail-layout">
-          <div className="detail-photo-placeholder" aria-label="상품 사진 준비 중">상품 사진 준비 중</div>
+          {apiOrigin && product.images?.length ? <div className="detail-gallery" aria-label="상품 사진">
+            <img className="detail-main-photo"
+              src={`${apiOrigin}/catalog/products/${encodeURIComponent(product.productId)}/images/${encodeURIComponent(product.images[0].id)}`}
+              alt={`${product.title} 대표 사진`} />
+            {product.images.length > 1 ? <div className="detail-thumb-list">
+              {product.images.slice(1).map((image, index) => <img key={image.id}
+                src={`${apiOrigin}/catalog/products/${encodeURIComponent(product.productId)}/images/${encodeURIComponent(image.id)}`}
+                alt={`${product.title} 상세 사진 ${index + 1}`} loading="lazy" />)}
+            </div> : null}
+          </div> : <div className="detail-photo-placeholder" aria-label="상품 사진 준비 중">상품 사진 준비 중</div>}
           <div className="detail-content">
             <p className="eyebrow">{product.originLabel}</p>
             <h1>{product.title}</h1>
