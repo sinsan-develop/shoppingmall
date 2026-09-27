@@ -60,12 +60,32 @@ test('only an operator publishes a fully scanned pending product and its exact p
     assert.equal((await pool.query('SELECT status FROM product_revisions WHERE id=$1', [revisionId])).rows[0].status, 'pending');
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_publications WHERE product_id=$1', [productId])).rows[0].n, 0);
     let scanned = 0;
-    const approved = await reviews.approve(admin, revisionId, store, async (bytes) => {
-      scanned++;
-      assert.deepEqual(bytes, await store.read(objectKey));
+    const origin = 'http://127.0.0.1:9091';
+    const email = (await pool.query('SELECT identifier FROM account_identities WHERE account_id=$1 AND kind=$2',
+      [adminAccountId, 'email'])).rows[0].identifier;
+    const login = await fetch(`${base}/auth/login`, { method: 'POST',
+      headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password: 'test-only-password-12345', role: 'admin' }),
     });
+    assert.equal(login.status, 201);
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const approvalUrl = `${base}/catalog/admin/proposals/${revisionId}/approve`;
+    assert.equal((await fetch(approvalUrl, { method: 'POST', headers: { origin } })).status, 401);
+    assert.equal((await fetch(approvalUrl, { method: 'POST', headers: { origin: 'https://untrusted.invalid', cookie } })).status, 403);
+    let approved;
+    if (process.env.CLAMD_INTEGRATION === '1') {
+      const response = await fetch(approvalUrl, { method: 'POST', headers: { origin, cookie } });
+      assert.equal(response.status, 201);
+      approved = await response.json();
+    } else {
+      approved = await reviews.approve(admin, revisionId, store, async (bytes) => {
+        scanned++;
+        assert.deepEqual(bytes, await store.read(objectKey));
+      });
+      assert.equal(scanned, 1);
+    }
     assert.equal(approved.status, 'approved');
-    assert.equal(scanned, 1);
+    assert.equal((await fetch(approvalUrl, { method: 'POST', headers: { origin, cookie } })).status, 409);
     const detail = await publicProducts.get(productId);
     assert.equal(detail.revisionId, revisionId);
     assert.deepEqual(detail.images, [{ id: imageId, purpose: 'thumbnail', displayOrder: 0 }]);
