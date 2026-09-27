@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { PrivateImage } from '../../private-image';
 
 type Category = { id: string; parentId: string | null; name: string };
 type Product = { productId: string; revisionId: string; title: string; status: string };
@@ -176,9 +177,9 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
       {images ? <div aria-label="등록된 비공개 사진 목록">
         {images.length === 0 ? <p>등록된 사진이 없습니다</p> : <ol className="draft-image-list">
           {images.map((item, index) => <li key={item.id}>
-            {apiOrigin ? <img className="draft-image-preview"
+            {apiOrigin ? <PrivateImage className="draft-image-preview"
               src={`${apiOrigin}/catalog/seller/products/${product.productId}/revisions/${product.revisionId}/images/${item.id}/preview`}
-              alt={`등록한 비공개 ${item.purpose === 'thumbnail' ? '대표' : '상세'} 사진 ${index + 1}`} loading="lazy" /> : null}
+              alt={`등록한 비공개 ${item.purpose === 'thumbnail' ? '대표' : '상세'} 사진 ${index + 1}`} /> : null}
             <span>{index + 1}번 · {item.mimeType} · {Math.ceil(item.sizeBytes / 1024)}KB</span>
             <label htmlFor={`image-purpose-${item.id}`}>사진 용도</label>
             <select id={`image-purpose-${item.id}`} value={item.purpose} disabled={busy || imageBusy}

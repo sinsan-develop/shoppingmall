@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { PrivateImage } from '../../private-image';
 
 type Proposal = { productId: string; revisionId: string; title: string; sellerName: string; proposedAt: string;
   description: string; originLabel: string; shippingMode: 'seller_direct' | 'owool_fulfillment';
@@ -14,14 +15,16 @@ type ViewProps = { proposals: Proposal[]; busy: boolean; onReject: (revisionId: 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
-function PendingPhotos({ item, busy, onLoadImages }: {
+function PendingPhotos({ item, busy, onLoadImages, onApprove }: {
   item: Proposal; busy: boolean; onLoadImages: ViewProps['onLoadImages'];
+  onApprove?: ViewProps['onApprove'];
 }) {
   const [images, setImages] = useState<ProposalImage[]>();
+  const [loadedIds, setLoadedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   async function loadImages() {
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setLoadedIds([]);
     try { setImages(await onLoadImages(item.revisionId)); }
     catch { setError('심사 사진을 불러오지 못했습니다'); }
     finally { setLoading(false); }
@@ -32,12 +35,19 @@ function PendingPhotos({ item, busy, onLoadImages }: {
     {error ? <p role="alert">{error}</p> : null}
     {images ? <ul className="draft-image-list" aria-label="비공개 심사 사진">
       {images.map((image, index) => <li key={image.id}>
-        {apiOrigin ? <img className="draft-image-preview"
+        {apiOrigin ? <PrivateImage className="draft-image-preview"
           src={`${apiOrigin}/catalog/admin/proposals/${item.revisionId}/images/${image.id}/preview`}
-          alt={`비공개 심사 ${image.purpose === 'thumbnail' ? '대표' : '상세'} 사진 ${index + 1}`} loading="lazy" /> : null}
+          alt={`비공개 심사 ${image.purpose === 'thumbnail' ? '대표' : '상세'} 사진 ${index + 1}`}
+          onLoad={() => setLoadedIds((current) => current.includes(image.id) ? current : [...current, image.id])} /> : null}
         <span>{index + 1}번 · {image.purpose === 'thumbnail' ? '대표' : '상세'}</span>
       </li>)}
     </ul> : null}
+    {images && images.length > 0 && images.length === item.thumbnailCount + item.detailImageCount &&
+      loadedIds.length === images.length ? <>
+      <p>심사 사진 {images.length}개를 확인할 수 있습니다</p>
+      {item.thumbnailCount === 1 && onApprove ? <button type="button" className="primary-button"
+        disabled={busy} onClick={() => onApprove(item.revisionId)}>상품 승인</button> : null}
+    </> : null}
   </div>;
 }
 
@@ -60,9 +70,7 @@ export function AdminProposalView({ proposals, busy, onReject, onApprove, onLoad
           {option.name} · {option.priceWon.toLocaleString('ko-KR')}원
         </li>)}</ul>
         <p>대표 사진 {item.thumbnailCount}개 · 상세 사진 {item.detailImageCount}개</p>
-        <PendingPhotos item={item} busy={busy} onLoadImages={onLoadImages} />
-        {item.thumbnailCount === 1 && onApprove ? <button type="button" className="primary-button"
-          disabled={busy} onClick={() => onApprove(item.revisionId)}>상품 승인</button> : null}
+        <PendingPhotos item={item} busy={busy} onLoadImages={onLoadImages} onApprove={onApprove} />
         <form className="account-form" onSubmit={(event) => reject(event, item.revisionId)}>
           <label htmlFor={`reason-${item.revisionId}`}>반려 사유</label>
           <textarea id={`reason-${item.revisionId}`} name="reason" required maxLength={500} rows={2} />
