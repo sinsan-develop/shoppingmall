@@ -16,7 +16,15 @@ test('seller shipping request changes only its seller after operator approval an
   let sellerB;
   let firstRequestId;
   let secondRequestId;
+  let originalGlobal;
   try {
+    originalGlobal = (await pool.query(`SELECT fee_won,free_threshold_won,cutoff_time,
+      blocked_postal_ranges,locked_fee,locked_threshold,locked_cutoff,
+      updated_by_account_id,updated_at::text AS updated_at FROM shipping_policy_global WHERE id=1`)).rows[0];
+    assert.ok(originalGlobal, 'Global shipping policy is required');
+    await pool.query(`UPDATE shipping_policy_global SET fee_won=3000,free_threshold_won=50000,
+      cutoff_time=NULL,blocked_postal_ranges='[]'::jsonb,locked_fee=false,locked_threshold=false,
+      locked_cutoff=false,updated_by_account_id=NULL,updated_at=now() WHERE id=1`);
     const auth = new AuthRepository(pool);
     for (let index = 0; index < 3; index++) {
       accounts.push(await auth.createCustomerAccount(`qa+${randomUUID()}@example.invalid`, 'test-only-password-12345'));
@@ -66,9 +74,13 @@ test('seller shipping request changes only its seller after operator approval an
       assert.equal(audit.rows.some((row) => row.action === action), true);
     }
   } finally {
-    await pool.query(`UPDATE shipping_policy_global SET fee_won=3000,free_threshold_won=50000,
-      cutoff_time=NULL,blocked_postal_ranges='[]'::jsonb,locked_fee=false,locked_threshold=false,
-      locked_cutoff=false,updated_by_account_id=NULL WHERE id=1`);
+    if (originalGlobal) await pool.query(`UPDATE shipping_policy_global SET fee_won=$1,
+      free_threshold_won=$2,cutoff_time=$3,blocked_postal_ranges=$4::jsonb,
+      locked_fee=$5,locked_threshold=$6,locked_cutoff=$7,updated_by_account_id=$8,
+      updated_at=$9 WHERE id=1`, [originalGlobal.fee_won, originalGlobal.free_threshold_won,
+      originalGlobal.cutoff_time, JSON.stringify(originalGlobal.blocked_postal_ranges),
+      originalGlobal.locked_fee, originalGlobal.locked_threshold, originalGlobal.locked_cutoff,
+      originalGlobal.updated_by_account_id, originalGlobal.updated_at]);
     if (accounts.length) await pool.query('DELETE FROM audit_events WHERE actor_account_id = ANY($1::uuid[])', [accounts]);
     if (sellerA) await pool.query('DELETE FROM seller_shipping_policies WHERE seller_id=$1', [sellerA]);
     for (const requestId of [secondRequestId, firstRequestId]) {
