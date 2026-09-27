@@ -7,6 +7,7 @@
 - 사전 상태/오류: 원본 accounts/sellers/shipping requests 각 0, 전역 정책 3,000원/50,000원·마감 없음·잠금 3개 false. DB 목록에 동일 이름 임시 DB 없음. 첫 읽기 전용 SQL에서 셸 인용 오류 1회였고 올바른 읽기 전용 조회로 재확인했다. 코드 수정 전 실제 격리 RED와 위험 필드 전체를 확인한 뒤 테스트 정리 로직만 최소 수정한다.
 - 예상 변경/검증: 위 시험 파일과 본 현황만. `pnpm test`, typecheck/lint, WSL 임시 DB의 목표 시험·복구 전후 DB 값, 원본 DB 불변, 정확한 임시 자원 잔류 0을 증명한다. 동일 근본 원인 오류 3회 연속이면 재시도 중단·예외 보고한다.
 - RED/구현: 원본 DB를 임시 DB로 덤프/복구한 뒤 임시 전역값만 4,500원/65,000원·배송비/기준 잠금 true로 설정했다. 기존 시험은 `4500 !== 3000`으로 실패했고 실패 직후 임시 DB 값이 3,000원/50,000원·잠금 false로 덮여 원인을 재현했다. `apps/api/test/shipping-policy-db.test.mjs`만 시험 전 전역 행 9필드를 저장·시험 기본값 설정·finally 원본 9필드 복원하도록 수정했다. PostgreSQL 마이크로초 시각을 잃지 않도록 `updated_at::text`로 스냅샷한다. 로컬 전체 146건 중 118 pass·28 DB/실검사 skip·0 fail, PR 검사 8 pass, typecheck/lint 통과; 실제 DB GREEN·build·임시 DB 정리는 아직 남았다.
+- GREEN/정리: 정확한 수정 SHA `98104b980d8442ae6d81fca6f058ac6158156d04`를 SSH 별칭 push→WSL 지정 checkout pull. 임시 DB의 시험 전 4,500원/65,000원·잠금 3개 true·시각 `2026-09-27 13:30:46.671573+00`에서 목표 DB 시험 1 pass·0 fail 후 같은 값/시각으로 정확히 복원. 사전 확인한 다른 연결 0, 가상 계정·판매자·요청 각 0 상태에서 이번에 만든 임시 DB만 drop하고 DB 목록 잔류 0 확인. 원본 `shoppingmall`은 전후 3,000원/50,000원·잠금 3개 false, accounts/sellers/requests/audit 각 0. WSL 원본 DB API 전체 68건 중 61 pass·7 환경별 skip·0 fail, 로컬 전체 146건 중 118 pass·28 환경 skip·0 fail와 PR 검사 8 pass, typecheck/lint 및 API·Next production build 통과. 테스트 하네스의 복구 결함만 수정했으며 S2 제품 기능·전체 Stage는 여전히 미완료다. 동일 근본 원인 오류 3회 반복 없음.
 
 ## 정리 완료 — 2026-09-27 과거 계획 worktree·로컬 브랜치
 
