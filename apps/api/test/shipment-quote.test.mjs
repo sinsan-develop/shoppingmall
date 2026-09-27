@@ -34,6 +34,25 @@ test('free shipping uses each shipment pre-discount goods amount at the exact th
   assert.equal(shippingFeeWon(40000, { feeWon: 3500, freeThresholdWon: 40000 }), 0);
 });
 
+test('owool fulfillment pools producer sellers but never mixes their direct shipment', () => {
+  const groups = groupShipmentLines([
+    { optionId: 'a-warehouse', sellerId: 'seller-a', shippingMode: 'owool_fulfillment',
+      quantity: 1, unitPriceWon: 26000 },
+    { optionId: 'b-warehouse', sellerId: 'seller-b', shippingMode: 'owool_fulfillment',
+      quantity: 1, unitPriceWon: 24000 },
+    { optionId: 'a-direct', sellerId: 'seller-a', shippingMode: 'seller_direct',
+      quantity: 1, unitPriceWon: 23000 },
+  ]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups.map(({ key, preDiscountGoodsWon, sellerId }) =>
+    ({ key, preDiscountGoodsWon, sellerId })), [
+    { key: 'owool_fulfillment', preDiscountGoodsWon: 50000, sellerId: null },
+    { key: 'seller_direct:seller-a', preDiscountGoodsWon: 23000, sellerId: 'seller-a' },
+  ]);
+  assert.deepEqual(groups[0].lines.map((line) => line.sellerId), ['seller-a', 'seller-b']);
+  assert.deepEqual(groups.map((group) => shippingFeeWon(group.preDiscountGoodsWon, defaultShippingPolicy)), [0, 3000]);
+});
+
 test('shipment arithmetic rejects malformed quantities, money and unsafe totals', () => {
   const line = { optionId: 'one', sellerId: 'seller-a', shippingMode: 'seller_direct',
     quantity: 1, unitPriceWon: 1000 };
