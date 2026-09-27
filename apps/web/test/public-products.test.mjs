@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -56,7 +57,9 @@ test('approved product detail displays only server-gated image IDs and keeps pri
       images: [{ id: 'i1', purpose: 'thumbnail', displayOrder: 0 },
         { id: 'i2', purpose: 'detail', displayOrder: 1 }] },
   }));
-  assert.match(html, /catalog\/products\/p1\/images\/i1/);
-  assert.match(html, /catalog\/products\/p1\/images\/i2/);
+  assert.match(html, /사진을 불러오는 중/);
+  const source = readFileSync(new URL('../app/products/[productId]/page.tsx', import.meta.url), 'utf8');
+  assert.match(source, /images\/\$\{encodeURIComponent\(product\.images\[0\]\.id\)\}/);
+  assert.match(source, /images\/\$\{encodeURIComponent\(image\.id\)\}/);
   assert.doesNotMatch(html, /quarantine\/|objectKey|상품 사진 준비 중/);
 });

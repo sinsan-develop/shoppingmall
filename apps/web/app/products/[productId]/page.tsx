@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { PublicImage } from '../../account/private-image';
 
 type Option = { id: string; name: string; priceWon: number; sellableQuantity: number };
 type ProductImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number };
@@ -19,13 +20,13 @@ export function ProductDetailView({ product, loading = false, error }: ViewProps
       <p role="alert">{error ?? '상품을 찾을 수 없습니다'}</p> : <>
         <div className="detail-layout">
           {apiOrigin && product.images?.length ? <div className="detail-gallery" aria-label="상품 사진">
-            <img className="detail-main-photo"
+            <PublicImage className="detail-main-photo"
               src={`${apiOrigin}/catalog/products/${encodeURIComponent(product.productId)}/images/${encodeURIComponent(product.images[0].id)}`}
               alt={`${product.title} 대표 사진`} />
             {product.images.length > 1 ? <div className="detail-thumb-list">
-              {product.images.slice(1).map((image, index) => <img key={image.id}
+              {product.images.slice(1).map((image, index) => <PublicImage key={image.id}
                 src={`${apiOrigin}/catalog/products/${encodeURIComponent(product.productId)}/images/${encodeURIComponent(image.id)}`}
-                alt={`${product.title} 상세 사진 ${index + 1}`} loading="lazy" />)}
+                alt={`${product.title} 상세 사진 ${index + 1}`} />)}
             </div> : null}
           </div> : <div className="detail-photo-placeholder" aria-label="상품 사진 준비 중">상품 사진 준비 중</div>}
           <div className="detail-content">
