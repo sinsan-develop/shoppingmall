@@ -108,9 +108,6 @@ test('seller can close stock immediately but only an operator releases an increa
     if (productId) await pool.query('DELETE FROM products WHERE id=$1', [productId]);
     if (minorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [minorId]);
     if (majorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [majorId]);
-    if (otherSellerId) await pool.query('DELETE FROM sellers WHERE id=$1', [otherSellerId]);
-    if (sellerId) await pool.query('DELETE FROM sellers WHERE id=$1', [sellerId]);
-    if (sellerCategoryId) await pool.query('DELETE FROM seller_categories WHERE id=$1', [sellerCategoryId]);
     for (const accountId of [sellerAccountId, adminAccountId]) {
       if (!accountId) continue;
       await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [accountId]);
@@ -118,6 +115,9 @@ test('seller can close stock immediately but only an operator releases an increa
       await pool.query('DELETE FROM account_identities WHERE account_id=$1', [accountId]);
       await pool.query('DELETE FROM accounts WHERE id=$1', [accountId]);
     }
+    if (otherSellerId) await pool.query('DELETE FROM sellers WHERE id=$1', [otherSellerId]);
+    if (sellerId) await pool.query('DELETE FROM sellers WHERE id=$1', [sellerId]);
+    if (sellerCategoryId) await pool.query('DELETE FROM seller_categories WHERE id=$1', [sellerCategoryId]);
     await pool.end();
   }
 });

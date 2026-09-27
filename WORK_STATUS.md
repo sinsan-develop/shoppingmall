@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 재고 인증 HTTP 시험 QA 정리 순서 보정
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1fa60b7d109b4936304b3b802a0ecb37625aaa71` (SSH 원격/WSL 일치). WSL 실제 DB 목표 시험은 `23503 account_roles_seller_id_sellers_id_fk`로 최종 `finally` 정리에서 실패 1회. 앞선 HTTP 본문 흐름도 PASS로 승격하지 않는다. 원인은 시험이 판매자를 지우기 전에 그 판매자에 묶인 `account_roles`·`auth_sessions`를 삭제하지 않은 순서다.
+- 남은 자료를 읽기 전용으로 계정 2·역할 4·세션 2·판매자 1·판매자 분류 1행 및 정확한 ID/QA 이름으로 식별. 해당 행만 단일 트랜잭션에서 세션 2→역할 4→신원 2→계정 2→판매자 1→분류 1 삭제, COMMIT. 최종 계정/역할/세션/신원/판매자/분류/카탈로그/재고/요청/감사 13종 0행, 시험 컨테이너 0. 시험 `finally`에서도 계정 세션·역할 정리를 판매자 삭제보다 앞으로 옮겼다.
+- 오류 누적: 이번 QA 정리 순서 1회, 동일 원인 반복 1회. 변경 파일: `apps/api/test/inventory-db.test.mjs`, 본 현황. 다음은 수정된 정확한 커밋을 push하여 WSL 실제 DB 목표 시험·전체 회귀를 다시 실행하고 잔류 0을 확인한다.
+
 ## 최신 상태 — 2026-09-27 S2.3 재고 인증 HTTP WSL 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@a50c3256fa4ab957c1f59da74202d22050f0ae2a` (SSH 원격/WSL 일치). 직전 migration 0004는 WSL QA DB dry-run·정확한 QA DB 삭제 후 지정 `shoppingmall`에 적용했고, 정식 DB 전체 API 48개 중 43 pass·0 fail·환경별 5 skip, QA 테이블 12종·임시 컨테이너 잔류 0.
