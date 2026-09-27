@@ -139,6 +139,7 @@ test('only an operator publishes a fully scanned pending product and its exact p
     if (app) await app.close();
     if (productId) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
     if (sellerAccountId && adminAccountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id = ANY($1::uuid[])', [[sellerAccountId, adminAccountId]]);
+    if (productId) await pool.query('DELETE FROM stock_change_requests WHERE option_id IN (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)', [productId]);
     if (productId) await pool.query('DELETE FROM product_images WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)', [productId]);
     if (productId) await pool.query('DELETE FROM inventory_levels WHERE option_id IN (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)', [productId]);
     if (productId) await pool.query('DELETE FROM product_options WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)', [productId]);
