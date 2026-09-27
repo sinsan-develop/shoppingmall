@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.2 관리자 상품 승인·공개 이미지 연결
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@6136a64d0df661bebe5b80556e4187365b268e6f`. 선행 이미지 검사 계약은 모의/격리 실제 ClamAV에서 확인했으나 상품 승인과 공개 제공에는 아직 연결되지 않았다. 다음에는 pending revision의 모든 비공개 WebP 바이트를 실제 스캐너로 검사해 clean일 때만 관리자 권한 트랜잭션으로 approved/publication/audit를 기록하고, 공개 이미지 GET은 승인된 publication 포인터에 연결된 사진만 서버가 비공개 저장소에서 읽도록 한다. 직접 파일 경로/객체 키는 고객에게 공개하지 않는다.
+- 예상 변경: `apps/api/src/catalog/product-reviews.ts`, `controller.ts`, `public-products.ts`, 승인·공개 이미지 DB/HTTP 시험, 관리자/고객 화면, 본 현황. 기존 migration/Secret/운영 데이터는 바꾸지 않으며 WSL QA 실행 ID와 격리 ClamAV만 사용한다. 파일은 계속 비공개 저장하고 승인된 DB 포인터를 통해서만 서버가 전송한다. 운영 객체 스토리지·최신 바이러스 정의/외부 서비스 결정은 구축 뒤 별도 인수 게이트다.
+- RED/검증 계획: 관리자 아닌 승인 거부, 실제 이미지 누락/검사 감염·오류 시 공개 불변, 승인 전 고객 이미지 404, 승인 뒤 정확한 공개 버전만 반환, 중복·경합 승인 차단, 감사 이력·공개 검색/상세/브라우저를 시험한다. 실패 시 DB rollback과 기존 publication 유지, 시험 파일·행·컨테이너만 정확히 정리한다. 외부 공급자와 운영 서버에는 배포하지 않는다.
+
 ## 진행 중 — 2026-09-27 S2.2 상품 사진 악성코드 검사 계약
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@00fe981d8d2bebf274f0e478d76531540f60df08`; S2.2 미완료인 공개 승인에 앞서 재인코딩된 이미지 바이트의 악성코드 검사 계약부터 RED→GREEN으로 구현한다. 다음 수정 대상은 `apps/api/src/catalog/image-scanner.ts`, 단위 시험, 본 현황. DB schema/지속 데이터/Secret/운영 공개 경로는 이번 단위에서 변경하지 않는다.
