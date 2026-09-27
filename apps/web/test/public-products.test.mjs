@@ -14,6 +14,16 @@ test('home search is an actual product search form, not a decorative preview', (
   assert.match(html, /상품 검색/);
 });
 
+test('approved Flat v2 home hero leads to live catalog and story with labeled photo placeholders', () => {
+  const html = renderToStaticMarkup(createElement(HomePage));
+  assert.match(html, /전국 산지의 정성을/);
+  assert.match(html, /href="\/products"[^>]*>제철 상품 둘러보기<\/a>/);
+  assert.match(html, /href="\/#seller-story-title"[^>]*>어울몰 이야기<\/a>/);
+  assert.match(html, /aria-label="상품 사진 자리표시"/);
+  assert.match(html, /수확한 고추 사진/);
+  assert.match(html, /서비스 구축 중입니다/);
+});
+
 test('home menu links reach a real catalog or an existing home section', () => {
   const html = renderToStaticMarkup(createElement(HomePage));
   assert.match(html, /href="\/"[^>]*>홈<\/a>/);

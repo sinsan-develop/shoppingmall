@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S2.4 승인된 Flat v2 홈 헤더·히어로 반영
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@149ce75`. 신산님이 제품 시각 기준으로 채택한 `docs/design/assets/home-flat-v2.html`의 황금·크림 헤더/히어로·사진 자리표시를 현재 제품 홈의 기본 골격에 좁혀 반영한다. 새 디자인·콘텐츠 승인 판단이 아니라 기존 채택 시안의 구현이다. 상품 검색과 기존 메뉴 링크·서비스 구축 중 안내는 유지하고, 클릭 가능한 제철 상품/판매자 이야기 동선은 현재 실재하는 `/products`·`/#seller-story-title`만 쓴다. 장바구니·기획전 결제 등 미구현 링크를 만들지 않는다.
+- 변경/검증 계획: `apps/web/app/page.tsx`·`styles.css`·기존 홈 시험에 한정, 테스트 RED→GREEN 후 전체 test/typecheck/lint/build, 지정 WSL exact SHA 웹 빌드·실제 1440/430px 시각/가로 넘침·키보드 확인. 사진은 `.ms-ph` 자리표시임을 명확히 두고 실제 산지/상품 사진이나 사용자 인수로 주장하지 않는다. DB/schema/공개 API/권한은 변경하지 않는다. 임시 HTTP QA가 필요하면 9091/9092와 고유 이름·수명·정리 대상을 별도 기록 후 시작한다.
+- RED→로컬 GREEN: 기존 홈 제목·CTA 부재로 새 사용자 동선 시험 1 fail/9 pass RED를 확인한 뒤 상단 문구·브랜드 마크/보조 문구·시안의 두 칸 히어로·황금색 `.ms-ph` 세 자리표시·실경로 CTA를 추가했다. 기존 검색 form·메뉴·서비스 구축 중 안내와 상품 API 호출은 보존. 홈/검색/대비 목표 22 pass·0 fail, 전체 로컬 **166건 중 137 pass·29 DB/환경 skip·0 fail** 및 PR 본문 검사 8 pass, typecheck·lint·production build·diff check 종료 코드 0. 로컬 DB skip은 WSL 통합 PASS가 아니다.
+- 실브라우저 QA 계획: 지정 WSL checkout을 이 변경 exact SHA로 fast-forward하고 웹/API 산출물을 제한된 Node 24 일회성 컨테이너에서 빌드한다. 개발 DB는 기존 `local-postgres/shoppingmall` 읽기 연결만 하며 가상 계정·상품 seed 없음. 포트 127.0.0.1:9091/9092와 이름 `shoppingmall-s24-home-web-7c2d`/`shoppingmall-s24-home-api-7c2d` 임시 컨테이너, 새 Chrome 시험 탭 1개만 사용한다. 1440×900·430×844에서 헤더/히어로/버튼, 가로 넘침과 키보드 초점을 확인하고 viewport override를 복원한다. 끝나면 시험 탭만 닫고 지정 컨테이너만 stop/remove, 포트·DB 행·checkout 잔류 0을 확인한다. 실제 이미지·기획전 데이터·200% 확대는 제외한다.
+
 ## 진행 중 — 2026-09-28 S0 기존 migration 격리 재현
 
 - 담당/범위: 어울 단일 writer, `codex/flat-v2-prototypes@70cabe1`. S0 명령표의 migration dry-run 공백을 공유 개발 DB 변경 없이 좁혀 검증한다. 현재 `apps/api/migrations/0000`~`0005`의 **기존 SQL만** 동일 source checkout의 일회성 PostgreSQL에 적용해 구문·순서·migration 이력을 확인한다. 새로운 migration, 공유 `local-postgres/shoppingmall` 적용, schema/API/권한 변경은 하지 않는다.
