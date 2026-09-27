@@ -6,6 +6,9 @@
 - 임시 자료/자원 계획: WSL 지정 `local-postgres/shoppingmall`에만 QA ID `b17e2d90`의 `qa+…@example.invalid` 계정 5개와 판매자 3개를 기존 `qa-fixture.ts`로 생성한다. 웹/API 일회성 실행 이름은 `shoppingmall-s1-delete-web-b17e`·`shoppingmall-s1-delete-api-b17e`, build 컨테이너는 `shoppingmall-s1-delete-build-b17e`(자동 제거), loopback 9091/9092와 새 시험용 in-app browser 탭 1개만 쓴다. 사전 지정 포트/이름 점유 0, DB 전체 accounts 0, WSL SHA `73a1822`를 확인했다.
 - 수명·정리: 시험 직후 정확한 QA ID만 fixture reset으로 삭제하고 계정/탈퇴 요청/판매자 잔류 0을 확인한다. 시험용 탭·위 두 컨테이너만 닫고 9091/9092 listener 0을 확인한다. QA 비밀번호·DB 비밀번호는 출력·기록하지 않는다. 장애 시 데이터와 자원을 임의로 덮지 않고 정확한 ID를 조사한다.
 - 합격 경계: 고객 로그인→탈퇴 요청 확인→접수 결과와 DB 상태·audit를 실제 브라우저/DB에서 대조한다. 이는 **요청 접수** 검증이며 실제 계정 삭제·운영 승인·UAT가 아니다.
+- 실제 결과: WSL exact SHA `8332730`의 기존 API/Web 산출물을 지정 Node 24 일회성 컨테이너에서 기동하고 `/ready`·웹 HTTP 각 200을 확인했다. 첫 즉시 curl의 `api:000`은 기동 지연으로 재시도 후 `200`이었으며 제품 실패가 아니다. in-app browser의 별도 시험 탭에서 `qa+b17e2d90-customer@example.invalid` 가상 고객으로 로그인→내 계정→탈퇴 요청 확인→`요청 접수 확인`을 수행해 “탈퇴 요청이 접수되었습니다. 계정은 아직 삭제되지 않았습니다” 표시를 확인했다. DB 읽기 전용 대조에서 해당 계정 1건, 탈퇴 요청 1건, `customer.deletion_request` 감사 이력 1건이었다.
+- 정리 검증: 시험 탭 닫음, `qa-fixture.ts reset`으로 정확한 `b17e2d90` 계정 5건 정리, 이름이 기록된 Web/API 두 컨테이너만 stop·remove. 사후 DB `accounts/account_deletion_requests/sellers` 각각 0, 9091/9092 listener와 해당 이름의 실행 컨테이너 0, WSL checkout clean. API/화면 코드는 변경하지 않았다. 오류 범주: 기동 전 확인 1회 재확인으로 해소, 반복 근본 원인 0.
+- 미검증: 실제 계정 삭제, 운영자 처리, 사용자 인수·Oracle 배포·외부 알림은 이번 가상 계정 요청 접수 검증 범위가 아니다. 다음은 S2의 남은 승인된 구현/검증을 진행한다.
 
 ## 2026-09-28 S2 전체 WSL 시험 회귀
 
