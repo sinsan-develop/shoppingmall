@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2 다중 판매자·5품목 반복 QA 세트
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1adb271ded9b3c7124fcdf8bac20472e037fa683`, SSH 별칭 원격 push→WSL `/home/daon/deploy/shopping` pull. `main`·운영/Oracle DB·실판매 데이터는 변경하지 않았다.
+- 목적/변경: `apps/api/scripts/qa-catalog-fixture.ts`와 `apps/api/test/qa-catalog-fixture-db.test.mjs`를 추가했다. 8자리 QA ID로 고객/농가 A/B/어울몰 판매자/관리자 가상 계정을 만든 후 고추·고춧가루·양파·마늘·블루베리 5개 상품을 3개 대분류와 각 소분류, 판매자 A/B/어울몰, 직접/어울몰 발송에 배치한다. 각 상품의 단일 옵션·가상 가격·판매 가능 5개는 통합시험 값이며 운영 초기값이 아니다. fixture가 DB에 승인 상태를 직접 넣으므로 이 시험은 실제 판매자 제안→관리자 악성코드 검사/승인의 증거가 아니다. 이미지는 생성하지 않고 기존 승인 이미지 별도 시험과 구분한다.
+- RED→GREEN/검증: 모듈 부재 RED 후 순수 명세 1 pass·DB 없는 환경 1 skip. WSL `local-postgres/shoppingmall` 정확 SHA에서 생성→판매자·발송 방식·재고 검증→1회 정리→2회 반복 정리 2 pass·0 fail, API 전체 68건 중 61 pass·0 fail·환경별 7 skip. 로컬 전체 144건 중 116 pass·0 fail·DB/실 검사 28 skip 및 PR 본문 검증 8 pass, 전체 typecheck/lint/API·Next production build 통과. 동일 근본 원인 오류 3회 반복 없음.
+- 정리/다음: 사후 WSL DB의 `qa-%` 개정·분류와 `qa+%@example.invalid` 계정 각 0행을 읽기 전용 확인. 새 테스트는 고유 ID만 지우고 추가 개정·이미지가 연결되면 자동 삭제를 멈추도록 설계했다. 다음 S2/S3 주문 분리·재고 경합 통합시험의 기반으로 사용한다. 실제 5품목 가격·사진·수량·판매자 배정은 신산님이 운영 준비 때 결정하며, 현 Stage/전체 구축 완료 아님.
+
 ## 진행 중 — 2026-09-27 S2 홈 메뉴·판매자 탐색 연결
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@27f7b61517e91b07f540643a158b30defa012dd5`, `main` 미변경. 승인된 홈 5영역 중 정적 메뉴를 실제 링크로 바꾸고 공개 상품의 판매자 이름→해당 판매자 상품 검색을 연결했다. 검색 화면은 판매자 필터의 현재 선택을 표시·수정하며 URL 조건을 유지한다. 판매자 소개는 공개/판매 가능 목록의 첫 페이지에 등장한 판매자만 표시하며 전체 판매자 디렉터리·편집 가능한 관리자 추천/기획전은 아직 아니다.
