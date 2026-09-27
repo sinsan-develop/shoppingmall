@@ -1,5 +1,25 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.2 이미지 안전 공개 경계
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@47d1c85190b81c6362a76e9131f9b0836a4407f7`. S2.3 브라우저 QA와 정리 완료 후, 고객 공개를 막고 있는 이미지 검증을 먼저 처리한다.
+- 목표: 현재 개발 전용 quarantine의 컨테이너 식별은 실제 디코딩/메타데이터 제거 증거가 아니다. 승인된 PNG/JPEG/WebP 바이트만 픽셀 수·크기 제한 아래 디코딩하고 새 이미지로 재인코딩하는 시험과 모듈을 작성한다. 원본은 비공개 유지하며 이 단계만으로 관리자 승인/공개 API를 열지 않는다.
+- 예상 파일: `apps/api/src/catalog/image-sanitizer.ts`, 해당 단위시험, API dependency/lockfile, 본 현황. 새 DB schema·Secret·외부 계약·운영 데이터 변경 없음. 패키지 설치가 필요하면 기존 pnpm lock의 버전을 우선 사용한다. 실패 시 새 모듈을 호출하지 않으며 기존 quarantine 경계 유지.
+- 현재 증거: 공식 npm 메타데이터로 기존 lock의 sharp 0.35.4를 API 직접 의존성에 연결했다. 허용 형식 실제 decode→metadata 없는 WebP 재인코딩과 MIME 불일치·손상·SVG·가로 제한 시험 2건 RED(모듈 없음)→GREEN. 로컬 전체 109건 중 90 pass·0 fail·DB 전용 19 skip, PR 검사 8 pass, typecheck·lint 통과. 첫 제한된 Next build는 `.next/trace` EPERM 1회, 동일 D: 경로 권한으로 재실행해 API/웹 build 9경로 성공. 구현 반복 오류 0, 공급자/악성 코드 검사·스토리지 공개·관리자 승인 및 WSL native sharp 검증은 아직 남았다.
+
+## 최신 상태 — 2026-09-27 S2.3 재고 역할별 브라우저 QA 완료
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@47d1c85190b81c6362a76e9131f9b0836a4407f7`. WSL 일회성 API/웹과 in-app browser에서 가상 운영자·판매자 A로 시험했다.
+- 운영자 대/소분류 등록 → 판매자 500g/23,000원 상품 초안 저장 → 보유 10개 직접 입력 시 판매 가능 0개·승인 대기 → 운영자에게 판매자 이름으로 구분된 요청 노출·승인 → 판매자 재로그인 후 판매 가능 10개 → 0개 직접 입력 시 즉시 판매 가능 0개를 실제 화면에서 확인했다. 초안 상태라 고객 상품 노출·구매 차단 E2E는 이 시험의 증거가 아니다.
+- QA 실행 `b47d1a20`의 정확한 상품·revision·옵션·재고/요청·대/소분류만 DB 트랜잭션으로 삭제, fixture 가상 계정 5개 reset, 브라우저 탭과 정확한 일회성 컨테이너 2개 종료. 최종 accounts/sellers/categories/products/revisions/options/inventory/requests/audit 9종 각 0행, migration 이력 5건, 9091·9092 listener/임시 컨테이너 0, WSL checkout clean 확인. 브라우저 시험·정리 오류 0.
+- 실제 모바일 viewport·200% 확대·키보드·인쇄, 상품 안전 공개, 마지막 수량 동시 구매는 아직 미검증·미구현이다. 다음은 S2.2 안전한 이미지 공개·상품 승인 경계 또는 S2.3 구매 가능 재고의 동시성 계약을 이어간다.
+
+## 최신 상태 — 2026-09-27 S2.3 역할별 재고 실제 브라우저 QA 자원 준비
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@47d1c85190b81c6362a76e9131f9b0836a4407f7` (SSH 원격/WSL 일치). 실제 브라우저 시험의 고객/판매자/관리자 URL은 WSL `http://172.27.253.53:9091`, API는 같은 호스트 9092. 시작 전 `ss`에서 9091·9092 LISTEN 0, `shoppingmall-s2-browser-*` 컨테이너 0 확인.
+- 계획된 QA 자원: 지정 `shoppingmall` DB에 실행 ID `b47d1a20`의 가상 계정 5개·판매자 3개만 fixture로 생성하고, 시험용 대/소분류·상품·옵션·재고 요청을 이 ID에 연결한다. API/웹 일회성 컨테이너 이름은 `shoppingmall-s2-browser-api-47d1`, `shoppingmall-s2-browser-web-47d1`; 가상 비밀번호만 사용하고 실제 개인정보·결제는 사용하지 않는다. UI 검증 종료·실패 시 정확한 상품 종속 자료→분류→fixture reset 순서로 삭제, 컨테이너 종료·포트/DB 잔류 0을 확인한다. WSL 소스는 Git pull 이외 직접 수정하지 않으며 임시 Next build 산출물은 무시 대상이다.
+- 검증 대상: 판매자 로그인/옵션 수량 직접 입력→0 즉시 반영→증가 승인 대기, 관리자 로그인/해당 판매자별 증가 요청 승인, 판매자 재조회. viewport·키보드·200% 확대는 가능한 실제 브라우저 상태에서 구분해 기록한다. 실제 결제·출고/인수는 이번 QA가 아니다.
+
 ## 최신 상태 — 2026-09-27 S2.3 재고 목록·역할별 화면 WSL DB/build GREEN
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1c109c40efcdd0de452f473f1c29a2d04b3f5a28` (SSH 원격/WSL 일치). 판매자 소유 옵션/관리자 증가 요청 목록의 목표 WSL 실제 DB 시험 2 pass·0 fail. 전체 API 49개 중 43 pass·0 fail·환경별 6 skip, WSL Next.js production build 9경로 성공. 로컬 전체 test/typecheck/lint/build도 통과.
