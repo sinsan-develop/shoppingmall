@@ -27,7 +27,7 @@ test('only the owning seller stages private image metadata for its draft revisio
   let minorId;
   let productId;
   let revisionId;
-  let objectKey;
+  const objectKeys = [];
   try {
     accountId = await new AuthRepository(pool).createCustomerAccount(`qa+${randomUUID()}@example.invalid`, 'test-only-password-12345');
     sellerCategoryId = (await pool.query('INSERT INTO seller_categories (name) VALUES ($1) RETURNING id', [`qa-${suffix}-group`])).rows[0].id;
@@ -47,13 +47,13 @@ test('only the owning seller stages private image metadata for its draft revisio
       productId, revisionId, 'thumbnail', png, 'image/png', store), /Forbidden/);
     await assert.rejects(drafts.addImage(seller, productId, revisionId, 'thumbnail', png, 'image/jpeg', store), /Image MIME mismatch/);
     const image = await drafts.addImage(seller, productId, revisionId, 'thumbnail', png, 'image/png', store);
-    objectKey = image.objectKey;
-    assert.match(objectKey, /^quarantine\//);
+    objectKeys.push(image.objectKey);
+    assert.match(image.objectKey, /^quarantine\//);
     const rows = await pool.query('SELECT purpose,object_key,mime_type,size_bytes FROM product_images WHERE revision_id=$1', [revisionId]);
     assert.equal(rows.rows.length, 1);
     assert.equal(rows.rows[0].purpose, 'thumbnail');
-    assert.equal(rows.rows[0].object_key, objectKey);
-    const privateBytes = await store.read(objectKey);
+    assert.equal(rows.rows[0].object_key, image.objectKey);
+    const privateBytes = await store.read(image.objectKey);
     assert.notDeepEqual(privateBytes, png);
     assert.equal((await sharp(privateBytes).metadata()).format, 'webp');
     assert.equal(rows.rows[0].mime_type, 'image/webp');
@@ -63,6 +63,23 @@ test('only the owning seller stages private image metadata for its draft revisio
     assert.deepEqual(await drafts.listImages(seller, productId, revisionId), [{
       id: image.id, purpose: 'thumbnail', mimeType: 'image/webp', sizeBytes: privateBytes.length, displayOrder: 0,
     }]);
+    const detail = await drafts.addImage(seller, productId, revisionId, 'detail', png, 'image/png', store);
+    objectKeys.push(detail.objectKey);
+    const desired = [{ id: detail.id, purpose: 'thumbnail' }, { id: image.id, purpose: 'detail' }];
+    await assert.rejects(drafts.reorderImages({ accountId, role: 'seller', sellerId: sellerB },
+      productId, revisionId, desired), /Forbidden/);
+    await assert.rejects(drafts.reorderImages(seller, productId, revisionId,
+      [{ id: image.id, purpose: 'thumbnail' }]), /Image set mismatch/);
+    await assert.rejects(drafts.reorderImages(seller, productId, revisionId,
+      [{ id: image.id, purpose: 'thumbnail' }, { id: image.id, purpose: 'detail' }]), /Invalid image order/);
+    await assert.rejects(drafts.reorderImages(seller, productId, revisionId,
+      [{ id: image.id, purpose: 'detail' }, { id: detail.id, purpose: 'detail' }]), /One thumbnail required/);
+    assert.deepEqual(await drafts.reorderImages(seller, productId, revisionId, desired), { revisionId, count: 2 });
+    assert.deepEqual((await drafts.listImages(seller, productId, revisionId)).map(({ id, purpose, displayOrder }) =>
+      ({ id, purpose, displayOrder })), [
+      { id: detail.id, purpose: 'thumbnail', displayOrder: 0 },
+      { id: image.id, purpose: 'detail', displayOrder: 1 },
+    ]);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
     await assert.rejects(drafts.submit({ accountId, role: 'seller', sellerId: sellerB }, productId, revisionId), /Forbidden/);
     const submitted = await drafts.submit(seller, productId, revisionId);
@@ -70,6 +87,7 @@ test('only the owning seller stages private image metadata for its draft revisio
     assert.equal((await pool.query('SELECT status FROM product_revisions WHERE id=$1', [revisionId])).rows[0].status, 'pending');
     await assert.rejects(drafts.submit(seller, productId, revisionId), /Draft required/);
     await assert.rejects(drafts.addImage(seller, productId, revisionId, 'detail', png, 'image/png', store), /Draft required/);
+    await assert.rejects(drafts.reorderImages(seller, productId, revisionId, desired), /Draft required/);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
   } finally {
     if (accountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
@@ -91,7 +109,7 @@ test('only the owning seller stages private image metadata for its draft revisio
       await pool.query('DELETE FROM accounts WHERE id=$1', [accountId]);
     }
     await pool.end();
-    if (objectKey) await store.remove(objectKey);
+    for (const objectKey of objectKeys) await store.remove(objectKey);
     if (resolve(root).startsWith(resolve(tmpdir()) + (process.platform === 'win32' ? '\\' : '/')) &&
         root.includes('shoppingmall-upload-test-')) await rm(root, { recursive: true, force: true });
   }
