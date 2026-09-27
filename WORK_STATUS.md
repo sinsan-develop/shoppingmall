@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.3 재고 인증 HTTP 실제 DB GREEN
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@81d9d8b95ab54900e97ccaf88ea4393d154881da` (SSH 원격/WSL 일치). 판매자/관리자 인증 HTTP 목표 시험 2 pass·0 fail: 신뢰하지 않은 Origin 403, 음수 400, 판매자 0 즉시 반영, 증가 대기, 판매자의 관리자 승인 거부 403, 관리자 승인 후 수량 7, 중복 409. 이전 정리 순서 오류는 수정됐고 이 실행의 QA 정리는 성공했다.
+- WSL 실제 `shoppingmall` DB 전체 API 49개 중 43 pass·0 fail·무DB 전용 6 skip. migration 이력 5건 보존, 계정/역할/세션/신원/판매자/분류/상품/옵션/재고/요청/감사 13종 0행, `shoppingmall-s2-*` 임시 컨테이너 0, WSL checkout clean. 로컬 전체 105개 중 86 pass·0 fail·DB-only 19 skip, PR 본문 8 pass, typecheck·lint·API/Next build 통과.
+- 변경 파일: 본 현황. 이번 목표/전체 재시험 오류 0. 판매자/관리자 재고 화면, 고객 구매의 재고 경합·예약, 안전 이미지 공개·상품 승인 및 이후 Stage는 미구현이다. S2.3 전체 완료가 아니다. 다음은 재고 화면/관리자 승인 목록 및 재고 경합 계약을 이어간다.
+
 ## 최신 상태 — 2026-09-27 재고 인증 HTTP 시험 QA 정리 순서 보정
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1fa60b7d109b4936304b3b802a0ecb37625aaa71` (SSH 원격/WSL 일치). WSL 실제 DB 목표 시험은 `23503 account_roles_seller_id_sellers_id_fk`로 최종 `finally` 정리에서 실패 1회. 앞선 HTTP 본문 흐름도 PASS로 승격하지 않는다. 원인은 시험이 판매자를 지우기 전에 그 판매자에 묶인 `account_roles`·`auth_sessions`를 삭제하지 않은 순서다.
