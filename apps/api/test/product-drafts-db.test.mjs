@@ -19,6 +19,7 @@ test('a seller creates only its own non-public product draft in a minor category
   let otherMinorId;
   let productId;
   let deletableProductId;
+  let deletableStockOptionId;
   let stockedOptionId;
   try {
     accountId = await new AuthRepository(pool).createCustomerAccount(`qa+${randomUUID()}@example.invalid`, 'test-only-password-12345');
@@ -48,9 +49,17 @@ test('a seller creates only its own non-public product draft in a minor category
       VALUES ($1,$2,'thumbnail','image/webp',100)`, [deletable.revisionId, `quarantine/qa-${suffix}-metadata`]);
     await assert.rejects(drafts.deleteDraft(seller, deletable.productId, deletable.revisionId), /Protected draft data/);
     await pool.query('DELETE FROM product_images WHERE revision_id=$1', [deletable.revisionId]);
+    deletableStockOptionId = (await pool.query('SELECT id FROM product_options WHERE revision_id=$1',
+      [deletable.revisionId])).rows[0].id;
+    await pool.query('INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity) VALUES ($1,1,0)',
+      [deletableStockOptionId]);
+    await assert.rejects(drafts.deleteDraft(seller, deletable.productId, deletable.revisionId), /Protected draft data/);
+    await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [deletableStockOptionId]);
     await drafts.deleteDraft(seller, deletable.productId, deletable.revisionId);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM products WHERE id=$1',
       [deletable.productId])).rows[0].total, 0);
+    assert.equal((await pool.query('SELECT count(*)::int AS total FROM audit_events WHERE target_id=$1 AND action=$2',
+      [deletable.productId, 'product.draft_delete'])).rows[0].total, 1);
     const row = await pool.query(`SELECT p.seller_id, p.category_id, r.title, r.status, r.shipping_mode,
       o.name AS option_name, o.price_won FROM products p
       JOIN product_revisions r ON r.product_id=p.id JOIN product_options o ON o.revision_id=r.id WHERE p.id=$1`, [productId]);
@@ -88,6 +97,7 @@ test('a seller creates only its own non-public product draft in a minor category
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_options WHERE revision_id=$1',
       [created.revisionId])).rows[0].total, 2);
     await pool.query("UPDATE product_revisions SET status='pending' WHERE id=$1", [created.revisionId]);
+    await assert.rejects(drafts.deleteDraft(seller, created.productId, created.revisionId), /Draft required/);
     await assert.rejects(drafts.update(seller, created.productId, created.revisionId, input), /Draft required/);
     await pool.query("UPDATE product_revisions SET status='draft' WHERE id=$1", [created.revisionId]);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
@@ -115,6 +125,7 @@ test('a seller creates only its own non-public product draft in a minor category
       minorId);
   } finally {
     if (stockedOptionId) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [stockedOptionId]);
+    if (deletableStockOptionId) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [deletableStockOptionId]);
     if (deletableProductId) {
       await pool.query('DELETE FROM product_images WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)',
         [deletableProductId]);
