@@ -11,6 +11,7 @@ import { InventoryService } from '../inventory/service.js';
 import { ProductDrafts, type DraftInput } from './product-drafts.js';
 import { ProductReviews } from './product-reviews.js';
 import { ImageQuarantine } from './image-quarantine.js';
+import { scanImageWithClamd } from './image-scanner.js';
 import { PublicProducts } from './public-products.js';
 import { CatalogTaxonomy } from './taxonomy.js';
 
@@ -157,6 +158,25 @@ export class CatalogController {
       if (error instanceof Error && error.message === 'Invalid product target') throw new BadRequestException();
       throw error;
     }
+  }
+
+  @Get('products/:productId/images/:imageId')
+  @Header('Cache-Control', 'no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async publishedImage(@Param('productId') productId: string, @Param('imageId') imageId: string) {
+    this.requireLocalUpload();
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    let asset;
+    try { asset = await new PublicProducts(pool).getPublishedImage(productId, imageId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid image target') throw new BadRequestException();
+      throw error;
+    }
+    if (!asset) throw new NotFoundException();
+    try { return new StreamableFile(await this.localUploadStore().read(asset.objectKey), { type: 'image/webp' }); }
+    catch { throw new ServiceUnavailableException({ status: 'published_image_unavailable' }); }
   }
 
   @Get('seller/products')
@@ -436,6 +456,28 @@ export class CatalogController {
       }
       if (error instanceof Error && error.message === 'Pending proposal required') {
         throw new ConflictException({ status: 'not_pending' });
+      }
+      throw error;
+    }
+  }
+
+  @Post('admin/proposals/:revisionId/approve')
+  async approveProposal(@Req() request: RequestHeaders, @Param('revisionId') revisionId: string) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    this.requireLocalUpload();
+    try {
+      return await this.reviews().approve(actor, revisionId, this.localUploadStore(),
+        (bytes) => scanImageWithClamd(bytes, { host: '127.0.0.1',
+          port: Number(process.env.CLAMD_PORT ?? 3310), timeoutMs: 15000 }));
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
+      if (error instanceof Error && ['Pending proposal required', 'One thumbnail required',
+        'Invalid image', 'Image set changed', 'Option required', 'Image scan rejected'].includes(error.message)) {
+        throw new ConflictException({ status: 'approval_rejected', reason: error.message });
+      }
+      if (error instanceof Error && ['Image scan unavailable', 'Invalid object key'].includes(error.message)) {
+        throw new ServiceUnavailableException({ status: 'image_scan_unavailable' });
       }
       throw error;
     }
