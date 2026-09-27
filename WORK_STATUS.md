@@ -9,6 +9,7 @@
 - WSL 정확한 `283587886933f92e9ab630fa47c8326509ca10d9` 지정 DB 시험은 `proposal.description` 부재로 예상 RED 1회, 이후 accounts/options/images/revisions/audit 5종 각 0행·일회성 시험 컨테이너 0. 서비스 조회 SQL에 설명·산지·발송 방식·가격 순서·사진 개수만 추가하고 key는 선택하지 않는다. 관리자 화면도 같은 계약을 표시한다. 로컬 목표 화면 4 pass, 전체 116건 중 96 pass·0 fail·DB 전용 20 skip, PR 본문 8 pass, typecheck·lint·API/Next build 10경로 통과. 실제 WSL DB GREEN/전체 회귀·브라우저 화면은 아직 미검증, 제품 코드 오류 0.
 - 정확한 `7facaa3ff2b191b3d9e09a017c0535640e8de351` SSH push→WSL pull 후 지정 DB 심사 자료 목표 1 pass·0 fail, WSL API 전체 52건 중 46 pass·0 fail·환경별 6 skip, Next production build 10경로 성공. accounts/sellers/categories/products/revisions/options/images/publications/audit 9종 각 0행, 임시 review 컨테이너 0, WSL checkout clean. 화면 SSR 4 pass는 실제 로그인·대기 상품의 브라우저 검증을 대신하지 않는다. 관리자 승인·고객 이미지 공개는 여전히 닫힌 경계다.
 - 다음 실제 브라우저 QA: 기존 `runQaFixture`의 8자리 16진수 실행 ID·가상 관리자 계정을 재사용하고 동일 ID 접두사의 대/소분류·대기 상품·옵션·비공개 사진 메타데이터를 만드는 재현 가능한 전용 script를 시험 우선으로 작성한다. WSL `shoppingmall` 지정 DB의 이 식별자만 seed/reset하고, API/웹 일회성 컨테이너는 `shoppingmall-s2-review-browser-api-*`·`shoppingmall-s2-review-browser-web-*`로 사용 후 중지한다. 실패 시 먼저 정확 ID 상품 종속 자료→카테고리→기존 fixture reset 순으로 정리하고 타 DB·계정/상품을 삭제하지 않는다. 실제 이미지 바이트/공개 URL은 이번 QA에 사용하지 않는다.
+- WSL 정확한 `71fa72496ce3dc0e0cd00266b90a17a4a5266c45`에서 QA review fixture 함수 부재 assertion RED 1회(데이터 생성 전), `apps/api/scripts/qa-review-fixture.ts`에 `shoppingmall` 한정 seed/reset·가상 대기 상품/옵션·메타데이터만 구현했다. 원본 이미지 파일은 만들지 않는다. 로컬 DB 시험은 환경상 1 skip으로 GREEN 증거가 아니며, typecheck·lint 통과. 다음은 새 commit의 WSL 지정 DB에서 seed/reset 시험과 잔류 0을 확인한다.
 
 ## 진행 중 — 2026-09-27 S2.4 고객 홈의 공개 카탈로그 연결
 
