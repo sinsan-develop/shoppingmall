@@ -73,6 +73,11 @@ test('category choices group each minor beneath its selectable major', () => {
   assert.ok(html.indexOf('label="과일"') < html.indexOf('label="채소"'));
 });
 
+test('narrow product search gives each filter the full available width', () => {
+  const styles = readFileSync(new URL('../app/styles.css', import.meta.url), 'utf8');
+  assert.match(styles, /@media\(max-width:600px\)\{\.search-filters\{grid-template-columns:minmax\(0,1fr\)\}/);
+});
+
 test('approved product detail shows option price and sold-out status without private image keys', () => {
   const html = renderToStaticMarkup(createElement(ProductDetailView, {
     product: { productId: 'p1', title: '햇고추', description: '정성껏 기른 고추',

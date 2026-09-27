@@ -6,6 +6,8 @@
 - RED→GREEN: `apps/web/test/public-products.test.mjs`에 의도적으로 섞은 부모/자식 배열의 그룹·선택 가능 대분류·순서 시험을 추가하여 1 fail을 확인. `apps/web/app/products/page.tsx`에서 한국어 이름순 대분류 optgroup 안에 대분류 전체 선택과 해당 소분류를 배치하여 목표 7 pass·0 fail.
 - 로컬 검증: 전체 145건 중 117 pass·28 환경 의존 skip·0 fail, PR 본문 검사 8 pass, 전체 typecheck/lint/API·Next production build 통과. 실제 WSL 새 빌드/브라우저 재시험은 이 기록 시점 미완료이며 로컬 PASS로 대신하지 않는다. 시험용 컨테이너 2개는 재빌드 전에 정확히 중지했다. 시험 계정·상품 fixture는 재검증 후 정확한 ID로 정리한다.
 - 다음: 변경분 안전 커밋→SSH 별칭 push→WSL 지정 checkout pull/build, 브라우저에서 분류/판매자/정렬·모바일·키보드 재검증 후 fixture/포트/컨테이너 잔류 0 확인. 동일 근본 원인 오류 3회 반복 없음.
+- `9aaabbe90ad1b57fbf05249da1a1e8cbbec750f6` SSH push→WSL 지정 checkout pull 및 Next production build·API/Web readiness 200. 실제 브라우저의 optgroup은 가공식품/과일/채소 아래 각각 고춧가루/블루베리/고추·마늘·양파를 표시했고 `채소 전체` 제출 결과는 세 상품만 나왔다. 430px viewport에서 문서 가로 넘침은 없었으나 필터 입력이 2열 중 좁은 한 열에 표시되어 분류명이 잘리는 결함을 새로 확인했다.
+- 모바일 필터를 600px 이하에서 한 열로 배치하는 CSS/시험을 추가했다. 목표 시험 RED 1→GREEN 8 pass, 로컬 전체 146건 중 118 pass·28 환경 의존 skip·0 fail, PR 본문 검사 8 pass, typecheck/lint/API·Next build 통과. 첫 fixture 실행에서 필수 가상 비밀번호 설정을 누락해 1회 즉시 거부됐고 설정 후 5품목 생성에 성공했다. viewport 복원·기존 브라우저 탭/정확한 임시 컨테이너 종료. 수정 CSS의 실제 브라우저 재시험과 QA fixture 정리는 아직 남아 있다.
 
 ## 진행 중 — 2026-09-27 S1.3 고객 탈퇴 요청 브라우저 확인
 
