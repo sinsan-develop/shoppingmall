@@ -58,6 +58,14 @@ test('seller can close stock immediately but only an operator releases an increa
     const reopen = await inventory.setStock(seller, optionId, 4);
     assert.equal(reopen.sellable, 0);
     assert.ok(reopen.requestId);
+    const ownedOptions = await inventory.listOwned(seller);
+    assert.deepEqual(ownedOptions.filter((item) => item.optionId === optionId), [{
+      optionId, productId, title: '시험 고추', optionName: '500g', onHand: 4,
+      sellable: 0, pendingRequestId: reopen.requestId,
+    }]);
+    assert.equal((await inventory.listOwned(other)).some((item) => item.optionId === optionId), false);
+    await assert.rejects(inventory.listPending(seller), /Forbidden/);
+    assert.equal((await inventory.listPending(admin)).some((item) => item.requestId === reopen.requestId), true);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM audit_events WHERE target_id=$1', [optionId])).rows[0].n, 3);
     app = await createApp();
     await app.listen(0, '127.0.0.1');
