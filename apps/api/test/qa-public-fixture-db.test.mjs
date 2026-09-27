@@ -42,3 +42,32 @@ test('public browser fixture exposes one sellable QA product and resets only its
     await pool.end();
   }
 });
+
+test('public browser fixture can seed 25 paginated products and remove only its run', {
+  skip: !process.env.DATABASE_URL,
+}, async () => {
+  const runId = randomBytes(4).toString('hex');
+  const { runQaPublicFixture } = await import('../scripts/qa-public-fixture.ts');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  let seeded = false;
+  try {
+    await assert.rejects(runQaPublicFixture('seed', runId, process.env.DATABASE_URL,
+      'test-only-password-12345', 26), /QA product count/);
+    const result = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL,
+      'test-only-password-12345', 25);
+    seeded = true;
+    const service = new PublicProducts(pool);
+    assert.equal((await service.list({ query: `qa-${runId}-public-chili`, page: 1 })).length, 24);
+    assert.equal((await service.list({ query: `qa-${runId}-public-chili`, page: 2 })).length, 1);
+    assert.equal(result.title, `qa-${runId}-public-chili`);
+  } finally {
+    if (seeded) await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
+    const remaining = await pool.query(`SELECT
+      (SELECT count(*)::int FROM product_revisions WHERE title LIKE $1) AS products,
+      (SELECT count(*)::int FROM product_categories WHERE name=$2) AS categories,
+      (SELECT count(*)::int FROM account_identities WHERE identifier=$3) AS accounts`,
+    [`qa-${runId}-public-chili%`, `qa-${runId}-public-major`, `qa+${runId}-admin@example.invalid`]);
+    assert.deepEqual(remaining.rows[0], { products: 0, categories: 0, accounts: 0 });
+    await pool.end();
+  }
+});

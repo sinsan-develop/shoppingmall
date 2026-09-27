@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S2.4 검색 더 보기 실제 브라우저 QA 준비
+
+- 담당/대상: 어울 단일 writer, `codex/flat-v2-prototypes`. 기존 `qa-public-fixture.ts`를 선택적 25개 공개 가상 상품으로 확장하되 기본 1개 사용자는 유지한다. 범위는 지정 WSL `local-postgres/shoppingmall` 개발 DB와 loopback 9091 웹/9092 API, 정확한 QA ID `c4e7a219` 및 `qa-c4e7a219-*` 식별 자료에만 한정한다. 운영·Oracle·실사용자 자료는 변경하지 않는다.
+- 자원 계획: 시험 계정 5개(고객·판매자 A/B·어울몰·관리자, `qa+c4e7a219-*@example.invalid`), 판매자 분류/3판매자/상품 대·소분류/25개 가상 공개 상품, 임시 컨테이너 `shoppingmall-s24-page-api-c4e7`, `shoppingmall-s24-page-web-c4e7`. 비밀값·실개인정보는 출력/커밋하지 않는다. 본문에 이 계획을 남긴 뒤 seed하며, 시험 끝나면 fixture의 정확한 ID reset→DB/컨테이너/포트 0과 WSL clean을 확인한다.
+- 판정: 실제 브라우저에서 24개 목록→더 보기→25개, 버튼 사라짐, 필터 조건 유지와 키보드 접근을 확인한다. 실패/차단 시 PASS로 표기하지 않고 정확한 잔류·미검증을 기록한다. 실제 200% 확대는 별도 정책/도구 제한으로 이번 시험 범위가 아니다.
+
 ## 미검증 기록 — 2026-09-28 로컬 file 시안 확대 재확인 정책 차단
 
 - 담당/대상: 어울 단일 writer, 기존 `file:///D:/Project/shoppingmall2/.worktrees/flat-v2-prototypes/docs/design/assets/home-flat-v2.html` 사용자 시안 탭의 200% 확대 재확인 시도.
