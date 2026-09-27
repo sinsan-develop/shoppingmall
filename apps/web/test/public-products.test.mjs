@@ -85,6 +85,12 @@ test('public search exposes more products only when another page may exist', () 
   assert.match(view(true, true), /상품을 더 불러오는 중/);
   assert.match(view(true, true), /disabled=""/);
   assert.doesNotMatch(view(false), /상품 더 보기/);
+  assert.match(view(true), /id="product-link-p0"/);
+  const ended = renderToStaticMarkup(createElement(ProductSearchView, {
+    query: '', sort: 'latest', categoryId: '', categories: [], products, loading: false,
+    endOfResults: true,
+  }));
+  assert.match(ended, /id="search-end"[^>]*tabindex="-1"[^>]*>모든 상품을 확인했습니다/);
 });
 
 test('narrow product search gives each filter the full available width', () => {

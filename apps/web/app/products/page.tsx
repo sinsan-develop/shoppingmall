@@ -8,7 +8,8 @@ type Product = { productId: string; title: string; sellerName: string; originLab
 type ViewProps = { query: string; sort: string; categoryId: string; sellerId?: string;
   categories: Category[]; sellers?: Seller[];
   products: Product[]; loading: boolean; error?: string;
-  hasMore?: boolean; loadingMore?: boolean; loadMoreError?: string; onLoadMore?: () => void;
+  hasMore?: boolean; loadingMore?: boolean; loadMoreError?: string; endOfResults?: boolean;
+  onLoadMore?: () => void;
   onQueryChange?: (value: string) => void; onCategoryChange?: (value: string) => void;
   onSellerChange?: (value: string) => void; onSortChange?: (value: string) => void };
 
@@ -17,7 +18,8 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
 const categoryOrder = new Intl.Collator('ko');
 
 export function ProductSearchView({ query, sort, categoryId, sellerId = '', categories, sellers = [], products,
-  loading, error, hasMore = false, loadingMore = false, loadMoreError, onLoadMore = () => {},
+  loading, error, hasMore = false, loadingMore = false, loadMoreError, endOfResults = false,
+  onLoadMore = () => {},
   onQueryChange = () => {}, onCategoryChange = () => {},
   onSellerChange = () => {}, onSortChange = () => {} }: ViewProps) {
   return (
@@ -62,13 +64,16 @@ export function ProductSearchView({ query, sort, categoryId, sellerId = '', cate
             <section className="search-results" aria-label="상품 검색 결과">
               {products.map((product) => <article className="search-product" key={product.productId}>
                 <p className="eyebrow">{product.originLabel}</p>
-                <h2><a className="product-link" href={`/products/${encodeURIComponent(product.productId)}`}>{product.title}</a></h2>
+                <h2><a className="product-link" id={`product-link-${product.productId}`}
+                  href={`/products/${encodeURIComponent(product.productId)}`}>{product.title}</a></h2>
                 <p>{product.sellerName}</p>
                 <p className="product-price">{product.minPriceWon.toLocaleString('ko-KR')}원부터</p>
               </article>)}
             </section>
-            {hasMore ? <button className="secondary-button search-more" type="button" disabled={loadingMore}
+            {hasMore ? <button className="secondary-button search-more" id="search-more" type="button" disabled={loadingMore}
               onClick={onLoadMore}>{loadingMore ? '상품을 더 불러오는 중' : '상품 더 보기'}</button> : null}
+            {endOfResults ? <p id="search-end" tabIndex={-1} role="status" className="section-note">
+              모든 상품을 확인했습니다</p> : null}
             {loadMoreError ? <p role="alert">{loadMoreError}</p> : null}
           </>}
     </main>
@@ -88,9 +93,20 @@ export default function ProductsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string>();
+  const [endOfResults, setEndOfResults] = useState(false);
+  const [focusTarget, setFocusTarget] = useState<string | null>(null);
   const pageRef = useRef(1);
   const moreControllerRef = useRef<AbortController | null>(null);
   const loadingMoreRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusTarget) return;
+    const target = document.getElementById(focusTarget);
+    if (target instanceof HTMLElement) {
+      target.focus();
+      setFocusTarget(null);
+    }
+  }, [products, loadingMore, endOfResults, focusTarget]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -126,6 +142,7 @@ export default function ProductsPage() {
       setSellers(nextSellers);
       setProducts(nextProducts);
       setHasMore(nextProducts.length === 24 && initialPage < 1000);
+      setEndOfResults(false);
       setError(undefined);
     }).catch(() => { if (!controller.signal.aborted) setError('검색을 불러올 수 없습니다'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -147,14 +164,24 @@ export default function ProductsPage() {
       if (!response.ok) throw new Error('상품을 더 불러올 수 없습니다');
       const nextProducts: unknown = await response.json();
       if (!Array.isArray(nextProducts)) throw new Error('상품을 더 불러올 수 없습니다');
+      const existingIds = new Set(products.map((product) => product.productId));
+      const firstNew = nextProducts.find((product: Product) => !existingIds.has(product.productId));
       setProducts((current) => {
         const seen = new Set(current.map((product) => product.productId));
         return [...current, ...nextProducts.filter((product: Product) => !seen.has(product.productId))];
       });
       pageRef.current = nextPage;
-      setHasMore(nextProducts.length === 24 && nextPage < 1000);
+      const nextHasMore = nextProducts.length === 24 && nextPage < 1000;
+      const ended = nextProducts.length === 0 || (!firstNew && !nextHasMore);
+      setHasMore(nextHasMore);
+      setEndOfResults(ended);
+      setFocusTarget(firstNew ? `product-link-${firstNew.productId}` :
+        ended ? 'search-end' : 'search-more');
     } catch {
-      if (!controller.signal.aborted) setLoadMoreError('상품을 더 불러올 수 없습니다. 다시 시도해 주세요');
+      if (!controller.signal.aborted) {
+        setLoadMoreError('상품을 더 불러올 수 없습니다. 다시 시도해 주세요');
+        setFocusTarget('search-more');
+      }
     } finally {
       if (moreControllerRef.current === controller) moreControllerRef.current = null;
       loadingMoreRef.current = false;
@@ -164,7 +191,8 @@ export default function ProductsPage() {
 
   return <ProductSearchView query={query} sort={sort} categoryId={categoryId} sellerId={sellerId}
     categories={categories} sellers={sellers} products={products} loading={loading} error={error}
-    hasMore={hasMore} loadingMore={loadingMore} loadMoreError={loadMoreError} onLoadMore={loadMore}
+    hasMore={hasMore} loadingMore={loadingMore} loadMoreError={loadMoreError}
+    endOfResults={endOfResults} onLoadMore={loadMore}
     onQueryChange={setQuery} onCategoryChange={setCategoryId} onSellerChange={setSellerId}
     onSortChange={setSort} />;
 }

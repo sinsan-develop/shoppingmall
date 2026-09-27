@@ -4,7 +4,9 @@
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@9f2b862`. 직전 25개 상품 브라우저 QA는 Enter로 더 보기 실행까지 확인했으나 버튼이 비활성화·제거된 뒤의 초점 위치는 확인하지 않았다. 실제 키보드 탐색이 첫 새 상품 또는 종료 안내로 이어지는지 먼저 재현한 뒤 필요한 경우 기존 검색 화면만 고친다. 새 API/DB/schema/권한 변경은 없다.
 - QA 자원 계획: 지정 WSL `local-postgres/shoppingmall` 개발 DB의 정확한 QA ID `e51a4c20` 및 25개 `qa-e51a4c20-public-chili*` 가상 상품·가상 계정 5개, loopback 9091/9092, 임시 컨테이너 `shoppingmall-s24-focus-api-e51a`/`shoppingmall-s24-focus-web-e51a`, 새 Chrome 시험 탭. 사용자 탭·Oracle·운영 자료는 건드리지 않는다. 검증 후 탭 종료→정확한 컨테이너 stop/remove→그 QA ID만 fixture reset→DB/포트/checkout 잔류 0을 확인한다.
-- 미검증/다음: 현재는 초점 위치에 대한 가설이며 결함으로 단정하지 않는다. 브라우저 RED 증거 후 화면 회귀 시험과 구현, 로컬/WSL/브라우저 GREEN을 분리해 기록한다. 실제 200% 확대는 이번 범위가 아니다.
+- 착수 판정: 초점 위치는 처음에는 가설로 두고 브라우저 RED를 먼저 확인한 뒤 화면 회귀 시험과 구현, 로컬/WSL/브라우저 GREEN을 분리한다. 실제 200% 확대는 이번 범위가 아니다.
+- RED 재현: QA ID `e51a4c20` 가상 계정 5·공개 상품 25만 생성, 정확한 API/Web 임시 컨테이너의 `/ready`·검색 HTTP 200 확인. 첫 API curl은 기동 직후 000으로 실패했으나 컨테이너 재기동 없이 16초 뒤 200/200 확인(기동 지연 1회). Chrome 새 시험 탭에서 더 보기 버튼에 Enter→24개에서 25개·버튼 제거 직후 접근성 상태의 초점은 새 상품이 아닌 `AXWebArea`였다. 데이터 조회는 정상이며 **키보드 초점 연속성 결함**으로 판정한다.
+- 수정/로컬: 화면 목표 시험에 상품 링크 ID·빈 다음 페이지의 포커스 가능한 종료 안내를 요구하는 RED를 작성했다. React의 서버 렌더 `tabIndex`가 소문자 `tabindex`로 직렬화되는 시험 정규식 오류 1회는 실제 출력에 맞게 고쳤다. 새 결과가 생기면 첫 상품 링크, 빈 마지막 페이지면 종료 안내, 요청 오류면 기존 더 보기 버튼으로 초점을 옮기며 중복 ID는 기존처럼 걸러낸다. 목표 화면 9 pass·0 fail, 로컬 루트 165건 중 136 pass·29 DB/환경 skip·0 fail, PR 검사 8 pass, typecheck·lint·production build·diff check 통과. 실제 수정 후 브라우저 초점/WSL 전체 회귀는 아직 미검증이며 QA 자료·컨테이너는 그 검증을 위해 임시 유지 중이다.
 
 ## 현재 S2 Stage 잔여 게이트 대조 — 2026-09-28
 
