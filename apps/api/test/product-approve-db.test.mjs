@@ -139,6 +139,26 @@ test('only an operator publishes a fully scanned pending product and its exact p
     await assert.rejects(inventory.setStock(seller, oldOptionId, 9), /Published option required/);
     const ownedStock = await inventory.listOwned(seller);
     assert.deepEqual(ownedStock.map((item) => item.optionId).sort(), updated.options.map((item) => item.id).sort());
+    const third = await drafts.createRevision(seller, productId, store);
+    await drafts.submit(seller, productId, third.revisionId);
+    const pendingIncrease = await inventory.setStock(seller, updated.options[0].id, 8);
+    assert.ok(pendingIncrease.requestId);
+    assert.equal(pendingIncrease.onHand, 8);
+    assert.equal(pendingIncrease.sellable, 6);
+    await reviews.approve(admin, third.revisionId, store, async () => {});
+    const latest = await publicProducts.get(productId);
+    assert.equal(latest.revisionId, third.revisionId);
+    assert.deepEqual(latest.options.map(({ name, sellableQuantity }) => ({ name, sellableQuantity })), [
+      { name: '500g', sellableQuantity: 6 }, { name: '1kg', sellableQuantity: 0 },
+    ]);
+    assert.deepEqual((await pool.query(
+      'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1',
+      [latest.options[0].id],
+    )).rows[0], { on_hand_quantity: 8, sellable_quantity: 6 });
+    assert.equal((await pool.query('SELECT status FROM stock_change_requests WHERE id=$1',
+      [pendingIncrease.requestId])).rows[0].status, 'superseded');
+    await assert.rejects(inventory.approveIncrease(admin, pendingIncrease.requestId),
+      /Pending stock request required/);
   } finally {
     if (app) await app.close();
     if (productId) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
