@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.4 공개 상품 홈→상세 실제 브라우저 QA
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@c0ff1d2` (로컬/원격/WSL 체크포인트 일치). 기존 review QA는 정리 완료, 쇼핑몰 임시 컨테이너 0. 기존 고객 공개 조회 계약만 검증하며 제품의 관리자 승인 경로는 열지 않는다.
+- 목표/범위: 정확한 8자리 QA 실행 ID의 가상 계정·판매자·대/소분류·승인 상태의 가상 상품 1개·옵션 재고·공개 포인터를 재현 가능한 시험 전용 도구로 만들고, 홈 카테고리/상품 카드→상세 가격·재고를 실제 브라우저에서 확인한다. 실이미지·실결제·실고객/실상품은 사용하지 않는다.
+- 예상 변경: `apps/api/scripts/qa-public-fixture.ts`, `apps/api/test/qa-public-fixture-db.test.mjs`, 필요 시 해당 화면/시험/CSS, 본 현황. DB schema·Secret·외부 비용 없음. WSL 지정 `shoppingmall` DB에서 RED→GREEN·전체 회귀를 확인하고 안전 commit/SSH push→정확 SHA pull 후 일회성 `shoppingmall-s2-public-browser-*` 컨테이너를 사용한다.
+- 정리/복구: 브라우저 탭·viewport 원복, 정확한 QA 상품의 publication→inventory→옵션/개정→상품→분류를 먼저 지운 뒤 기존 계정 fixture reset. 명명된 QA 컨테이너·9091/9092 listener·핵심 DB 잔류 0을 확인한다. 실패 시 마지막 안전 commit은 유지하고 해당 ID의 임시 자원만 정리한다. 200% 확대·키보드·인쇄/실이미지는 별도 검증으로 남긴다.
+
 ## 진행 중 — 2026-09-27 S2.2 관리자 상품 심사 자료 보강
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@5780102a2e79c1304d6ae31810147874d829bd8e` (로컬/원격/WSL 일치). 홈 QA 컨테이너·포트·시험 DB 자료 잔류 0을 확인한 뒤 착수한다.
