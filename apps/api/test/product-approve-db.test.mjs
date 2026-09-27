@@ -118,7 +118,24 @@ test('only an operator publishes a fully scanned pending product and its exact p
     await pool.query('INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity) VALUES ($1,7,7)', [oldOptionId]);
     await assert.rejects(drafts.createRevision({ accountId: sellerAccountId, role: 'seller', sellerId: randomUUID() },
       productId, store), /Forbidden/);
-    const next = await drafts.createRevision(seller, productId, store);
+    const sellerEmail = (await pool.query('SELECT identifier FROM account_identities WHERE account_id=$1 AND kind=$2',
+      [sellerAccountId, 'email'])).rows[0].identifier;
+    const sellerLogin = await fetch(`${base}/auth/login`, { method: 'POST',
+      headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ email: sellerEmail, password: 'test-only-password-12345', role: 'seller' }),
+    });
+    assert.equal(sellerLogin.status, 201);
+    const sellerCookie = sellerLogin.headers.get('set-cookie').split(';')[0];
+    const revisionUrl = `${base}/catalog/seller/products/${productId}/revisions`;
+    assert.equal((await fetch(revisionUrl, { method: 'POST', headers: { origin } })).status, 401);
+    assert.equal((await fetch(revisionUrl, { method: 'POST', headers: { origin, cookie } })).status, 403);
+    assert.equal((await fetch(revisionUrl, { method: 'POST',
+      headers: { origin: 'https://untrusted.invalid', cookie: sellerCookie } })).status, 403);
+    const revisionResponse = await fetch(revisionUrl, { method: 'POST', headers: { origin, cookie: sellerCookie } });
+    assert.equal(revisionResponse.status, 201);
+    const next = await revisionResponse.json();
+    assert.equal(next.status, 'draft');
+    assert.equal((await fetch(revisionUrl, { method: 'POST', headers: { origin, cookie: sellerCookie } })).status, 409);
     nextRevisionId = next.revisionId;
     assert.notEqual(nextRevisionId, revisionId);
     assert.equal((await publicProducts.get(productId)).revisionId, revisionId);

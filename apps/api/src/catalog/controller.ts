@@ -211,6 +211,22 @@ export class CatalogController {
     }
   }
 
+  @Post('seller/products/:productId/revisions')
+  async createProductRevision(@Req() request: RequestHeaders, @Param('productId') productId: string) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    this.requireLocalUpload();
+    try { return await this.drafts().createRevision(actor, productId, this.localUploadStore()); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Active revision already exists') {
+        throw new ConflictException({ status: 'revision_conflict', reason: error.message });
+      }
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
   @Patch('seller/products/:productId/revisions/:revisionId')
   async updateProductDraft(@Req() request: RequestHeaders,
     @Param('productId') productId: string, @Param('revisionId') revisionId: string, @Body() body: unknown) {

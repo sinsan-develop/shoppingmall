@@ -52,6 +52,16 @@ test('submitted proposals are not editable from the seller screen', () => {
   assert.doesNotMatch(html, /초안 삭제/);
 });
 
+test('an approved product offers a private revision request, not direct public editing', () => {
+  const html = renderToStaticMarkup(createElement(SellerProductView, {
+    categories: [], products: [{ productId: 'product', revisionId: 'revision', title: '고추', status: 'approved' }],
+    busy: false, onCreate: () => {}, onCreateRevision: () => {},
+  }));
+  assert.match(html, /상품 수정안 만들기/);
+  assert.match(html, /관리자 승인 전.*고객에게 공개되지 않습니다/);
+  assert.doesNotMatch(html, /초안 수정/);
+});
+
 test('seller catalog cards can shrink within a narrow screen', () => {
   const styles = readFileSync(new URL('../app/styles.css', import.meta.url), 'utf8');
   assert.match(styles, /\.catalog-admin-grid \.account-card\{[^}]*min-width:0/);

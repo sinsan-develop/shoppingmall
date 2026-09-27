@@ -18,6 +18,7 @@ type Draft = {
 type EditDraft = Omit<Draft, 'options'> & { options: Option[] };
 type ViewProps = { categories: Category[]; products: Product[]; stock: Stock[]; busy: boolean;
   onCreate: (draft: Draft) => void;
+  onCreateRevision: (product: Product) => void;
   onLoadDraft: (product: Product) => Promise<Draft>;
   onUpdate: (product: Product, draft: Draft) => void;
   onDelete: (product: Product) => void;
@@ -30,9 +31,10 @@ type ViewProps = { categories: Category[]; products: Product[]; stock: Stock[]; 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
-function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, onDelete, onUpload,
+function ProductDraftItem({ product, categories, busy, onCreateRevision, onLoadDraft, onUpdate, onDelete, onUpload,
   onLoadImages, onOrderImages, onRemoveImage, onSubmitProposal }: {
   product: Product; categories: Category[]; busy: boolean;
+  onCreateRevision: ViewProps['onCreateRevision'];
   onLoadDraft: ViewProps['onLoadDraft']; onUpdate: ViewProps['onUpdate']; onDelete: ViewProps['onDelete'];
   onUpload: ViewProps['onUpload']; onLoadImages: ViewProps['onLoadImages'];
   onOrderImages: ViewProps['onOrderImages']; onRemoveImage: ViewProps['onRemoveImage'];
@@ -99,7 +101,13 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
     return () => URL.revokeObjectURL(url);
   }, [file]);
   return <li className="draft-product-item">
-    <strong>{product.title}</strong> · {product.status === 'draft' ? '초안' : product.status === 'pending' ? '승인 대기' : product.status}
+    <strong>{product.title}</strong> · {product.status === 'draft' ? '초안' : product.status === 'pending' ? '승인 대기' :
+      product.status === 'approved' ? '판매 중' : product.status}
+    {product.status === 'approved' ? <div className="draft-image-actions">
+      <p>수정안은 관리자 승인 전까지 고객에게 공개되지 않습니다. 현재 판매 중인 상품은 그대로 유지됩니다</p>
+      <button type="button" className="secondary-button" disabled={busy}
+        onClick={() => onCreateRevision(product)}>상품 수정안 만들기</button>
+    </div> : null}
     {product.status === 'draft' ? <div className="draft-image-actions">
       <p>사진·재고·공개 이력이 없는 미제출 초안만 삭제할 수 있습니다</p>
       <button type="button" className="secondary-button" disabled={busy}
@@ -204,7 +212,7 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
   </li>;
 }
 
-export function SellerProductView({ categories, products, stock = [], busy, onCreate, onLoadDraft, onUpdate, onDelete,
+export function SellerProductView({ categories, products, stock = [], busy, onCreate, onCreateRevision, onLoadDraft, onUpdate, onDelete,
   onUpload, onLoadImages, onOrderImages, onRemoveImage, onSubmitProposal, onSetStock }: ViewProps) {
   const [options, setOptions] = useState<Option[]>([{ name: '', priceWon: '' }]);
   const majors = categories.filter((item) => item.parentId === null);
@@ -264,6 +272,7 @@ export function SellerProductView({ categories, products, stock = [], busy, onCr
       <h2 id="product-list-title">내 상품 초안</h2>
       {products.length === 0 ? <p>아직 등록한 초안이 없습니다</p> : <ul className="catalog-list">
         {products.map((item) => <ProductDraftItem key={item.revisionId} product={item} categories={categories} busy={busy}
+          onCreateRevision={onCreateRevision}
           onLoadDraft={onLoadDraft} onUpdate={onUpdate} onDelete={onDelete}
           onUpload={onUpload} onLoadImages={onLoadImages} onOrderImages={onOrderImages}
           onRemoveImage={onRemoveImage}
@@ -351,6 +360,22 @@ export default function SellerProductsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function createRevision(product: Product) {
+    if (!apiOrigin || busy) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/seller/products/${product.productId}/revisions`, {
+        method: 'POST', credentials: 'include',
+      });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
+      if (!response.ok) { setMessage('수정안을 만들지 못했습니다. 기존 수정안이 있는지 확인해 주세요'); return; }
+      await reload();
+      setMessage('비공개 수정안을 만들었습니다. 관리자 승인 전에는 기존 상품이 계속 판매됩니다');
+    } catch { setMessage('수정안 생성 서버에 연결할 수 없습니다'); }
+    finally { setBusy(false); }
   }
 
   async function loadDraft(product: Product): Promise<Draft> {
@@ -495,7 +520,7 @@ export default function SellerProductsPage() {
     {state === 'unauthorized' ? <p role="alert">판매자 로그인 후 이용할 수 있습니다</p> : null}
     {state === 'unavailable' ? <p role="alert">상품 정보를 불러올 수 없습니다</p> : null}
     {state === 'ready' ? <><SellerProductView categories={categories} products={products} stock={stock} busy={busy}
-      onCreate={create} onLoadDraft={loadDraft} onUpdate={updateDraft} onDelete={removeDraft}
+      onCreate={create} onCreateRevision={createRevision} onLoadDraft={loadDraft} onUpdate={updateDraft} onDelete={removeDraft}
       onUpload={upload} onLoadImages={loadImages} onOrderImages={orderImages}
       onRemoveImage={removeImage}
       onSubmitProposal={submitProposal} onSetStock={updateStock} />

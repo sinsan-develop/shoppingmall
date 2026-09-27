@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S2.2 승인된 판매 중 상품 수정안 API·화면
+
+- 담당/승인: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@a3ca4db`. 신산님이 권장안의 신규 `POST /catalog/seller/products/:productId/revisions` 추가를 직접 승인했다. 이는 판매자가 **자기 판매 중 상품**의 비공개 수정안을 만드는 좁은 범위이며, 취소·판매중지·다른 Stage의 지속 API/schema까지 승인한 것은 아니다. 기존 `ProductDrafts.createRevision`과 공개 승인 경계를 재사용한다.
+- TDD/변경: API 라우트/무인증 및 판매자 승인 상품 카드의 수정안 버튼 시험을 먼저 실행해 각각 의도된 실패 1건을 확인했다. API 컨트롤러는 origin·seller 세션·로컬 업로드 환경을 확인하고 기존 서비스에 위임하며 무효 대상 400, 활성 수정안 중복 409, 타 판매자 403으로 매핑한다. 판매자 화면은 승인된 상품만 수정안 생성 버튼을 보이고 새 비공개 초안을 다시 불러온다. 현재 공개 버전은 승인 전 변경하지 않는다. 변경 파일은 `apps/api/src/catalog/controller.ts`, `apps/web/app/account/seller/products/page.tsx`, API 라우트/DB 및 웹 시험, 이 현황이다.
+- 로컬 검증: 목표 8 pass·0 fail, 전체 `pnpm test` 170건 중 141 pass·29 DB/환경 skip·0 fail 및 PR 본문 검사 8 pass. `pnpm typecheck`·`pnpm lint`·`pnpm build` 각각 종료 코드 0. DB 실연결 시험은 로컬 skip이므로 WSL exact SHA에서 재검증할 예정. 기존 가상 DB 시험은 무작위 `qa+*@example.invalid` 계정·고유 분류/판매자/상품과 독립 임시 사진 루트를 만들며 `finally`에서 해당 소유 자료만 정리한다. 다른 DB/서비스/계정은 변경하지 않는다. WSL 검증·잔류 확인은 아직 미실행이며 완료로 표기하지 않는다. 현재 오류 0, 동일 근본 원인 반복 0.
+
 ## 진행 중 — 2026-09-28 S0 migration 읽기 전용 미리보기 명령
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@3754e41`. S0 명령표의 누락된 dry-run을 기존 적용용 `migrate.ts`와 분리해 `apps/api/scripts/migrate-dry-run.ts`·`migration-preview.ts` 및 목표 시험·package script로 추가했다. 적용 이력은 Drizzle journal 순서·SHA-256과 대조하고 불일치하면 실패한다. DB 접속은 `BEGIN TRANSACTION READ ONLY`에서 현재 DB 이름과 migration 이력만 읽고 `ROLLBACK`하며, 대기 파일 목록과 선택적 `--sql` 본문을 출력한다. schema/migration SQL/공개 API·권한 계약은 변경하지 않는다. 이는 SQL을 적용/롤백하는 검증이 아니라 **읽기 전용 적용 전 미리보기**이며 실제 SQL 실행 적합성은 격리 DB 적용 시험으로 별도 확인한다.
