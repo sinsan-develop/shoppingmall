@@ -16,6 +16,14 @@ export type ShipmentGroup = {
   preDiscountGoodsWon: number;
 };
 
+export type QuotedShipment = ShipmentGroup & { goodsWon: number; shippingWon: number; totalWon: number };
+export type ShipmentQuote = {
+  shipments: QuotedShipment[];
+  goodsWon: number;
+  shippingWon: number;
+  totalWon: number;
+};
+
 /** Grouping is independent of the eventual order and reservation persistence. */
 export function groupShipmentLines(input: readonly ShipmentLine[]): ShipmentGroup[] {
   if (!Array.isArray(input)) throw new Error('Invalid shipment line');
@@ -55,4 +63,28 @@ export function shippingFeeWon(preDiscountGoodsWon: number,
     throw new Error('Invalid shipment amount');
   }
   return preDiscountGoodsWon >= policy.freeThresholdWon ? 0 : policy.feeWon;
+}
+
+/** The caller supplies current server-authoritative prices and each approved effective shipping policy. */
+export function quoteShipments(input: readonly ShipmentLine[],
+  policyForGroup: (group: ShipmentGroup) => Pick<ShippingPolicy, 'feeWon' | 'freeThresholdWon'>): ShipmentQuote {
+  const groups = groupShipmentLines(input);
+  if (groups.length === 0) throw new Error('Empty cart');
+  if (typeof policyForGroup !== 'function') throw new Error('Invalid shipment policy');
+  const quote: ShipmentQuote = { shipments: [], goodsWon: 0, shippingWon: 0, totalWon: 0 };
+  for (const group of groups) {
+    const shippingWon = shippingFeeWon(group.preDiscountGoodsWon, policyForGroup(group));
+    const totalWon = group.preDiscountGoodsWon + shippingWon;
+    const goodsWon = quote.goodsWon + group.preDiscountGoodsWon;
+    const nextShippingWon = quote.shippingWon + shippingWon;
+    const nextTotalWon = quote.totalWon + totalWon;
+    if (![totalWon, goodsWon, nextShippingWon, nextTotalWon].every(Number.isSafeInteger)) {
+      throw new Error('Invalid shipment amount');
+    }
+    quote.shipments.push({ ...group, goodsWon: group.preDiscountGoodsWon, shippingWon, totalWon });
+    quote.goodsWon = goodsWon;
+    quote.shippingWon = nextShippingWon;
+    quote.totalWon = nextTotalWon;
+  }
+  return quote;
 }

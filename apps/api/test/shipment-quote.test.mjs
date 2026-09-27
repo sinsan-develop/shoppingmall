@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { groupShipmentLines, shippingFeeWon } from '../src/checkout/shipment-quote.ts';
+import { groupShipmentLines, quoteShipments, shippingFeeWon } from '../src/checkout/shipment-quote.ts';
 import { defaultShippingPolicy } from '../src/shipping/policy.ts';
 
 test('one cart separates two direct sellers and one owool fulfillment into three shipment amounts', () => {
@@ -63,4 +63,31 @@ test('shipment arithmetic rejects malformed quantities, money and unsafe totals'
   assert.throws(() => groupShipmentLines([{ ...line, quantity: Number.MAX_SAFE_INTEGER, unitPriceWon: 2 }]),
     /Invalid shipment amount/);
   assert.throws(() => shippingFeeWon(-1, defaultShippingPolicy), /Invalid shipment amount/);
+});
+
+test('a server quote totals each seller shipment with its effective policy, not the combined cart threshold', () => {
+  const quote = quoteShipments([
+    { optionId: 'chili', sellerId: 'seller-a', shippingMode: 'seller_direct', quantity: 2, unitPriceWon: 23000 },
+    { optionId: 'powder', sellerId: 'owool', shippingMode: 'owool_fulfillment', quantity: 1, unitPriceWon: 18000 },
+    { optionId: 'onion', sellerId: 'seller-a', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 12000 },
+    { optionId: 'garlic', sellerId: 'seller-b', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 16000 },
+    { optionId: 'blueberry', sellerId: 'seller-b', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 28000 },
+  ], (group) => group.sellerId === 'seller-b'
+    ? { feeWon: 3500, freeThresholdWon: 40000 }
+    : defaultShippingPolicy);
+  assert.deepEqual(quote.shipments.map(({ key, goodsWon, shippingWon, totalWon }) =>
+    ({ key, goodsWon, shippingWon, totalWon })), [
+    { key: 'seller_direct:seller-a', goodsWon: 58000, shippingWon: 0, totalWon: 58000 },
+    { key: 'owool_fulfillment', goodsWon: 18000, shippingWon: 3000, totalWon: 21000 },
+    { key: 'seller_direct:seller-b', goodsWon: 44000, shippingWon: 0, totalWon: 44000 },
+  ]);
+  assert.equal(quote.goodsWon, 120000);
+  assert.equal(quote.shippingWon, 3000);
+  assert.equal(quote.totalWon, 123000);
+  assert.throws(() => quoteShipments([], () => defaultShippingPolicy), /Empty cart/);
+  assert.throws(() => quoteShipments([
+    { optionId: 'one', sellerId: 'a', shippingMode: 'seller_direct', quantity: 1,
+      unitPriceWon: Number.MAX_SAFE_INTEGER },
+    { optionId: 'two', sellerId: 'b', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 1 },
+  ], () => defaultShippingPolicy), /Invalid shipment amount/);
 });
