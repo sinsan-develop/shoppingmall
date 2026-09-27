@@ -7,6 +7,7 @@
 - 영향·제외: `apps/api/src/checkout/`의 내부 순수 함수와 단위시험만 신규 생성, DB/schema/공개 API/인증·권한/주문 예약·실프로모션/외부 비용은 변경하지 않는다. 판매자별 승인된 배송 정책은 호출자가 인자로 공급한다. 실제 DB/웹 장바구니·최종 견적 합격으로 확대 해석하지 않는다.
 - RED→GREEN: 신규 내부 모듈 부재 `ERR_MODULE_NOT_FOUND`로 목표 시험 RED, 구현 뒤 직접 판매자 A/B와 어울몰 발송 3묶음·할인 전 49,999/50,000원·비정상 수량/원화 오버플로 3 pass·0 fail. 첫 `apply_patch`는 신규 부모 폴더 부재로 1회 거부되어 정확한 `apps/api/src/checkout` 디렉터리만 만든 뒤 같은 패치를 적용했다. 제품 코드 오류나 사용자 자료 변경은 없고 같은 근본 원인 반복 0.
 - 로컬 회귀: `pnpm test` 총 158건 중 130 pass·28 DB/환경 skip·0 fail, PR 본문 8 pass, typecheck·lint·API/웹 production build와 `git diff --check` 통과. 로컬 DB skip은 실제 DB 통합 PASS가 아니며 WSL exact commit 회귀는 push 뒤 별도 수행한다.
+- WSL 재현: exact SHA `57129b7`을 지정 checkout으로 fast-forward 후 Node 24 일회성 컨테이너에서 실제 개발 DB 연결 전체 루트 시험 158건 중 **151 pass·7 환경 skip·0 fail**, 종료 코드 0. 사후 DB accounts/products/stock_change_requests/product_images 각 0, checkout clean. 이 순수 계산은 아직 장바구니·예약·판매자 정책 조회·실프로모션/결제에 연결되지 않았으며 S3.1/Stage 전체 완료 증거가 아니다.
 
 ## 2026-09-28 최신 S1/S2 WSL 전체 회귀
 
