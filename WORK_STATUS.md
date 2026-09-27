@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-09-28 최신 S1/S2 WSL 전체 회귀
+
+- 담당/브랜치: 어울 단일 writer, 지정 WSL checkout exact SHA `8ee182a`. `local-postgres/shoppingmall` 연결의 Node 24 일회성 컨테이너에서 루트 `node --test-concurrency=1 --import tsx --test` 실행.
+- 결과: 총 **155건, 148 pass·7 skip·0 fail**, 명령 종료 코드 0. 새 미승인 재고 증가/상품 개정 승인 및 병행 호출 시험을 포함한다. 환경 조건으로 건너뛴 7건·외부 AV 최신 정의·운영 연동·실브라우저 확대·인수는 PASS가 아니다.
+- 사후: DB accounts/products/stock_change_requests/product_images 각 0, WSL checkout `8ee182a` clean. 이번 전체 회귀 실행 오류 0, 같은 근본 원인 반복 0. S1/S2 Stage PR·통합 병합·남은 S2 기능은 여전히 미완료다.
+
 ## 진행 중 — 2026-09-28 S2.4 실제 브라우저 200% 확대 재시험
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@daea5f7`. 이전 in-app browser 단축키 시험은 실제 배율이 불변이었으므로, 별도의 새 Chrome 시험 탭에서 브라우저 확대가 가능한지 확인한다. 기존 사용자 탭·설정은 건드리지 않고 시험 탭만 사용한다.
