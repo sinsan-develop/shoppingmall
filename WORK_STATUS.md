@@ -5,6 +5,7 @@
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@2a5e0cd8397c78f486218ad67b810d7e0357f18c`. 고객 공개 이미지/상품 승인 경계는 닫힌 상태다.
 - 목표/계약: 판매자는 자기 revision의 사진만, 운영자는 `pending` 심사 사진만 인증 세션으로 볼 수 있다. 응답은 정화된 WebP 바이트, no-store/nosniff, object key 비노출. 고객·타 판매자·미인증·관리자의 미제출 사진 접근은 거부한다. 개발 전용 격리 저장소 범위만 사용하며 production 공개 경로를 열지 않는다.
 - 예정 검증: HTTP/DB 권한·미리보기 RED→GREEN, 역할별 화면 연결, 로컬·WSL 회귀·잔류 확인. 브라우저 실제 사진/200%/키보드는 별도 확인한다.
+- 실행 결과: `65dba9b` WSL HTTP 목표는 preview route 부재 404로 의도된 RED. `4b4e68cf499032da87a3c7c2eb594882dbabf6d9`에서 판매자 소유 revision과 운영자 `pending`에 한정한 WebP 바이트 응답 및 운영자 사진 메타데이터 목록을 구현; WSL 목표 1 pass·0 fail. `996d4cd72c49b9f9b4db89637a43c2c00bd28bcf`에서 판매자·운영자 화면이 인증 URL로만 비공개 사진을 불러오며 object key는 표시하지 않는다. 로컬 역할별 화면 10 pass·0 fail, 전체 120건 중 98 pass·0 fail·DB 22 skip, PR 본문 8 pass, typecheck/lint와 API·Next production build 통과. WSL DB 포함 API 전체 54건 중 48 pass·0 fail·환경별 6 skip; SHA 일치·clean, 임시 S2 컨테이너 0, 핵심 9종 DB 각 0행. HTTP 시험은 판매자 세션/미인증/운영자 draft 거부 및 pending 운영자만 허용, 응답 `image/webp`·`private, no-store`·`nosniff`, 승인 전 공개 상세 404를 확인했다. 실제 브라우저 이미지 로딩·모바일/200%/키보드, production 이미지 저장·악성코드 검사·공개 승인은 아직 미검증·미구현. S2/전체 구축은 미완료.
 
 ## 진행 중 — 2026-09-27 S2.2 비공개 초안 사진 안전 제거
 
