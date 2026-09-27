@@ -19,9 +19,11 @@ export class InventoryService {
               q.id AS "pendingRequestId"
        FROM product_options o JOIN product_revisions r ON r.id=o.revision_id
        JOIN products p ON p.id=r.product_id
+       LEFT JOIN product_publications pub ON pub.product_id=p.id
        LEFT JOIN inventory_levels i ON i.option_id=o.id
        LEFT JOIN stock_change_requests q ON q.option_id=o.id AND q.status='pending'
        WHERE p.seller_id=$1 AND r.status <> 'rejected'
+         AND (pub.revision_id=r.id OR (pub.product_id IS NULL AND r.version=1))
        ORDER BY r.title,o.display_order,o.id LIMIT 200`, [actor.sellerId],
     );
     return result.rows;
@@ -52,11 +54,18 @@ export class InventoryService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const owned = await client.query<{ seller_id: string }>(
-        `SELECT p.seller_id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id
+      const owned = await client.query<{ seller_id: string; product_id: string; revision_id: string }>(
+        `SELECT p.seller_id,p.id AS product_id,r.id AS revision_id
+         FROM product_options o JOIN product_revisions r ON r.id=o.revision_id
          JOIN products p ON p.id=r.product_id WHERE o.id=$1 FOR UPDATE OF o`, [optionId],
       );
       if (owned.rows[0]?.seller_id !== actor.sellerId) throw new Error('Forbidden');
+      const publication = await client.query<{ revision_id: string }>(
+        'SELECT revision_id FROM product_publications WHERE product_id=$1', [owned.rows[0].product_id],
+      );
+      if (publication.rows[0] && publication.rows[0].revision_id !== owned.rows[0].revision_id) {
+        throw new Error('Published option required');
+      }
       await client.query('INSERT INTO inventory_levels(option_id) VALUES ($1) ON CONFLICT DO NOTHING', [optionId]);
       const result = await client.query<{ on_hand_quantity: number; sellable_quantity: number }>(
         'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1 FOR UPDATE', [optionId],
