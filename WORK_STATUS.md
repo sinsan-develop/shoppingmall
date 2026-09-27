@@ -7,6 +7,7 @@
 - 예상 파일: `apps/api/src/catalog/public-products.ts`, `controller.ts`, 공개 상품 DB 시험, 본 현황. 현재 `shoppingmall` DB는 QA 행 0·migration 5건. 목표 시험은 기존 QA fixture의 정확한 ID만 사용하고 정리한다.
 - 기존 공개 검색 DB fixture에 approved+재고 5 상세·pending 비공개·approved+품절 0 상세, object key 비노출, 잘못된 ID 400 및 HTTP 200/404를 요구하는 계약을 먼저 추가했다. 구현 전 WSL의 정확한 커밋에서 의도한 `service.get` 부재 RED를 확인하고 QA 잔류 0을 재조회한 뒤 구현한다.
 - 정확한 `6d94b2e4a66b889a8686e66bc388c70186131b85`에서 WSL 실제 DB 목표 시험은 `service.get is not a function` RED 1회, 뒤이어 accounts/sellers/products/revisions/options/publications/inventory/categories 8종 각 0행·임시 컨테이너 0 확인. 승인 포인터의 공개 revision만 상세 조회하고 옵션별 보유가 아닌 판매 가능 수량을 읽는 서비스+익명 GET 경로를 구현했다. 로컬 API typecheck·lint 통과, 실제 DB GREEN/전체 회귀는 아직 미검증이다.
+- 정확한 `1a21d70c4347d8dd8d322b6d793e739014ba3b88` SSH push→WSL pull 후 공개 상세 DB/HTTP 목표 1 pass·0 fail(승인 공개 옵션 5/품절 0/비공개 404/잘못된 ID 400), 전체 API 52건 중 46 pass·0 fail·환경별 6 skip. 로컬 전체 test·API typecheck·lint·API/웹 build 10경로 통과. 최종 QA 핵심 9종 각 0행, migration 5건·임시 컨테이너 0·WSL checkout clean. 상품 상세 고객 화면과 이미지 공개·장바구니는 아직 미구현이다.
 
 ## 진행 중 — 2026-09-27 S2.4 공개 상품 검색의 읽기 경계
 
