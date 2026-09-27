@@ -73,6 +73,20 @@ test('category choices group each minor beneath its selectable major', () => {
   assert.ok(html.indexOf('label="과일"') < html.indexOf('label="채소"'));
 });
 
+test('public search exposes more products only when another page may exist', () => {
+  const products = Array.from({ length: 24 }, (_, index) => ({
+    productId: `p${index}`, title: `상품 ${index}`, sellerName: '판매자', originLabel: '산지', minPriceWon: 1000,
+  }));
+  const view = (hasMore, loadingMore = false) => renderToStaticMarkup(createElement(ProductSearchView, {
+    query: '', sort: 'latest', categoryId: '', categories: [], products, loading: false,
+    hasMore, loadingMore,
+  }));
+  assert.match(view(true), /상품 더 보기/);
+  assert.match(view(true, true), /상품을 더 불러오는 중/);
+  assert.match(view(true, true), /disabled=""/);
+  assert.doesNotMatch(view(false), /상품 더 보기/);
+});
+
 test('narrow product search gives each filter the full available width', () => {
   const styles = readFileSync(new URL('../app/styles.css', import.meta.url), 'utf8');
   assert.match(styles, /@media\(max-width:600px\)\{\.search-filters\{grid-template-columns:minmax\(0,1fr\)\}/);

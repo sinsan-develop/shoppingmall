@@ -80,6 +80,18 @@ test('public search only returns approved published revisions with sellable stoc
     assert.equal((await detailResponse.json()).options[0].sellableQuantity, 5);
     assert.equal((await fetch(`${base}/catalog/products/${pendingId}`)).status, 404);
     assert.equal((await fetch(`${base}/catalog/products/invalid`)).status, 400);
+    for (let index = 0; index < 24; index++) {
+      await makeProduct(`qa-${run}-추가 ${index}`, 'approved', 1, true);
+    }
+    const firstPage = await fetch(`${base}/catalog/products?q=qa-${run}&sort=price_asc&page=1`);
+    const secondPage = await fetch(`${base}/catalog/products?q=qa-${run}&sort=price_asc&page=2`);
+    assert.equal(firstPage.status, 200);
+    assert.equal(secondPage.status, 200);
+    const pageOneIds = (await firstPage.json()).map((item) => item.productId);
+    const pageTwoIds = (await secondPage.json()).map((item) => item.productId);
+    assert.equal(pageOneIds.length, 24);
+    assert.equal(pageTwoIds.length, 1);
+    assert.equal(new Set([...pageOneIds, ...pageTwoIds]).size, 25);
   } finally {
     if (app) await app.close();
     if (products.length) await pool.query('DELETE FROM product_publications WHERE product_id = ANY($1::uuid[])', [products]);

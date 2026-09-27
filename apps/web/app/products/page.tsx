@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type Category = { id: string; parentId: string | null; name: string };
 type Seller = { id: string; displayName: string };
@@ -8,6 +8,7 @@ type Product = { productId: string; title: string; sellerName: string; originLab
 type ViewProps = { query: string; sort: string; categoryId: string; sellerId?: string;
   categories: Category[]; sellers?: Seller[];
   products: Product[]; loading: boolean; error?: string;
+  hasMore?: boolean; loadingMore?: boolean; loadMoreError?: string; onLoadMore?: () => void;
   onQueryChange?: (value: string) => void; onCategoryChange?: (value: string) => void;
   onSellerChange?: (value: string) => void; onSortChange?: (value: string) => void };
 
@@ -16,7 +17,8 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
 const categoryOrder = new Intl.Collator('ko');
 
 export function ProductSearchView({ query, sort, categoryId, sellerId = '', categories, sellers = [], products,
-  loading, error, onQueryChange = () => {}, onCategoryChange = () => {},
+  loading, error, hasMore = false, loadingMore = false, loadMoreError, onLoadMore = () => {},
+  onQueryChange = () => {}, onCategoryChange = () => {},
   onSellerChange = () => {}, onSortChange = () => {} }: ViewProps) {
   return (
     <main className="shell search-main">
@@ -56,14 +58,19 @@ export function ProductSearchView({ query, sort, categoryId, sellerId = '', cate
       </form>
       {loading ? <p role="status">상품을 찾고 있습니다</p> : error ? <p role="alert">{error}</p> :
         products.length === 0 ? <p className="product-empty">검색 결과가 없습니다</p> :
-          <section className="search-results" aria-label="상품 검색 결과">
-            {products.map((product) => <article className="search-product" key={product.productId}>
-              <p className="eyebrow">{product.originLabel}</p>
-              <h2><a className="product-link" href={`/products/${encodeURIComponent(product.productId)}`}>{product.title}</a></h2>
-              <p>{product.sellerName}</p>
-              <p className="product-price">{product.minPriceWon.toLocaleString('ko-KR')}원부터</p>
-            </article>)}
-          </section>}
+          <>
+            <section className="search-results" aria-label="상품 검색 결과">
+              {products.map((product) => <article className="search-product" key={product.productId}>
+                <p className="eyebrow">{product.originLabel}</p>
+                <h2><a className="product-link" href={`/products/${encodeURIComponent(product.productId)}`}>{product.title}</a></h2>
+                <p>{product.sellerName}</p>
+                <p className="product-price">{product.minPriceWon.toLocaleString('ko-KR')}원부터</p>
+              </article>)}
+            </section>
+            {hasMore ? <button className="secondary-button search-more" type="button" disabled={loadingMore}
+              onClick={onLoadMore}>{loadingMore ? '상품을 더 불러오는 중' : '상품 더 보기'}</button> : null}
+            {loadMoreError ? <p role="alert">{loadMoreError}</p> : null}
+          </>}
     </main>
   );
 }
@@ -78,6 +85,12 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string>();
+  const pageRef = useRef(1);
+  const moreControllerRef = useRef<AbortController | null>(null);
+  const loadingMoreRef = useRef(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -85,10 +98,12 @@ export default function ProductsPage() {
     const nextCategory = params.get('categoryId') ?? '';
     const nextSeller = params.get('sellerId') ?? '';
     const nextSort = params.get('sort') ?? 'latest';
+    const initialPage = Number(params.get('page') ?? '1');
     setQuery(nextQuery);
     setCategoryId(nextCategory);
     setSellerId(nextSeller);
     setSort(nextSort);
+    pageRef.current = initialPage;
     const controller = new AbortController();
     if (!apiOrigin) {
       setError('상품 검색 연결을 준비 중입니다');
@@ -110,14 +125,46 @@ export default function ProductsPage() {
       setCategories(nextCategories);
       setSellers(nextSellers);
       setProducts(nextProducts);
+      setHasMore(nextProducts.length === 24 && initialPage < 1000);
       setError(undefined);
     }).catch(() => { if (!controller.signal.aborted) setError('검색을 불러올 수 없습니다'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
+    return () => { controller.abort(); moreControllerRef.current?.abort(); };
   }, []);
+
+  async function loadMore() {
+    if (!apiOrigin || !hasMore || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setLoadMoreError(undefined);
+    const controller = new AbortController();
+    moreControllerRef.current = controller;
+    const nextPage = pageRef.current + 1;
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', String(nextPage));
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/products?${params.toString()}`, { signal: controller.signal });
+      if (!response.ok) throw new Error('상품을 더 불러올 수 없습니다');
+      const nextProducts: unknown = await response.json();
+      if (!Array.isArray(nextProducts)) throw new Error('상품을 더 불러올 수 없습니다');
+      setProducts((current) => {
+        const seen = new Set(current.map((product) => product.productId));
+        return [...current, ...nextProducts.filter((product: Product) => !seen.has(product.productId))];
+      });
+      pageRef.current = nextPage;
+      setHasMore(nextProducts.length === 24 && nextPage < 1000);
+    } catch {
+      if (!controller.signal.aborted) setLoadMoreError('상품을 더 불러올 수 없습니다. 다시 시도해 주세요');
+    } finally {
+      if (moreControllerRef.current === controller) moreControllerRef.current = null;
+      loadingMoreRef.current = false;
+      if (!controller.signal.aborted) setLoadingMore(false);
+    }
+  }
 
   return <ProductSearchView query={query} sort={sort} categoryId={categoryId} sellerId={sellerId}
     categories={categories} sellers={sellers} products={products} loading={loading} error={error}
+    hasMore={hasMore} loadingMore={loadingMore} loadMoreError={loadMoreError} onLoadMore={loadMore}
     onQueryChange={setQuery} onCategoryChange={setCategoryId} onSellerChange={setSellerId}
     onSortChange={setSort} />;
 }
