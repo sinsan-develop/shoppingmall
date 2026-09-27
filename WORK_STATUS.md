@@ -5,6 +5,7 @@
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@ef1c1ce53872d5bc8b02513b515b95b997d7bc1b`; 로컬·원격·WSL 동일, clean. S2 Stage 미완료이므로 S3/PR 병합은 시작하지 않는다.
 - 목표/계약: 판매자는 자기 `draft` revision의 기존 비공개 사진 목록을 재정렬하고 대표/상세 용도를 지정할 수 있다. 전체 사진 ID를 중복·누락 없이 정확히 제출해야 하며, 타 판매자·제출된 revision은 수정할 수 없다. 최소 한 장을 대표 사진으로 유지한다. 저장·공개 경계나 DB schema를 바꾸지 않고 고객 공개 상태는 불변으로 둔다.
 - 예정 검증: DB/HTTP RED→GREEN, 판매자 화면 연결, typecheck/lint/build와 WSL 지정 DB 실시험. 식별된 가상 자료·임시 파일만 정리하고 잔류 여부를 확인한다. 불완전 이미지 공개·관리자 승인 기능은 별도 후속 작업이다.
+- 실행 결과: `0587508` DB 목표는 `reorderImages` 부재로 의도된 RED 1회, `5c3e7db`에서 DB 1 pass·0 fail. `bdde25e` HTTP 목표는 route 부재 404로 RED. `c31913a`의 최초 HTTP GREEN 시험은 시험 중 판매자 역할을 되돌려 기존 외부 판매자 세션이 무효화된 결과 401을 예상 403으로 잘못 비교해 실패 1회(제품 API 오류 아님); 기대값을 현재 보안 계약에 맞춘 `aaa381d`에서 HTTP 1 pass·0 fail. `434c9bf5ecef58b3de2f8770ec9cef6374b4b3c1` 판매자 UI에는 업로드 용도, 비공개 목록, 위/아래 순서, 대표 1장 검증·저장을 연결했다. 로컬 전체 120건 중 98 pass·0 fail·DB 22 skip, PR 본문 8 pass, 전체 typecheck/lint 및 API·Next 생산 빌드 통과. WSL DB 포함 API 전체 54건 중 48 pass·0 fail·환경별 6 skip. WSL SHA 일치·clean, S2 임시 컨테이너 0, 핵심 accounts/sellers/categories/products/revisions/options/images/publications/audit 각 0행. 실제 브라우저의 사진 관리 클릭·모바일/200%·키보드·인쇄와 안전한 공개 이미지/관리자 승인·판매중지는 아직 미검증·미구현. S2 Stage와 전체 구축은 미완료이며 다음 S2 계획 작업을 이어간다.
 
 ## 진행 중 — 2026-09-27 S2.2 판매자 미제출 초안 안전 삭제
 
