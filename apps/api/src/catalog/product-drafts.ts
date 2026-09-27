@@ -177,7 +177,7 @@ export class ProductDrafts {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
       throw new Error('Forbidden');
     }
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuid.test(productId) || !uuid.test(revisionId)) throw new Error('Invalid proposal target');
     const client = await this.pool.connect();
     try {
