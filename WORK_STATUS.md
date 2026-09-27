@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.3 재고 목록·역할별 화면 WSL DB/build GREEN
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1c109c40efcdd0de452f473f1c29a2d04b3f5a28` (SSH 원격/WSL 일치). 판매자 소유 옵션/관리자 증가 요청 목록의 목표 WSL 실제 DB 시험 2 pass·0 fail. 전체 API 49개 중 43 pass·0 fail·환경별 6 skip, WSL Next.js production build 9경로 성공. 로컬 전체 test/typecheck/lint/build도 통과.
+- 지정 `shoppingmall` DB migration 이력 5건, 계정/역할/세션/신원/판매자/분류/상품/옵션/재고/요청/감사 13종 각 0행, `shoppingmall-s2-*` 임시 컨테이너 0, WSL checkout clean. 시험 실패 오류 0. 판매자/관리자 화면 SSR은 서버 역할 확인 전 자료 비노출과 직접 수량 입력·증가 승인 표시를 확인했지만 실제 브라우저 동작·모바일·200% 확대·키보드·인쇄는 미검증이다.
+- 변경 파일: 본 현황. S2.3의 실제 마지막 수량 동시 구매, 정책/배송, 관리자 요청 화면의 실제 브라우저, S2.2 안전 이미지 공개·상품 승인과 나머지 Stage가 남았다. 전체 구축/인수 준비 완료가 아니다. 다음은 브라우저 재고 흐름·반응형/접근성, 이후 이미지 승인과 주문 경합 구현을 계속한다.
+
 ## 최신 상태 — 2026-09-27 S2.3 재고 목록 API·판매자/관리자 화면 WSL 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@54d1589acd48bb71d6d8b6a484daa860ec6203f1` (SSH 원격/WSL 일치). 판매자 소유 옵션 목록과 관리자 증가 요청 목록의 실제 DB 시험은 `inventory.listOwned is not a function` RED 1회, QA 잔류 0 확인. 이어 소유 판매자 범위/대기 요청만 조회하는 API를 구현했고 가짜 역할 헤더 목록 GET은 404 RED→401 GREEN.
