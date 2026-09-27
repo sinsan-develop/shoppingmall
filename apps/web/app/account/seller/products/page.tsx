@@ -7,6 +7,8 @@ type Product = { productId: string; revisionId: string; title: string; status: s
 type Stock = { optionId: string; productId: string; title: string; optionName: string;
   onHand: number; sellable: number; pendingRequestId: string | null };
 type Option = { name: string; priceWon: string };
+type DraftImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number;
+  mimeType: string; sizeBytes: number };
 type Draft = {
   categoryId: string; title: string; description: string; originLabel: string;
   shippingMode: 'seller_direct' | 'owool_fulfillment';
@@ -18,19 +20,27 @@ type ViewProps = { categories: Category[]; products: Product[]; stock: Stock[]; 
   onLoadDraft: (product: Product) => Promise<Draft>;
   onUpdate: (product: Product, draft: Draft) => void;
   onDelete: (product: Product) => void;
-  onUpload: (product: Product, file: File) => void;
+  onUpload: (product: Product, file: File, purpose: DraftImage['purpose']) => void;
+  onLoadImages: (product: Product) => Promise<DraftImage[]>;
+  onOrderImages: (product: Product, images: Pick<DraftImage, 'id' | 'purpose'>[]) => Promise<void>;
   onSubmitProposal: (product: Product) => void;
   onSetStock: (optionId: string, quantity: number) => void };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
-function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, onDelete, onUpload, onSubmitProposal }: {
+function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, onDelete, onUpload,
+  onLoadImages, onOrderImages, onSubmitProposal }: {
   product: Product; categories: Category[]; busy: boolean;
   onLoadDraft: ViewProps['onLoadDraft']; onUpdate: ViewProps['onUpdate']; onDelete: ViewProps['onDelete'];
-  onUpload: ViewProps['onUpload']; onSubmitProposal: ViewProps['onSubmitProposal'];
+  onUpload: ViewProps['onUpload']; onLoadImages: ViewProps['onLoadImages'];
+  onOrderImages: ViewProps['onOrderImages']; onSubmitProposal: ViewProps['onSubmitProposal'];
 }) {
   const [file, setFile] = useState<File>();
+  const [uploadPurpose, setUploadPurpose] = useState<DraftImage['purpose']>('thumbnail');
   const [preview, setPreview] = useState<string>();
+  const [images, setImages] = useState<DraftImage[]>();
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState('');
   const [editing, setEditing] = useState<EditDraft>();
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
@@ -42,6 +52,32 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
       setEditing({ ...draft, options: draft.options.map((option) => ({ ...option, priceWon: String(option.priceWon) })) });
     } catch { setEditError('초안 수정 정보를 불러오지 못했습니다'); }
     finally { setEditLoading(false); }
+  }
+  async function loadImages() {
+    setImageBusy(true);
+    setImageError('');
+    try { setImages(await onLoadImages(product)); }
+    catch { setImageError('등록 사진 목록을 불러오지 못했습니다'); }
+    finally { setImageBusy(false); }
+  }
+  async function saveImages() {
+    if (!images || images.length === 0) return;
+    if (images.filter((item) => item.purpose === 'thumbnail').length !== 1) {
+      setImageError('대표 사진을 정확히 1장 선택해 주세요'); return;
+    }
+    setImageBusy(true);
+    setImageError('');
+    try {
+      await onOrderImages(product, images.map(({ id, purpose }) => ({ id, purpose })));
+      setImages(await onLoadImages(product));
+    } catch { setImageError('사진 순서를 저장하지 못했습니다. 목록을 새로 확인해 주세요'); }
+    finally { setImageBusy(false); }
+  }
+  function moveImage(index: number, distance: number) {
+    if (!images || index + distance < 0 || index + distance >= images.length) return;
+    const next = [...images];
+    [next[index], next[index + distance]] = [next[index + distance], next[index]];
+    setImages(next);
   }
   useEffect(() => {
     if (!file) { setPreview(undefined); return; }
@@ -109,13 +145,41 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
           옵션 추가</button>
         <button type="submit" className="primary-button" disabled={busy}>수정 저장</button>
       </form> : null}
-      <label htmlFor={`photo-${product.revisionId}`}>대표 사진(PNG·JPEG·WebP, 최대 5MB)</label>
+      <label htmlFor={`photo-purpose-${product.revisionId}`}>사진 용도</label>
+      <select id={`photo-purpose-${product.revisionId}`} value={uploadPurpose}
+        onChange={(event) => setUploadPurpose(event.target.value as DraftImage['purpose'])}>
+        <option value="thumbnail">대표 사진</option><option value="detail">상세 사진</option>
+      </select>
+      <label htmlFor={`photo-${product.revisionId}`}>상품 사진(PNG·JPEG·WebP, 최대 5MB)</label>
       <input id={`photo-${product.revisionId}`} type="file" accept="image/png,image/jpeg,image/webp"
         onChange={(event) => setFile(event.currentTarget.files?.[0])} />
       {preview ? <img src={preview} alt="선택한 사진의 로컬 미리보기" className="draft-image-preview" /> : null}
       <p>미리보기는 선택한 기기에서만 보입니다. 업로드한 사진도 승인 전에는 고객에게 공개되지 않습니다</p>
       <button type="button" className="secondary-button" disabled={busy || !file}
-        onClick={() => { if (file) onUpload(product, file); }}>사진 업로드</button>
+        onClick={() => { if (file) onUpload(product, file, uploadPurpose); }}>사진 업로드</button>
+      <p>대표 사진 1장을 지정하고 순서를 저장해 주세요. 등록된 사진은 승인 전 비공개입니다</p>
+      <button type="button" className="secondary-button" disabled={busy || imageBusy}
+        onClick={() => void loadImages()}>등록 사진 관리</button>
+      {imageError ? <p role="alert">{imageError}</p> : null}
+      {images ? <div aria-label="등록된 비공개 사진 목록">
+        {images.length === 0 ? <p>등록된 사진이 없습니다</p> : <ol className="draft-image-list">
+          {images.map((item, index) => <li key={item.id}>
+            <span>{index + 1}번 · {item.mimeType} · {Math.ceil(item.sizeBytes / 1024)}KB</span>
+            <label htmlFor={`image-purpose-${item.id}`}>사진 용도</label>
+            <select id={`image-purpose-${item.id}`} value={item.purpose} disabled={busy || imageBusy}
+              onChange={(event) => setImages(images.map((image) => image.id === item.id ?
+                { ...image, purpose: event.target.value as DraftImage['purpose'] } : image))}>
+              <option value="thumbnail">대표 사진</option><option value="detail">상세 사진</option>
+            </select>
+            <button type="button" className="secondary-button" disabled={busy || imageBusy || index === 0}
+              onClick={() => moveImage(index, -1)}>위로</button>
+            <button type="button" className="secondary-button" disabled={busy || imageBusy || index === images.length - 1}
+              onClick={() => moveImage(index, 1)}>아래로</button>
+          </li>)}
+        </ol>}
+        <button type="button" className="secondary-button" disabled={busy || imageBusy || images.length === 0}
+          onClick={() => void saveImages()}>사진 순서 저장</button>
+      </div> : null}
       <button type="button" className="secondary-button" disabled={busy}
         onClick={() => onSubmitProposal(product)}>승인 요청</button>
     </div> : null}
@@ -123,7 +187,7 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
 }
 
 export function SellerProductView({ categories, products, stock = [], busy, onCreate, onLoadDraft, onUpdate, onDelete,
-  onUpload, onSubmitProposal, onSetStock }: ViewProps) {
+  onUpload, onLoadImages, onOrderImages, onSubmitProposal, onSetStock }: ViewProps) {
   const [options, setOptions] = useState<Option[]>([{ name: '', priceWon: '' }]);
   const majors = categories.filter((item) => item.parentId === null);
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -183,7 +247,8 @@ export function SellerProductView({ categories, products, stock = [], busy, onCr
       {products.length === 0 ? <p>아직 등록한 초안이 없습니다</p> : <ul className="catalog-list">
         {products.map((item) => <ProductDraftItem key={item.revisionId} product={item} categories={categories} busy={busy}
           onLoadDraft={onLoadDraft} onUpdate={onUpdate} onDelete={onDelete}
-          onUpload={onUpload} onSubmitProposal={onSubmitProposal} />)}
+          onUpload={onUpload} onLoadImages={onLoadImages} onOrderImages={onOrderImages}
+          onSubmitProposal={onSubmitProposal} />)}
       </ul>}
     </section>
     <section className="account-card profile-card" aria-labelledby="seller-stock-title">
@@ -309,7 +374,7 @@ export default function SellerProductsPage() {
     finally { setBusy(false); }
   }
 
-  async function upload(product: Product, file: File) {
+  async function upload(product: Product, file: File, purpose: DraftImage['purpose']) {
     if (!apiOrigin || busy) return;
     if (file.size > 5 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
       setMessage('PNG·JPEG·WebP 사진을 5MB 이하로 선택해 주세요');
@@ -320,13 +385,37 @@ export default function SellerProductsPage() {
     try {
       const response = await fetch(`${apiOrigin}/catalog/seller/products/${product.productId}/revisions/${product.revisionId}/images`, {
         method: 'POST', credentials: 'include',
-        headers: { 'content-type': file.type, 'x-image-purpose': 'thumbnail' }, body: file,
+        headers: { 'content-type': file.type, 'x-image-purpose': purpose }, body: file,
       });
       if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
       if (!response.ok) { setMessage('사진을 저장하지 못했습니다. 개발용 업로드 환경과 파일 형식을 확인해 주세요'); return; }
-      setMessage('대표 사진을 비공개로 저장했습니다. 관리자 검토 전에는 고객에게 공개되지 않습니다');
+      setMessage('사진을 비공개로 저장했습니다. 등록 사진 관리를 다시 열어 순서와 용도를 확인해 주세요');
     } catch { setMessage('사진 저장 서버에 연결할 수 없습니다'); }
     finally { setBusy(false); }
+  }
+
+  async function loadImages(product: Product): Promise<DraftImage[]> {
+    if (!apiOrigin) throw new Error('API origin unavailable');
+    const response = await fetch(`${apiOrigin}/catalog/seller/products/${product.productId}/revisions/${product.revisionId}/images`,
+      { credentials: 'include' });
+    if (response.status === 401 || response.status === 403) { setState('unauthorized'); throw new Error('Unauthorized'); }
+    if (!response.ok) throw new Error('Images unavailable');
+    return response.json() as Promise<DraftImage[]>;
+  }
+
+  async function orderImages(product: Product, images: Pick<DraftImage, 'id' | 'purpose'>[]) {
+    if (!apiOrigin || busy) throw new Error('API unavailable');
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/seller/products/${product.productId}/revisions/${product.revisionId}/images/order`, {
+        method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ images }),
+      });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); throw new Error('Unauthorized'); }
+      if (!response.ok) throw new Error('Image order unavailable');
+      setMessage('사진의 용도와 순서를 저장했습니다. 승인 전에는 고객에게 공개되지 않습니다');
+    } finally { setBusy(false); }
   }
 
   async function submitProposal(product: Product) {
@@ -372,7 +461,8 @@ export default function SellerProductsPage() {
     {state === 'unavailable' ? <p role="alert">상품 정보를 불러올 수 없습니다</p> : null}
     {state === 'ready' ? <><SellerProductView categories={categories} products={products} stock={stock} busy={busy}
       onCreate={create} onLoadDraft={loadDraft} onUpdate={updateDraft} onDelete={removeDraft}
-      onUpload={upload} onSubmitProposal={submitProposal} onSetStock={updateStock} />
+      onUpload={upload} onLoadImages={loadImages} onOrderImages={orderImages}
+      onSubmitProposal={submitProposal} onSetStock={updateStock} />
       {message ? <p role="status">{message}</p> : null}</> : null}
   </main>;
 }

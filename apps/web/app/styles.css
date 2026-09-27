@@ -95,3 +95,6 @@ p{line-height:1.7}
 .draft-image-actions input[type=file]{max-width:100%;font:inherit}
 .draft-image-actions p{margin:0;color:#675b48;font-size:13px}
 .draft-image-preview{display:block;max-width:220px;max-height:180px;object-fit:contain;border:1px solid #e9d2bb;border-radius:6px}
+.draft-image-list{display:grid;gap:10px;padding-left:22px}
+.draft-image-list li{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}
+.draft-image-list select{max-width:100%}
