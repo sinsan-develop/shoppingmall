@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S2.4 화면 확대·키보드 검증
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@a7c04ca`. 제품·DB 자료 변경 없이 지정 WSL checkout의 동일 SHA production build로 빈 카탈로그 홈/상품 목록을 실제 브라우저에서 검증한다.
+- 임시 자원: 동일 SHA 웹 재빌드용 `shoppingmall-s24-zoom-build-a7c0`(자동 제거)과 `shoppingmall-s24-zoom-api-a7c0`·`shoppingmall-s24-zoom-web-a7c0` 두 실행 컨테이너를 WSL loopback 9092/9091에만 사용, 시험용 in-app browser 새 탭 1개를 사용한다. 사전 해당 포트·컨테이너 점유 0, accounts 0 확인. 검사 후 정확한 자원·시험 탭을 닫고 포트·DB 잔류 0을 확인한다.
+- 검증 예정: 홈/상품목록의 200% 확대 시 주요 동작과 가로 넘침, 검색 입력·메뉴의 키보드 접근. 상품·판매자 데이터가 없는 화면이므로 채워진 카드·구매 흐름의 검증으로 확대 해석하지 않는다.
+
 ## 진행 중 — 2026-09-27 S2.2 공개 상품 개정·옵션 재고 승계
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@a3cc24a`. 신산님의 같은 옵션명 재고 승계 결정을 승인된 S2.2 범위 안에서 구현한다. 새 schema·외부 서비스·운영 데이터 변경은 하지 않는다.
