@@ -50,6 +50,7 @@ p{line-height:1.7}
 @media(max-width:760px){.search-filters{grid-template-columns:1fr 1fr}.search-filters label{grid-row:auto}.search-filters input,.search-filters select,.search-filters button{grid-row:auto}.search-results{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:500px){.search-results{grid-template-columns:1fr}}
 @media(max-width:600px){.shell{padding-inline:18px}.header-inner{min-height:74px;gap:18px}.brand{font-size:25px}.search-preview{font-size:0;padding-inline:12px}.search-preview>span:first-child{font-size:24px}.search-hint{font-size:12px}.hero{padding:30px 24px;min-height:250px}.category-row{grid-template-columns:repeat(2,1fr)}.site-menu{gap:18px}}
+@media(max-width:600px){.search-preview input{font-size:16px}}
 .account-shell{padding-block:34px 80px}
 .text-link{color:#75561e;text-decoration:underline;text-underline-offset:3px}
 .account-card{max-width:510px;margin:35px auto 0;padding:32px;background:#fffaf1;border:1px solid #e9d2bb;border-radius:10px}

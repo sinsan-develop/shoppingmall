@@ -6,6 +6,8 @@
 - 목표/범위: 관리자 등록 대분류와 실제 공개·판매 가능한 최신 상품을 홈에 조회·탐색 링크로 표시한다. 개인화·기획전 관리·이미지 공개·장바구니는 이번 작업에 포함하지 않으며, 데이터가 없거나 API 연결이 안 되면 실제 상태를 알린다. 새 DB schema·Secret·외부 서비스·운영 자료 변경 없음.
 - 예상 파일: `apps/web/app/page.tsx`, `apps/web/test/page.test.mjs`, 필요 시 `apps/web/app/styles.css`, 본 현황. 기존 9091/9092는 현재 꺼져 있고 WSL `shoppingmall` DB QA 행 0, migration 5건. RED→GREEN 로컬 검증 후 안전한 commit/SSH push→WSL exact pull/build·브라우저 빈 상태 시험을 계획한다. 일회성 QA 컨테이너는 `shoppingmall-s2-home-api-*`, `shoppingmall-s2-home-web-*`로 명명하고 종료 후 포트·자료 잔류 0을 확인한다. 실패 시 이 branch의 직전 안전 commit으로 코드 복귀하고 DB에는 쓰지 않는다.
 - 기존 홈 정적 섹션은 서버 컴포넌트로 유지하고 카탈로그 조회만 고객 클라이언트 컴포넌트로 분리했다. 관리자 대분류 링크·공개 최신 상품 4개/가격·빈 결과/연결 오류의 시험은 구현 전 `HomeCatalogView` 부재 RED, 로컬 목표 4 pass로 GREEN. 로컬 전체 test 115건 중 95 pass·0 fail·DB 전용 20 skip, PR 본문 검사 8 pass, typecheck·lint·API/Next production build 10경로 통과. 실제 WSL/브라우저와 공개 상품 표시·200% 확대는 아직 미검증; 반복 구현 오류 0.
+- 정확한 `1251ecc958fedb0d293940303bd571e6e5c828cc` SSH push→WSL pull, Next build 10경로 성공. 최초 QA API `/ready`는 정상이나 카테고리/상품 GET 404였다. 소스의 카탈로그 라우트와 달리 WSL `apps/api/dist`에는 카탈로그 파일이 없는 구형 빌드였음을 확인해 같은 Git 소스로 API를 재빌드·일회성 서버 재시작한 뒤 두 GET이 `[]`로 정상화됐다(운영 절차 오류 1회, DB/소스 변경 없음). 실제 브라우저의 홈은 빈 대분류·상품 준비 중을 구분해 표시했다. 390px 화면에서 검색 입력 placeholder가 안 보였고 계산된 글자 크기 `0px`를 확인했다. 기존 모바일 `.search-preview{font-size:0}`의 상속이 원인으로, 검색 입력에만 16px 적용·재검증을 진행한다. 실제 공개 상품 카드·200% 확대는 여전히 미검증이다.
+- 모바일 입력에 한정해 16px 규칙을 추가했다. 실제 브라우저의 `getComputedStyle` 0px가 수정 전 실패 증거이며, 수정 후 동일 브라우저 재검증은 아직이다. 로컬 전체 test 115건 중 95 pass·0 fail·DB 전용 20 skip, PR 본문 8 pass, typecheck·lint·API/Next build 10경로 재통과. 제품 코드 재시도 오류 0; 위 API 구형 빌드 원인/조치와 분리 기록한다.
 
 ## 진행 중 — 2026-09-27 S2.4 공개 상품 상세 고객 화면
 
