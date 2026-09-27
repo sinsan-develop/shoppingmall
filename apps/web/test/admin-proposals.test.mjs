@@ -2,12 +2,23 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import AdminProposalsPage, { AdminProposalView } from '../app/account/admin/proposals/page.tsx';
+import AdminProposalsPage, { AdminProposalView, AdminStockView } from '../app/account/admin/proposals/page.tsx';
 
 test('review queue does not expose proposals before operator session check', () => {
   const html = renderToStaticMarkup(createElement(AdminProposalsPage));
   assert.match(html, /운영자 권한 확인 중/);
   assert.doesNotMatch(html, /시험 고추/);
+});
+
+test('operator sees seller-separated stock increase request and an explicit approval action', () => {
+  const html = renderToStaticMarkup(createElement(AdminStockView, {
+    requests: [{ requestId: 'request-a', optionId: 'option-a', sellerName: '농가 A',
+      title: '고추', optionName: '500g', targetOnHand: 10, sellable: 3, createdAt: '2026-09-27' }],
+    busy: false, onApprove: () => {},
+  }));
+  for (const label of ['재고 증가 승인 대기', '농가 A', '고추', '500g', '판매 가능 3개', '요청 10개', '증가 승인']) {
+    assert.match(html, new RegExp(label));
+  }
 });
 
 test('review queue shows each seller proposal with a required rejection reason but no unsafe approval', () => {

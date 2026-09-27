@@ -3,6 +3,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
 type Proposal = { productId: string; revisionId: string; title: string; sellerName: string; proposedAt: string };
+type StockRequest = { requestId: string; optionId: string; sellerName: string; title: string;
+  optionName: string; targetOnHand: number; sellable: number; createdAt: string };
 type ViewProps = { proposals: Proposal[]; busy: boolean; onReject: (revisionId: string, reason: string) => void };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -31,17 +33,40 @@ export function AdminProposalView({ proposals, busy, onReject }: ViewProps) {
   </section>;
 }
 
+export function AdminStockView({ requests, busy, onApprove }: {
+  requests: StockRequest[]; busy: boolean; onApprove: (requestId: string) => void;
+}) {
+  return <section className="account-card profile-card" aria-labelledby="pending-stock-title">
+    <h2 id="pending-stock-title">재고 증가 승인 대기</h2>
+    <p>수량 증가·재판매는 승인 전까지 구매 가능 수량에 반영되지 않습니다</p>
+    {requests.length === 0 ? <p>현재 대기 중인 재고 요청이 없습니다</p> : <ul className="catalog-list">
+      {requests.map((item) => <li key={item.requestId} className="draft-product-item">
+        <strong>{item.sellerName} · {item.title} · {item.optionName}</strong>
+        <p>판매 가능 {item.sellable}개 · 요청 {item.targetOnHand}개</p>
+        <small>요청 시각: {new Date(item.createdAt).toLocaleString('ko-KR')}</small>
+        <button type="button" className="secondary-button" disabled={busy}
+          onClick={() => onApprove(item.requestId)}>증가 승인</button>
+      </li>)}
+    </ul>}
+  </section>;
+}
+
 export default function AdminProposalsPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'unauthorized' | 'unavailable'>('loading');
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [stockRequests, setStockRequests] = useState<StockRequest[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
   async function load(signal?: AbortSignal) {
     if (!apiOrigin) throw new Error('API unavailable');
-    const response = await fetch(`${apiOrigin}/catalog/admin/proposals`, { credentials: 'include', signal });
-    if (!response.ok) throw new Error('Review queue unavailable');
-    setProposals(await response.json() as Proposal[]);
+    const [proposalResponse, stockResponse] = await Promise.all([
+      fetch(`${apiOrigin}/catalog/admin/proposals`, { credentials: 'include', signal }),
+      fetch(`${apiOrigin}/catalog/admin/stock-requests`, { credentials: 'include', signal }),
+    ]);
+    if (!proposalResponse.ok || !stockResponse.ok) throw new Error('Review queue unavailable');
+    setProposals(await proposalResponse.json() as Proposal[]);
+    setStockRequests(await stockResponse.json() as StockRequest[]);
   }
 
   useEffect(() => {
@@ -78,6 +103,22 @@ export default function AdminProposalsPage() {
     finally { setBusy(false); }
   }
 
+  async function approveStock(requestId: string) {
+    if (!apiOrigin || busy) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/admin/stock-requests/${requestId}/approve`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
+      if (!response.ok) { setMessage('재고 증가를 승인하지 못했습니다. 요청 상태를 확인해 주세요'); return; }
+      await load();
+      setMessage('재고 증가 승인과 운영 이력을 기록했습니다');
+    } catch { setMessage('재고 검토 서버에 연결할 수 없습니다'); }
+    finally { setBusy(false); }
+  }
+
   return <main className="shell account-shell">
     <a className="text-link" href="/account">내 계정으로</a>
     <h1>상품 요청 검토</h1>
@@ -85,6 +126,7 @@ export default function AdminProposalsPage() {
     {state === 'unauthorized' ? <p role="alert">운영자 로그인 후 이용할 수 있습니다</p> : null}
     {state === 'unavailable' ? <p role="alert">승인 대기 목록을 불러올 수 없습니다</p> : null}
     {state === 'ready' ? <><AdminProposalView proposals={proposals} busy={busy} onReject={reject} />
+      <AdminStockView requests={stockRequests} busy={busy} onApprove={approveStock} />
       {message ? <p role="status">{message}</p> : null}</> : null}
   </main>;
 }

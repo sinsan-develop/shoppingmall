@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.3 재고 목록 API·판매자/관리자 화면 WSL 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@54d1589acd48bb71d6d8b6a484daa860ec6203f1` (SSH 원격/WSL 일치). 판매자 소유 옵션 목록과 관리자 증가 요청 목록의 실제 DB 시험은 `inventory.listOwned is not a function` RED 1회, QA 잔류 0 확인. 이어 소유 판매자 범위/대기 요청만 조회하는 API를 구현했고 가짜 역할 헤더 목록 GET은 404 RED→401 GREEN.
+- 판매자 화면에 옵션별 보유/판매 가능 수량과 승인 대기 표시, 0 이상 정수 직접 입력·서버 재조회 추가. 관리자 요청 화면에는 판매자별 요청/현재 판매 가능 수량/승인 버튼을 추가했다. 목록 요청은 독립 호출을 병렬화했고 세션 역할 확인 전 비공개 자료를 표시하지 않는다. SSR 화면 시험 각 1건 RED→GREEN, 전체 로컬 test·typecheck·lint·API/Next production build 통과. 실제 목록 DB GREEN·브라우저 클릭/모바일·확대·키보드는 미검증.
+- 변경 파일: `apps/api/src/inventory/service.ts`, `catalog/controller.ts`, `apps/api/test/inventory-db.test.mjs`, `inventory-http.test.mjs`, `apps/web/app/account/seller/products/page.tsx`, `admin/proposals/page.tsx`, 두 화면 시험, 본 현황. 오류: 의도한 목록 서비스 부재 RED 1회·경로 부재 RED 1회·관리자 컴포넌트 부재 RED 1회; 구현 반복 오류 0. 다음은 안전한 commit/push→WSL 정확한 커밋 DB 목록/전체 회귀·QA 정리→실제 브라우저 검증이다.
+
 ## 최신 상태 — 2026-09-27 S2.3 재고 인증 HTTP 실제 DB GREEN
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@81d9d8b95ab54900e97ccaf88ea4393d154881da` (SSH 원격/WSL 일치). 판매자/관리자 인증 HTTP 목표 시험 2 pass·0 fail: 신뢰하지 않은 Origin 403, 음수 400, 판매자 0 즉시 반영, 증가 대기, 판매자의 관리자 승인 거부 403, 관리자 승인 후 수량 7, 중복 409. 이전 정리 순서 오류는 수정됐고 이 실행의 QA 정리는 성공했다.

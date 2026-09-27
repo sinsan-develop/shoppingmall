@@ -34,3 +34,17 @@ test('a seller draft has a local preview and explicit private-photo and proposal
   assert.match(html, /accept="image\/png,image\/jpeg,image\/webp"/);
   assert.doesNotMatch(html, /고객에게 공개 중/);
 });
+
+test('seller enters exact option quantity and sees approval-pending stock separately', () => {
+  const html = renderToStaticMarkup(createElement(SellerProductView, {
+    categories: [], products: [], stock: [{ optionId: 'option-a', productId: 'product', title: '고추',
+      optionName: '500g', onHand: 10, sellable: 3, pendingRequestId: 'request-a' }],
+    busy: false, onCreate: () => {}, onUpload: () => {}, onSubmitProposal: () => {}, onSetStock: () => {},
+  }));
+  assert.match(html, /고추/);
+  assert.match(html, /500g/);
+  assert.match(html, /판매 가능 3개/);
+  assert.match(html, /승인 대기/);
+  assert.match(html, /type="number"[^>]*min="0"/);
+  assert.match(html, /수량 적용/);
+});

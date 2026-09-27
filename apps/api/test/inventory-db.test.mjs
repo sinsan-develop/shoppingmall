@@ -82,6 +82,9 @@ test('seller can close stock immediately but only an operator releases an increa
     };
     const sellerCookie = await login(sellerAccountId, 'seller');
     const adminCookie = await login(adminAccountId, 'admin');
+    const sellerStock = await fetch(`${base}/catalog/seller/stock`, { headers: { cookie: sellerCookie } });
+    assert.equal(sellerStock.status, 200);
+    assert.equal((await sellerStock.json()).some((item) => item.optionId === optionId), true);
     const stockUrl = `${base}/catalog/seller/options/${optionId}/stock`;
     const stockWrite = (quantity, requestOrigin = origin) => fetch(stockUrl, { method: 'POST',
       headers: { origin: requestOrigin, cookie: sellerCookie, 'content-type': 'application/json' },
@@ -95,6 +98,9 @@ test('seller can close stock immediately but only an operator releases an increa
     const httpIncrease = await stockWrite(7);
     assert.equal(httpIncrease.status, 201);
     const httpRequestId = (await httpIncrease.json()).requestId;
+    const pendingResponse = await fetch(`${base}/catalog/admin/stock-requests`, { headers: { cookie: adminCookie } });
+    assert.equal(pendingResponse.status, 200);
+    assert.equal((await pendingResponse.json()).some((item) => item.requestId === httpRequestId), true);
     const approvalUrl = `${base}/catalog/admin/stock-requests/${httpRequestId}/approve`;
     const approval = (cookie) => fetch(approvalUrl, { method: 'POST',
       headers: { origin, cookie, 'content-type': 'application/json' }, body: '{}',

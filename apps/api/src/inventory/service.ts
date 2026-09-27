@@ -7,6 +7,44 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export class InventoryService {
   constructor(private readonly pool: Pool) {}
 
+  async listOwned(actor: AccessContext) {
+    if (!actor.sellerId || !canAccess(actor, 'change-stock', { sellerId: actor.sellerId })) throw new Error('Forbidden');
+    const result = await this.pool.query<{
+      optionId: string; productId: string; title: string; optionName: string;
+      onHand: number; sellable: number; pendingRequestId: string | null;
+    }>(
+      `SELECT o.id AS "optionId",p.id AS "productId",r.title,o.name AS "optionName",
+              coalesce(i.on_hand_quantity,0) AS "onHand",
+              coalesce(i.sellable_quantity,0) AS sellable,
+              q.id AS "pendingRequestId"
+       FROM product_options o JOIN product_revisions r ON r.id=o.revision_id
+       JOIN products p ON p.id=r.product_id
+       LEFT JOIN inventory_levels i ON i.option_id=o.id
+       LEFT JOIN stock_change_requests q ON q.option_id=o.id AND q.status='pending'
+       WHERE p.seller_id=$1 AND r.status <> 'rejected'
+       ORDER BY r.title,o.display_order,o.id LIMIT 200`, [actor.sellerId],
+    );
+    return result.rows;
+  }
+
+  async listPending(actor: AccessContext) {
+    if (!canAccess(actor, 'approve-proposal', {})) throw new Error('Forbidden');
+    const result = await this.pool.query<{
+      requestId: string; optionId: string; sellerName: string; title: string;
+      optionName: string; targetOnHand: number; sellable: number; createdAt: Date;
+    }>(
+      `SELECT q.id AS "requestId",o.id AS "optionId",s.display_name AS "sellerName",
+              r.title,o.name AS "optionName",q.target_on_hand AS "targetOnHand",
+              coalesce(i.sellable_quantity,0) AS sellable,q.created_at AS "createdAt"
+       FROM stock_change_requests q JOIN product_options o ON o.id=q.option_id
+       JOIN product_revisions r ON r.id=o.revision_id JOIN products p ON p.id=r.product_id
+       JOIN sellers s ON s.id=p.seller_id
+       LEFT JOIN inventory_levels i ON i.option_id=o.id
+       WHERE q.status='pending' ORDER BY q.created_at,q.id LIMIT 100`,
+    );
+    return result.rows;
+  }
+
   async setStock(actor: AccessContext, optionId: string, target: number) {
     if (!actor.sellerId || !canAccess(actor, 'change-stock', { sellerId: actor.sellerId })) throw new Error('Forbidden');
     if (!uuid.test(optionId)) throw new Error('Invalid stock target');

@@ -217,6 +217,18 @@ export class CatalogController {
     }
   }
 
+  @Get('seller/stock')
+  async listSellerStock(@Req() request: RequestHeaders) {
+    const actor = await this.seller(request);
+    return this.inventory().listOwned(actor);
+  }
+
+  @Get('admin/stock-requests')
+  async listStockRequests(@Req() request: RequestHeaders) {
+    const actor = await this.admin(request);
+    return this.inventory().listPending(actor);
+  }
+
   @Post('admin/stock-requests/:requestId/approve')
   async approveStockIncrease(@Req() request: RequestHeaders, @Param('requestId') requestId: string) {
     requireOrigin(request);

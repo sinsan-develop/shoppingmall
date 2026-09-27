@@ -22,5 +22,7 @@ test('stock mutation routes reject forged seller and operator headers without se
       body: '{}',
     });
     assert.equal(approve.status, 401);
+    assert.equal((await fetch(`${base}/catalog/seller/stock`, { headers: { 'x-role': 'seller' } })).status, 401);
+    assert.equal((await fetch(`${base}/catalog/admin/stock-requests`, { headers: { 'x-role': 'admin' } })).status, 401);
   } finally { await app.close(); }
 });
