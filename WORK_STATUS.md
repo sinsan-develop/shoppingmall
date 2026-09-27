@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 2026-09-28 S2 전체 WSL 시험 회귀
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@2a67e45`. 지정 WSL checkout의 정확한 커밋에서 Node 24 일회성 컨테이너로 루트 `node --test-concurrency=1 --import tsx --test` 전체 시험을 실제 `local-postgres/shoppingmall`에 연결해 실행했다.
+- 결과: 총 155건 중 **148 pass, 7 skip, 0 fail**, 명령 종료 코드 0. 기존 5품목 QA fixture DB 시험도 통과했다. 환경 조건에 따른 7개 건너뜀과 실제 브라우저·운영 연동은 PASS로 간주하지 않는다.
+- 사후 확인: 정확한 WSL checkout `2a67e45` clean, `accounts/products/stock_change_requests/product_images` 각각 0행, `shoppingmall-s24` 이름의 실행 컨테이너 0. 계정·상품의 신규 QA fixture 실행은 없었다.
+- 오류·조치: 처음 잔류 확인 질의에서 존재하지 않는 `identity.accounts` schema를 사용해 1회 실패했다. 실제 `public.accounts` 등 테이블명을 조회한 뒤 동일한 읽기 전용 질의로 0행을 확인했다. 시험 실패나 데이터 변경은 아니다. 같은 원인 반복 0.
+- 미완료/다음: 전체 회귀 PASS는 S2 전체 완료나 사용자 인수 증거가 아니다. 기존 구현과 계획·현황을 대조해 남은 S2 계약을 진행한다. 판매자 공개 상품 수정 HTTP·화면은 공개 API 신설의 직접 승인 응답을 기다리며, 승인 전에는 독립된 범위만 수행한다.
+
 ## 2026-09-28 S2 기존 시험 카탈로그 중복 착수 정정
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@80dccaf`. 좁은 파일 목록 확인으로 이미 구현된 `apps/api/scripts/qa-catalog-fixture.ts`와 기존 DB 시험을 놓쳐, 같은 파일의 대체 시험을 커밋했다. 기존 fixture의 5품목·3판매자/대소분류·발송·가상 재고 기능과 이전 실제 DB 시험 기록을 확인했다.
