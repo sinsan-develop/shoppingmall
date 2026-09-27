@@ -7,6 +7,7 @@
 - 예상 파일: `apps/api/src/catalog/product-reviews.ts`, `apps/api/test/product-review-db.test.mjs`, `apps/web/app/account/admin/proposals/page.tsx`, `apps/web/test/admin-proposals.test.mjs`, 본 현황. 로컬 화면 RED→GREEN, WSL 지정 DB의 QA fixture로 API RED→GREEN·정리 0 확인 후 전체 회귀. QA는 해당 DB 시험이 생성한 `qa-<suffix>` 가상 계정/판매자/분류/상품·사진 메타데이터만 사용하고 finally에서 ID별 삭제한다. 별도 지속 자원/포트 없음. 실패 시 직전 안전 commit 유지·QA 정확 ID 정리.
 - 화면 목표 시험은 기존 상품명/반려만 보이고 설명이 누락되어 예상대로 RED 1회. DB 시험에는 같은 QA fixture의 옵션·비공개 사진 메타데이터를 추가하고 상세값·비공개 key 미노출을 요구한다. 안전한 시험-only commit/push 후 WSL 지정 DB에서 RED와 ID별 정리 0을 확인한다.
 - WSL 정확한 `283587886933f92e9ab630fa47c8326509ca10d9` 지정 DB 시험은 `proposal.description` 부재로 예상 RED 1회, 이후 accounts/options/images/revisions/audit 5종 각 0행·일회성 시험 컨테이너 0. 서비스 조회 SQL에 설명·산지·발송 방식·가격 순서·사진 개수만 추가하고 key는 선택하지 않는다. 관리자 화면도 같은 계약을 표시한다. 로컬 목표 화면 4 pass, 전체 116건 중 96 pass·0 fail·DB 전용 20 skip, PR 본문 8 pass, typecheck·lint·API/Next build 10경로 통과. 실제 WSL DB GREEN/전체 회귀·브라우저 화면은 아직 미검증, 제품 코드 오류 0.
+- 정확한 `7facaa3ff2b191b3d9e09a017c0535640e8de351` SSH push→WSL pull 후 지정 DB 심사 자료 목표 1 pass·0 fail, WSL API 전체 52건 중 46 pass·0 fail·환경별 6 skip, Next production build 10경로 성공. accounts/sellers/categories/products/revisions/options/images/publications/audit 9종 각 0행, 임시 review 컨테이너 0, WSL checkout clean. 화면 SSR 4 pass는 실제 로그인·대기 상품의 브라우저 검증을 대신하지 않는다. 관리자 승인·고객 이미지 공개는 여전히 닫힌 경계다.
 
 ## 진행 중 — 2026-09-27 S2.4 고객 홈의 공개 카탈로그 연결
 
