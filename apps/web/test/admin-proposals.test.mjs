@@ -23,7 +23,9 @@ test('operator sees seller-separated stock increase request and an explicit appr
 
 test('review queue shows each seller proposal with a required rejection reason but no unsafe approval', () => {
   const html = renderToStaticMarkup(createElement(AdminProposalView, {
-    proposals: [{ productId: 'product', revisionId: 'revision', title: '시험 고추', sellerName: '농가 A', proposedAt: '2026-09-27' }],
+    proposals: [{ productId: 'product', revisionId: 'revision', title: '시험 고추', sellerName: '농가 A',
+      proposedAt: '2026-09-27', description: '가상 상품', originLabel: '전국', shippingMode: 'seller_direct',
+      options: [], thumbnailCount: 0, detailImageCount: 0 }],
     busy: false, onReject: () => {},
   }));
   for (const label of ['상품 승인 대기', '시험 고추', '농가 A', '반려 사유', '반려']) {

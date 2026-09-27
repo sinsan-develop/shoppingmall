@@ -10,12 +10,19 @@ export class ProductReviews {
   async listPending(actor: AccessContext) {
     if (!canAccess(actor, 'approve-proposal', {})) throw new Error('Forbidden');
     const result = await this.pool.query<{
-      productId: string; revisionId: string; title: string; sellerId: string;
+      productId: string; revisionId: string; title: string; description: string;
+      originLabel: string; shippingMode: string; options: { name: string; priceWon: number }[];
+      thumbnailCount: number; detailImageCount: number; sellerId: string;
       sellerName: string; proposedAt: Date; proposedByAccountId: string;
     }>(
       `SELECT p.id AS "productId",r.id AS "revisionId",r.title,s.id AS "sellerId",
               s.display_name AS "sellerName",r.proposed_at AS "proposedAt",
-              r.proposed_by_account_id AS "proposedByAccountId"
+              r.proposed_by_account_id AS "proposedByAccountId",r.description,
+              r.origin_label AS "originLabel",r.shipping_mode AS "shippingMode",
+              COALESCE((SELECT json_agg(json_build_object('name',o.name,'priceWon',o.price_won)
+                ORDER BY o.display_order,o.id) FROM product_options o WHERE o.revision_id=r.id),'[]'::json) AS options,
+              (SELECT count(*)::int FROM product_images i WHERE i.revision_id=r.id AND i.purpose='thumbnail') AS "thumbnailCount",
+              (SELECT count(*)::int FROM product_images i WHERE i.revision_id=r.id AND i.purpose='detail') AS "detailImageCount"
        FROM product_revisions r JOIN products p ON p.id=r.product_id JOIN sellers s ON s.id=p.seller_id
        WHERE r.status='pending' ORDER BY r.proposed_at,r.id LIMIT 100`,
     );

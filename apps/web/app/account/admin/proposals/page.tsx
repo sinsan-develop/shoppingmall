@@ -2,7 +2,9 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 
-type Proposal = { productId: string; revisionId: string; title: string; sellerName: string; proposedAt: string };
+type Proposal = { productId: string; revisionId: string; title: string; sellerName: string; proposedAt: string;
+  description: string; originLabel: string; shippingMode: 'seller_direct' | 'owool_fulfillment';
+  options: { name: string; priceWon: number }[]; thumbnailCount: number; detailImageCount: number };
 type StockRequest = { requestId: string; optionId: string; sellerName: string; title: string;
   optionName: string; targetOnHand: number; sellable: number; createdAt: string };
 type ViewProps = { proposals: Proposal[]; busy: boolean; onReject: (revisionId: string, reason: string) => void };
@@ -22,6 +24,12 @@ export function AdminProposalView({ proposals, busy, onReject }: ViewProps) {
       {proposals.map((item) => <li key={item.revisionId} className="draft-product-item">
         <strong>{item.title}</strong> · {item.sellerName}<br />
         <small>요청 시각: {new Date(item.proposedAt).toLocaleString('ko-KR')}</small>
+        <p>산지: {item.originLabel} · {item.shippingMode === 'seller_direct' ? '판매자 직접 발송' : '어울몰 발송'}</p>
+        <p className="proposal-description">{item.description}</p>
+        <ul>{item.options.map((option) => <li key={option.name}>
+          {option.name} · {option.priceWon.toLocaleString('ko-KR')}원
+        </li>)}</ul>
+        <p>대표 사진 {item.thumbnailCount}개 · 상세 사진 {item.detailImageCount}개</p>
         <form className="account-form" onSubmit={(event) => reject(event, item.revisionId)}>
           <label htmlFor={`reason-${item.revisionId}`}>반려 사유</label>
           <textarea id={`reason-${item.revisionId}`} name="reason" required maxLength={500} rows={2} />

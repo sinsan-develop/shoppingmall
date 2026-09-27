@@ -89,6 +89,7 @@ p{line-height:1.7}
 @media(max-width:760px){.catalog-admin-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.draft-option-row{grid-template-columns:1fr 1fr}.draft-option-row .secondary-button{grid-column:1/-1}}
 .draft-product-item{padding-block:14px;border-bottom:1px solid #e9d2bb}
+.proposal-description{white-space:pre-wrap}
 .draft-image-actions{display:grid;gap:10px;margin-top:10px}
 .draft-image-actions label{font-size:14px;font-weight:700}
 .draft-image-actions input[type=file]{max-width:100%;font:inherit}
