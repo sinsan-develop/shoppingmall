@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.4 공개 상품 검색의 읽기 경계
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@2e45c4c831b0b9b2ac035ffad5682a84d84bc2fe`. 상품 승인·공개 쓰기 경계는 아직 닫힌 상태다.
+- 목표/계약: 공개 상품 목록은 명시적 `product_publications` 포인터가 가리키는 `approved` revision만 읽고 현재 판매 가능 옵션이 1개 이상인 상품만 포함한다. 상품명/판매자 이름의 문자 그대로 검색, 대/소분류·판매자 필터와 최신/최저가 정렬을 서버에서 제한된 입력으로 처리한다. 이미지 원본/비공개 키는 응답에 포함하지 않는다. 이 단계는 목록 읽기만이며 개인별 추천·인기/리뷰 정렬·관리자 승인/고객 결제 증거가 아니다.
+- 예상 파일: `apps/api/src/catalog/public-products.ts`, `controller.ts`, 단위/DB·HTTP 시험, 본 현황. 기존 DB schema·Secret·외부 서비스 변경 없음. QA는 정확한 시험 ID의 가상 seller/category/product/revision/option/inventory/publication만 생성·삭제하고 지정 DB의 다른 자료는 건드리지 않는다.
+- DB 계약 시험은 서비스 파일 부재 RED 1회 후 공개 포인터+approved+판매 가능 재고만 반환하고 비공개 키 미노출/문자 그대로 검색/대·소분류·판매자 필터/최저가 정렬과 공개 HTTP 200·잘못된 정렬 400을 요구한다. 서비스·GET API 구현 후 로컬 typecheck 통과, 무DB에서 시험은 1 skip이므로 실제 GREEN이 아니다. 다음은 정확한 커밋으로 WSL DB 목표 시험과 전체 회귀·QA 정리를 확인한다.
+
 ## 진행 중 — 2026-09-27 S2.2 이미지 안전 공개 경계
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@47d1c85190b81c6362a76e9131f9b0836a4407f7`. S2.3 브라우저 QA와 정리 완료 후, 고객 공개를 막고 있는 이미지 검증을 먼저 처리한다.

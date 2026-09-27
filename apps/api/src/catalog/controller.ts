@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException,
-  Get, Inject, NotFoundException, Param, PayloadTooLargeException, Post, Req,
+  Get, Inject, NotFoundException, Param, PayloadTooLargeException, Post, Query, Req,
   ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
 import type { IncomingMessage } from 'node:http';
@@ -11,6 +11,7 @@ import { InventoryService } from '../inventory/service.js';
 import { ProductDrafts, type DraftInput } from './product-drafts.js';
 import { ProductReviews } from './product-reviews.js';
 import { ImageQuarantine } from './image-quarantine.js';
+import { PublicProducts } from './public-products.js';
 import { CatalogTaxonomy } from './taxonomy.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string } };
@@ -125,6 +126,24 @@ export class CatalogController {
 
   @Get('sellers')
   listSellers() { return this.taxonomy().listSellers(); }
+
+  @Get('products')
+  async listPublicProducts(@Query() query: Record<string, unknown>) {
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    try {
+      return await new PublicProducts(pool).list({
+        query: query.q as string | undefined,
+        categoryId: query.categoryId as string | undefined,
+        sellerId: query.sellerId as string | undefined,
+        sort: query.sort as string | undefined,
+        page: query.page === undefined ? 1 : Number(query.page),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid search') throw new BadRequestException();
+      throw error;
+    }
+  }
 
   @Get('seller/products')
   async listOwnedProducts(@Req() request: RequestHeaders) {
