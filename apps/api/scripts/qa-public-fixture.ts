@@ -10,7 +10,7 @@ function productNames(runId: string) {
   };
 }
 
-async function seedPublicProduct(client: PoolClient, runId: string) {
+async function seedPublicProduct(client: PoolClient, runId: string, count: number) {
   const names = qaNames(runId);
   const product = productNames(runId);
   const seller = await client.query<{ id: string }>('SELECT id FROM sellers WHERE display_name=$1', [names.sellerA]);
@@ -47,7 +47,30 @@ async function seedPublicProduct(client: PoolClient, runId: string) {
     'INSERT INTO product_publications(product_id,revision_id,published_by_account_id) VALUES ($1,$2,$3)',
     [productId, revisionId, adminAccount.rows[0].account_id],
   );
-  return { productId, revisionId, majorId, title: product.title };
+  for (let index = 1; index < count; index++) {
+    const extraProductId = (await client.query<{ id: string }>(
+      'INSERT INTO products(seller_id,category_id) VALUES ($1,$2) RETURNING id',
+      [seller.rows[0].id, minorId],
+    )).rows[0].id;
+    const extraRevisionId = (await client.query<{ id: string }>(
+      `INSERT INTO product_revisions(product_id,version,title,description,origin_label,shipping_mode,status,
+        proposed_by_account_id,reviewed_by_account_id,reviewed_at)
+       VALUES ($1,1,$2,'검색 페이지 QA용 가상 상품','경남 진주','seller_direct','approved',$3,$4,now()) RETURNING id`,
+      [extraProductId, `${product.title}-extra-${String(index).padStart(2, '0')}`,
+        sellerAccount.rows[0].account_id, adminAccount.rows[0].account_id],
+    )).rows[0].id;
+    const extraOptionId = (await client.query<{ id: string }>(
+      'INSERT INTO product_options(revision_id,name,price_won,display_order) VALUES ($1,$2,$3,0) RETURNING id',
+      [extraRevisionId, '500g', 23000 + index],
+    )).rows[0].id;
+    await client.query('INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity) VALUES ($1,5,5)',
+      [extraOptionId]);
+    await client.query(
+      'INSERT INTO product_publications(product_id,revision_id,published_by_account_id) VALUES ($1,$2,$3)',
+      [extraProductId, extraRevisionId, adminAccount.rows[0].account_id],
+    );
+  }
+  return { productId, revisionId, majorId, title: product.title, count };
 }
 
 async function resetPublicProduct(client: PoolClient, runId: string) {
@@ -58,8 +81,8 @@ async function resetPublicProduct(client: PoolClient, runId: string) {
      JOIN product_revisions r ON r.product_id=p.id
      JOIN sellers s ON s.id=p.seller_id
      JOIN product_categories c ON c.id=p.category_id
-     WHERE s.display_name=$1 AND c.name=$2 AND r.title=$3`,
-    [names.sellerA, product.minor, product.title],
+     WHERE s.display_name=$1 AND c.name=$2 AND (r.title=$3 OR r.title LIKE $4)`,
+    [names.sellerA, product.minor, product.title, `${product.title}-extra-%`],
   );
   for (const row of target.rows) {
     await client.query('DELETE FROM product_publications WHERE product_id=$1 AND revision_id=$2', [row.id, row.revision_id]);
@@ -78,17 +101,21 @@ async function resetPublicProduct(client: PoolClient, runId: string) {
   await client.query('DELETE FROM product_categories WHERE name=$1 AND parent_id IS NULL', [product.major]);
 }
 
-export async function runQaPublicFixture(action: 'seed' | 'reset', runId: string, databaseUrl: string, password?: string) {
+export async function runQaPublicFixture(action: 'seed' | 'reset', runId: string, databaseUrl: string,
+  password?: string, productCount = 1) {
   const id = validateQaRunId(runId);
   if (new URL(databaseUrl).pathname !== '/shoppingmall') throw new Error('QA fixture is limited to shoppingmall database');
   if (action !== 'seed' && action !== 'reset') throw new Error('Invalid QA action');
+  if (!Number.isInteger(productCount) || productCount < 1 || productCount > 25) {
+    throw new Error('QA product count must be 1..25');
+  }
   if (action === 'seed') await runQaFixture('seed', id, databaseUrl, password);
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const result = action === 'seed' ? await seedPublicProduct(client, id) : await resetPublicProduct(client, id);
+      const result = action === 'seed' ? await seedPublicProduct(client, id, productCount) : await resetPublicProduct(client, id);
       await client.query('COMMIT');
       if (action === 'reset') await runQaFixture('reset', id, databaseUrl);
       return result;
@@ -103,7 +130,8 @@ export async function runQaPublicFixture(action: 'seed' | 'reset', runId: string
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   const action = process.argv[2];
   if (action !== 'seed' && action !== 'reset') throw new Error('usage: qa-public-fixture.ts seed|reset');
-  runQaPublicFixture(action, process.env.QA_RUN_ID ?? '', process.env.DATABASE_URL ?? '', process.env.QA_FIXTURE_PASSWORD)
+  runQaPublicFixture(action, process.env.QA_RUN_ID ?? '', process.env.DATABASE_URL ?? '', process.env.QA_FIXTURE_PASSWORD,
+    action === 'seed' ? Number(process.env.QA_PUBLIC_PRODUCT_COUNT ?? '1') : 1)
     .then((result) => { process.stdout.write(`${JSON.stringify(result ?? { reset: true })}\n`); })
     .catch((error) => { process.stderr.write(`${error instanceof Error ? error.message : 'QA public fixture failed'}\n`); process.exitCode = 1; });
 }

@@ -47,12 +47,17 @@ test('public browser fixture can seed 25 paginated products and remove only its 
   skip: !process.env.DATABASE_URL,
 }, async () => {
   const runId = randomBytes(4).toString('hex');
+  const invalidRunId = randomBytes(4).toString('hex');
   const { runQaPublicFixture } = await import('../scripts/qa-public-fixture.ts');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   let seeded = false;
   try {
-    await assert.rejects(runQaPublicFixture('seed', runId, process.env.DATABASE_URL,
-      'test-only-password-12345', 26), /QA product count/);
+    try {
+      await assert.rejects(runQaPublicFixture('seed', invalidRunId, process.env.DATABASE_URL,
+        'test-only-password-12345', 26), /QA product count/);
+    } finally {
+      await runQaPublicFixture('reset', invalidRunId, process.env.DATABASE_URL);
+    }
     const result = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL,
       'test-only-password-12345', 25);
     seeded = true;
