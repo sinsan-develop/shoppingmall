@@ -7,6 +7,8 @@
 - 예상 변경/검증: `apps/web/app/styles.css`의 해당 색상 값만 최소 조정하고 `apps/web/test/contrast.test.mjs`에 명암비 계산 회귀 시험 추가. 로컬 전체 test/typecheck/lint/build 및 WSL production 화면·대비 재확인 후 push/pull, 상품/사용자 데이터는 생성하지 않는다. 동일 오류 3회 반복 시 중단 보고.
 - RED→GREEN/로컬: 6개 목표 조합은 각 4.19/4.26/3.99/2.96/2.32/2.96으로 모두 RED. 기존 황금/크림 계열을 유지한 채 글자·경계선을 약간 짙게 하였고 같은 입력 경계의 검색 필터·textarea도 함께 검사했다. 최종 목표 8 pass·0 fail, 로컬 전체 155건 중 127 pass·28 환경별 skip·0 fail, PR 본문 검사 8 pass, typecheck/lint/API·Next production build 통과. 정적 색상 계산만으로 모든 화면·상태의 실제 WCAG 준수를 주장하지 않는다.
 - 다음 WSL 자원: 정확한 변경 SHA를 SSH 별칭 push→WSL 지정 checkout pull/build 후 임시 컨테이너 `shoppingmall-s24-contrast-api`/`shoppingmall-s24-contrast-web`를 127.0.0.1:9092/9091에서 실행, 빈 개발 DB 공개 홈/로그인 화면의 실제 계산된 주요 색상을 브라우저에서 확인. 테스트 계정/상품은 만들지 않고 끝나면 두 컨테이너와 시험 탭만 종료, 포트/계정 0을 확인한다.
+- 실제 브라우저 발견: `e3476aa` WSL build·API/Web 200에서 홈 시각 배치와 `hero .eyebrow=rgb(119,85,27)`, 검색 테두리 `rgb(164,125,59)` 적용 확인. 반면 정적 시험이 검사한 `.search-hint`는 화면에서 사용되지 않고, 실제 검색 placeholder는 브라우저 기본 `rgb(117,117,117)`/크림 배경으로 약 4.43:1이었다. 기존 시험은 이 요소를 검증하지 못하므로 placeholder pseudo-element 직접 검사로 RED→GREEN 보정한다. 임시 두 컨테이너는 재빌드 전에 정확히 종료한다.
+- 추가 RED→GREEN: 실제 placeholder pseudo-element를 겨냥한 시험은 CSS 규칙 부재로 1 fail(기존 7 pass). `color:#756a55;opacity:1`을 명시해 목표 8 pass·0 fail. 현재 시험 탭/임시 컨테이너 2개 종료. 재빌드와 최종 브라우저 계산값·전체 회귀는 아직 남았다. 기존 미사용 `.search-hint` 수정 결과는 화면 대비 증거로 세지 않는다.
 
 ## 진행 중 — 2026-09-27 S1.3 탈퇴 요청 실제 브라우저 재검증
 

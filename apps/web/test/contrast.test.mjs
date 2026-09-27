@@ -36,7 +36,7 @@ function ratio(a, b) {
 const cases = [
   ['primary button text', ['.primary-button', 'color'], ['.primary-button', 'background'], 4.5],
   ['small hero eyebrow', ['.eyebrow', 'color'], ['.hero', 'background'], 4.5],
-  ['search hint', ['.search-hint', 'color'], ['.site-header', 'background'], 4.5],
+  ['search placeholder', ['.search-preview input::placeholder', 'color'], ['.site-header', 'background'], 4.5],
   ['search outline', ['.search-preview', 'border'], ['.site-header', 'background'], 3],
   ['input outline', ['.account-form input,.account-form select', 'border'],
     ['.account-form input,.account-form select', 'background'], 3],
