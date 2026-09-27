@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 import { canAccess, type AccessContext } from '../access.js';
@@ -298,16 +298,18 @@ export class ProductDrafts {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
       throw new Error('Forbidden');
     }
-    return this.db.select({
-      productId: schema.products.id,
-      revisionId: schema.productRevisions.id,
-      title: schema.productRevisions.title,
-      status: schema.productRevisions.status,
-      categoryId: schema.products.categoryId,
-    }).from(schema.products)
-      .innerJoin(schema.productRevisions, eq(schema.productRevisions.productId, schema.products.id))
-      .where(and(eq(schema.products.sellerId, actor.sellerId), eq(schema.productRevisions.version, 1)))
-      .orderBy(asc(schema.productRevisions.proposedAt));
+    const result = await this.pool.query<{
+      productId: string; revisionId: string; title: string; status: string; categoryId: string;
+    }>(
+      `SELECT * FROM (
+         SELECT DISTINCT ON (p.id) p.id AS "productId",r.id AS "revisionId",r.title,r.status,
+                p.category_id AS "categoryId"
+         FROM products p JOIN product_revisions r ON r.product_id=p.id
+         WHERE p.seller_id=$1 AND r.status <> 'rejected'
+         ORDER BY p.id,r.version DESC
+       ) current_revisions ORDER BY title,"productId"`, [actor.sellerId],
+    );
+    return result.rows;
   }
 
   async addImage(actor: AccessContext, productId: string, revisionId: string,
