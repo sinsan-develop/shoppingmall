@@ -1,5 +1,14 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-09-27 재현 명령·현재 경계
+
+- Windows 정본은 `D:\Project\shoppingmall2`의 격리 worktree이며 현재 제품 작업 브랜치는 `codex/flat-v2-prototypes`다. `main`에 직접 개발하지 않는다. 실제 작업 checkout에서 `pnpm install --frozen-lockfile`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`를 실행한다. 로컬 `pnpm test`의 DB 의존 skip은 WSL DB 검증을 대신하지 않는다.
+- 소스 전달은 GitHub 계정/토큰이 아니라 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git` SSH 별칭을 사용한다. 작업 브랜치를 push한 뒤 `ssh WSL-server`로 접속해 정확한 `/home/daon/deploy/shopping`에서 `git pull --ff-only origin codex/flat-v2-prototypes`, `git rev-parse HEAD`, `git status --short --branch`로 동일 커밋·clean 상태를 확인한다. 다른 WSL 서비스와 checkout을 덮거나 초기화하지 않는다.
+- WSL 호스트에는 시스템 `pnpm`이 없다. 검증된 Node 24 컨테이너로 저장소를 `/app`에 마운트해 `apps/web/node_modules/.bin/next build`(작업 디렉터리 `/app/apps/web`)와 `apps/api/node_modules/.bin/tsx scripts/qa-fixture.ts seed|reset`(작업 디렉터리 `/app/apps/api`)을 실행했다. QA fixture는 `QA_RUN_ID` 8자리와 `QA_FIXTURE_PASSWORD`(seed만), 정확한 개발 DB URL이 필요하며 생성 전 ID·수명·정리 대상과 기존 계정 수를 `WORK_STATUS.md`에 기록한다. 실제 자격정보는 Git/문서/대화에 쓰지 않는다.
+- 개발 DB는 `WSL-server`의 정확한 `local-postgres/shoppingmall`이다. 임시 Web 127.0.0.1:9091과 API 127.0.0.1:9092를 켤 때 먼저 listener·컨테이너 이름을 확인하고, 시험 뒤 지정 컨테이너만 종료한다. API `/ready` 200·Web HTTP 200과 동일 SHA를 확인해도 결제/외부 Provider/UAT 합격을 뜻하지 않는다.
+- `apps/api/scripts/migrate.ts`는 실제 migration **적용** 명령이며 dry-run 옵션이 없다. 따라서 이를 공유 DB에서 dry-run으로 실행하지 않는다. migration dry-run은 승인된 schema와 정확한 격리 시험 DB·복구 절차가 확정된 뒤 별도 검증해야 하며 현재 **미검증**이다. 이미 적용된 migration·실데이터를 초기화하지 않는다.
+- Android 앱 빌드/실기기·실제 PG·문자/메일/푸시 연동·Oracle staging 검증은 위 로컬/WSL 명령의 통과 범위 밖이다. 실제 실행 여부와 잔여 gate는 `WORK_STATUS.md` 및 별도 인수 계획으로 추적한다.
+
 ## 2026-09-27 S1.1 WSL 시험 결과 (현재 사실)
 
 - 지정 SSH 별칭 `WSL-server`의 `/home/daon/deploy/shopping`에 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git`의 `codex/flat-v2-prototypes` 브랜치를 clone했다. 시험 HEAD는 `eb74e536cb3464cd9032256bd56619302355fcb8`이며 당시 원격과 일치했다. 아래 과거 항목의 `checkout 부재`는 생성 전 역사 기록이다.

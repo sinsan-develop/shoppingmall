@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S0 현재 명령표와 안전 경계 정리
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@67186de`; 문서만 변경하고 DB/schema/Secret/서비스는 건드리지 않는다.
+- 발견: `docs/DEVELOPMENT_ENVIRONMENT.md`의 초기 명령표에는 WSL checkout 생성 전·migration 코드 부재 시절의 미정 항목이 남아 있다. 현재 WSL checkout·QA fixture와 실제 테스트 결과를 날짜가 있는 별도 최신 섹션에 기록한다. WSL 호스트에는 `pnpm`이 없으며 Node 24 컨테이너 실행은 검증됐다. `apps/api/scripts/migrate.ts`는 실제 적용만 하고 dry-run 스위치가 없으므로 공유 개발 DB에서 dry-run처럼 실행하지 않는다.
+- 검증/다음: 기존 package scripts·migration 옵션·QA fixture를 코드와 대조했고, 문서 변경 후 링크/명령 경로·diff를 확인한다. 분리 DB의 migration 시뮬레이션은 정확한 schema 승인/대상 확정 전 미검증으로 남긴다.
+- 신산님 직접 결정: 이미 공개된 동일 상품의 새 수정안이 관리자 승인되면 **같은 옵션명**의 기존 재고를 새 버전으로 승계한다. 새 옵션은 판매 가능 0개에서 시작해 관리자 재고 증가 승인을 받아야 한다. 이 선택은 S2.2 상품 수정 구현의 재고 계약이며, 가격/분류/사진 승인 절차와 기존 공개 버전 불변 원칙은 유지한다.
+
 ## 진행 중 — 2026-09-27 S2.4 핵심 화면 색상 대비
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@6310813`. 산지·상품·거래 구조와 무관한 승인 Flat v2 황금/크림 색상 내 접근성 보정이며 schema/API/권한 변경 없음.
