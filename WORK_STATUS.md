@@ -8,6 +8,7 @@
 - 현재 증거: 공식 npm 메타데이터로 기존 lock의 sharp 0.35.4를 API 직접 의존성에 연결했다. 허용 형식 실제 decode→metadata 없는 WebP 재인코딩과 MIME 불일치·손상·SVG·가로 제한 시험 2건 RED(모듈 없음)→GREEN. 로컬 전체 109건 중 90 pass·0 fail·DB 전용 19 skip, PR 검사 8 pass, typecheck·lint 통과. 첫 제한된 Next build는 `.next/trace` EPERM 1회, 동일 D: 경로 권한으로 재실행해 API/웹 build 9경로 성공. 구현 반복 오류 0, 공급자/악성 코드 검사·스토리지 공개·관리자 승인 및 WSL native sharp 검증은 아직 남았다.
 - WSL 정확한 `6ba4d16f620bcdbb0d4b9b291ffb172b27520043`에서 Linux native sharp·격리 저장 목표 시험 5 pass·0 fail, 지정 `shoppingmall` DB 전체 API 51건 중 45 pass·0 fail·환경별 6 skip. QA 핵심 테이블 10종 각 0행·migration 5건·임시 컨테이너 0. pnpm 실행이 만든 정확한 미추적 `.pnpm-store` 1.1MB를 범위 확인 후 제거, WSL checkout clean.
 - 이어 비공개 스테이징 자체가 원본 PNG 대신 새 WebP를 저장하도록 강화했다. 저장 바이트·DB MIME/크기 일치 기대를 먼저 RED(원본 `.png`)로 확인한 뒤 GREEN 5건. 로컬 전체 109건 중 90 pass·0 fail·DB 전용 19 skip, PR 검사 8 pass, typecheck·lint·production build 재통과. 아직 이 두 번째 변경의 WSL DB/HTTP 통합시험은 미검증이며 관리자 승인·고객 공개도 열지 않았다.
+- 정확한 `d89f40316544c14e5cfdb3a296975fc4f3bb7a16`을 SSH push→WSL pull 후 새 재인코딩의 상품 이미지 DB/인증 HTTP 목표 시험 2 pass·0 fail, 전체 API 51건 중 45 pass·0 fail·환경별 6 skip. QA 핵심 테이블 10종 각 0행, migration 5건·임시 컨테이너 0·WSL checkout clean. 업로드된 원본은 더 이상 그대로 보관하지 않지만 이 결과는 바이러스 스캔·고객 공개 승인/스토리지 제공이나 사용자 인수를 의미하지 않는다. 다음은 승인 전후 공개 포인터와 공개 조회 경계를 별도 시험으로 구현한다.
 
 ## 최신 상태 — 2026-09-27 S2.3 재고 역할별 브라우저 QA 완료
 
