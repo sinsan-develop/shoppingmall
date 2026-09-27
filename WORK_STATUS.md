@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 검증 완료 — 2026-09-27 S2.3 가상 판매자 품절 즉시 차단 브라우저
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@d8b5ce353c1c25560bea96e08a298e7ab021c0ed`, WSL `local-postgres/shoppingmall` 개발 DB QA ID `d3e772a0`. 실제 판매 자료·계정·Oracle·`main`은 변경하지 않았다. 5품목 fixture는 승인된 공개 상품을 시험 DB에 직접 넣으므로 실제 상품 승인 경로의 증거가 아니다.
+- 실제 브라우저: 가상 판매자 A 로그인→고추 옵션 보유/판매 가능 5개 확인→수량 0 직접 입력/적용→동일 판매자 화면에서 보유/판매 가능 0개 및 즉시 반영 안내 확인. 별도 고객 공개 검색에서는 고추가 사라지고 양파(판매자 A), 고춧가루(어울몰), 블루베리·마늘(판매자 B) 네 상품만 남았다. 판매자 권한과 공개 목록이 연결된 품절 즉시 차단 증거다. 동시 마지막 수량 구매/재고 재증가 승인/주문 견적은 이 시험에서 검증하지 않았다.
+- 정리: 가상 판매자 로그아웃·시험 탭 2개 종료, 이름이 고정된 임시 Web/API 컨테이너 2개 stop, `d3e772a0` fixture reset에서 가상 상품 5개 및 동반 계정 제거. 사후 accounts/sellers/categories/products/revisions/inventory/stock requests/audit 8종 각 0행, 9091/9092 listener 및 해당 컨테이너 0, WSL checkout clean/정확한 SHA 확인. 검증 오류 0, 동일 근본 원인 3회 반복 없음. S2 전체 gate는 아직 미완료다.
+
 ## 진행 중 — 2026-09-27 S2.4 상품 분류 계층 표시 회귀
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`; WSL 개발 DB `shoppingmall`의 QA ID `c29e4a71` 가상 5품목만 사용. 실브라우저에서 분류 `<select>`가 API의 이름순 배열을 그대로 사용해 소분류와 대분류가 섞이는 결함을 확인했다. `대분류 → 해당 소분류 → 상품` 기존 승인 구조의 화면 표시 문제이며 DB 계약 변경은 없다.
