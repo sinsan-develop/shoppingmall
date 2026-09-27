@@ -5,6 +5,7 @@
 - 담당/범위: 어울 단일 writer, `codex/flat-v2-prototypes`. 상품·재고 S2 Stage 완료나 S3 공개 견적 API 확정 없이 기존 내부 발송 묶음에 원화 정수 합계를 계산하는 순수 함수만 보강한다. DB/schema/공개 API/권한·프로모션 배분/주문 저장은 변경하지 않는다.
 - RED→GREEN: `quoteShipments` 미구현으로 목표 시험 RED. 직접 발송 A 58,000원 무료, 어울몰 발송 18,000원+배송비 3,000원, 직접 발송 B 44,000원은 별도 승인된 40,000원 무료배송 정책을 공급하면 무료로 계산해 3발송 주문 상품 120,000원+배송 3,000원=123,000원임을 검증했다. 빈 장바구니·원화 합계 안전 정수 초과는 거부한다. 호출자가 서버의 최신 가격과 승인된 유효 배송 정책을 공급해야 하며 이 순수 함수는 이를 DB에서 확인하지 않는다.
 - 로컬 검증: 목표 5 pass·0 fail, 루트 163건 중 135 pass·28 DB/환경 skip·0 fail 및 PR 검사 8 pass. typecheck·lint·production build·diff check 통과. 실제 서버 견적·프로모션·예약·통합 결제와 전체 Stage/UAT는 미검증. 기능 오류 0, 반복 근본 원인 0. 다음은 exact SHA WSL DB 전체 회귀·잔류 자료 확인.
+- WSL 재현: exact SHA `917e4d9`를 지정 checkout에 fast-forward하고 Node 24 일회성 컨테이너와 개발 DB를 연결한 전체 시험 **163건 중 156 pass·7 환경 skip·0 fail**, 종료 코드 0. 사후 accounts/products/stock_change_requests/product_images 각 0, WSL checkout clean. 내부 합계 계산에 국한하며 주문 저장·실견적·사용자 인수는 계속 미검증이다.
 
 ## 진행 중 — 2026-09-28 S3.1 장바구니 선택 수량·제거 내부 규칙
 
