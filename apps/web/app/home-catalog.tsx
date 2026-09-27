@@ -1,0 +1,75 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+type Category = { id: string; parentId: string | null; name: string };
+type Product = { productId: string; title: string; sellerName: string; originLabel: string; minPriceWon: number };
+type HomeCatalogProps = { categories: Category[]; products: Product[]; loading: boolean; error?: string };
+
+const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
+  (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
+
+export function HomeCatalogView({ categories, products, loading, error }: HomeCatalogProps) {
+  const majorCategories = categories.filter((category) => category.parentId === null);
+  return (
+    <>
+      <section className="home-section" aria-labelledby="categories-title">
+        <div className="section-heading"><p className="eyebrow">EXPLORE</p><h2 id="categories-title">상품 카테고리</h2></div>
+        <p className="section-note">관리자가 등록한 대분류로 찾아보세요</p>
+        {loading ? <p role="status">카테고리를 불러오는 중</p> : error ? <p role="alert">{error}</p> :
+          majorCategories.length === 0 ? <p className="section-note">등록된 카테고리가 없습니다</p> :
+            <div className="category-row">
+              {majorCategories.map((category) =>
+                <a className="category-link" key={category.id}
+                  href={`/products?categoryId=${encodeURIComponent(category.id)}`}>{category.name}</a>)}
+            </div>}
+      </section>
+      <section className="home-section" aria-labelledby="recommendations-title">
+        <div className="section-heading"><p className="eyebrow">CURATED FOR EVERYONE</p><h2 id="recommendations-title">추천 상품</h2></div>
+        <p className="section-note">현재 판매 가능한 최신 공개 상품을 소개합니다</p>
+        {loading ? <p role="status">상품을 불러오는 중</p> : error ? <p role="alert">{error}</p> :
+          products.length === 0 ? <p className="product-empty">상품 준비 중</p> :
+            <div className="search-results home-products">
+              {products.slice(0, 4).map((product) =>
+                <article className="search-product" key={product.productId}>
+                  <p className="eyebrow">{product.originLabel}</p>
+                  <h3><a className="product-link" href={`/products/${encodeURIComponent(product.productId)}`}>{product.title}</a></h3>
+                  <p>{product.sellerName}</p>
+                  <p className="product-price">{product.minPriceWon.toLocaleString('ko-KR')}원부터</p>
+                </article>)}
+            </div>}
+      </section>
+    </>
+  );
+}
+
+export default function HomeCatalog() {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    if (!apiOrigin) {
+      setError('상품 연결을 준비 중입니다');
+      setLoading(false);
+      return () => controller.abort();
+    }
+    Promise.all([
+      fetch(`${apiOrigin}/catalog/categories`, { signal: controller.signal }),
+      fetch(`${apiOrigin}/catalog/products?sort=latest&page=1`, { signal: controller.signal }),
+    ]).then(async ([categoryResponse, productResponse]) => {
+      if (!categoryResponse.ok || !productResponse.ok) throw new Error('상품을 불러올 수 없습니다');
+      const [nextCategories, nextProducts] = await Promise.all([categoryResponse.json(), productResponse.json()]);
+      if (!Array.isArray(nextCategories) || !Array.isArray(nextProducts)) throw new Error('상품을 불러올 수 없습니다');
+      setCategories(nextCategories);
+      setProducts(nextProducts);
+      setError(undefined);
+    }).catch(() => { if (!controller.signal.aborted) setError('상품을 불러올 수 없습니다'); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, []);
+
+  return <HomeCatalogView categories={categories} products={products} loading={loading} error={error} />;
+}

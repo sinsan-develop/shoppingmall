@@ -17,6 +17,13 @@ test('catalog reads need a database and category creation never trusts a role he
       body: JSON.stringify({ name: '과일' }),
     });
     assert.equal(create.status, 401);
+    assert.equal((await fetch(`${base}/catalog/admin/proposals`, {
+      headers: { 'x-role': 'admin' },
+    })).status, 401);
+    assert.equal((await fetch(`${base}/catalog/admin/proposals/00000000-0000-0000-0000-000000000001/reject`, {
+      method: 'POST', headers: { origin: 'http://127.0.0.1:9091', 'x-role': 'admin', 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: '시험' }),
+    })).status, 401);
   } finally {
     await app.close();
   }

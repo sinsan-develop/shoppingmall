@@ -1,5 +1,280 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.2 관리자 상품 심사 자료 보강
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@5780102a2e79c1304d6ae31810147874d829bd8e` (로컬/원격/WSL 일치). 홈 QA 컨테이너·포트·시험 DB 자료 잔류 0을 확인한 뒤 착수한다.
+- 목표: 대기 상품 심사 목록에 설명·산지·발송 방식·옵션별 가격·등록 사진 개수만 추가하고 비공개 object key·원본 이미지는 응답/화면에 포함하지 않는다. 승인·공개 실행, 새 schema, Secret/공급자 연동은 하지 않는다. 이 작업은 이미지 검사/공개 저장소와 승인 흐름을 대신하지 않는다.
+- 예상 파일: `apps/api/src/catalog/product-reviews.ts`, `apps/api/test/product-review-db.test.mjs`, `apps/web/app/account/admin/proposals/page.tsx`, `apps/web/test/admin-proposals.test.mjs`, 본 현황. 로컬 화면 RED→GREEN, WSL 지정 DB의 QA fixture로 API RED→GREEN·정리 0 확인 후 전체 회귀. QA는 해당 DB 시험이 생성한 `qa-<suffix>` 가상 계정/판매자/분류/상품·사진 메타데이터만 사용하고 finally에서 ID별 삭제한다. 별도 지속 자원/포트 없음. 실패 시 직전 안전 commit 유지·QA 정확 ID 정리.
+- 화면 목표 시험은 기존 상품명/반려만 보이고 설명이 누락되어 예상대로 RED 1회. DB 시험에는 같은 QA fixture의 옵션·비공개 사진 메타데이터를 추가하고 상세값·비공개 key 미노출을 요구한다. 안전한 시험-only commit/push 후 WSL 지정 DB에서 RED와 ID별 정리 0을 확인한다.
+
+## 진행 중 — 2026-09-27 S2.4 고객 홈의 공개 카탈로그 연결
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@24a1342631985101db3b1bfe1fceae98826dc915`. Flat v2 홈·승인된 S2.4 계약을 따른다.
+- 목표/범위: 관리자 등록 대분류와 실제 공개·판매 가능한 최신 상품을 홈에 조회·탐색 링크로 표시한다. 개인화·기획전 관리·이미지 공개·장바구니는 이번 작업에 포함하지 않으며, 데이터가 없거나 API 연결이 안 되면 실제 상태를 알린다. 새 DB schema·Secret·외부 서비스·운영 자료 변경 없음.
+- 예상 파일: `apps/web/app/page.tsx`, `apps/web/test/page.test.mjs`, 필요 시 `apps/web/app/styles.css`, 본 현황. 기존 9091/9092는 현재 꺼져 있고 WSL `shoppingmall` DB QA 행 0, migration 5건. RED→GREEN 로컬 검증 후 안전한 commit/SSH push→WSL exact pull/build·브라우저 빈 상태 시험을 계획한다. 일회성 QA 컨테이너는 `shoppingmall-s2-home-api-*`, `shoppingmall-s2-home-web-*`로 명명하고 종료 후 포트·자료 잔류 0을 확인한다. 실패 시 이 branch의 직전 안전 commit으로 코드 복귀하고 DB에는 쓰지 않는다.
+- 기존 홈 정적 섹션은 서버 컴포넌트로 유지하고 카탈로그 조회만 고객 클라이언트 컴포넌트로 분리했다. 관리자 대분류 링크·공개 최신 상품 4개/가격·빈 결과/연결 오류의 시험은 구현 전 `HomeCatalogView` 부재 RED, 로컬 목표 4 pass로 GREEN. 로컬 전체 test 115건 중 95 pass·0 fail·DB 전용 20 skip, PR 본문 검사 8 pass, typecheck·lint·API/Next production build 10경로 통과. 실제 WSL/브라우저와 공개 상품 표시·200% 확대는 아직 미검증; 반복 구현 오류 0.
+- 정확한 `1251ecc958fedb0d293940303bd571e6e5c828cc` SSH push→WSL pull, Next build 10경로 성공. 최초 QA API `/ready`는 정상이나 카테고리/상품 GET 404였다. 소스의 카탈로그 라우트와 달리 WSL `apps/api/dist`에는 카탈로그 파일이 없는 구형 빌드였음을 확인해 같은 Git 소스로 API를 재빌드·일회성 서버 재시작한 뒤 두 GET이 `[]`로 정상화됐다(운영 절차 오류 1회, DB/소스 변경 없음). 실제 브라우저의 홈은 빈 대분류·상품 준비 중을 구분해 표시했다. 390px 화면에서 검색 입력 placeholder가 안 보였고 계산된 글자 크기 `0px`를 확인했다. 기존 모바일 `.search-preview{font-size:0}`의 상속이 원인으로, 검색 입력에만 16px 적용·재검증을 진행한다. 실제 공개 상품 카드·200% 확대는 여전히 미검증이다.
+- 모바일 입력에 한정해 16px 규칙을 추가했다. 실제 브라우저의 `getComputedStyle` 0px가 수정 전 실패 증거이며, 수정 후 동일 브라우저 재검증은 아직이다. 로컬 전체 test 115건 중 95 pass·0 fail·DB 전용 20 skip, PR 본문 8 pass, typecheck·lint·API/Next build 10경로 재통과. 제품 코드 재시도 오류 0; 위 API 구형 빌드 원인/조치와 분리 기록한다.
+- 정확한 `864bd0c343436998c52894741ed109a712974d9d` WSL pull·Next build 후 실제 390px 브라우저에서 입력 글자 `16px`를 확인했다. 동시에 document scrollWidth 405px/clientWidth 375px로 새 가로 넘침을 발견했다(같은 모바일 검색 크기 수정의 회귀 1회). 원인은 헤더 검색 form의 `min-width:auto`가 264px 아래로 줄지 않아 로그인 링크 오른쪽 끝이 405px인 것. form에 `min-width:0`만 추가하고 동일 viewport·가로폭을 재검증한다. 기존 QA 서버는 정확한 이름으로 중지 후 재빌드하며 DB 변경은 없다.
+- 정확한 `03bbc2e2273d6b4b7fe5168561a3d5a4f29271e4` SSH push→WSL pull·Next build 10경로 성공. 실제 390px 브라우저에서 홈 빈 카테고리·상품 상태, 검색 입력 계산 글자 16px와 화면에 보이는 안내 문구를 확인했다. 문서 scrollWidth/clientWidth 각 375px, 로그인 링크 오른쪽 357px로 가로 넘침이 없어졌다. 브라우저 viewport reset·임시 탭 종료, 이름이 정해진 두 QA 컨테이너 종료 후 9091/9092 listener·`shoppingmall-s2-home-*` 컨테이너 0. WSL checkout clean/정확한 HEAD 일치, accounts/sellers/categories/products/publications/inventory/audit 7종 각 0행. 실제 공개 상품 카드→상세·200% 확대·인쇄는 미검증이다. 모바일 동일 기능 회귀 1회 수정 후 재검증 완료; 구형 API 빌드 운영 오류 1회 수정.
+
+## 진행 중 — 2026-09-27 S2.4 공개 상품 상세 고객 화면
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@35c465968309fcfcab7b687a8f82a02c39936a10`. 공개 상품 목록/상세 API는 지정 DB 시험 통과, 이미지 공개/관리자 승인/장바구니는 아직 닫힌 경계다.
+- 목표: 검색 결과에서 실제 상세 경로로 이동해 승인된 상품명·판매자·산지·발송 방식·설명·옵션 가격/판매 가능 수량과 품절 표시를 조회한다. 이미지는 허위 자리표시만 두고 사설 object key를 노출하지 않는다. S3 장바구니 전에는 구매 행동을 제공하지 않으며 준비 중임을 명시한다. 새 DB schema·Secret·외부 서비스 없음.
+- 예상 파일: `apps/web/app/products/page.tsx`, `app/products/[productId]/page.tsx`, 화면 시험/CSS, 본 현황. WSL에서는 Git pull·production build 후 공개 데이터 없는 기본 빈 상태와 비공개 ID 404 경계를 실제 브라우저에서 확인한다. QA 계정/상품을 따로 만들지 않는다.
+- 상세 화면 파일 부재 RED 1회 후 검색 카드 실제 링크와 승인 상품 상세 표시를 추가했다. 대표 사진은 미공개 안전 경계 때문에 자리표시, 구매 행동은 S3 전까지 제공하지 않는다. SSR 목표 3 pass, 로컬 전체 test·typecheck·lint·API/Next production build 통과하며 동적 `/products/[productId]` 경로가 생성됐다. 새 DB·외부 자원은 없다. 실제 WSL build/브라우저 비공개 ID 처리·모바일은 아직 미검증이다.
+- 정확한 `06e33d1ce902c5c627036284aa5a8e0ca91acd5c` SSH push→WSL pull 후 Next production build 10 정적+상세 동적 경로 성공. 실제 브라우저에서 존재하지 않는 UUID의 상세는 상품 자료 없이 ‘상품을 찾을 수 없습니다’로 표시됐고, 시험 API/웹 컨테이너와 QA 탭을 종료했다. 최종 accounts/sellers/products/revisions/publications/audit 6종 각 0행, migration 5건, 9091/9092 listener·임시 컨테이너 0, WSL checkout clean. 실제 승인 상품 카드→상세 클릭/모바일 상세는 공개 상품 데이터가 없어 아직 미검증이며 SSR fixture 성공으로 대체하지 않는다.
+
+## 진행 중 — 2026-09-27 S2.4 공개 상품 상세 읽기 경계
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@054dd68f32180fb362906a599adb26c6d42cac95`. 공개 목록 DB/API와 검색 화면은 확인됐으며 상품 승인/공개 쓰기·이미지 공개는 아직 닫혀 있다.
+- 목표: 명시적 공개 포인터가 가리키는 approved revision만 상품 상세에서 읽고 옵션별 현재 판매 가능 수량·가격을 표시한다. 목록에서는 제외되는 품절 공개 상품의 상세는 품절 상태로 읽을 수 있으나 구매는 연결하지 않는다. pending/draft·다른 revision·비공개 object key는 응답에 넣지 않는다. 새 DB schema/Secret/외부 비용 없음.
+- 예상 파일: `apps/api/src/catalog/public-products.ts`, `controller.ts`, 공개 상품 DB 시험, 본 현황. 현재 `shoppingmall` DB는 QA 행 0·migration 5건. 목표 시험은 기존 QA fixture의 정확한 ID만 사용하고 정리한다.
+- 기존 공개 검색 DB fixture에 approved+재고 5 상세·pending 비공개·approved+품절 0 상세, object key 비노출, 잘못된 ID 400 및 HTTP 200/404를 요구하는 계약을 먼저 추가했다. 구현 전 WSL의 정확한 커밋에서 의도한 `service.get` 부재 RED를 확인하고 QA 잔류 0을 재조회한 뒤 구현한다.
+- 정확한 `6d94b2e4a66b889a8686e66bc388c70186131b85`에서 WSL 실제 DB 목표 시험은 `service.get is not a function` RED 1회, 뒤이어 accounts/sellers/products/revisions/options/publications/inventory/categories 8종 각 0행·임시 컨테이너 0 확인. 승인 포인터의 공개 revision만 상세 조회하고 옵션별 보유가 아닌 판매 가능 수량을 읽는 서비스+익명 GET 경로를 구현했다. 로컬 API typecheck·lint 통과, 실제 DB GREEN/전체 회귀는 아직 미검증이다.
+- 정확한 `1a21d70c4347d8dd8d322b6d793e739014ba3b88` SSH push→WSL pull 후 공개 상세 DB/HTTP 목표 1 pass·0 fail(승인 공개 옵션 5/품절 0/비공개 404/잘못된 ID 400), 전체 API 52건 중 46 pass·0 fail·환경별 6 skip. 로컬 전체 test·API typecheck·lint·API/웹 build 10경로 통과. 최종 QA 핵심 9종 각 0행, migration 5건·임시 컨테이너 0·WSL checkout clean. 상품 상세 고객 화면과 이미지 공개·장바구니는 아직 미구현이다.
+
+## 진행 중 — 2026-09-27 S2.4 공개 상품 검색의 읽기 경계
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@2e45c4c831b0b9b2ac035ffad5682a84d84bc2fe`. 상품 승인·공개 쓰기 경계는 아직 닫힌 상태다.
+- 목표/계약: 공개 상품 목록은 명시적 `product_publications` 포인터가 가리키는 `approved` revision만 읽고 현재 판매 가능 옵션이 1개 이상인 상품만 포함한다. 상품명/판매자 이름의 문자 그대로 검색, 대/소분류·판매자 필터와 최신/최저가 정렬을 서버에서 제한된 입력으로 처리한다. 이미지 원본/비공개 키는 응답에 포함하지 않는다. 이 단계는 목록 읽기만이며 개인별 추천·인기/리뷰 정렬·관리자 승인/고객 결제 증거가 아니다.
+- 예상 파일: `apps/api/src/catalog/public-products.ts`, `controller.ts`, 단위/DB·HTTP 시험, 본 현황. 기존 DB schema·Secret·외부 서비스 변경 없음. QA는 정확한 시험 ID의 가상 seller/category/product/revision/option/inventory/publication만 생성·삭제하고 지정 DB의 다른 자료는 건드리지 않는다.
+- DB 계약 시험은 서비스 파일 부재 RED 1회 후 공개 포인터+approved+판매 가능 재고만 반환하고 비공개 키 미노출/문자 그대로 검색/대·소분류·판매자 필터/최저가 정렬과 공개 HTTP 200·잘못된 정렬 400을 요구한다. 서비스·GET API 구현 후 로컬 typecheck 통과, 무DB에서 시험은 1 skip이므로 실제 GREEN이 아니다. 다음은 정확한 커밋으로 WSL DB 목표 시험과 전체 회귀·QA 정리를 확인한다.
+- 정확한 `fa7e81730eb79f782dd8a82054d4d7a8d45dc384` SSH push→WSL pull 후 지정 DB 공개 검색 서비스+익명 HTTP 목표 시험 1 pass·0 fail, 전체 API 52건 중 46 pass·0 fail·환경별 6 skip. 로컬 110건 중 90 pass·0 fail·DB 전용 20 skip, PR 검사 8 pass·typecheck·lint·API/웹 build 9경로 통과. 최종 QA 핵심 10종 각 0행, migration 5건·임시 컨테이너 0·WSL checkout clean. 아직 실제 고객 화면에 API 연결·상품 승인/공개 쓰기·실이미지 URL·브라우저 검색 E2E는 미구현/미검증이다.
+- 홈 장식용 검색을 실제 `/products?q=...` 폼으로 바꾸고, 공개 API 기반 상품 검색 화면(대/소분류·최신/가격 정렬·빈 결과·연결 오류)을 추가했다. SSR 시험 파일 부재 RED 1회→목표 2 pass, 로컬 전체 112건 중 92 pass·0 fail·DB 전용 20 skip, PR 검사 8 pass, typecheck·lint·API/Next build 10경로 통과. 검색 화면은 상품 상세·이미지·결제 링크를 아직 제공하지 않는다. 이 화면의 WSL/실제 브라우저·모바일 검증 전이며 공개 상품이 없는 DB의 빈 결과가 정상 기준이다.
+- WSL 정확한 `1eedb9d7205e3eca98a47eebf1f33db9e98aac60` Next build 10경로·API health/공개 목록 []/웹 200 후 실제 in-app browser 홈 검색→결과 화면·390px 모바일 표시·Tab으로 분류/정렬 접근을 확인했다. 가격 정렬을 키보드로 제출하면 `categoryId=`가 포함되어 API 400, 화면 오류가 나는 실제 결함 1회 발견했다. 또한 URL 정렬값은 바뀌었는데 무제어 select 표시가 최신순으로 남았다. 정확한 두 시험 컨테이너 종료·viewport reset·QA 탭 종료 후 API의 빈 전체 필터 정규화와 검색 입력/select의 URL 상태 반영을 수정했다. 수정 전 WSL API 400 재현, 새 DB·UI 회귀 시험 추가, 로컬 전체 test·typecheck·lint·API/웹 build 통과. 수정 커밋의 WSL DB/browser GREEN은 아직 미검증이며 임시 서버를 재시작하지 않았다.
+- 정확한 `1b29811f78a014b09a7b23a581b1cc8f83402018`에서 빈 전체 필터 DB·HTTP 시험 1 pass, WSL Next build 10경로, 앞서 400이던 동일 API 요청 200. 실제 브라우저는 오류 대신 빈 결과·최저가순을 보였지만 `key` 변경으로 검색 입력이 2개 렌더되는 결함 1회 확인했다. QA 탭과 시험 서버 종료 후 임시 key 방식 대신 query/category/sort를 제어 입력으로 변경했다. 로컬 해당 SSR 2 pass·typecheck·lint 통과, 새 변경의 WSL build/브라우저 재검증은 아직 미실행. 반복된 동일 원인 오류는 아니며 두 번째 별개 화면 상태 처리 결함이다.
+- 정확한 `9e5776a084da99b2627d4ec5d44e8e54c0f44698` SSH push→WSL pull 후 Next production build 10경로 성공. 실제 브라우저에서 검색 입력 1개·고추 값·전체 카테고리·최저가순·정상 빈 결과를 확인하고 390px 모바일 화면 및 Tab→Tab→Enter 재검색에서 동일 URL/결과가 유지됨을 확인했다. 실제 상품 카드 표시·200% 확대·인쇄는 미검증이다. 모바일 viewport reset·QA 탭 및 이름이 정해진 임시 서버 2개 종료. QA 핵심 테이블 10종 각 0행, migration 5건, 9091/9092 listener 0·임시 컨테이너 0·WSL checkout clean. 두 브라우저 결함은 각각 1회 발생 후 수정·재확인했으며 이번 최종 반복 오류 0.
+
+## 진행 중 — 2026-09-27 S2.2 이미지 안전 공개 경계
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@47d1c85190b81c6362a76e9131f9b0836a4407f7`. S2.3 브라우저 QA와 정리 완료 후, 고객 공개를 막고 있는 이미지 검증을 먼저 처리한다.
+- 목표: 현재 개발 전용 quarantine의 컨테이너 식별은 실제 디코딩/메타데이터 제거 증거가 아니다. 승인된 PNG/JPEG/WebP 바이트만 픽셀 수·크기 제한 아래 디코딩하고 새 이미지로 재인코딩하는 시험과 모듈을 작성한다. 원본은 비공개 유지하며 이 단계만으로 관리자 승인/공개 API를 열지 않는다.
+- 예상 파일: `apps/api/src/catalog/image-sanitizer.ts`, 해당 단위시험, API dependency/lockfile, 본 현황. 새 DB schema·Secret·외부 계약·운영 데이터 변경 없음. 패키지 설치가 필요하면 기존 pnpm lock의 버전을 우선 사용한다. 실패 시 새 모듈을 호출하지 않으며 기존 quarantine 경계 유지.
+- 현재 증거: 공식 npm 메타데이터로 기존 lock의 sharp 0.35.4를 API 직접 의존성에 연결했다. 허용 형식 실제 decode→metadata 없는 WebP 재인코딩과 MIME 불일치·손상·SVG·가로 제한 시험 2건 RED(모듈 없음)→GREEN. 로컬 전체 109건 중 90 pass·0 fail·DB 전용 19 skip, PR 검사 8 pass, typecheck·lint 통과. 첫 제한된 Next build는 `.next/trace` EPERM 1회, 동일 D: 경로 권한으로 재실행해 API/웹 build 9경로 성공. 구현 반복 오류 0, 공급자/악성 코드 검사·스토리지 공개·관리자 승인 및 WSL native sharp 검증은 아직 남았다.
+- WSL 정확한 `6ba4d16f620bcdbb0d4b9b291ffb172b27520043`에서 Linux native sharp·격리 저장 목표 시험 5 pass·0 fail, 지정 `shoppingmall` DB 전체 API 51건 중 45 pass·0 fail·환경별 6 skip. QA 핵심 테이블 10종 각 0행·migration 5건·임시 컨테이너 0. pnpm 실행이 만든 정확한 미추적 `.pnpm-store` 1.1MB를 범위 확인 후 제거, WSL checkout clean.
+- 이어 비공개 스테이징 자체가 원본 PNG 대신 새 WebP를 저장하도록 강화했다. 저장 바이트·DB MIME/크기 일치 기대를 먼저 RED(원본 `.png`)로 확인한 뒤 GREEN 5건. 로컬 전체 109건 중 90 pass·0 fail·DB 전용 19 skip, PR 검사 8 pass, typecheck·lint·production build 재통과. 아직 이 두 번째 변경의 WSL DB/HTTP 통합시험은 미검증이며 관리자 승인·고객 공개도 열지 않았다.
+- 정확한 `d89f40316544c14e5cfdb3a296975fc4f3bb7a16`을 SSH push→WSL pull 후 새 재인코딩의 상품 이미지 DB/인증 HTTP 목표 시험 2 pass·0 fail, 전체 API 51건 중 45 pass·0 fail·환경별 6 skip. QA 핵심 테이블 10종 각 0행, migration 5건·임시 컨테이너 0·WSL checkout clean. 업로드된 원본은 더 이상 그대로 보관하지 않지만 이 결과는 바이러스 스캔·고객 공개 승인/스토리지 제공이나 사용자 인수를 의미하지 않는다. 다음은 승인 전후 공개 포인터와 공개 조회 경계를 별도 시험으로 구현한다.
+
+## 최신 상태 — 2026-09-27 S2.3 재고 역할별 브라우저 QA 완료
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@47d1c85190b81c6362a76e9131f9b0836a4407f7`. WSL 일회성 API/웹과 in-app browser에서 가상 운영자·판매자 A로 시험했다.
+- 운영자 대/소분류 등록 → 판매자 500g/23,000원 상품 초안 저장 → 보유 10개 직접 입력 시 판매 가능 0개·승인 대기 → 운영자에게 판매자 이름으로 구분된 요청 노출·승인 → 판매자 재로그인 후 판매 가능 10개 → 0개 직접 입력 시 즉시 판매 가능 0개를 실제 화면에서 확인했다. 초안 상태라 고객 상품 노출·구매 차단 E2E는 이 시험의 증거가 아니다.
+- QA 실행 `b47d1a20`의 정확한 상품·revision·옵션·재고/요청·대/소분류만 DB 트랜잭션으로 삭제, fixture 가상 계정 5개 reset, 브라우저 탭과 정확한 일회성 컨테이너 2개 종료. 최종 accounts/sellers/categories/products/revisions/options/inventory/requests/audit 9종 각 0행, migration 이력 5건, 9091·9092 listener/임시 컨테이너 0, WSL checkout clean 확인. 브라우저 시험·정리 오류 0.
+- 실제 모바일 viewport·200% 확대·키보드·인쇄, 상품 안전 공개, 마지막 수량 동시 구매는 아직 미검증·미구현이다. 다음은 S2.2 안전한 이미지 공개·상품 승인 경계 또는 S2.3 구매 가능 재고의 동시성 계약을 이어간다.
+
+## 최신 상태 — 2026-09-27 S2.3 역할별 재고 실제 브라우저 QA 자원 준비
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@47d1c85190b81c6362a76e9131f9b0836a4407f7` (SSH 원격/WSL 일치). 실제 브라우저 시험의 고객/판매자/관리자 URL은 WSL `http://172.27.253.53:9091`, API는 같은 호스트 9092. 시작 전 `ss`에서 9091·9092 LISTEN 0, `shoppingmall-s2-browser-*` 컨테이너 0 확인.
+- 계획된 QA 자원: 지정 `shoppingmall` DB에 실행 ID `b47d1a20`의 가상 계정 5개·판매자 3개만 fixture로 생성하고, 시험용 대/소분류·상품·옵션·재고 요청을 이 ID에 연결한다. API/웹 일회성 컨테이너 이름은 `shoppingmall-s2-browser-api-47d1`, `shoppingmall-s2-browser-web-47d1`; 가상 비밀번호만 사용하고 실제 개인정보·결제는 사용하지 않는다. UI 검증 종료·실패 시 정확한 상품 종속 자료→분류→fixture reset 순서로 삭제, 컨테이너 종료·포트/DB 잔류 0을 확인한다. WSL 소스는 Git pull 이외 직접 수정하지 않으며 임시 Next build 산출물은 무시 대상이다.
+- 검증 대상: 판매자 로그인/옵션 수량 직접 입력→0 즉시 반영→증가 승인 대기, 관리자 로그인/해당 판매자별 증가 요청 승인, 판매자 재조회. viewport·키보드·200% 확대는 가능한 실제 브라우저 상태에서 구분해 기록한다. 실제 결제·출고/인수는 이번 QA가 아니다.
+
+## 최신 상태 — 2026-09-27 S2.3 재고 목록·역할별 화면 WSL DB/build GREEN
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1c109c40efcdd0de452f473f1c29a2d04b3f5a28` (SSH 원격/WSL 일치). 판매자 소유 옵션/관리자 증가 요청 목록의 목표 WSL 실제 DB 시험 2 pass·0 fail. 전체 API 49개 중 43 pass·0 fail·환경별 6 skip, WSL Next.js production build 9경로 성공. 로컬 전체 test/typecheck/lint/build도 통과.
+- 지정 `shoppingmall` DB migration 이력 5건, 계정/역할/세션/신원/판매자/분류/상품/옵션/재고/요청/감사 13종 각 0행, `shoppingmall-s2-*` 임시 컨테이너 0, WSL checkout clean. 시험 실패 오류 0. 판매자/관리자 화면 SSR은 서버 역할 확인 전 자료 비노출과 직접 수량 입력·증가 승인 표시를 확인했지만 실제 브라우저 동작·모바일·200% 확대·키보드·인쇄는 미검증이다.
+- 변경 파일: 본 현황. S2.3의 실제 마지막 수량 동시 구매, 정책/배송, 관리자 요청 화면의 실제 브라우저, S2.2 안전 이미지 공개·상품 승인과 나머지 Stage가 남았다. 전체 구축/인수 준비 완료가 아니다. 다음은 브라우저 재고 흐름·반응형/접근성, 이후 이미지 승인과 주문 경합 구현을 계속한다.
+
+## 최신 상태 — 2026-09-27 S2.3 재고 목록 API·판매자/관리자 화면 WSL 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@54d1589acd48bb71d6d8b6a484daa860ec6203f1` (SSH 원격/WSL 일치). 판매자 소유 옵션 목록과 관리자 증가 요청 목록의 실제 DB 시험은 `inventory.listOwned is not a function` RED 1회, QA 잔류 0 확인. 이어 소유 판매자 범위/대기 요청만 조회하는 API를 구현했고 가짜 역할 헤더 목록 GET은 404 RED→401 GREEN.
+- 판매자 화면에 옵션별 보유/판매 가능 수량과 승인 대기 표시, 0 이상 정수 직접 입력·서버 재조회 추가. 관리자 요청 화면에는 판매자별 요청/현재 판매 가능 수량/승인 버튼을 추가했다. 목록 요청은 독립 호출을 병렬화했고 세션 역할 확인 전 비공개 자료를 표시하지 않는다. SSR 화면 시험 각 1건 RED→GREEN, 전체 로컬 test·typecheck·lint·API/Next production build 통과. 실제 목록 DB GREEN·브라우저 클릭/모바일·확대·키보드는 미검증.
+- 변경 파일: `apps/api/src/inventory/service.ts`, `catalog/controller.ts`, `apps/api/test/inventory-db.test.mjs`, `inventory-http.test.mjs`, `apps/web/app/account/seller/products/page.tsx`, `admin/proposals/page.tsx`, 두 화면 시험, 본 현황. 오류: 의도한 목록 서비스 부재 RED 1회·경로 부재 RED 1회·관리자 컴포넌트 부재 RED 1회; 구현 반복 오류 0. 다음은 안전한 commit/push→WSL 정확한 커밋 DB 목록/전체 회귀·QA 정리→실제 브라우저 검증이다.
+
+## 최신 상태 — 2026-09-27 S2.3 재고 인증 HTTP 실제 DB GREEN
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@81d9d8b95ab54900e97ccaf88ea4393d154881da` (SSH 원격/WSL 일치). 판매자/관리자 인증 HTTP 목표 시험 2 pass·0 fail: 신뢰하지 않은 Origin 403, 음수 400, 판매자 0 즉시 반영, 증가 대기, 판매자의 관리자 승인 거부 403, 관리자 승인 후 수량 7, 중복 409. 이전 정리 순서 오류는 수정됐고 이 실행의 QA 정리는 성공했다.
+- WSL 실제 `shoppingmall` DB 전체 API 49개 중 43 pass·0 fail·무DB 전용 6 skip. migration 이력 5건 보존, 계정/역할/세션/신원/판매자/분류/상품/옵션/재고/요청/감사 13종 0행, `shoppingmall-s2-*` 임시 컨테이너 0, WSL checkout clean. 로컬 전체 105개 중 86 pass·0 fail·DB-only 19 skip, PR 본문 8 pass, typecheck·lint·API/Next build 통과.
+- 변경 파일: 본 현황. 이번 목표/전체 재시험 오류 0. 판매자/관리자 재고 화면, 고객 구매의 재고 경합·예약, 안전 이미지 공개·상품 승인 및 이후 Stage는 미구현이다. S2.3 전체 완료가 아니다. 다음은 재고 화면/관리자 승인 목록 및 재고 경합 계약을 이어간다.
+
+## 최신 상태 — 2026-09-27 재고 인증 HTTP 시험 QA 정리 순서 보정
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1fa60b7d109b4936304b3b802a0ecb37625aaa71` (SSH 원격/WSL 일치). WSL 실제 DB 목표 시험은 `23503 account_roles_seller_id_sellers_id_fk`로 최종 `finally` 정리에서 실패 1회. 앞선 HTTP 본문 흐름도 PASS로 승격하지 않는다. 원인은 시험이 판매자를 지우기 전에 그 판매자에 묶인 `account_roles`·`auth_sessions`를 삭제하지 않은 순서다.
+- 남은 자료를 읽기 전용으로 계정 2·역할 4·세션 2·판매자 1·판매자 분류 1행 및 정확한 ID/QA 이름으로 식별. 해당 행만 단일 트랜잭션에서 세션 2→역할 4→신원 2→계정 2→판매자 1→분류 1 삭제, COMMIT. 최종 계정/역할/세션/신원/판매자/분류/카탈로그/재고/요청/감사 13종 0행, 시험 컨테이너 0. 시험 `finally`에서도 계정 세션·역할 정리를 판매자 삭제보다 앞으로 옮겼다.
+- 오류 누적: 이번 QA 정리 순서 1회, 동일 원인 반복 1회. 변경 파일: `apps/api/test/inventory-db.test.mjs`, 본 현황. 다음은 수정된 정확한 커밋을 push하여 WSL 실제 DB 목표 시험·전체 회귀를 다시 실행하고 잔류 0을 확인한다.
+
+## 최신 상태 — 2026-09-27 S2.3 재고 인증 HTTP WSL 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@a50c3256fa4ab957c1f59da74202d22050f0ae2a` (SSH 원격/WSL 일치). 직전 migration 0004는 WSL QA DB dry-run·정확한 QA DB 삭제 후 지정 `shoppingmall`에 적용했고, 정식 DB 전체 API 48개 중 43 pass·0 fail·환경별 5 skip, QA 테이블 12종·임시 컨테이너 잔류 0.
+- 판매자 `POST /catalog/seller/options/:optionId/stock`과 관리자 `POST /catalog/admin/stock-requests/:requestId/approve`를 세션 역할·Origin 확인 후 서비스에 연결했다. 가짜 역할 헤더의 미인증 404 RED→401 GREEN 로컬 HTTP 시험을 확인했다. 실제 DB HTTP 시험은 판매자/관리자 로그인, 다른 Origin, 음수, 0 즉시 반영, 7개 증가 승인, 판매자 승인 거부, 중복 승인 거부를 요구하도록 추가했으며 WSL 실제 실행 전이다.
+- 변경 파일: `apps/api/src/catalog/controller.ts`, `apps/api/test/inventory-http.test.mjs`, `inventory-db.test.mjs`, 본 현황. 오류: 의도한 경로 부재 RED 1회. 다음은 전체 로컬 gate·정확한 커밋 push→WSL 실제 인증 HTTP GREEN/전체 회귀·QA 정리 확인. UI/고객 구매 재고 경합은 아직 미구현이다.
+
+## 최신 상태 — 2026-09-27 S2.3 재고 migration·서비스 실제 WSL DB GREEN
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@a50c3256fa4ab957c1f59da74202d22050f0ae2a` (SSH 원격/WSL 일치). migration 0004는 기존 4건·옵션 0행·신규 테이블 부재를 확인한 후 적용했다. QA 전용 `shoppingmall_qa_mig_fc58`에서 5개 migration과 새 테이블 2개 생성 dry-run 성공; 정확한 QA DB를 삭제하고 부재 확인. 정식 개발 `shoppingmall`은 migration 이력 5건.
+- 서비스 실제 DB 시험: 타 판매자/관리자 재고 입력 거부, 음수 거부, 판매자 10개 증가 시 판매 가능 0 유지, 판매자 승인 거부·관리자 승인 후 10, 중복 승인 거부, 0 즉시 차단, 4개 재입고 승인 대기. targeted 2 pass; 전체 API 48개 중 43 pass·0 fail·환경별 5 skip. 최종 accounts/sellers/categories/products/revisions/options/inventory/requests/images/publications/audit 12종 모두 0행, `shoppingmall-s2-*` 임시 컨테이너 0, WSL checkout clean.
+- 변경 파일: 본 현황. 실제 DB 마이그레이션 오류 0; 처음 제한된 로컬 `drizzle-kit check`는 명령 접근 제한으로 실패 1회, 허용된 D: 작업 실행에서 재시도하여 통과. HTTP 권한·화면·판매자 재고 입력/관리자 승인 브라우저·마지막 수량 구매 경합은 미구현·미검증. S2.3 완료로 판정하지 않는다. 다음은 인증 HTTP API와 UI, 이후 고객 구매 전 재고 경합 계약을 진행한다.
+
+## 최신 상태 — 2026-09-27 S2.3 재고 migration·서비스 WSL 검증 준비
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@fc58e08c7ab57ed8e31125e28d0467658fc33daf` (SSH 원격·WSL 일치). 재고 규칙 WSL 단위시험 3 pass, 로컬 전체 102개 중 84 pass·0 fail·DB-only 18 skip, PR 검사 8 pass, typecheck·lint·build 통과.
+- 계획된 DB 자원: WSL-server `local-postgres` 안에 **새 QA 전용** `shoppingmall_qa_mig_fc58`를 migration dry-run용으로만 생성한다. 기존 동일 이름 부재와 정확한 대상을 확인한 후 생성, 0000~0004 migration 적용·테이블/제약 확인 후 동일 QA DB만 삭제하고 부재를 재조회한다. `shoppingmall` 정식 개발 DB에는 검증 후 0004만 순서대로 적용한다. 일회성 Node container는 `shoppingmall-s2-mig-fc58` 이름으로 실행 후 `--rm` 및 잔류 0을 확인한다.
+- 새 테이블 `inventory_levels`는 옵션별 실제 보유/판매 가능 수량을 분리하고, `stock_change_requests`는 증가 승인·중복 대기·결정 이력을 기록한다. 판매자 감소·0은 즉시 반영하고, 증가·재판매는 관리자 승인까지 sellable을 유지하는 DB 서비스와 정확한 QA fixture 시험을 작성했다. 현재 로컬 무DB 권한 시험 1 pass·DB-only 1 skip, typecheck·lint 통과. 정식 DB migration·DB GREEN·HTTP/화면·구매 경쟁은 아직 미검증/미구현.
+- 변경 파일: `apps/api/src/db/schema.ts`, `migrations/0004_s2_inventory.sql`, `migrations/meta/*`, `apps/api/src/inventory/service.ts`, `apps/api/test/inventory-db.test.mjs`, 본 현황. 오류: 계획상 테이블 부재 확인 1회, 서비스 권한 RED 1회. 다음은 schema diff·전체 로컬 gate→safe commit/push→QA DB migration dry-run·삭제→정식 개발 DB migration·실제 DB 서비스 시험·잔류 확인.
+
+## 최신 상태 — 2026-09-27 S2.3 재고 입력/승인 계산 규칙 시작
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. S2.3 계획의 재고 직접 입력과 증가 승인 경계를 데이터 적용 전에 순수 계산 규칙으로 고정했다. 현재 판매 가능 수량 이하의 입력은 즉시 축소/0 처리하고, 초과 입력은 실제 보유 수량만 변경한 채 판매 가능 수량을 유지한다. 관리자 승인 시에는 요청 수량과 승인 시점 실제 보유 수량 중 작은 값까지만 열어 초과 판매를 피한다.
+- 테스트 모듈 부재 RED 후 명시적 미구현 RED 3건→GREEN 3건. 로컬 전체 102건 중 84 pass·0 fail·DB-only 18 skip, PR 설명 8 pass, typecheck·lint·API/Next production build 통과. 변경 파일: `apps/api/src/inventory/stock-policy.ts`, `apps/api/test/stock-policy.test.mjs`, 본 현황. 초기 디렉터리 생성에 파일 도구 실패 1회 후 정확한 작업 경로만 생성했다.
+- 이 코드는 아직 DB 저장·권한·관리자 승인 API·구매 경합에 연결되지 않았다. 따라서 실제 품절 차단이나 S2.3 완료의 증거가 아니다. 다음은 계획된 재고 migration/서비스·인증 HTTP·WSL DB 경합 시험이다. 외부 공급자 연결은 계속 구축 후 처리한다.
+
+## 최신 상태 — 2026-09-27 S2.2 판매자 사진 메타데이터 조회 WSL GREEN
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@6f75994d76ab3536059db8230a72b5ac229f5c0f` (SSH 원격·WSL 일치). 판매자 본인만 사진 메타데이터를 조회하고 다른 판매자·고객은 거부하며 비공개 object key는 응답에서 제외하는 DB 시험 통과. 실제 WSL PostgreSQL 전체 API 43개 중 38 pass·0 fail·환경별 5 skip.
+- 로컬 전체 99개 중 81 pass·0 fail·DB-only 18 skip, PR 본문 시험 8 pass, typecheck·lint·API/Next production build 통과. WSL 시험 후 accounts/sellers/categories/products/revisions/options/images/publications/audit 10종 각 0행, 일회성 컨테이너 0, WSL checkout clean.
+- 변경 파일: 본 현황. 이번 실제 통합 시험 오류 0. S2.2의 완전한 이미지 디코딩/안전 공개 저장·관리자 승인/공개, S2.3 재고와 이후 Stage는 여전히 미구현이다. 다음은 승인된 계획의 이미지 안전 공개 경계 또는 독립적인 재고 계약을 계속 구현한다.
+
+## 최신 상태 — 2026-09-27 S2.2 판매자 소유 사진 메타데이터 조회 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 직전 비공개 이미지 컨테이너 보강 커밋 `4922db758dd93dc00b42fd5cdd8736007c5b18ad`는 SSH 별칭 원격·WSL checkout 일치. WSL 실제 `shoppingmall` DB API 43개 중 38 pass·0 fail·환경별 5 skip, 핵심 QA 테이블 10종 전부 0행, 임시 컨테이너 0, WSL checkout clean.
+- 다음 S2.2 범위로 판매자 본인 상품 revision의 사진 목적·형식·크기·표시 순서만 조회하고 원본 비공개 object key는 응답에서 제외한다. 다른 판매자/고객 거부를 DB 시험에 추가했고, 가짜 역할 헤더 GET은 404 RED→인증 필요 401 GREEN을 로컬 HTTP 시험으로 확인했다. 전체 typecheck·lint 통과; 실제 DB 목록 GREEN·전체 회귀·production build는 아직 미검증.
+- 변경 파일: `apps/api/src/catalog/product-drafts.ts`, `controller.ts`, `apps/api/test/product-image-db.test.mjs`, `product-image-http.test.mjs`, 본 현황. 오류: 의도한 경로 부재 RED 1회; 현재 구현 오류 0. 이 조회는 이미지 본문 공개나 검증된 썸네일 제공이 아니다. 다음은 전체 로컬 gate→commit/push→WSL 정확한 커밋 DB GREEN·QA 잔류 확인이다.
+
+## 최신 상태 — 2026-09-27 S2.2 비공개 이미지 컨테이너 검사 보강
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@ebb5b70504bc1ef5e6cfbe6d896b029ff85906d2`에서 계속. 기존 격리 worktree를 재사용하고 신규 브랜치·자동화는 만들지 않았다.
+- 업로드 단계의 파일 시그니처만으로 잘린 PNG·추가 바이트·손상 CRC·잘린 JPEG·RIFF 길이가 틀린 WebP가 수락되는 결함을 RED 시험으로 재현했다. PNG 청크 경계/CRC/IEND, JPEG 종료 마커, WebP RIFF 길이/형식의 기본 검사를 추가해 비공개 저장 전에 거부한다. 실제 기존 1×1 PNG 시험 자료의 잘못된 IDAT CRC도 보정했다. HTTP 잘못된 컨테이너는 400으로 매핑했다.
+- 로컬 `pnpm test` 99개 중 81 pass·0 fail·DB-only 18 skip, PR 본문 검사 8 pass, 전체 typecheck·lint 통과. 첫 build는 이 세션의 D: 쓰기 sandbox 권한 부족으로 TS5033 실패 1회; 같은 소스의 승인된 D: 작업 경로에서 권한을 높여 다시 실행한 build는 API·Next 9 정적 경로 모두 성공. 기능 결함 원인의 반복은 없다.
+- 변경 파일: `apps/api/src/catalog/image-quarantine.ts`, `controller.ts`, `apps/api/test/image-quarantine.test.mjs`, `product-image-db.test.mjs`, `product-image-http-db.test.mjs`, 본 현황. 이 검사는 완전한 디코딩·재인코딩이나 악성코드 검사/공개 저장을 대신하지 않는다. 고객 공개·관리자 승인은 계속 닫혀 있으며 S2.2 미완료다. 다음은 SSH 별칭 원격 push→WSL 정확한 커밋의 실제 DB 회귀·시험 잔류 확인, 이후 안전 공개 이미지 처리와 승인 흐름이다.
+
+## 최신 상태 — 2026-09-27 시간별 후속 자동 실행은 미설정
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@e9cd13ae0d93d45fdf19678080cb060028452172` (SSH 원격 최신). 전체 구축을 대화 간에 이어가기 위한 매시간 heartbeat 자동화 생성 1회는 사용자의 별도 일정·반복 실행 승인이 없다는 자동 검토에 의해 거부됐다. 자동화나 반복 실행은 생성되지 않았고 이를 우회하지 않는다.
+- 승인된 현재 작업의 커밋·검증·WSL QA 정리는 유지된다. 이 예외는 이후 세션 자동 재개만 제한하며 승인된 일반 구현 자체의 중단 사유가 아니다. 시간별 자율 재개를 원하는 경우 빈도와 반복 실행 범위에 대한 신산님의 명시적 승인이 필요하다. 다음 수동 재개는 본 파일의 최신 체크포인트와 PMO/프로젝트 지침을 확인한 뒤 같은 브랜치에서 이어간다.
+
+## 최신 상태 — 2026-09-27 운영자 인증 HTTP 반려 DB GREEN
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@844c6cd03207c5f68eeb048d0cc7c5a18cc4be64` (SSH 원격/WSL 일치). 실제 WSL PostgreSQL에서 운영자 로그인→승인 대기 조회→다른 Origin 403·빈 사유 400·정상 반려 201·중복 409·공개 0 시험 1 pass·0 fail. accounts/sellers/product_categories/products/revisions/audit 모두 0행.
+- 변경 파일: 본 현황. 이번 HTTP DB 시험 오류 0. 안전한 이미지 디코딩·재인코딩·공개 저장 및 승인 전 고객 공개 차단 구현, 재고·검색/홈·주문/결제·정산·앱 등 승인된 계획의 나머지 Stage를 이어서 수행해야 한다. 외부 공급자 계정은 사용자 지시대로 구축 뒤 일괄 확인하며 현재의 mock/개발 경계와 구분한다.
+
+## 최신 상태 — 2026-09-27 관리자 반려 실제 HTTP DB 계약 확장 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@11cf242b5be9af951cc58a44dbb407a57cfe3edd` (SSH 원격 최신). 앞선 WSL 실제 DB 전체 API 42건 중 37 pass·0 fail·무DB 전용 5 skip, Next production build 9경로, QA 잔류 0.
+- 반려 서비스 DB 시험을 인증된 관리자 HTTP까지 확장: 실제 로그인 세션으로 pending 조회, 신뢰하지 않은 Origin 403, 빈 사유 400, 정상 반려 201, 중복 409, 고객 공개 0을 요구한다. 로컬 workspace typecheck·lint·diff check 통과. 실제 WSL DB 실행은 아직 미검증.
+- 변경 파일: `apps/api/test/product-review-db.test.mjs`, 본 현황. 이번 변경 오류 0. 다음은 SSH push→WSL DB HTTP GREEN·정확한 QA 정리. 이미지 안전화/승인 버튼은 여전히 열지 않는다.
+
+## 최신 상태 — 2026-09-27 운영자 상품 검토 WSL build·DB 회귀 통과
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@c7628ff3cb231373c67f417085df7925dc781c0c` (SSH 원격/WSL 일치). Next.js production build는 `/account/admin/proposals`를 포함한 정적 경로 9개 생성·TypeScript 통과. 전체 API 실제 WSL PostgreSQL 회귀 42건 중 37 pass·0 fail·무DB 전용 5 skip.
+- 대기 목록/사유 반려 서비스 실제 DB 계약 및 가짜 관리자 헤더 무DB 401 경계, 운영자 화면 세션 전 비노출 SSR 통과. 최종 accounts/sellers/seller_categories/product_categories/products/revisions/options/images/publications/audit 모두 0행, 시험 컨테이너 0, WSL checkout clean.
+- 변경 파일: 본 현황. 이번 build/회귀 오류 0. 관리자 HTTP의 인증된 실제 DB·브라우저 반려/반응형·접근성은 아직 미검증. 운영 승인/안전 이미지 공개·재고·검색/홈·장바구니/주문/결제/환불·정산·Android 앱은 미구현. 외부 서비스 계정은 사용자 지시대로 구축 뒤 일괄 준비하되 미연동 결과를 PASS로 대체하지 않는다.
+
+## 최신 상태 — 2026-09-27 운영자 상품 반려 API·화면 WSL 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@90f75881a83c61f56eac2cdd582cb811ffcc9e85` (SSH 원격/WSL 일치). 운영자 전용 대기 목록과 사유 반려 서비스 WSL 실제 DB 1 pass·0 fail; 시험 QA 핵심 행 0. 반려는 별도 요청자/결정자·사유/시각·감사 기록을 남기고 고객 공개 0을 유지한다.
+- `GET /catalog/admin/proposals`, `POST /catalog/admin/proposals/:id/reject`와 운영자 `/account/admin/proposals`를 연결했다. 가짜 `x-role: admin` 접근은 무DB HTTP 404 RED→401 GREEN; 화면은 세션 확인 전 목록 비노출 및 사유 필수/안전하지 않은 승인 버튼 없음 SSR RED→2 pass. 전체 workspace typecheck·lint·diff check 통과.
+- 변경 파일: `apps/api/src/catalog/controller.ts`, `apps/api/test/catalog-http.test.mjs`, `apps/web/app/account/admin/proposals/page.tsx`, `apps/web/app/account/page.tsx`, `apps/web/test/admin-proposals.test.mjs`, 본 현황. 오류 누적: 의도한 API 경로 부재 RED 1회·화면 파일 부재 RED 1회, 새 화면 디렉터리 부재로 첫 apply_patch 실패 1회 후 정확한 경로 생성. WSL HTTP 실제 DB/Next production build·브라우저는 미검증. 상품 승인/공개는 이미지 안전화 이후 구현.
+
+## 최신 상태 — 2026-09-27 운영자 상품 반려 서비스 실제 DB 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@b9910451de4fabd385977540395a49704205ba1b` (SSH 원격 최신). 승인 대기 목록과 운영자 사유 반려를 우선 구현한다. 반려는 `pending` revision만 행 잠금 아래 `rejected`로 바꾸고 결정자·시각·사유·감사 이력을 남기며 기존 공개 포인터는 건드리지 않는다. 이미지 악성 검사/안전한 공개 저장이 아직 없으므로 승인·공개는 구현하지 않았다.
+- DB 시험은 판매자 목록·반려 거부, 빈 사유 거부, 운영자 반려 1회·중복 반려 거부, 공개 0, 별도 요청자/결정자 이력을 요구한다. 서비스 파일 부재 로컬 RED 1회→구현 후 로컬 typecheck·lint 통과. 무DB에서 이 시험은 skip이므로 실제 DB GREEN은 미검증.
+- 변경 파일: `apps/api/src/catalog/product-reviews.ts`, `apps/api/test/product-review-db.test.mjs`, 본 현황. 오류 누적: 의도한 서비스 파일 부재 RED 1회. 다음은 SSH push→WSL 실제 DB GREEN·정확한 QA 정리 확인. 관리자 UI/HTTP·안전 이미지 승인 단계와 고객 공개는 아직 미구현.
+
+## 최신 상태 — 2026-09-27 판매자 화면 실제 브라우저 QA·정리
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@af8974389765c50391d283a80fd153e450d76ac0` (SSH 원격/WSL 일치). WSL 테스트용 API·웹 컨테이너와 실행 ID `a1b2c3d4`의 가상 계정 5개로 실제 in-app browser에서 판매자 로그인→상품 화면→대/소분류 선택→`시험 고추`·옵션 500g/23,000원 초안 저장을 확인했다. 저장 직후 대표 사진 선택·업로드·승인 요청 제어가 나타나고, 사진 없는 승인 요청은 오류 안내를 보여주며 DB revision은 `draft`, publication은 0이었다.
+- UI 파일 선택 후 실제 업로드/로컬 미리보기, 모바일·200% 확대·키보드 및 관리자 심사·공개는 미검증/미구현. API 서비스/HTTP 업로드 실제 DB 시험과 판매자 제출 서비스는 앞서 통과했으나 이를 브라우저 성공으로 대체하지 않는다.
+- 정확한 QA 상품·revision·옵션·대/소분류 ID를 조회한 뒤 옵션 1·revision 1·상품 1·분류 2행만 삭제; `qa-fixture.ts reset`은 해당 run의 계정 5개만 정리. QA 브라우저 탭과 임시 컨테이너 2개 종료. 최종 accounts/sellers/seller_categories/product_categories/products/revisions/options/images/audit 모두 0행, 시험 컨테이너 0, WSL checkout clean. 이번 브라우저/정리 오류 0.
+- 변경 파일: 본 현황. 다음은 관리자 승인·반려와 안전한 이미지 공개 경계 및 이후 S2 재고/상품 탐색. 고객 공개 상품·주문/결제/정산·Android 앱은 아직 미구현이므로 전체 구축/인수 준비 완료가 아니다.
+
+## 최신 상태 — 2026-09-27 판매자 제품 화면 WSL production build 통과
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@652266ea8e443f7b263ba9ff7a1550f69eb9697a` (SSH 원격/WSL 일치). WSL Next.js production build에서 8개 정적 경로와 `/account/seller/products` 생성, 컴파일·TypeScript 통과. 직전 WSL API 실제 DB 전체 41건 중 36 pass·0 fail·무DB 전용 5 skip, QA 핵심 행 0.
+- 사진 선택/기기 내 미리보기·개발 전용 비공개 업로드·승인 요청의 SSR 3 pass, 루트 typecheck/lint 통과. 실제 브라우저 파일 선택·업로드·상태 새로고침, 모바일·200% 확대·키보드 접근 및 관리자 승인/공개는 아직 미검증/미구현. 개발 전용 업로드 환경변수가 없으면 UI는 실패 안내를 표시한다.
+- 변경 파일: 본 현황. 이번 WSL 빌드 오류 0. 다음은 브라우저 QA 및 관리자 심사·승인 안전 경계 구현; 외부 저장소/악성 파일 검사/운영 이미지 공개는 미구현이다.
+
+## 최신 상태 — 2026-09-27 판매자 사진·승인 요청 웹 연결 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@6391b103e33b3a95e32f7a3a236f71161e541707` (SSH 원격/WSL 일치). 제출 서비스 실제 DB 시험 2 pass·0 fail 및 전체 DB 회귀 41건 중 36 pass·0 fail·무DB 전용 5 skip. 최종 accounts/sellers/categories/products/revisions/options/images/publications/audit 전부 0행, 시험 컨테이너 0.
+- 판매자 상품 초안 목록에서 대표 사진 선택과 기기 내 미리보기, 개발용 비공개 업로드, 관리자 승인 요청을 구분했다. `pending`은 고객 공개가 아니며 실제 관리자 심사·안전 이미지 공개는 다음 구현 범위. SSR 화면 시험은 의도한 제어 부재 RED 1회→3 pass, 전체 workspace typecheck·lint·diff check 통과.
+- 변경 파일: `apps/web/app/account/seller/products/page.tsx`, `apps/web/app/styles.css`, `apps/web/test/seller-products.test.mjs`, 본 현황. WSL production build·실제 브라우저 사진 선택/업로드/제출은 아직 미검증. 다음은 SSH push→WSL exact commit build·브라우저 QA·잔류 정리. 개발용 업로드는 토글/루프백/전용 폴더 설정이 없으면 실패하도록 닫혀 있다.
+
+## 최신 상태 — 2026-09-27 S2.2 판매자 제출 경계 DB GREEN 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@e1e52d9721372b520baca4c171618703e07605c2` (SSH 원격/WSL 일치). 앞선 사진 HTTP 전체 실제 DB 회귀 41건 중 36 pass·0 fail·무DB 전용 5 skip, QA 핵심 행 0 및 시험 컨테이너 0.
+- 다음 계약은 소유 판매자만 자기 `draft` revision을 `pending`으로 제출하고, 대표 사진·옵션을 요구하며 감사 이력을 남기고 공개 포인터는 변경하지 않는 것이다. WSL DB에서 `drafts.submit is not a function` RED 1회 및 시험 QA 행 0 확인. `ProductDrafts.submit`과 HTTP POST 제출 경로를 구현했고 로컬 전체 workspace typecheck·lint·무DB 이미지 HTTP 시험 통과; 실제 DB GREEN은 아직 미검증.
+- 변경 파일: `apps/api/src/catalog/product-drafts.ts`, `apps/api/src/catalog/controller.ts`, `apps/api/test/product-image-db.test.mjs`, `apps/api/test/product-drafts-db.test.mjs`, 본 현황. 오류 누적: 의도한 제출 기능 부재 RED 1회. 다음은 SSH push→WSL DB 제출 전후·전체 회귀·QA 정리. 관리자 승인, 이미지 안전화/공개 저장, 고객 공개는 미구현이며 `pending`만으로 노출하지 않는다.
+
+## 최신 상태 — 2026-09-27 사진 HTTP DB 시험 정리 오류 수정
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@ceac18495518b671aeab1fb5f21fa57873dd04d1` (SSH 원격/WSL 일치). 실제 DB HTTP 시험 1회는 테스트 `finally`가 판매자 B를 삭제하기 전에 해당 판매자에 매인 인증 세션을 지우지 않아 FK `23503` 실패. 본문 검증은 최종 PASS로 간주하지 않는다.
+- 읽기 전용으로 이 시험의 QA 계정 1·판매자 2·분류 1·세션 2·역할 2 및 실제 ID를 확인했다. 그 ID만 단일 트랜잭션에서 세션 2→역할 2→신원 1→계정 1→판매자 2→분류 1 삭제, COMMIT. 고객·운영 데이터는 건드리지 않았다. 시험 `finally` 정리 순서를 세션·역할 우선으로 수정했다.
+- 변경 파일: `apps/api/test/product-image-http-db.test.mjs`, 본 현황. 오류 누적: 이 DB 시험 정리 FK 1회, 읽기 전용 SQL 인용 오류 1회(조회만 실패). 다음은 수정 커밋 push→WSL DB 본문 GREEN/잔류 0을 확인; 실패가 가려졌을 수 있어 본문 판정은 보류.
+
+## 최신 상태 — 2026-09-27 개발 전용 사진 HTTP 업로드 실제 DB 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes` (직전 SSH/WSL 공통 체크포인트 `d41f0a8625268312c9b6a4b3943e140f74118432`). 사진 API는 개발용 토글·로컬 바인딩·전용 저장 경로에 한정하며 판매자 세션/Origin 확인 후 5MiB 이하 PNG/JPEG/WebP 원본만 비공개 격리한다. 실제 공급자 스토리지·바이러스 검사·고객 공개는 구현하지 않았다.
+- 무DB HTTP 시험은 기본 404/가짜 판매자 헤더 401 통과. 소유 판매자 정상 등록, 잘못된 Origin/MIME, 다른 판매자 거부, 공개 0을 검증할 실제 DB HTTP 시험을 추가했다. 로컬 API typecheck, 루트 94건 중 77 pass·0 fail·DB 전용 17 skip, PR 본문 8 pass, lint 및 diff check 통과. `apps/api`에는 `test` script가 없는데 잘못 호출한 오류 1회는 루트 `pnpm test`로 교정했다.
+- 변경 파일: `apps/api/src/catalog/controller.ts`, `apps/api/test/product-image-http*.test.mjs`, 본 현황. 다음은 SSH checkpoint→정확한 WSL 커밋에서 DB HTTP GREEN·전체 회귀·QA 파일/행·컨테이너 정리 확인. 이 단계는 S2.2/전체 구축 완료가 아니다.
+
+## 최신 상태 — 2026-09-27 판매자 초안 사진 격리 저장 DB GREEN 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1087d9a0cbb142a17b0e9c66848b0b85118feea5` (SSH 원격/WSL 일치). WSL 실제 DB `product-image-db.test.mjs`는 `drafts.addImage is not a function`으로 의도한 RED 1회, 실패 시험 후 accounts/sellers/products/product_images/audit_events 및 컨테이너 0.
+- `ProductDrafts.addImage`는 검증된 판매자 scope와 자기 draft revision만 허용하고 revision 행 잠금 아래 10장 상한·비공개 임시 파일·메타데이터/감사 기록을 처리한다. DB 실패 시 rollback과 해당 임시 파일 제거를 시도하고 제거 실패는 함께 드러낸다. 로컬 API typecheck와 격리 저장 unit 2통과; 실제 DB GREEN 및 전체 회귀는 아직 미검증.
+- 변경 파일: `apps/api/src/catalog/product-drafts.ts`, 본 현황. 오류 누적: 의도한 메서드 부재 RED 1회. 다음은 SSH checkpoint→WSL DB GREEN·파일/QA 행 정리. 이 로컬 격리 저장은 이미지 내용 디코딩·AV 스캔·S3 전송/공개를 제공하지 않으며 운영 승인/고객 공개에 사용하지 않는다.
+
+## 최신 상태 — 2026-09-27 비공개 이미지 격리 저장 계약 RED 준비
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@8c94393702339791c135c6e130795dbce7fd0933` (SSH 원격, WSL은 앞선 코드 체크포인트라 다음 pull 필요). 비공개 개발용 `ImageQuarantine`는 전용 절대 경로만 허용하고 5MiB 제한·PNG/JPEG/WebP 서명과 선언 MIME 비교·서버 생성 UUID 키·비공개 0600 파일·경로 순회 차단을 적용한다. 이 단계는 바이트를 디코딩/재인코딩하거나 악성 파일을 검사하지 않으므로 고객 공개 또는 운영 이미지 보안 PASS가 아니다.
+- 로컬 이미지 보관/불일치·초과·경로 차단 2통과, API typecheck 통과. `ProductDrafts.addImage`의 판매자 소유·draft revision·메타데이터/파일 원자성에 대한 실제 DB 시험을 작성했으나 메서드는 아직 없고 무DB 로컬 시험은 skip. 의도한 파일 부재 RED 1회→저장기 unit GREEN; DB 기능 RED는 WSL exact commit에서 확인할 예정.
+- 변경 파일: `apps/api/src/catalog/image-quarantine.ts`, `apps/api/test/image-quarantine.test.mjs`, `apps/api/test/product-image-db.test.mjs`, 본 현황. 다음은 push/WSL DB RED→판매자 범위 이미지 등록 구현→DB GREEN·임시 파일/QA 행 정리. S3 호환 저장·실제 AV/업로드 화면·관리자 미리보기는 후속 미구현.
+
+## 최신 상태 — 2026-09-27 PR 본문 최신 범위 불일치 정정
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@666b7107402cd8f1876a44683f1f8e055f2362fc` (SSH 원격 HEAD; WSL checkout은 직전 코드 `cfeb8ad`로 문서 checkpoint만 아직 pull 전). `.github/PR_REQUEST.md`가 초기 S1.1 상태라 “DB schema 변경 없음/WSL 미검증”이라고 잘못 적혀 있었다. 실제 DB migration 0000~0003, S1 계정·권한, S2 분류/판매자 상품 초안, WSL/브라우저 검증과 미구현 범위를 목적·변경·영향·검증·미검증·롤백 항목에서 바로잡았다.
+- 문서 전체 삭제 후 재작성 시도는 파일 보존 위험으로 도구 승인에서 1회 거부됐고 실제 삭제는 발생하지 않았다. 기존 파일을 유지한 문단별 in-place 수정으로 완료; 로컬 `pr-broker-body.mjs` 검증 통과, `git diff --check` 통과. 이 정정은 PR/병합을 시작하지 않으며 `main` 구버전 Broker와 GitHub 계정 사용 금지 경계는 그대로다.
+- 변경 파일: `.github/PR_REQUEST.md`, 본 현황. 오류/예외 누적: 문서 삭제 시도 정책 거부 1회, 안전한 대체 방법 완료. 다음은 이미지 저장/검사와 승인 흐름 구현에 필요한 내부 계약 작업; 외부 서비스 계정은 구축 후 일괄 확인.
+
+## 최신 상태 — 2026-09-27 상품 초안 실제 브라우저·회귀·정리
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@cfeb8add58c6c96809a22c57332d1801c3548413` (SSH 원격/WSL 일치). WSL Next production build에 `/account/seller/products` 포함 8개 정적 경로 생성. 전체 API 실제 DB 36개 중 32 pass·0 fail·무DB 전용 4 skip. 회귀 뒤 QA 핵심 행 0.
+- 실제 브라우저 QA 실행 `7ab42026`: 운영자 로그인→가상 채소/고추 대·소분류 등록→로그아웃→판매자 A 로그인→고추 상품명·설명·산지·직접 발송·옵션 500g 23,000원/1kg 42,000원 초안 저장→새로고침 뒤 자기 목록에 초안 유지. DB에서 해당 revision 상태 `draft`, 옵션 2건, 공개 0건 확인. 고객/판매자 B 실제 브라우저 화면 접근과 모바일/200%/키보드, 사진·승인/공개는 여전히 미검증.
+- 정확한 가상 상품 ID로 옵션 `DELETE 2`, revision·상품·소분류·대분류 각 `DELETE 1`; 시험 API·웹 컨테이너 2개 종료, 실행 ID fixture 5계정 reset. 최종 migration 4건 보존, accounts/sellers/seller_categories/product_categories/products/product_revisions/product_options/product_publications/audit_events 전부 0행, 시험 컨테이너 0, WSL checkout clean. 실제 운영 자료는 변경하지 않았다.
+- 변경 파일: 본 현황만. 브라우저·빌드·회귀 이번 묶음 오류 0. 다음은 상품 다중 사진의 검증된 저장/비공개 미리보기, 제안 제출·관리자 승인, 공개 버전 불변과 재고 정책. 외부 스토리지·PG/알림 공급자 계약은 사용자의 구축 후 일괄 준비 원칙에 따라 mock/교체형 경계를 유지한다.
+
+## 최신 상태 — 2026-09-27 판매자 상품 초안 웹 연결 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@61877f682b025fb32e1a2d78b1f42868af5a94c3` (SSH 원격/WSL 일치). WSL 실제 DB 상품 초안 HTTP 시험 1통과·0실패: 고객 등록 거부·Origin 거부·대분류 직접 지정 거부·판매자 A/B 목록 분리·초안 미공개. accounts/sellers/seller_categories/product_categories/products/product_revisions/product_options/audit_events 모두 0행, 시험 컨테이너 0.
+- 웹 `/account/seller/products`를 계정 판매자 링크에 연결했다. 판매자는 소분류, 이름·설명·산지, 상품별 단일 발송 방식, 최대 20개 옵션 이름/원화 가격을 입력하며 저장된 자기 초안만 본다. 화면은 사진/승인 전이므로 미공개를 명시. SSR 시험은 파일 부재 RED→2통과; 로컬 전체 89개 중 74 pass·0 fail·DB-only 15 skip, PR 설명 8 pass, 전 workspace typecheck·root lint 통과.
+- 변경 파일: `apps/web/app/account/seller/products/page.tsx`, `apps/web/app/account/page.tsx`, `apps/web/app/styles.css`, `apps/web/test/seller-products.test.mjs`, 본 현황. 오류 누적: 의도한 화면 파일 부재 RED 1회. WSL exact commit production build·실제 브라우저 입력과 모바일/확대/키보드는 미검증; 사진 업로드·승인·재고·고객 공개도 미구현. 다음은 push→WSL 빌드/브라우저 QA→안전한 정리.
+
+## 최신 상태 — 2026-09-27 판매자 상품 초안 HTTP 경계 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@8702db31a6ab3465e4e04470dc107ceca7ca21c5` (SSH 원격/WSL 일치). 보정한 판매자 상품 초안 DB 시험 1통과·0실패, accounts/sellers/seller_categories/product_categories/products/product_revisions/audit_events `0|0|0|0|0|0|0` 및 시험 컨테이너 0.
+- `GET/POST /catalog/seller/products`는 검증된 세션의 판매자 ID로만 조회/생성하며, 요청 헤더의 역할을 신뢰하지 않는다. POST는 신뢰한 Origin·초안 입력 검증을 요구한다. 무DB HTTP 시험은 경로 404 RED→무세션 401 GREEN 1통과. 실제 DB HTTP 시험은 고객 역할 거부, 판매자 A/B 목록 분리, 대분류 직접 지정 거부, 초안 미공개와 정확한 QA 정리를 검증하도록 작성했으나 아직 실행 전.
+- 로컬 전체 87개 중 72 pass·0 fail·DB 전용 15 skip, PR 설명 8 pass, 전 workspace typecheck·root lint 통과. 변경 파일: `apps/api/src/catalog/controller.ts`, `product-drafts.ts`, `apps/api/test/product-http*.test.mjs`, 본 현황. 오류 누적: 의도한 경로 미존재 RED 1회. 다음은 SSH push→WSL DB HTTP·전체 회귀·QA 잔류 확인. 이미지 업로드/승인·화면은 미구현.
+
+## 최신 상태 — 2026-09-27 상품 초안 시험 정리 순서 보정
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@534c7ec18c5e991109cf6fa8b81183b824bc859a` (SSH 원격/WSL 일치). WSL 상품 초안 DB 시험은 검증 중 마지막 QA 정리에서 감사 이력이 판매자를 참조하는 FK `23503`으로 실패했다. 기능 검증 결과를 PASS로 취급하지 않는다. 시험 코드에서 감사 이력 삭제를 판매자 삭제보다 앞으로 옮겼다.
+- 잔류를 읽기 전용으로 계정 1·판매자 1·판매자 분류 1·감사 1행으로 식별. 수동 정리 첫 시도는 `account_identities.id`를 account_id로 착각해 `DELETE 0`·FK 거부 후 트랜잭션 롤백. 실제 `account_identities.account_id`와 감사 actor FK를 재조회하고 정확한 6개 종속 행을 단일 트랜잭션에서 각 `DELETE 1`로 정리했다. 최종 accounts/sellers/seller_categories/product_categories/products/audit_events `0|0|0|0|0|0`, 시험 컨테이너 0. 고객·운영 데이터 삭제 없음.
+- 오류 횟수: 시험 정리 순서 1회, 수동 정리 ID 오인 1회. 원인별 후속 조치 완료; 동일 근본 원인 3회 연속 아님. 변경 파일: `apps/api/test/product-drafts-db.test.mjs`, 본 현황. 다음은 수정 시험을 정확한 WSL 커밋에서 재실행하여 GREEN/잔류 0을 확인.
+
+## 최신 상태 — 2026-09-27 S2.2 판매자 전용 상품 초안 서비스 DB 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@0209285334fb36acbf81f5752b2b0b3eb8ca18bc` (SSH 원격, WSL은 앞선 `011707c`이므로 다음 pull 필요). `ProductDrafts`에 인증 세션에서 받은 판매자 범위만으로 초안을 만들고 해당 판매자의 초안만 조회하는 DB 트랜잭션을 추가했다. 소분류만 지정, 상품별 출고 방식 단일값, 제목·산지·옵션/가격 검증, 감사 이력; 초안은 `product_publications`를 건드리지 않는다.
+- DB 시험은 고객 생성 거부, 대분류 직접 연결 거부, 옵션 없음/음수 가격 거부, 소속 판매자 A만 조회, B 조회 0, 미공개, 감사 기록 및 정확한 QA 행 정리를 요구한다. 서비스 파일 부재 로컬 RED 1회 확인 후 구현, API typecheck 통과. 실제 WSL DB 시험은 아직 미실행, 무DB 로컬 시험은 skip이므로 GREEN 아님. `pnpm lint`를 API 서브패키지에서 호출한 오류 1회는 스크립트가 루트에만 정의된 명령 위치 문제이며 루트 lint를 다음에 실행한다.
+- 변경 파일: `apps/api/src/catalog/product-drafts.ts`, `apps/api/test/product-drafts-db.test.mjs`, 본 현황. 다음은 SSH push/WSL pull→DB GREEN·루트 lint·전체 회귀. 이미지 업로드, 초안 제출/승인, 판매자 화면·고객 공개는 여전히 미구현.
+
+## 최신 상태 — 2026-09-27 S2.2 상품 DB GREEN·회귀
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@011707c8689d1c41303d300224c65d2188355417` (SSH 원격/WSL 일치). WSL 지정 `shoppingmall`에 0003 migration 적용 성공, 상품 revision DB 시험 1통과·0실패. 전체 API 실제 DB 33개 중 30 pass·0 fail·무DB 전용 3 skip. 최종 migration 이력 4건, accounts/sellers/product_categories/seller_categories/products/product_revisions/product_publications/audit_events 모두 0행, 시험 컨테이너 0, WSL checkout clean.
+- 검증 범위: revision/옵션/이미지 메타데이터와 미공개 분리, 다른 상품 revision을 가리키는 공개 포인터의 DB 차단, 음수 가격·빈 제목 차단. 이미지 실제 업로드·악성 파일/형식 검사, 판매자 제안·관리자 승인·공개 조회 API/화면 및 고객 구매 가능 여부는 미구현·미검증. migration 성공만으로 S2.2 또는 전체 구축 완료를 선언하지 않는다.
+- 이번 변경 파일: 본 현황만. 오류 누적: 의도한 42P01 RED 1회, 0003 인덱스 순서 오류 1회(수정 후 적용·GREEN). 다음은 소유 판매자 범위를 확인하는 상품 제안 서비스/HTTP, 승인 전 공개 불변 시험. 외부 이미지 저장소 연결은 구축 후 일괄 준비 원칙을 유지한다.
+
+## 최신 상태 — 2026-09-27 S2.2 migration 생성 순서 오류 수정
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@b64a2ad12977fae463b4eea427dc6dc98cbe754b` (SSH 원격/WSL 일치). 적용 전 DB QA 핵심 행 0. Drizzle ORM migrator가 0003 복합 FK를 참조 고유 인덱스보다 먼저 실행해 PostgreSQL `42830`으로 실패했다. 읽기 전용 확인: 적용 migration 이력은 3건 그대로이고 `public.products`/`product_revisions` 모두 없음. 따라서 실패가 DB에 부분 지속 변경을 남기지 않았다.
+- 미적용 `apps/api/migrations/0003_s2_product_revisions.sql`에서 해당 고유 인덱스 생성만 복합 FK 앞쪽으로 옮겼다. schema/snapshot 의미 변경 없음. 오류 누적: 의도한 42P01 RED 1회, migration 순서 오류 1회. 다음은 같은 0003 재적용→실제 DB 상품 시험 GREEN→전체 회귀 및 QA 잔류 확인. 통과 전 상품 schema 완료로 표시하지 않는다.
+
+## 최신 상태 — 2026-09-27 S2.2 상품 revision migration 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@f41292169e2a42dd0215a1643e965a241441cb3d` (SSH 원격/WSL 일치). 실제 WSL DB 신규 시험 1 fail·0 pass: `42P01 relation "products" does not exist`, 의도한 migration 전 RED. 생성·정리한 가상 계정/분류/판매자 잔류 확인은 migration 이후 전체 점검에서 수행한다.
+- Drizzle migration `0003_s2_product_revisions`를 생성하고, 공개 포인터가 다른 상품의 revision을 가리키지 못하도록 `(product_id, revision_id)` 복합 FK와 해당 unique index를 schema·시험에 보강했다. 기존 0000~0002는 변경하지 않는다. 로컬 API typecheck 통과. 이 migration은 아직 WSL DB 미적용/시험 GREEN 전이다.
+- 변경 파일: `apps/api/src/db/schema.ts`, `apps/api/test/product-schema-db.test.mjs`, `apps/api/migrations/0003_s2_product_revisions.sql`, snapshot/journal, 본 현황. 오류 누적: 의도한 42P01 RED 1회. 추가 생성물 재생성은 미적용 0003만 대상으로 했고 지속 DB에는 영향 없음. 다음은 migration checkpoint→WSL 적용·GREEN/복합 FK·QA 잔류 점검.
+
 ## 최신 상태 — 2026-09-27 S2.2 상품 revision DB 계약 RED 준비
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`. 상품 소유 판매자·소분류와 제안 revision을 분리하고 옵션·이미지 메타데이터 및 명시적 공개 포인터를 추가하는 schema 초안. 고객 공개 자료는 제안과 별도 `product_publications`를 통해서만 선택하도록 설계한다. 배송 방식은 상품별 `seller_direct` 또는 `owool_fulfillment` 단일 값, 산지 문자열에는 지역 제한 없음.

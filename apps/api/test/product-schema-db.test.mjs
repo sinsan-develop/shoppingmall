@@ -15,6 +15,7 @@ test('product revisions keep options and image metadata apart from public public
   let majorId;
   let minorId;
   let productId;
+  let otherProductId;
   let revisionId;
   try {
     accountId = await new AuthRepository(pool).createCustomerAccount(`qa+${randomUUID()}@example.invalid`, 'test-only-password-12345');
@@ -26,6 +27,8 @@ test('product revisions keep options and image metadata apart from public public
       [majorId, `qa-${suffix}-berry`])).rows[0].id;
     productId = (await pool.query('INSERT INTO products (seller_id,category_id) VALUES ($1,$2) RETURNING id',
       [sellerId, minorId])).rows[0].id;
+    otherProductId = (await pool.query('INSERT INTO products (seller_id,category_id) VALUES ($1,$2) RETURNING id',
+      [sellerId, minorId])).rows[0].id;
     revisionId = (await pool.query(
       `INSERT INTO product_revisions (product_id,version,title,description,origin_label,shipping_mode,proposed_by_account_id)
        VALUES ($1,1,$2,$3,$4,'seller_direct',$5) RETURNING id`,
@@ -35,6 +38,8 @@ test('product revisions keep options and image metadata apart from public public
     await pool.query(`INSERT INTO product_images (revision_id,object_key,purpose,mime_type,size_bytes)
       VALUES ($1,$2,'thumbnail','image/webp',1024)`, [revisionId, `qa/${suffix}/thumbnail.webp`]);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
+    await assert.rejects(pool.query(`INSERT INTO product_publications (product_id,revision_id,published_by_account_id)
+      VALUES ($1,$2,$3)`, [otherProductId, revisionId, accountId]), { code: '23503' });
     await assert.rejects(pool.query('INSERT INTO product_options (revision_id,name,price_won) VALUES ($1,$2,$3)',
       [revisionId, 'invalid', -1]), { code: '23514' });
     await assert.rejects(pool.query(`INSERT INTO product_revisions
@@ -47,6 +52,7 @@ test('product revisions keep options and image metadata apart from public public
       await pool.query('DELETE FROM product_revisions WHERE id=$1', [revisionId]);
     }
     if (productId) await pool.query('DELETE FROM products WHERE id=$1', [productId]);
+    if (otherProductId) await pool.query('DELETE FROM products WHERE id=$1', [otherProductId]);
     if (minorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [minorId]);
     if (majorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [majorId]);
     if (sellerId) await pool.query('DELETE FROM sellers WHERE id=$1', [sellerId]);

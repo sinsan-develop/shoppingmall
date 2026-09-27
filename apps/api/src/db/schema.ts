@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { boolean, check, foreignKey, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 export const identityKind = pgEnum('identity_kind', ['email', 'phone', 'kakao', 'apple']);
 export const activeRole = pgEnum('active_role', ['customer', 'seller', 'admin']);
@@ -65,6 +65,7 @@ export const productRevisions = pgTable('product_revisions', {
   reviewReason: text('review_reason'),
 }, (table) => [
   uniqueIndex('product_revisions_product_version_uq').on(table.productId, table.version),
+  uniqueIndex('product_revisions_product_id_uq').on(table.productId, table.id),
   index('product_revisions_status_idx').on(table.status),
   check('product_revisions_version_ck', sql`${table.version} > 0`),
   check('product_revisions_title_ck', sql`length(trim(${table.title})) > 0`),
@@ -81,6 +82,32 @@ export const productOptions = pgTable('product_options', {
   uniqueIndex('product_options_revision_name_uq').on(table.revisionId, table.name),
   check('product_options_name_ck', sql`length(trim(${table.name})) > 0`),
   check('product_options_price_ck', sql`${table.priceWon} >= 0`),
+]);
+
+export const inventoryLevels = pgTable('inventory_levels', {
+  optionId: uuid('option_id').primaryKey().references(() => productOptions.id),
+  onHandQuantity: integer('on_hand_quantity').notNull().default(0),
+  sellableQuantity: integer('sellable_quantity').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  check('inventory_on_hand_ck', sql`${table.onHandQuantity} >= 0`),
+  check('inventory_sellable_ck', sql`${table.sellableQuantity} >= 0 AND ${table.sellableQuantity} <= ${table.onHandQuantity}`),
+]);
+
+export const stockChangeRequests = pgTable('stock_change_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  optionId: uuid('option_id').notNull().references(() => productOptions.id),
+  targetOnHand: integer('target_on_hand').notNull(),
+  status: text('status').notNull().default('pending'),
+  requestedByAccountId: uuid('requested_by_account_id').notNull().references(() => accounts.id),
+  decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+}, (table) => [
+  index('stock_requests_option_idx').on(table.optionId),
+  uniqueIndex('stock_requests_one_pending_uq').on(table.optionId).where(sql`${table.status} = 'pending'`),
+  check('stock_requests_target_ck', sql`${table.targetOnHand} > 0`),
+  check('stock_requests_status_ck', sql`${table.status} IN ('pending','approved','superseded','rejected')`),
 ]);
 
 // The key points to a controlled store; untrusted remote URLs are never public image sources.
@@ -100,10 +127,14 @@ export const productImages = pgTable('product_images', {
 // No proposal becomes customer-visible without an explicit operator publication.
 export const productPublications = pgTable('product_publications', {
   productId: uuid('product_id').primaryKey().references(() => products.id),
-  revisionId: uuid('revision_id').notNull().references(() => productRevisions.id),
+  revisionId: uuid('revision_id').notNull(),
   publishedAt: timestamp('published_at', { withTimezone: true }).notNull().defaultNow(),
   publishedByAccountId: uuid('published_by_account_id').notNull().references(() => accounts.id),
-}, (table) => [uniqueIndex('product_publications_revision_uq').on(table.revisionId)]);
+}, (table) => [
+  uniqueIndex('product_publications_revision_uq').on(table.revisionId),
+  foreignKey({ columns: [table.productId, table.revisionId],
+    foreignColumns: [productRevisions.productId, productRevisions.id] }),
+]);
 
 export const accountIdentities = pgTable('account_identities', {
   id: uuid('id').primaryKey().defaultRandom(),
