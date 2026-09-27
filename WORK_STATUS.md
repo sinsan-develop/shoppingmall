@@ -8,6 +8,8 @@
 - 다음: 변경분 안전 커밋→SSH 별칭 push→WSL 지정 checkout pull/build, 브라우저에서 분류/판매자/정렬·모바일·키보드 재검증 후 fixture/포트/컨테이너 잔류 0 확인. 동일 근본 원인 오류 3회 반복 없음.
 - `9aaabbe90ad1b57fbf05249da1a1e8cbbec750f6` SSH push→WSL 지정 checkout pull 및 Next production build·API/Web readiness 200. 실제 브라우저의 optgroup은 가공식품/과일/채소 아래 각각 고춧가루/블루베리/고추·마늘·양파를 표시했고 `채소 전체` 제출 결과는 세 상품만 나왔다. 430px viewport에서 문서 가로 넘침은 없었으나 필터 입력이 2열 중 좁은 한 열에 표시되어 분류명이 잘리는 결함을 새로 확인했다.
 - 모바일 필터를 600px 이하에서 한 열로 배치하는 CSS/시험을 추가했다. 목표 시험 RED 1→GREEN 8 pass, 로컬 전체 146건 중 118 pass·28 환경 의존 skip·0 fail, PR 본문 검사 8 pass, typecheck/lint/API·Next build 통과. 첫 fixture 실행에서 필수 가상 비밀번호 설정을 누락해 1회 즉시 거부됐고 설정 후 5품목 생성에 성공했다. viewport 복원·기존 브라우저 탭/정확한 임시 컨테이너 종료. 수정 CSS의 실제 브라우저 재시험과 QA fixture 정리는 아직 남아 있다.
+- `1aac087a2557f7428b8636c425d0e8332b4a910b` SSH 원격/WSL 동일 SHA에서 Next production build·API/Web readiness 200. 실제 430px 화면에서 필터가 각각 전폭 한 줄에 배치되어 이름 잘림을 해소하고 문서 scrollWidth/clientWidth 각 415px 확인. 키보드 Tab으로 검색어→카테고리→판매자 순서 확인. 채소 전체+판매자 B 교차 검색은 가상 마늘 1건만 표시, 상세에서 16,000원·판매 가능 5개·직접 발송 확인. 200% 실제 확대·인쇄·대비는 이번 검증에 포함하지 않았으며 S2/S8 전체 gate는 아직 미완료다.
+- QA 종료: 브라우저 viewport reset·시험 탭 종료, 이름이 고정된 임시 API/Web 컨테이너 2개 stop, `c29e4a71` fixture reset에서 가상 상품 5개 및 동반 계정을 정리. 사후 WSL DB accounts/sellers/categories/products/revisions/publications/inventory 7종 각 0행, 9091/9092 listener·해당 임시 컨테이너 0, WSL checkout clean 및 SSH 원격 `1aac087` 일치 확인. 신규 모바일 표시 결함 1건은 수정·재시험 완료, 반복 오류 3회 없음. 다음은 S2 나머지 요구/전체 gate다.
 
 ## 진행 중 — 2026-09-27 S1.3 고객 탈퇴 요청 브라우저 확인
 
