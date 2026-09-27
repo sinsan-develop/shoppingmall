@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, unlink } from 'node:fs/promises';
 import { basename, isAbsolute, join, parse, resolve } from 'node:path';
+import { sanitizeImage } from './image-sanitizer.js';
 
 const maxBytes = 5 * 1024 * 1024;
-const keyPattern = /^quarantine\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|webp)$/;
+const keyPattern = /^quarantine\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
 
 function pngCrc(bytes: Buffer, start: number, end: number): number {
   let crc = 0xffffffff;
@@ -56,7 +57,7 @@ function detectImage(bytes: Buffer): { mimeType: string; extension: string } {
   throw new Error('Unsupported image');
 }
 
-/** Development-only quarantine. Bytes are not decoded, virus-scanned, or publicly served. */
+/** Development-only quarantine. Re-encoded bytes stay private and are not virus-scanned or publicly served. */
 export class ImageQuarantine {
   private readonly root: string;
 
@@ -79,19 +80,20 @@ export class ImageQuarantine {
     if (bytes.length > maxBytes) throw new Error('Image too large');
     const image = detectImage(bytes);
     if (declaredMimeType !== image.mimeType) throw new Error('Image MIME mismatch');
-    const objectKey = `quarantine/${randomUUID()}.${image.extension}`;
+    const sanitized = await sanitizeImage(bytes, declaredMimeType);
+    const objectKey = `quarantine/${randomUUID()}.webp`;
     const path = this.pathFor(objectKey);
     await mkdir(join(this.root, 'quarantine'), { recursive: true, mode: 0o700 });
     const handle = await open(path, 'wx', 0o600);
     try {
-      await handle.writeFile(bytes);
+      await handle.writeFile(sanitized.bytes);
     } catch (error) {
       await handle.close();
       await unlink(path);
       throw error;
     }
     await handle.close();
-    return { objectKey, mimeType: image.mimeType, sizeBytes: bytes.length };
+    return { objectKey, mimeType: sanitized.mimeType, sizeBytes: sanitized.bytes.length };
   }
 
   async read(objectKey: string) { return readFile(this.pathFor(objectKey)); }

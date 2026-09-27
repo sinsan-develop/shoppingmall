@@ -75,7 +75,7 @@ test('the local-only HTTP upload accepts an owned draft, rejects cross-seller ac
     assert.equal(response.status, 201);
     const image = await response.json();
     assert.match(image.objectKey, /^quarantine\//);
-    assert.equal(image.mimeType, 'image/png');
+    assert.equal(image.mimeType, 'image/webp');
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_images WHERE revision_id=$1', [revisionId])).rows[0].n, 1);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_publications WHERE product_id=$1', [productId])).rows[0].n, 0);
     assert.equal((await readdir(join(root, 'quarantine'))).length, 1);

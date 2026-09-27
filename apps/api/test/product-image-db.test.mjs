@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { Pool } from 'pg';
+import sharp from 'sharp';
 import { AuthRepository } from '../src/auth/repository.ts';
 import { ImageQuarantine } from '../src/catalog/image-quarantine.ts';
 import { ProductDrafts } from '../src/catalog/product-drafts.ts';
@@ -52,11 +53,15 @@ test('only the owning seller stages private image metadata for its draft revisio
     assert.equal(rows.rows.length, 1);
     assert.equal(rows.rows[0].purpose, 'thumbnail');
     assert.equal(rows.rows[0].object_key, objectKey);
-    assert.deepEqual(await store.read(objectKey), png);
+    const privateBytes = await store.read(objectKey);
+    assert.notDeepEqual(privateBytes, png);
+    assert.equal((await sharp(privateBytes).metadata()).format, 'webp');
+    assert.equal(rows.rows[0].mime_type, 'image/webp');
+    assert.equal(rows.rows[0].size_bytes, privateBytes.length);
     await assert.rejects(drafts.listImages({ accountId, role: 'seller', sellerId: sellerB }, productId, revisionId), /Forbidden/);
     await assert.rejects(drafts.listImages({ accountId, role: 'customer' }, productId, revisionId), /Forbidden/);
     assert.deepEqual(await drafts.listImages(seller, productId, revisionId), [{
-      id: image.id, purpose: 'thumbnail', mimeType: 'image/png', sizeBytes: png.length, displayOrder: 0,
+      id: image.id, purpose: 'thumbnail', mimeType: 'image/webp', sizeBytes: privateBytes.length, displayOrder: 0,
     }]);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
     await assert.rejects(drafts.submit({ accountId, role: 'seller', sellerId: sellerB }, productId, revisionId), /Forbidden/);

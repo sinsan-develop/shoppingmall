@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
+import sharp from 'sharp';
 import { ImageQuarantine } from '../src/catalog/image-quarantine.ts';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
@@ -12,12 +13,14 @@ test('staged image keys are server-generated, private and never user paths', asy
   try {
     const store = new ImageQuarantine(root);
     const first = await store.put(png, 'image/png');
-    assert.match(first.objectKey, /^quarantine\/[0-9a-f-]{36}\.png$/);
-    assert.equal(first.mimeType, 'image/png');
-    assert.equal(first.sizeBytes, png.length);
+    assert.match(first.objectKey, /^quarantine\/[0-9a-f-]{36}\.webp$/);
+    assert.equal(first.mimeType, 'image/webp');
     const diskPath = resolve(root, first.objectKey);
     assert.ok(diskPath.startsWith(resolve(root) + '\\') || diskPath.startsWith(resolve(root) + '/'));
-    assert.deepEqual(await readFile(diskPath), png);
+    const stored = await readFile(diskPath);
+    assert.equal(first.sizeBytes, stored.length);
+    assert.notDeepEqual(stored, png);
+    assert.equal((await sharp(stored).metadata()).format, 'webp');
     const metadata = await stat(diskPath);
     if (process.platform !== 'win32') assert.equal(metadata.mode & 0o077, 0);
     await assert.rejects(store.read('../outside.png'), /Invalid object key/);
