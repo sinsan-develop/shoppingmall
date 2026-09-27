@@ -202,7 +202,9 @@ export class CatalogController {
         'Invalid proposal target', 'Invalid product', 'Invalid option', 'Option required',
         'Minor category required', 'Stocked option cannot be removed',
       ].includes(error.message)) throw new BadRequestException({ status: 'invalid_draft', reason: error.message });
-      if (error instanceof Error && error.message === 'Draft required') throw new ConflictException();
+      if (error instanceof Error && ['Draft required', 'Published category cannot change'].includes(error.message)) {
+        throw new ConflictException({ status: 'draft_conflict', reason: error.message });
+      }
       if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
       throw error;
     }

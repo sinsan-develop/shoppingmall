@@ -90,8 +90,8 @@ export class ProductDrafts {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const target = await client.query<{ seller_id: string; status: string }>(
-        `SELECT p.seller_id,r.status FROM products p JOIN product_revisions r ON r.product_id=p.id
+      const target = await client.query<{ seller_id: string; status: string; category_id: string }>(
+        `SELECT p.seller_id,p.category_id,r.status FROM products p JOIN product_revisions r ON r.product_id=p.id
          WHERE p.id=$1 AND r.id=$2 FOR UPDATE OF p,r`, [productId, revisionId],
       );
       if (target.rows[0]?.seller_id !== actor.sellerId) throw new Error('Forbidden');
@@ -100,6 +100,10 @@ export class ProductDrafts {
         'SELECT parent_id FROM product_categories WHERE id=$1', [data.categoryId],
       );
       if (!category.rows[0]?.parent_id) throw new Error('Minor category required');
+      if (target.rows[0].category_id !== data.categoryId) {
+        const published = await client.query('SELECT 1 FROM product_publications WHERE product_id=$1', [productId]);
+        if (published.rowCount) throw new Error('Published category cannot change');
+      }
       const current = await client.query<{ id: string; name: string }>(
         'SELECT id,name FROM product_options WHERE revision_id=$1 FOR UPDATE', [revisionId],
       );
