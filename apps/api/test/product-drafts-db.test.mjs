@@ -16,6 +16,7 @@ test('a seller creates only its own non-public product draft in a minor category
   let sellerB;
   let majorId;
   let minorId;
+  let otherMinorId;
   let productId;
   let stockedOptionId;
   try {
@@ -84,15 +85,32 @@ test('a seller creates only its own non-public product draft in a minor category
     const audit = await pool.query('SELECT action,seller_id FROM audit_events WHERE actor_account_id=$1 AND target_id=$2', [accountId, productId]);
     assert.equal(audit.rows[0].action, 'product.draft_create');
     assert.equal(audit.rows[0].seller_id, sellerA);
+    otherMinorId = (await pool.query('INSERT INTO product_categories(parent_id,name) VALUES ($1,$2) RETURNING id',
+      [majorId, `qa-${suffix}-other-minor`])).rows[0].id;
+    await pool.query("UPDATE product_revisions SET status='approved' WHERE id=$1", [created.revisionId]);
+    await pool.query('INSERT INTO product_publications(product_id,revision_id,published_by_account_id) VALUES ($1,$2,$3)',
+      [productId, created.revisionId, accountId]);
+    const nextRevision = (await pool.query(`INSERT INTO product_revisions
+      (product_id,version,title,description,origin_label,shipping_mode,status,proposed_by_account_id)
+      VALUES ($1,2,$2,'가상 수정','전국 산지','seller_direct','draft',$3) RETURNING id`,
+    [productId, '다음 개정', accountId])).rows[0].id;
+    await pool.query('INSERT INTO product_options(revision_id,name,price_won) VALUES ($1,$2,$3)',
+      [nextRevision, '2kg', 40000]);
+    await assert.rejects(drafts.update(seller, productId, nextRevision,
+      { ...edited, categoryId: otherMinorId }), /Published category cannot change/);
+    assert.equal((await pool.query('SELECT category_id FROM products WHERE id=$1', [productId])).rows[0].category_id,
+      minorId);
   } finally {
     if (stockedOptionId) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [stockedOptionId]);
     if (productId) {
+      await pool.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
       await pool.query('DELETE FROM product_options WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)', [productId]);
       await pool.query('DELETE FROM product_revisions WHERE product_id=$1', [productId]);
       await pool.query('DELETE FROM products WHERE id=$1', [productId]);
     }
     if (accountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
     if (minorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [minorId]);
+    if (otherMinorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [otherMinorId]);
     if (majorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [majorId]);
     if (sellerB) await pool.query('DELETE FROM sellers WHERE id=$1', [sellerB]);
     if (sellerA) await pool.query('DELETE FROM sellers WHERE id=$1', [sellerA]);
