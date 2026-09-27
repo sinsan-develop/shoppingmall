@@ -300,6 +300,25 @@ export class CatalogController {
     }
   }
 
+  @Delete('seller/products/:productId/revisions/:revisionId/images/:imageId')
+  async removeProductImage(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string,
+    @Param('imageId') imageId: string) {
+    this.requireLocalUpload();
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    const store = this.localUploadStore();
+    try { return await this.drafts().removeImage(actor, productId, revisionId, imageId, store); }
+    catch (error) {
+      if (error instanceof Error && ['Invalid image target', 'Draft required'].includes(error.message)) {
+        throw new BadRequestException({ status: 'invalid_image_remove', reason: error.message });
+      }
+      if (error instanceof Error && error.message === 'Image not found') throw new NotFoundException();
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
   @Post('seller/options/:optionId/stock')
   async setOptionStock(@Req() request: RequestHeaders, @Param('optionId') optionId: string,
     @Body() body: unknown) {

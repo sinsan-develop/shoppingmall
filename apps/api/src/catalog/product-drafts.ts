@@ -354,6 +354,48 @@ export class ProductDrafts {
     } finally { client.release(); }
   }
 
+  async removeImage(actor: AccessContext, productId: string, revisionId: string,
+    imageId: string, store: ImageQuarantine) {
+    if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
+      throw new Error('Forbidden');
+    }
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (![productId, revisionId, imageId].every((id) => uuid.test(id))) throw new Error('Invalid image target');
+    const client = await this.pool.connect();
+    let staged: Awaited<ReturnType<ImageQuarantine['stageRemoval']>> | undefined;
+    try {
+      await client.query('BEGIN');
+      const target = await client.query<{ seller_id: string; status: string }>(
+        `SELECT p.seller_id,r.status FROM product_revisions r JOIN products p ON p.id=r.product_id
+         WHERE p.id=$1 AND r.id=$2 FOR UPDATE OF r`, [productId, revisionId],
+      );
+      if (target.rows[0]?.seller_id !== actor.sellerId) throw new Error('Forbidden');
+      if (target.rows[0].status !== 'draft') throw new Error('Draft required');
+      const image = await client.query<{ object_key: string }>(
+        'SELECT object_key FROM product_images WHERE id=$1 AND revision_id=$2 FOR UPDATE', [imageId, revisionId],
+      );
+      if (!image.rows[0]) throw new Error('Image not found');
+      staged = await store.stageRemoval(image.rows[0].object_key);
+      await client.query('DELETE FROM product_images WHERE id=$1', [imageId]);
+      await client.query(
+        `INSERT INTO audit_events(actor_account_id,active_role,seller_id,action,target_type,target_id)
+         VALUES ($1,'seller',$2,'product.image_remove','product_image',$3)`,
+        [actor.accountId, actor.sellerId, imageId],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (staged) {
+        try { await staged.restore(); }
+        catch (restoreError) { throw new AggregateError([error, restoreError], 'Image recovery required'); }
+      }
+      throw error;
+    } finally { client.release(); }
+    try { await staged!.purge(); }
+    catch { return { imageId, status: 'cleanup_pending' as const }; }
+    return { imageId, status: 'deleted' as const };
+  }
+
   async submit(actor: AccessContext, productId: string, revisionId: string) {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
       throw new Error('Forbidden');

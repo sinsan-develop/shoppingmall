@@ -23,17 +23,19 @@ type ViewProps = { categories: Category[]; products: Product[]; stock: Stock[]; 
   onUpload: (product: Product, file: File, purpose: DraftImage['purpose']) => void;
   onLoadImages: (product: Product) => Promise<DraftImage[]>;
   onOrderImages: (product: Product, images: Pick<DraftImage, 'id' | 'purpose'>[]) => Promise<void>;
+  onRemoveImage: (product: Product, imageId: string) => Promise<void>;
   onSubmitProposal: (product: Product) => void;
   onSetStock: (optionId: string, quantity: number) => void };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
 function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, onDelete, onUpload,
-  onLoadImages, onOrderImages, onSubmitProposal }: {
+  onLoadImages, onOrderImages, onRemoveImage, onSubmitProposal }: {
   product: Product; categories: Category[]; busy: boolean;
   onLoadDraft: ViewProps['onLoadDraft']; onUpdate: ViewProps['onUpdate']; onDelete: ViewProps['onDelete'];
   onUpload: ViewProps['onUpload']; onLoadImages: ViewProps['onLoadImages'];
-  onOrderImages: ViewProps['onOrderImages']; onSubmitProposal: ViewProps['onSubmitProposal'];
+  onOrderImages: ViewProps['onOrderImages']; onRemoveImage: ViewProps['onRemoveImage'];
+  onSubmitProposal: ViewProps['onSubmitProposal'];
 }) {
   const [file, setFile] = useState<File>();
   const [uploadPurpose, setUploadPurpose] = useState<DraftImage['purpose']>('thumbnail');
@@ -78,6 +80,16 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
     const next = [...images];
     [next[index], next[index + distance]] = [next[index + distance], next[index]];
     setImages(next);
+  }
+  async function removeImage(imageId: string) {
+    if (!window.confirm('이 비공개 사진을 영구 제거하시겠습니까?')) return;
+    setImageBusy(true);
+    setImageError('');
+    try {
+      await onRemoveImage(product, imageId);
+      setImages(await onLoadImages(product));
+    } catch { setImageError('사진을 제거하지 못했습니다. 목록을 새로 확인해 주세요'); }
+    finally { setImageBusy(false); }
   }
   useEffect(() => {
     if (!file) { setPreview(undefined); return; }
@@ -175,6 +187,8 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
               onClick={() => moveImage(index, -1)}>위로</button>
             <button type="button" className="secondary-button" disabled={busy || imageBusy || index === images.length - 1}
               onClick={() => moveImage(index, 1)}>아래로</button>
+            <button type="button" className="secondary-button" disabled={busy || imageBusy}
+              onClick={() => void removeImage(item.id)}>사진 제거</button>
           </li>)}
         </ol>}
         <button type="button" className="secondary-button" disabled={busy || imageBusy || images.length === 0}
@@ -187,7 +201,7 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
 }
 
 export function SellerProductView({ categories, products, stock = [], busy, onCreate, onLoadDraft, onUpdate, onDelete,
-  onUpload, onLoadImages, onOrderImages, onSubmitProposal, onSetStock }: ViewProps) {
+  onUpload, onLoadImages, onOrderImages, onRemoveImage, onSubmitProposal, onSetStock }: ViewProps) {
   const [options, setOptions] = useState<Option[]>([{ name: '', priceWon: '' }]);
   const majors = categories.filter((item) => item.parentId === null);
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -248,6 +262,7 @@ export function SellerProductView({ categories, products, stock = [], busy, onCr
         {products.map((item) => <ProductDraftItem key={item.revisionId} product={item} categories={categories} busy={busy}
           onLoadDraft={onLoadDraft} onUpdate={onUpdate} onDelete={onDelete}
           onUpload={onUpload} onLoadImages={onLoadImages} onOrderImages={onOrderImages}
+          onRemoveImage={onRemoveImage}
           onSubmitProposal={onSubmitProposal} />)}
       </ul>}
     </section>
@@ -418,6 +433,22 @@ export default function SellerProductsPage() {
     } finally { setBusy(false); }
   }
 
+  async function removeImage(product: Product, imageId: string) {
+    if (!apiOrigin || busy) throw new Error('API unavailable');
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/seller/products/${product.productId}/revisions/${product.revisionId}/images/${imageId}`,
+        { method: 'DELETE', credentials: 'include' });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); throw new Error('Unauthorized'); }
+      if (!response.ok) throw new Error('Image removal unavailable');
+      const result = await response.json() as { status: 'deleted' | 'cleanup_pending' };
+      setMessage(result.status === 'cleanup_pending' ?
+        '사진은 목록에서 제거됐지만 파일 정리가 보류됐습니다. 운영자 확인이 필요합니다' :
+        '비공개 사진을 제거했습니다');
+    } finally { setBusy(false); }
+  }
+
   async function submitProposal(product: Product) {
     if (!apiOrigin || busy) return;
     setBusy(true);
@@ -462,6 +493,7 @@ export default function SellerProductsPage() {
     {state === 'ready' ? <><SellerProductView categories={categories} products={products} stock={stock} busy={busy}
       onCreate={create} onLoadDraft={loadDraft} onUpdate={updateDraft} onDelete={removeDraft}
       onUpload={upload} onLoadImages={loadImages} onOrderImages={orderImages}
+      onRemoveImage={removeImage}
       onSubmitProposal={submitProposal} onSetStock={updateStock} />
       {message ? <p role="status">{message}</p> : null}</> : null}
   </main>;
