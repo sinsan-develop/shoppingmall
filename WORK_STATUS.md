@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S0 기존 migration 격리 재현
+
+- 담당/범위: 어울 단일 writer, `codex/flat-v2-prototypes@70cabe1`. S0 명령표의 migration dry-run 공백을 공유 개발 DB 변경 없이 좁혀 검증한다. 현재 `apps/api/migrations/0000`~`0005`의 **기존 SQL만** 동일 source checkout의 일회성 PostgreSQL에 적용해 구문·순서·migration 이력을 확인한다. 새로운 migration, 공유 `local-postgres/shoppingmall` 적용, schema/API/권한 변경은 하지 않는다.
+- 격리 자원 계획: WSL에 이미 있는 실제 개발 DB와 같은 `pgvector/pgvector:0.8.2-pg15` 이미지의 임시 컨테이너 `shoppingmall-s0-migrate-check-70ca`, 호스트 포트 미노출·별도 초기 빈 DB `shoppingmall`, QA ID `migrate-70ca`. 자격정보는 실행 시 난수로 생성해 기록·출력하지 않는다. Node 24 일회성 컨테이너는 해당 PostgreSQL의 네트워크만 공유하고 `/home/daon/deploy/shopping` checkout을 읽는다. 시험 뒤 임시 DB 컨테이너를 stop/remove하고 이름·볼륨·호스트 포트 잔류를 확인한다. 기존 `local-postgres` DB의 계정·상품·migration 상태는 시험 전후 읽기 전용으로 비교한다. 이것은 **격리된 빈 DB 적용 재현**이며 현재 공유 DB에 대한 실제 SQL preview/dry-run 또는 정식 WSL 통합 PASS로 표시하지 않는다.
+
 ## 진행 중 — 2026-09-28 S2.4 실제 제품 화면 1440/430 viewport QA
 
 - 담당/범위: 어울 단일 writer, `codex/flat-v2-prototypes@bade774`. 상품 수정 신규 API는 승인 답변 전 보류한다. 그와 독립된 현재 제품 홈·검색/상품 카드의 1440×900·430×844 viewport에서 실제 가로 넘침, 핵심 탐색·키보드 조작을 새 Chrome 시험 탭의 HTTP 화면으로 확인한다. 이는 브라우저 배율 200%나 모든 역할 화면/인쇄의 합격 증거가 아니다.
