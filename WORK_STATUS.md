@@ -6,6 +6,8 @@
 - 목표/계약: 공개 상품 목록은 명시적 `product_publications` 포인터가 가리키는 `approved` revision만 읽고 현재 판매 가능 옵션이 1개 이상인 상품만 포함한다. 상품명/판매자 이름의 문자 그대로 검색, 대/소분류·판매자 필터와 최신/최저가 정렬을 서버에서 제한된 입력으로 처리한다. 이미지 원본/비공개 키는 응답에 포함하지 않는다. 이 단계는 목록 읽기만이며 개인별 추천·인기/리뷰 정렬·관리자 승인/고객 결제 증거가 아니다.
 - 예상 파일: `apps/api/src/catalog/public-products.ts`, `controller.ts`, 단위/DB·HTTP 시험, 본 현황. 기존 DB schema·Secret·외부 서비스 변경 없음. QA는 정확한 시험 ID의 가상 seller/category/product/revision/option/inventory/publication만 생성·삭제하고 지정 DB의 다른 자료는 건드리지 않는다.
 - DB 계약 시험은 서비스 파일 부재 RED 1회 후 공개 포인터+approved+판매 가능 재고만 반환하고 비공개 키 미노출/문자 그대로 검색/대·소분류·판매자 필터/최저가 정렬과 공개 HTTP 200·잘못된 정렬 400을 요구한다. 서비스·GET API 구현 후 로컬 typecheck 통과, 무DB에서 시험은 1 skip이므로 실제 GREEN이 아니다. 다음은 정확한 커밋으로 WSL DB 목표 시험과 전체 회귀·QA 정리를 확인한다.
+- 정확한 `fa7e81730eb79f782dd8a82054d4d7a8d45dc384` SSH push→WSL pull 후 지정 DB 공개 검색 서비스+익명 HTTP 목표 시험 1 pass·0 fail, 전체 API 52건 중 46 pass·0 fail·환경별 6 skip. 로컬 110건 중 90 pass·0 fail·DB 전용 20 skip, PR 검사 8 pass·typecheck·lint·API/웹 build 9경로 통과. 최종 QA 핵심 10종 각 0행, migration 5건·임시 컨테이너 0·WSL checkout clean. 아직 실제 고객 화면에 API 연결·상품 승인/공개 쓰기·실이미지 URL·브라우저 검색 E2E는 미구현/미검증이다.
+- 홈 장식용 검색을 실제 `/products?q=...` 폼으로 바꾸고, 공개 API 기반 상품 검색 화면(대/소분류·최신/가격 정렬·빈 결과·연결 오류)을 추가했다. SSR 시험 파일 부재 RED 1회→목표 2 pass, 로컬 전체 112건 중 92 pass·0 fail·DB 전용 20 skip, PR 검사 8 pass, typecheck·lint·API/Next build 10경로 통과. 검색 화면은 상품 상세·이미지·결제 링크를 아직 제공하지 않는다. 이 화면의 WSL/실제 브라우저·모바일 검증 전이며 공개 상품이 없는 DB의 빈 결과가 정상 기준이다.
 
 ## 진행 중 — 2026-09-27 S2.2 이미지 안전 공개 경계
 

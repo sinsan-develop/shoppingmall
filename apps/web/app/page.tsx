@@ -4,9 +4,11 @@ export default function Page() {
       <header className="site-header">
         <div className="shell header-inner">
           <div className="brand" aria-label="어울몰">어울몰</div>
-          <div className="search-preview" aria-label="상품 검색 준비 중">
-            <span aria-hidden="true">⌕</span> 상품 검색 <span className="search-hint">상품명 또는 판매자를 찾아보세요</span>
-          </div>
+          <form className="search-preview" action="/products" method="get" role="search">
+            <label className="visually-hidden" htmlFor="home-search">상품 검색</label>
+            <input id="home-search" name="q" type="search" placeholder="상품명 또는 판매자 검색" />
+            <button type="submit" aria-label="상품 검색">⌕</button>
+          </form>
           <a className="text-link" href="/login">로그인</a>
         </div>
         <nav className="shell site-menu" aria-label="어울몰 메뉴">
