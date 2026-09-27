@@ -282,6 +282,24 @@ export class CatalogController {
     }
   }
 
+  @Patch('seller/products/:productId/revisions/:revisionId/images/order')
+  async reorderProductImages(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    const images = body && typeof body === 'object' ? (body as Record<string, unknown>).images : undefined;
+    try {
+      return await this.drafts().reorderImages(actor, productId, revisionId,
+        images as { id: string; purpose: 'thumbnail' | 'detail' }[]);
+    } catch (error) {
+      if (error instanceof Error && [
+        'Invalid image order', 'One thumbnail required', 'Image set mismatch', 'Draft required',
+      ].includes(error.message)) throw new BadRequestException({ status: 'invalid_image_order', reason: error.message });
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
   @Post('seller/options/:optionId/stock')
   async setOptionStock(@Req() request: RequestHeaders, @Param('optionId') optionId: string,
     @Body() body: unknown) {
