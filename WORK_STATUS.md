@@ -6,6 +6,8 @@
 - 목표/범위: 정확한 8자리 QA 실행 ID의 가상 계정·판매자·대/소분류·승인 상태의 가상 상품 1개·옵션 재고·공개 포인터를 재현 가능한 시험 전용 도구로 만들고, 홈 카테고리/상품 카드→상세 가격·재고를 실제 브라우저에서 확인한다. 실이미지·실결제·실고객/실상품은 사용하지 않는다.
 - 예상 변경: `apps/api/scripts/qa-public-fixture.ts`, `apps/api/test/qa-public-fixture-db.test.mjs`, 필요 시 해당 화면/시험/CSS, 본 현황. DB schema·Secret·외부 비용 없음. WSL 지정 `shoppingmall` DB에서 RED→GREEN·전체 회귀를 확인하고 안전 commit/SSH push→정확 SHA pull 후 일회성 `shoppingmall-s2-public-browser-*` 컨테이너를 사용한다.
 - 정리/복구: 브라우저 탭·viewport 원복, 정확한 QA 상품의 publication→inventory→옵션/개정→상품→분류를 먼저 지운 뒤 기존 계정 fixture reset. 명명된 QA 컨테이너·9091/9092 listener·핵심 DB 잔류 0을 확인한다. 실패 시 마지막 안전 commit은 유지하고 해당 ID의 임시 자원만 정리한다. 200% 확대·키보드·인쇄/실이미지는 별도 검증으로 남긴다.
+- WSL 정확한 `99af3b4`에서 새 시험 도구 부재의 의도된 RED 1회(자료 생성 전). `60bc63b81324e05f1e98d78db2ecd065608e89ab`에서 지정 DB 목표 1 pass·0 fail, 전체 API 54건 중 48 pass·0 fail·환경별 6 skip, 로컬 전체 118건 중 96 pass·0 fail·DB 22 skip 및 PR 본문 8 pass, API typecheck·lint 통과. 브라우저 QA 실행 ID `bbacf356`; 사전 핵심 9종 DB 행 각 0, 9091/9092 listener 0, 쇼핑몰 S2 컨테이너 0, WSL checkout clean. 생성 예정 자원은 QA ID `bbacf356` 자료와 `shoppingmall-s2-public-browser-api-60bc`, `shoppingmall-s2-public-browser-web-60bc` 두 컨테이너뿐이다.
+- 동일 SHA의 WSL API/Next production build(정적 10·동적 상세 1) 후 `/ready` 정상, 가상 공개 상품 API 1건 확인. 실제 브라우저 홈 대분류·상품 카드→상세 클릭에서 500g·23,000원·판매 가능 5개·판매자 직접 발송·설명을 확인했고, 대분류→검색에서 선택된 분류와 동일 상품 1건을 확인했다. 390px 상세/430px 목록/1440px 목록은 문서 scrollWidth=clientWidth(각 375/430/1440), 비공개 `quarantine/` 문자열 노출 없음. 브라우저 viewport reset·임시 탭 종료, 지정 컨테이너 stop·QA ID `bbacf356` reset 후 accounts/sellers/categories/products/revisions/options/inventory/publications/audit 9종 각 0행, 9091/9092 listener·S2 임시 컨테이너 0, WSL checkout clean·SHA 일치. 오류 0. 실이미지·200% 확대·키보드·인쇄는 아직 미검증이며 관리자 승인 제품 흐름 증거가 아니다.
 
 ## 진행 중 — 2026-09-27 S2.2 관리자 상품 심사 자료 보강
 
