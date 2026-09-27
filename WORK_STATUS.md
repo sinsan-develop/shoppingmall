@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.3 전역 배송 정책 시험 복구 경계
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@10b1673`; 현재 제품 코드·schema·권한 변경 없음. `apps/api/test/shipping-policy-db.test.mjs`의 `finally`가 시험 전 상태를 저장하지 않고 배송비 3,000원/무료배송 50,000원 등으로 고정 복구하므로 관리자 전역값이 달라진 개발 DB를 시험하면 원래 값을 잃을 수 있다.
+- 시험 계약/자원: 원본 `WSL-server`의 `local-postgres/shoppingmall`은 읽기 전용으로 유지. 정확한 임시 DB `shoppingmall_s23_restore_10b1673`을 동일 PostgreSQL 컨테이너에 1개 생성·원본 schema/빈 가상 자료를 복제하고, 그 임시 DB에만 비기본 전역값을 설정해 현재 시험의 복구 실패 RED→원본 값·잠금·수정자·수정시각 보존 GREEN을 확인한다. 수명은 이번 단일 회귀 시험 동안만이며 시험·실패 직후 정확한 임시 DB만 drop하고 부재를 확인한다. 다른 DB/서비스·Oracle·실고객 자료에는 쓰지 않는다.
+- 사전 상태/오류: 원본 accounts/sellers/shipping requests 각 0, 전역 정책 3,000원/50,000원·마감 없음·잠금 3개 false. DB 목록에 동일 이름 임시 DB 없음. 첫 읽기 전용 SQL에서 셸 인용 오류 1회였고 올바른 읽기 전용 조회로 재확인했다. 코드 수정 전 실제 격리 RED와 위험 필드 전체를 확인한 뒤 테스트 정리 로직만 최소 수정한다.
+- 예상 변경/검증: 위 시험 파일과 본 현황만. `pnpm test`, typecheck/lint, WSL 임시 DB의 목표 시험·복구 전후 DB 값, 원본 DB 불변, 정확한 임시 자원 잔류 0을 증명한다. 동일 근본 원인 오류 3회 연속이면 재시도 중단·예외 보고한다.
+
 ## 정리 완료 — 2026-09-27 과거 계획 worktree·로컬 브랜치
 
 - 담당/기준: 어울 단일 writer, 현재 `codex/flat-v2-prototypes@2713213ddd667a8eac30b63f4d21851b3904da09`. 사용자 지시의 과거 브랜치 로컬 정리만 수행; 현재 S2 작업 브랜치와 기본 `main` checkout의 기존 삭제 표시·미추적 `.github`는 보존했다.
