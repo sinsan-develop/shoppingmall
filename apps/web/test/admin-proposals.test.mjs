@@ -31,3 +31,17 @@ test('review queue shows each seller proposal with a required rejection reason b
   }
   assert.doesNotMatch(html, />승인</);
 });
+
+test('operator can review proposal facts and option prices without private image storage keys', () => {
+  const html = renderToStaticMarkup(createElement(AdminProposalView, {
+    proposals: [{ productId: 'product', revisionId: 'revision', title: '시험 고추', sellerName: '농가 A',
+      proposedAt: '2026-09-27', description: '가상 상품 설명', originLabel: '경남 진주',
+      shippingMode: 'seller_direct', options: [{ name: '500g', priceWon: 23000 }],
+      thumbnailCount: 1, detailImageCount: 2, objectKey: 'quarantine/private-key' }],
+    busy: false, onReject: () => {},
+  }));
+  for (const label of ['가상 상품 설명', '경남 진주', '판매자 직접 발송', '500g', '23,000원', '대표 사진 1개', '상세 사진 2개']) {
+    assert.match(html, new RegExp(label));
+  }
+  assert.doesNotMatch(html, /quarantine\/private-key|objectKey/);
+});

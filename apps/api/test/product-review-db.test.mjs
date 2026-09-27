@@ -19,6 +19,8 @@ test('an operator sees pending seller proposals and rejects with reason without 
   let minorId;
   let productId;
   let revisionId;
+  let optionId;
+  let imageId;
   let secondRevisionId;
   let app;
   try {
@@ -32,11 +34,23 @@ test('an operator sees pending seller proposals and rejects with reason without 
     productId = (await pool.query('INSERT INTO products(seller_id,category_id) VALUES ($1,$2) RETURNING id', [sellerId, minorId])).rows[0].id;
     revisionId = (await pool.query(`INSERT INTO product_revisions(product_id,version,title,description,origin_label,shipping_mode,status,proposed_by_account_id)
       VALUES ($1,1,'시험 고추','가상 상품','전국','seller_direct','pending',$2) RETURNING id`, [productId, sellerAccountId])).rows[0].id;
+    optionId = (await pool.query(`INSERT INTO product_options(revision_id,name,price_won,display_order)
+      VALUES ($1,'500g',23000,0) RETURNING id`, [revisionId])).rows[0].id;
+    imageId = (await pool.query(`INSERT INTO product_images(revision_id,object_key,purpose,mime_type,size_bytes,display_order)
+      VALUES ($1,$2,'thumbnail','image/webp',100,0) RETURNING id`, [revisionId, `quarantine/qa-${suffix}-private`])).rows[0].id;
     const reviews = new ProductReviews(pool);
     const seller = { accountId: sellerAccountId, role: 'seller', sellerId };
     const admin = { accountId: adminAccountId, role: 'admin' };
     await assert.rejects(reviews.listPending(seller), /Forbidden/);
-    assert.equal((await reviews.listPending(admin)).some((item) => item.revisionId === revisionId), true);
+    const proposal = (await reviews.listPending(admin)).find((item) => item.revisionId === revisionId);
+    assert.ok(proposal);
+    assert.equal(proposal.description, '가상 상품');
+    assert.equal(proposal.originLabel, '전국');
+    assert.equal(proposal.shippingMode, 'seller_direct');
+    assert.deepEqual(proposal.options, [{ name: '500g', priceWon: 23000 }]);
+    assert.equal(proposal.thumbnailCount, 1);
+    assert.equal(proposal.detailImageCount, 0);
+    assert.equal(JSON.stringify(proposal).includes('quarantine/'), false);
     await assert.rejects(reviews.reject(seller, revisionId, '품질 자료 부족'), /Forbidden/);
     await assert.rejects(reviews.reject(admin, revisionId, ' '), /Review reason required/);
     const result = await reviews.reject(admin, revisionId, '품질 자료 부족');
@@ -83,6 +97,8 @@ test('an operator sees pending seller proposals and rejects with reason without 
     if (adminAccountId && sellerAccountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id = ANY($1::uuid[])', [[adminAccountId, sellerAccountId]]);
     if (adminAccountId) await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [adminAccountId]);
     if (secondRevisionId) await pool.query('DELETE FROM product_revisions WHERE id=$1', [secondRevisionId]);
+    if (imageId) await pool.query('DELETE FROM product_images WHERE id=$1', [imageId]);
+    if (optionId) await pool.query('DELETE FROM product_options WHERE id=$1', [optionId]);
     if (revisionId) await pool.query('DELETE FROM product_revisions WHERE id=$1', [revisionId]);
     if (productId) await pool.query('DELETE FROM products WHERE id=$1', [productId]);
     if (minorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [minorId]);

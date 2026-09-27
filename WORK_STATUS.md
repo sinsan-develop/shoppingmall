@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.2 관리자 상품 심사 자료 보강
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@5780102a2e79c1304d6ae31810147874d829bd8e` (로컬/원격/WSL 일치). 홈 QA 컨테이너·포트·시험 DB 자료 잔류 0을 확인한 뒤 착수한다.
+- 목표: 대기 상품 심사 목록에 설명·산지·발송 방식·옵션별 가격·등록 사진 개수만 추가하고 비공개 object key·원본 이미지는 응답/화면에 포함하지 않는다. 승인·공개 실행, 새 schema, Secret/공급자 연동은 하지 않는다. 이 작업은 이미지 검사/공개 저장소와 승인 흐름을 대신하지 않는다.
+- 예상 파일: `apps/api/src/catalog/product-reviews.ts`, `apps/api/test/product-review-db.test.mjs`, `apps/web/app/account/admin/proposals/page.tsx`, `apps/web/test/admin-proposals.test.mjs`, 본 현황. 로컬 화면 RED→GREEN, WSL 지정 DB의 QA fixture로 API RED→GREEN·정리 0 확인 후 전체 회귀. QA는 해당 DB 시험이 생성한 `qa-<suffix>` 가상 계정/판매자/분류/상품·사진 메타데이터만 사용하고 finally에서 ID별 삭제한다. 별도 지속 자원/포트 없음. 실패 시 직전 안전 commit 유지·QA 정확 ID 정리.
+- 화면 목표 시험은 기존 상품명/반려만 보이고 설명이 누락되어 예상대로 RED 1회. DB 시험에는 같은 QA fixture의 옵션·비공개 사진 메타데이터를 추가하고 상세값·비공개 key 미노출을 요구한다. 안전한 시험-only commit/push 후 WSL 지정 DB에서 RED와 ID별 정리 0을 확인한다.
+
 ## 진행 중 — 2026-09-27 S2.4 고객 홈의 공개 카탈로그 연결
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@24a1342631985101db3b1bfe1fceae98826dc915`. Flat v2 홈·승인된 S2.4 계약을 따른다.
