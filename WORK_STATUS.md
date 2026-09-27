@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 판매자 화면 실제 브라우저 QA·정리
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@af8974389765c50391d283a80fd153e450d76ac0` (SSH 원격/WSL 일치). WSL 테스트용 API·웹 컨테이너와 실행 ID `a1b2c3d4`의 가상 계정 5개로 실제 in-app browser에서 판매자 로그인→상품 화면→대/소분류 선택→`시험 고추`·옵션 500g/23,000원 초안 저장을 확인했다. 저장 직후 대표 사진 선택·업로드·승인 요청 제어가 나타나고, 사진 없는 승인 요청은 오류 안내를 보여주며 DB revision은 `draft`, publication은 0이었다.
+- UI 파일 선택 후 실제 업로드/로컬 미리보기, 모바일·200% 확대·키보드 및 관리자 심사·공개는 미검증/미구현. API 서비스/HTTP 업로드 실제 DB 시험과 판매자 제출 서비스는 앞서 통과했으나 이를 브라우저 성공으로 대체하지 않는다.
+- 정확한 QA 상품·revision·옵션·대/소분류 ID를 조회한 뒤 옵션 1·revision 1·상품 1·분류 2행만 삭제; `qa-fixture.ts reset`은 해당 run의 계정 5개만 정리. QA 브라우저 탭과 임시 컨테이너 2개 종료. 최종 accounts/sellers/seller_categories/product_categories/products/revisions/options/images/audit 모두 0행, 시험 컨테이너 0, WSL checkout clean. 이번 브라우저/정리 오류 0.
+- 변경 파일: 본 현황. 다음은 관리자 승인·반려와 안전한 이미지 공개 경계 및 이후 S2 재고/상품 탐색. 고객 공개 상품·주문/결제/정산·Android 앱은 아직 미구현이므로 전체 구축/인수 준비 완료가 아니다.
+
 ## 최신 상태 — 2026-09-27 판매자 제품 화면 WSL production build 통과
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@652266ea8e443f7b263ba9ff7a1550f69eb9697a` (SSH 원격/WSL 일치). WSL Next.js production build에서 8개 정적 경로와 `/account/seller/products` 생성, 컴파일·TypeScript 통과. 직전 WSL API 실제 DB 전체 41건 중 36 pass·0 fail·무DB 전용 5 skip, QA 핵심 행 0.
