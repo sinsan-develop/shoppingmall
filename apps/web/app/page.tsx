@@ -14,7 +14,10 @@ export default function Page() {
           <a className="text-link" href="/login">로그인</a>
         </div>
         <nav className="shell site-menu" aria-label="어울몰 메뉴">
-          <span>홈</span><span>제철 농산물</span><span>기획전</span><span>판매자 이야기</span>
+          <a href="/" aria-current="page">홈</a>
+          <a href="/products">제철 농산물</a>
+          <a href="/#events-title">기획전</a>
+          <a href="/#seller-story-title">판매자 이야기</a>
         </nav>
       </header>
       <main className="shell">

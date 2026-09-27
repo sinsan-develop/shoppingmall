@@ -29,7 +29,7 @@ test('home catalog links administrator categories and only supplied public produ
       { id: 'minor-1', parentId: 'major-1', name: '블루베리' },
       { id: 'major-2', parentId: null, name: '채소' },
     ],
-    products: [{ productId: 'published-1', title: '햇고추', sellerName: '진주농가',
+    products: [{ productId: 'published-1', title: '햇고추', sellerId: 'seller-1', sellerName: '진주농가',
       originLabel: '경남 진주', minPriceWon: 23000 }],
     loading: false,
   }));
@@ -37,6 +37,7 @@ test('home catalog links administrator categories and only supplied public produ
   assert.match(html, /href="\/products\?categoryId=major-2"[^>]*>채소<\/a>/);
   assert.doesNotMatch(html, /href="\/products\?categoryId=minor-1"/);
   assert.match(html, /href="\/products\/published-1"/);
+  assert.match(html, /href="\/products\?sellerId=seller-1"[^>]*>진주농가<\/a>/);
   assert.match(html, /23,000원/);
   assert.doesNotMatch(html, /개인별 추천|objectKey|quarantine\//);
 });

@@ -3,17 +3,20 @@
 import { useEffect, useState } from 'react';
 
 type Category = { id: string; parentId: string | null; name: string };
+type Seller = { id: string; displayName: string };
 type Product = { productId: string; title: string; sellerName: string; originLabel: string; minPriceWon: number };
-type ViewProps = { query: string; sort: string; categoryId: string; categories: Category[];
+type ViewProps = { query: string; sort: string; categoryId: string; sellerId?: string;
+  categories: Category[]; sellers?: Seller[];
   products: Product[]; loading: boolean; error?: string;
   onQueryChange?: (value: string) => void; onCategoryChange?: (value: string) => void;
-  onSortChange?: (value: string) => void };
+  onSellerChange?: (value: string) => void; onSortChange?: (value: string) => void };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
-export function ProductSearchView({ query, sort, categoryId, categories, products, loading, error,
-  onQueryChange = () => {}, onCategoryChange = () => {}, onSortChange = () => {} }: ViewProps) {
+export function ProductSearchView({ query, sort, categoryId, sellerId = '', categories, sellers = [], products,
+  loading, error, onQueryChange = () => {}, onCategoryChange = () => {},
+  onSellerChange = () => {}, onSortChange = () => {} }: ViewProps) {
   return (
     <main className="shell search-main">
       <a className="text-link" href="/">어울몰 홈으로</a>
@@ -29,6 +32,12 @@ export function ProductSearchView({ query, sort, categoryId, categories, product
           {categories.map((category) => <option key={category.id} value={category.id}>
             {category.parentId ? `　${category.name}` : category.name}
           </option>)}
+        </select>
+        <label htmlFor="product-seller">판매자</label>
+        <select id="product-seller" name="sellerId" value={sellerId}
+          onChange={(event) => onSellerChange(event.currentTarget.value)}>
+          <option value="">전체 판매자</option>
+          {sellers.map((seller) => <option key={seller.id} value={seller.id}>{seller.displayName}</option>)}
         </select>
         <label htmlFor="product-sort">정렬</label>
         <select id="product-sort" name="sort" value={sort}
@@ -56,8 +65,10 @@ export function ProductSearchView({ query, sort, categoryId, categories, product
 export default function ProductsPage() {
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [sellerId, setSellerId] = useState('');
   const [sort, setSort] = useState('latest');
   const [categories, setCategories] = useState<Category[]>([]);
+  const [sellers, setSellers] = useState<Seller[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -66,9 +77,11 @@ export default function ProductsPage() {
     const params = new URLSearchParams(window.location.search);
     const nextQuery = params.get('q') ?? '';
     const nextCategory = params.get('categoryId') ?? '';
+    const nextSeller = params.get('sellerId') ?? '';
     const nextSort = params.get('sort') ?? 'latest';
     setQuery(nextQuery);
     setCategoryId(nextCategory);
+    setSellerId(nextSeller);
     setSort(nextSort);
     const controller = new AbortController();
     if (!apiOrigin) {
@@ -78,11 +91,18 @@ export default function ProductsPage() {
     }
     Promise.all([
       fetch(`${apiOrigin}/catalog/categories`, { signal: controller.signal }),
+      fetch(`${apiOrigin}/catalog/sellers`, { signal: controller.signal }),
       fetch(`${apiOrigin}/catalog/products?${params.toString()}`, { signal: controller.signal }),
-    ]).then(async ([categoryResponse, productResponse]) => {
-      if (!categoryResponse.ok || !productResponse.ok) throw new Error('검색을 불러올 수 없습니다');
-      const [nextCategories, nextProducts] = await Promise.all([categoryResponse.json(), productResponse.json()]);
+    ]).then(async ([categoryResponse, sellerResponse, productResponse]) => {
+      if (!categoryResponse.ok || !sellerResponse.ok || !productResponse.ok) throw new Error('검색을 불러올 수 없습니다');
+      const [nextCategories, nextSellers, nextProducts] = await Promise.all([
+        categoryResponse.json(), sellerResponse.json(), productResponse.json(),
+      ]);
+      if (!Array.isArray(nextCategories) || !Array.isArray(nextSellers) || !Array.isArray(nextProducts)) {
+        throw new Error('검색을 불러올 수 없습니다');
+      }
       setCategories(nextCategories);
+      setSellers(nextSellers);
       setProducts(nextProducts);
       setError(undefined);
     }).catch(() => { if (!controller.signal.aborted) setError('검색을 불러올 수 없습니다'); })
@@ -90,7 +110,8 @@ export default function ProductsPage() {
     return () => controller.abort();
   }, []);
 
-  return <ProductSearchView query={query} sort={sort} categoryId={categoryId}
-    categories={categories} products={products} loading={loading} error={error}
-    onQueryChange={setQuery} onCategoryChange={setCategoryId} onSortChange={setSort} />;
+  return <ProductSearchView query={query} sort={sort} categoryId={categoryId} sellerId={sellerId}
+    categories={categories} sellers={sellers} products={products} loading={loading} error={error}
+    onQueryChange={setQuery} onCategoryChange={setCategoryId} onSellerChange={setSellerId}
+    onSortChange={setSort} />;
 }

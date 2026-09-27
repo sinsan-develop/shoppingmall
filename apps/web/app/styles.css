@@ -13,6 +13,7 @@ body{margin:0}
 .search-preview:focus-within{outline:3px solid #9c2b22;outline-offset:2px}
 .search-hint{color:#877b67;font-size:14px}
 .site-menu{display:flex;gap:26px;padding-block:14px;font-size:14px;white-space:nowrap;overflow:auto}
+.site-menu a{color:#302a20;text-decoration:none}.site-menu a:hover{text-decoration:underline;text-underline-offset:5px}.site-menu a:focus-visible{outline:3px solid #9c2b22;outline-offset:3px}
 .hero{margin-top:28px;min-height:280px;padding:50px 44px;background:#f2e6c8;border:1px solid #e9d2bb;border-radius:8px}
 .eyebrow{color:#8d641f;letter-spacing:.12em;font-size:12px;font-weight:700}
 h1,h2{font-family:"Gowun Batang",serif}
@@ -28,12 +29,13 @@ p{line-height:1.7}
 .feature-card p{font-family:"Gowun Batang",serif;font-size:22px;margin:16px 0 0}
 .card-kicker{font-size:13px;color:#624a24}
 .category-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.seller-story-links{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .category-link,.product-empty{display:grid;place-items:center;min-height:100px;background:#fffaf1;border:1px solid #e9d2bb;border-radius:8px}
 .category-link{color:#302a20;text-decoration:none;font-weight:700}.category-link:hover{background:#f2e6c8}.category-link:focus-visible{outline:3px solid #9c2b22;outline-offset:2px}
 .product-empty{min-height:190px;color:#675b48}
 .home-products{margin-top:28px}.home-products h3{font-family:"Gowun Batang",serif;font-size:20px;margin:12px 0}
 .search-main{padding-block:35px 80px}
-.search-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end;margin:28px 0}
+.search-filters{display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr)) auto;gap:10px;align-items:end;margin:28px 0}
 .search-filters label{grid-row:1;font-size:14px;font-weight:700}
 .search-filters input,.search-filters select{grid-row:2;min-width:0;min-height:44px;padding:10px;border:1px solid #bba886;border-radius:6px;background:#fffaf1;color:#302a20;font:inherit}
 .search-filters button{grid-row:2;margin:0;padding-inline:20px}
@@ -51,6 +53,7 @@ p{line-height:1.7}
 @media(max-width:760px){.search-filters{grid-template-columns:1fr 1fr}.search-filters label{grid-row:auto}.search-filters input,.search-filters select,.search-filters button{grid-row:auto}.search-results{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:500px){.search-results{grid-template-columns:1fr}}
 @media(max-width:600px){.shell{padding-inline:18px}.header-inner{min-height:74px;gap:18px}.brand{font-size:25px}.search-preview{font-size:0;padding-inline:12px}.search-preview>span:first-child{font-size:24px}.search-hint{font-size:12px}.hero{padding:30px 24px;min-height:250px}.category-row{grid-template-columns:repeat(2,1fr)}.site-menu{gap:18px}}
+@media(max-width:600px){.seller-story-links{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){.search-preview input{font-size:16px}}
 .account-shell{padding-block:34px 80px}
 .text-link{color:#75561e;text-decoration:underline;text-underline-offset:3px}

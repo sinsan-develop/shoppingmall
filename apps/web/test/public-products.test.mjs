@@ -14,6 +14,16 @@ test('home search is an actual product search form, not a decorative preview', (
   assert.match(html, /상품 검색/);
 });
 
+test('home menu links reach a real catalog or an existing home section', () => {
+  const html = renderToStaticMarkup(createElement(HomePage));
+  assert.match(html, /href="\/"[^>]*>홈<\/a>/);
+  assert.match(html, /href="\/products"[^>]*>제철 농산물<\/a>/);
+  assert.match(html, /href="\/#events-title"[^>]*>기획전<\/a>/);
+  assert.match(html, /href="\/#seller-story-title"[^>]*>판매자 이야기<\/a>/);
+  const source = readFileSync(new URL('../app/home-catalog.tsx', import.meta.url), 'utf8');
+  assert.match(source, /id="seller-story-title"/);
+});
+
 test('public product search shows server results and bounded controls without staged image keys', () => {
   const html = renderToStaticMarkup(createElement(ProductSearchView, {
     query: '고추', sort: 'latest', categoryId: '', categories: [],
@@ -35,6 +45,16 @@ test('public product search shows server results and bounded controls without st
     query: '고추', sort: 'price_asc', categoryId: '', categories: [], products: [], loading: false,
   }));
   assert.match(priceSort, /value="price_asc" selected=""/);
+});
+
+test('seller deep link remains a visible and editable search filter', () => {
+  const html = renderToStaticMarkup(createElement(ProductSearchView, {
+    query: '', sort: 'latest', categoryId: '', sellerId: 'seller-a',
+    categories: [], sellers: [{ id: 'seller-a', displayName: '진주농가' }],
+    products: [], loading: false,
+  }));
+  assert.match(html, /name="sellerId"/);
+  assert.match(html, /value="seller-a" selected=""[^>]*>진주농가/);
 });
 
 test('approved product detail shows option price and sold-out status without private image keys', () => {
