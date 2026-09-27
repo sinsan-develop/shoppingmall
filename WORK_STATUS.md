@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 관리자 반려 실제 HTTP DB 계약 확장 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@11cf242b5be9af951cc58a44dbb407a57cfe3edd` (SSH 원격 최신). 앞선 WSL 실제 DB 전체 API 42건 중 37 pass·0 fail·무DB 전용 5 skip, Next production build 9경로, QA 잔류 0.
+- 반려 서비스 DB 시험을 인증된 관리자 HTTP까지 확장: 실제 로그인 세션으로 pending 조회, 신뢰하지 않은 Origin 403, 빈 사유 400, 정상 반려 201, 중복 409, 고객 공개 0을 요구한다. 로컬 workspace typecheck·lint·diff check 통과. 실제 WSL DB 실행은 아직 미검증.
+- 변경 파일: `apps/api/test/product-review-db.test.mjs`, 본 현황. 이번 변경 오류 0. 다음은 SSH push→WSL DB HTTP GREEN·정확한 QA 정리. 이미지 안전화/승인 버튼은 여전히 열지 않는다.
+
 ## 최신 상태 — 2026-09-27 운영자 상품 검토 WSL build·DB 회귀 통과
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@c7628ff3cb231373c67f417085df7925dc781c0c` (SSH 원격/WSL 일치). Next.js production build는 `/account/admin/proposals`를 포함한 정적 경로 9개 생성·TypeScript 통과. 전체 API 실제 WSL PostgreSQL 회귀 42건 중 37 pass·0 fail·무DB 전용 5 skip.
