@@ -32,7 +32,16 @@ test('a seller draft has a local preview and explicit private-photo and proposal
   for (const label of ['대표 사진', '사진 업로드', '승인 요청', '초안']) assert.match(html, new RegExp(label));
   assert.match(html, /type="file"/);
   assert.match(html, /accept="image\/png,image\/jpeg,image\/webp"/);
+  assert.match(html, /초안 수정/);
   assert.doesNotMatch(html, /고객에게 공개 중/);
+});
+
+test('submitted proposals are not editable from the seller screen', () => {
+  const html = renderToStaticMarkup(createElement(SellerProductView, {
+    categories: [], products: [{ productId: 'product', revisionId: 'revision', title: '고추', status: 'pending' }],
+    busy: false, onCreate: () => {}, onUpload: () => {}, onSubmitProposal: () => {},
+  }));
+  assert.doesNotMatch(html, /초안 수정/);
 });
 
 test('seller enters exact option quantity and sees approval-pending stock separately', () => {

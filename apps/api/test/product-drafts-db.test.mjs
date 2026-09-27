@@ -46,6 +46,12 @@ test('a seller creates only its own non-public product draft in a minor category
     assert.equal(row.rows[0].status, 'draft');
     assert.equal(row.rows[0].shipping_mode, 'seller_direct');
     assert.equal(row.rows[0].price_won, 23000);
+    assert.equal(typeof drafts.getEditable, 'function');
+    const editable = await drafts.getEditable(seller, created.productId, created.revisionId);
+    assert.equal(editable.title, '시험 고추');
+    assert.deepEqual(editable.options, [{ name: '500g', priceWon: 23000 }]);
+    await assert.rejects(drafts.getEditable({ accountId, role: 'seller', sellerId: sellerB },
+      created.productId, created.revisionId), /Forbidden/);
     assert.equal(typeof drafts.update, 'function');
     const edited = { ...input, title: '수정 고추', description: '바뀐 가상 설명',
       options: [{ name: '500g', priceWon: 25000 }, { name: '1kg', priceWon: 45000 }] };

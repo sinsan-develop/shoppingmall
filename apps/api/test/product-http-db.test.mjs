@@ -58,8 +58,13 @@ test('seller draft HTTP persists only its verified seller scope and stays unpubl
     assert.equal(response.status, 201);
     const created = await response.json();
     productId = created.productId;
+    const editUrl = `${base}/catalog/seller/products/${productId}/revisions/${created.revisionId}`;
+    assert.equal((await fetch(editUrl, { headers: { cookie: sellerCookieB } })).status, 403);
+    const editableResponse = await fetch(editUrl, { headers: { cookie: sellerCookieA } });
+    assert.equal(editableResponse.status, 200);
+    assert.equal((await editableResponse.json()).title, '시험 마늘');
     const edit = (cookie, requestOrigin = origin) => fetch(
-      `${base}/catalog/seller/products/${productId}/revisions/${created.revisionId}`, {
+      editUrl, {
         method: 'PATCH', headers: { cookie, origin: requestOrigin, 'content-type': 'application/json' },
         body: JSON.stringify({ ...input, title: '수정 마늘', options: [{ name: '1kg', priceWon: 21000 }] }),
       });
