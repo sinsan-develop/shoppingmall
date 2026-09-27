@@ -5,6 +5,7 @@
 - 담당/범위: 어울 단일 writer, `codex/flat-v2-prototypes`. 기존 `GET /catalog/products?page=` 계약으로 고객 검색의 첫 24개 이후 페이지를 이어 붙인다. DB/schema/공개 API/권한·상품 노출 조건은 변경하지 않는다. 수동 더 보기이며 개인화·무한 스크롤로 표시하지 않는다.
 - RED→GREEN: 구매자 화면의 24개 결과에서 더 보기 버튼이 없는 RED를 확인한 뒤 페이지 번호, 요청 중 중복 클릭 차단, 기존 조건 유지, 반환 상품 ID 중복 표시 방지, 마지막/빈 페이지 버튼 숨김, 추가 조회 오류와 기존 결과 분리를 구현했다. 화면 목표 시험 9 pass·0 fail. 기존 DB 검색 시험에는 식별 가능한 `qa-<run>` 가상 공개 상품 25개로 24+1 페이지와 중복 없는 ID를 확인하는 검사를 추가했고 원래 `finally`의 정확한 fixture ID 정리를 유지한다.
 - 로컬 검증: 루트 164건 중 136 pass·28 DB/환경 skip·0 fail, PR 본문 검사 8 pass, typecheck·lint·production build·diff check 통과. DB 시험은 로컬에서 skip이므로 WSL 실제 개발 DB 검증 전에는 통과로 보지 않는다. 실제 브라우저 25개 더 보기·200% 확대/인쇄/인수는 별도 미검증. 동일 근본 원인 반복 0.
+- WSL 재현: exact SHA `042254f`를 지정 checkout에 fast-forward한 뒤 Node 24 일회성 컨테이너에서 개발 DB 연결 전체 시험 **164건 중 157 pass·7 환경 skip·0 fail**, 종료 코드 0. 25개 식별 가상 공개 상품은 24+1 두 응답·중복 없는 ID를 확인하고 `finally`에서 정리됐다. 사후 accounts/products/stock_change_requests/product_images 각 0, WSL checkout clean. 브라우저 버튼 실제 클릭은 아직 이 시험의 증거가 아니다.
 
 ## 진행 중 — 2026-09-28 S3.1 발송 주문별 내부 합계 계산
 
