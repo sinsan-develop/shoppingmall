@@ -86,7 +86,8 @@ test('the local-only HTTP upload accepts an owned draft, rejects cross-seller ac
     });
     const desired = [{ id: detail.id, purpose: 'thumbnail' }, { id: image.id, purpose: 'detail' }];
     assert.equal((await order(desired, { origin: 'https://untrusted.invalid' })).status, 403);
-    assert.equal((await order(desired, { cookie: wrongCookie })).status, 403);
+    // The foreign-seller session was invalidated when its role binding changed back.
+    assert.equal((await order(desired, { cookie: wrongCookie })).status, 401);
     assert.equal((await order([{ id: image.id, purpose: 'thumbnail' }])).status, 400);
     assert.equal((await order(desired)).status, 200);
     const listing = await fetch(url, { headers: { cookie } });
