@@ -1,11 +1,38 @@
 import type { Pool } from 'pg';
 import { canAccess, type AccessContext } from '../access.js';
+import type { ImageQuarantine } from './image-quarantine.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Operator review queue. Rejection never changes the currently published revision. */
 export class ProductReviews {
   constructor(private readonly pool: Pool) {}
+
+  async listImages(actor: AccessContext, revisionId: string) {
+    if (!canAccess(actor, 'approve-proposal', {})) throw new Error('Forbidden');
+    if (!uuid.test(revisionId)) throw new Error('Invalid proposal target');
+    const proposal = await this.pool.query('SELECT 1 FROM product_revisions WHERE id=$1 AND status=$2',
+      [revisionId, 'pending']);
+    if (!proposal.rowCount) throw new Error('Pending proposal required');
+    const images = await this.pool.query<{
+      id: string; purpose: 'thumbnail' | 'detail'; mimeType: string; sizeBytes: number; displayOrder: number;
+    }>(
+      `SELECT id,purpose,mime_type AS "mimeType",size_bytes AS "sizeBytes",display_order AS "displayOrder"
+       FROM product_images WHERE revision_id=$1 ORDER BY display_order,id`, [revisionId],
+    );
+    return images.rows;
+  }
+
+  async readImage(actor: AccessContext, revisionId: string, imageId: string, store: ImageQuarantine) {
+    if (!canAccess(actor, 'approve-proposal', {})) throw new Error('Forbidden');
+    if (!uuid.test(revisionId) || !uuid.test(imageId)) throw new Error('Invalid image target');
+    const image = await this.pool.query<{ object_key: string }>(
+      `SELECT i.object_key FROM product_images i JOIN product_revisions r ON r.id=i.revision_id
+       WHERE r.id=$1 AND i.id=$2 AND r.status='pending'`, [revisionId, imageId],
+    );
+    if (!image.rows[0]) throw new Error('Pending image not found');
+    return store.read(image.rows[0].object_key);
+  }
 
   async listPending(actor: AccessContext) {
     if (!canAccess(actor, 'approve-proposal', {})) throw new Error('Forbidden');

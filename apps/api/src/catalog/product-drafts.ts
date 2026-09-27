@@ -306,6 +306,23 @@ export class ProductDrafts {
     return images.rows;
   }
 
+  async readImage(actor: AccessContext, productId: string, revisionId: string,
+    imageId: string, store: ImageQuarantine) {
+    if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
+      throw new Error('Forbidden');
+    }
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (![productId, revisionId, imageId].every((id) => uuid.test(id))) throw new Error('Invalid image target');
+    const image = await this.pool.query<{ object_key: string }>(
+      `SELECT i.object_key FROM product_images i JOIN product_revisions r ON r.id=i.revision_id
+       JOIN products p ON p.id=r.product_id
+       WHERE p.id=$1 AND r.id=$2 AND i.id=$3 AND p.seller_id=$4`,
+      [productId, revisionId, imageId, actor.sellerId],
+    );
+    if (!image.rows[0]) throw new Error('Forbidden');
+    return store.read(image.rows[0].object_key);
+  }
+
   async reorderImages(actor: AccessContext, productId: string, revisionId: string,
     input: { id: string; purpose: 'thumbnail' | 'detail' }[]) {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {

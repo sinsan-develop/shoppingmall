@@ -1,7 +1,7 @@
 import {
   BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException,
-  Get, Inject, NotFoundException, Param, Patch, PayloadTooLargeException, Post, Query, Req,
-  ServiceUnavailableException, UnauthorizedException,
+  Get, Header, Inject, NotFoundException, Param, Patch, PayloadTooLargeException, Post, Query, Req,
+  ServiceUnavailableException, StreamableFile, UnauthorizedException,
 } from '@nestjs/common';
 import type { IncomingMessage } from 'node:http';
 import { readToken, requireOrigin } from '../auth/controller.js';
@@ -282,6 +282,25 @@ export class CatalogController {
     }
   }
 
+  @Get('seller/products/:productId/revisions/:revisionId/images/:imageId/preview')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async previewSellerImage(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string,
+    @Param('imageId') imageId: string) {
+    this.requireLocalUpload();
+    const actor = await this.seller(request);
+    try {
+      const bytes = await this.drafts().readImage(actor, productId, revisionId, imageId, this.localUploadStore());
+      return new StreamableFile(bytes, { type: 'image/webp' });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid image target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw new ServiceUnavailableException({ status: 'private_image_unavailable' });
+    }
+  }
+
   @Patch('seller/products/:productId/revisions/:revisionId/images/order')
   async reorderProductImages(@Req() request: RequestHeaders,
     @Param('productId') productId: string, @Param('revisionId') revisionId: string, @Body() body: unknown) {
@@ -373,6 +392,35 @@ export class CatalogController {
   async pendingProposals(@Req() request: RequestHeaders) {
     const actor = await this.admin(request);
     return this.reviews().listPending(actor);
+  }
+
+  @Get('admin/proposals/:revisionId/images')
+  async pendingProposalImages(@Req() request: RequestHeaders, @Param('revisionId') revisionId: string) {
+    const actor = await this.admin(request);
+    try { return await this.reviews().listImages(actor, revisionId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Pending proposal required') throw new NotFoundException();
+      throw error;
+    }
+  }
+
+  @Get('admin/proposals/:revisionId/images/:imageId/preview')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async previewPendingImage(@Req() request: RequestHeaders,
+    @Param('revisionId') revisionId: string, @Param('imageId') imageId: string) {
+    this.requireLocalUpload();
+    const actor = await this.admin(request);
+    try {
+      const bytes = await this.reviews().readImage(actor, revisionId, imageId, this.localUploadStore());
+      return new StreamableFile(bytes, { type: 'image/webp' });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid image target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Pending image not found') throw new NotFoundException();
+      throw new ServiceUnavailableException({ status: 'private_image_unavailable' });
+    }
   }
 
   @Post('admin/proposals/:revisionId/reject')
