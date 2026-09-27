@@ -66,7 +66,10 @@ test('only an operator publishes a fully scanned pending product and its exact p
     });
     assert.equal(approved.status, 'approved');
     assert.equal(scanned, 1);
-    assert.equal((await publicProducts.get(productId)).revisionId, revisionId);
+    const detail = await publicProducts.get(productId);
+    assert.equal(detail.revisionId, revisionId);
+    assert.deepEqual(detail.images, [{ id: imageId, purpose: 'thumbnail', displayOrder: 0 }]);
+    assert.equal(JSON.stringify(detail).includes('quarantine/'), false);
     assert.deepEqual(await publicProducts.getPublishedImage(productId, imageId), { objectKey, mimeType: 'image/webp' });
     const publishedImage = await fetch(publicImageUrl);
     assert.equal(publishedImage.status, 200);

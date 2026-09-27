@@ -48,3 +48,15 @@ test('approved product detail shows option price and sold-out status without pri
   }
   assert.doesNotMatch(html, /objectKey|quarantine\/|장바구니에 담기/);
 });
+
+test('approved product detail displays only server-gated image IDs and keeps private keys hidden', () => {
+  const html = renderToStaticMarkup(createElement(ProductDetailView, {
+    product: { productId: 'p1', title: '햇고추', description: '상품 설명', sellerName: '어울 농가',
+      originLabel: '경남 진주', shippingMode: 'seller_direct', options: [],
+      images: [{ id: 'i1', purpose: 'thumbnail', displayOrder: 0 },
+        { id: 'i2', purpose: 'detail', displayOrder: 1 }] },
+  }));
+  assert.match(html, /catalog\/products\/p1\/images\/i1/);
+  assert.match(html, /catalog\/products\/p1\/images\/i2/);
+  assert.doesNotMatch(html, /quarantine\/|objectKey|상품 사진 준비 중/);
+});
