@@ -56,7 +56,19 @@ test('seller draft HTTP persists only its verified seller scope and stays unpubl
     assert.equal((await create(sellerCookieA, { ...input, categoryId: majorId })).status, 400);
     const response = await create(sellerCookieA);
     assert.equal(response.status, 201);
-    productId = (await response.json()).productId;
+    const created = await response.json();
+    productId = created.productId;
+    const edit = (cookie, requestOrigin = origin) => fetch(
+      `${base}/catalog/seller/products/${productId}/revisions/${created.revisionId}`, {
+        method: 'PATCH', headers: { cookie, origin: requestOrigin, 'content-type': 'application/json' },
+        body: JSON.stringify({ ...input, title: '수정 마늘', options: [{ name: '1kg', priceWon: 21000 }] }),
+      });
+    assert.equal((await edit(customerCookie)).status, 403);
+    assert.equal((await edit(sellerCookieB)).status, 403);
+    assert.equal((await edit(sellerCookieA, 'https://untrusted.invalid')).status, 403);
+    assert.equal((await edit(sellerCookieA)).status, 200);
+    assert.equal((await pool.query('SELECT title FROM product_revisions WHERE id=$1', [created.revisionId])).rows[0].title,
+      '수정 마늘');
     assert.equal((await pool.query('SELECT seller_id FROM products WHERE id=$1', [productId])).rows[0].seller_id, sellerA);
     const listingA = await fetch(`${base}/catalog/seller/products`, { headers: { cookie: sellerCookieA } });
     assert.equal(listingA.status, 200);

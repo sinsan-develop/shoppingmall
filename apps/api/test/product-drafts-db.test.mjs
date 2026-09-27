@@ -46,6 +46,21 @@ test('a seller creates only its own non-public product draft in a minor category
     assert.equal(row.rows[0].status, 'draft');
     assert.equal(row.rows[0].shipping_mode, 'seller_direct');
     assert.equal(row.rows[0].price_won, 23000);
+    assert.equal(typeof drafts.update, 'function');
+    const edited = { ...input, title: '수정 고추', description: '바뀐 가상 설명',
+      options: [{ name: '500g', priceWon: 25000 }, { name: '1kg', priceWon: 45000 }] };
+    await assert.rejects(drafts.update({ accountId, role: 'seller', sellerId: sellerB },
+      created.productId, created.revisionId, edited), /Forbidden/);
+    await drafts.update(seller, created.productId, created.revisionId, edited);
+    const editedRow = await pool.query('SELECT title,description,status FROM product_revisions WHERE id=$1', [created.revisionId]);
+    assert.deepEqual(editedRow.rows[0], { title: '수정 고추', description: '바뀐 가상 설명', status: 'draft' });
+    const editedOptions = await pool.query('SELECT name,price_won FROM product_options WHERE revision_id=$1 ORDER BY display_order',
+      [created.revisionId]);
+    assert.deepEqual(editedOptions.rows.map((option) => [option.name, option.price_won]),
+      [['500g', 25000], ['1kg', 45000]]);
+    await pool.query("UPDATE product_revisions SET status='pending' WHERE id=$1", [created.revisionId]);
+    await assert.rejects(drafts.update(seller, created.productId, created.revisionId, input), /Draft required/);
+    await pool.query("UPDATE product_revisions SET status='draft' WHERE id=$1", [created.revisionId]);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
     assert.equal((await drafts.listOwned(seller)).length, 1);
     assert.equal((await drafts.listOwned({ accountId, role: 'seller', sellerId: sellerB })).length, 0);

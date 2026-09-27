@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.2 판매자 상품 초안 수정
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@f8840c78c70ad20a19771a845c97dd2216c4f564`. 선행 S2 공개 카탈로그 QA가 정상 종료되어 지정 DB 핵심 9종 0행·임시 포트/컨테이너 0. S3는 S2 완료 전 착수하지 않는다.
+- 목표/계약: 판매자는 자기 소속 `draft`만 수정하고, 다른 판매자·pending/approved 상품·현재 공개 revision은 불변. 상품명/설명/산지/소분류/발송 방식과 옵션 이름·가격을 편집하되 재고·승인 대기가 연결된 옵션은 삭제하지 않는다. 변경은 감사 이력으로 남기며 고객 공개 API 결과는 그대로 유지한다.
+- 예상 파일: `apps/api/src/catalog/product-drafts.ts`, `controller.ts`, DB/HTTP 시험, 판매자 상품 화면/시험, 본 현황. 새 schema·migration·Secret·외부 비용 없음. 먼저 DB/HTTP·UI RED를 확인하고 해당 파일만 구현한다. WSL 시험은 정확한 Git SHA를 pull해 지정 DB의 식별 가능한 가상 자료만 사용하고 finally 정리. 실패 시 직전 안전 commit 유지·해당 QA ID 자료만 제거한다.
+
 ## 진행 중 — 2026-09-27 S2.4 공개 상품 홈→상세 실제 브라우저 QA
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@c0ff1d2` (로컬/원격/WSL 체크포인트 일치). 기존 review QA는 정리 완료, 쇼핑몰 임시 컨테이너 0. 기존 고객 공개 조회 계약만 검증하며 제품의 관리자 승인 경로는 열지 않는다.
