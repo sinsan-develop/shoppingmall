@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S2 시험 카탈로그 5품목 fixture
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@ca626be`. 승인된 S2 QA seed 범위이며 제품 schema/API/운영 상품을 변경하지 않는다.
+- RED/GREEN 계약: 기존 계정 QA fixture의 고정 시험 ID `c7a9e210`에서 관리자·판매자 A/B/어울몰 QA 계정·판매자만 사용한다. 별도 카탈로그 fixture가 고추·고춧가루·양파·마늘·블루베리 가상 옵션/가격/재고를 대/소분류에 등록하고, 3개 판매자와 직접/어울몰 발송이 섞인 공개 목록을 멱등하게 준비하는지 실제 DB에서 확인한다. 테스트는 종료 시 카탈로그 fixture 먼저, 계정 fixture 다음 순서로 정확한 ID 자료만 제거하며 별도 컨테이너 서비스·외부 발송은 만들지 않는다.
+- 안전 경계: 실행 전 지정 `local-postgres/shoppingmall`의 accounts/products 0을 확인했다. 시험 전용 값은 실판매값이 아니며 사진·실 PG·주문은 포함하지 않는다. 오류 시 `c7a9e210` 접두의 행과 FK를 확인하고 다른 자료를 초기화하지 않는다.
+
 ## 진행 중 — 2026-09-28 S2.4 화면 확대·키보드 검증
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@a7c04ca`. 제품·DB 자료 변경 없이 지정 WSL checkout의 동일 SHA production build로 빈 카탈로그 홈/상품 목록을 실제 브라우저에서 검증한다.
