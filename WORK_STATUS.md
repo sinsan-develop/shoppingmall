@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S3.1 장바구니 선택 수량·제거 내부 규칙
+
+- 담당/범위: 어울 단일 writer, `codex/flat-v2-prototypes`. S2 새 공개 상품 수정 API의 직접 승인 답변 전까지 S3.1의 독립된 장바구니 선택값 불변 연산만 선행한다. 기존 DB/schema/공개 API/권한/상품 가격·재고 계약을 변경하지 않는다.
+- RED→GREEN: `apps/api/test/cart-selection.test.mjs` 3건을 먼저 작성해 모듈 부재 RED를 확인했다. `apps/api/src/checkout/cart-selection.ts`에서 같은 옵션 합산, 고객이 직접 입력한 양의 정수 수량 변경, 항목 제거, 잘못된 값·중복 상태·안전 정수 초과 차단을 구현했다. 원본 선택값은 변경하지 않는다.
+- 로컬 검증: 목표 3 pass·0 fail; 루트 `pnpm test` 162건 중 134 pass·28 환경/DB skip·0 fail 및 PR 본문 검사 8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build`, `git diff --check` 통과. 기능 오류 반복 0.
+- 한계/다음: 이는 가격·재고를 신뢰하지 않는 내부 선택 의도 계산일 뿐 화면 장바구니 CRUD, DB 영속화, 서버 재견적·예약·결제는 아니다. S2/S3 Stage 완료나 사용자 인수로 판정하지 않는다. exact commit WSL DB 전체 회귀와 잔류 자료 확인 후 별도 기록한다.
+
 ## 진행 중 — 2026-09-28 S3.1 독립 계산 규칙 선행 검증
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@045eb10`. S2 상품 수정의 새 공개 API 승인 대기 중에도 다른 시스템에 영향이 없는 S3.1 내부 순수 계산만 진행한다. 이것은 S2 완료 판정이나 S3 Stage 선행 게이트 통과가 아니다.
