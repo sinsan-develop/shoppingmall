@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
+import { createApp } from '../src/app.ts';
 import { AuthRepository } from '../src/auth/repository.ts';
 import { InventoryService } from '../src/inventory/service.ts';
 
@@ -18,6 +19,7 @@ test('seller can close stock immediately but only an operator releases an increa
   const suffix = randomUUID().slice(0, 8);
   let sellerAccountId, adminAccountId, sellerCategoryId, sellerId, otherSellerId;
   let majorId, minorId, productId, revisionId, optionId;
+  let app;
   try {
     const auth = new AuthRepository(pool);
     sellerAccountId = await auth.createCustomerAccount(`qa+${randomUUID()}@example.invalid`, 'test-only-password-12345');
@@ -31,6 +33,8 @@ test('seller can close stock immediately but only an operator releases an increa
     revisionId = (await pool.query(`INSERT INTO product_revisions(product_id,version,title,description,origin_label,shipping_mode,status,proposed_by_account_id)
       VALUES ($1,1,'시험 고추','재고 시험','전국','seller_direct','draft',$2) RETURNING id`, [productId, sellerAccountId])).rows[0].id;
     optionId = (await pool.query('INSERT INTO product_options(revision_id,name,price_won) VALUES ($1,$2,$3) RETURNING id', [revisionId, '500g', 23000])).rows[0].id;
+    await pool.query('INSERT INTO account_roles(account_id,role,seller_id) VALUES ($1,$2,$3)', [sellerAccountId, 'seller', sellerId]);
+    await pool.query('INSERT INTO account_roles(account_id,role) VALUES ($1,$2)', [adminAccountId, 'admin']);
     const inventory = new InventoryService(pool);
     const seller = { accountId: sellerAccountId, role: 'seller', sellerId };
     const other = { accountId: sellerAccountId, role: 'seller', sellerId: otherSellerId };
@@ -55,7 +59,45 @@ test('seller can close stock immediately but only an operator releases an increa
     assert.equal(reopen.sellable, 0);
     assert.ok(reopen.requestId);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM audit_events WHERE target_id=$1', [optionId])).rows[0].n, 3);
+    app = await createApp();
+    await app.listen(0, '127.0.0.1');
+    const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+    const origin = 'http://127.0.0.1:9091';
+    const login = async (accountId, role) => {
+      const email = (await pool.query('SELECT identifier FROM account_identities WHERE account_id=$1 AND kind=$2', [accountId, 'email'])).rows[0].identifier;
+      const response = await fetch(`${base}/auth/login`, { method: 'POST',
+        headers: { origin, 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password: 'test-only-password-12345', role }),
+      });
+      assert.equal(response.status, 201);
+      return response.headers.get('set-cookie').split(';')[0];
+    };
+    const sellerCookie = await login(sellerAccountId, 'seller');
+    const adminCookie = await login(adminAccountId, 'admin');
+    const stockUrl = `${base}/catalog/seller/options/${optionId}/stock`;
+    const stockWrite = (quantity, requestOrigin = origin) => fetch(stockUrl, { method: 'POST',
+      headers: { origin: requestOrigin, cookie: sellerCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ quantity }),
+    });
+    assert.equal((await stockWrite(0, 'https://untrusted.invalid')).status, 403);
+    assert.equal((await stockWrite(-1)).status, 400);
+    const zero = await stockWrite(0);
+    assert.equal(zero.status, 201);
+    assert.equal((await zero.json()).sellable, 0);
+    const httpIncrease = await stockWrite(7);
+    assert.equal(httpIncrease.status, 201);
+    const httpRequestId = (await httpIncrease.json()).requestId;
+    const approvalUrl = `${base}/catalog/admin/stock-requests/${httpRequestId}/approve`;
+    const approval = (cookie) => fetch(approvalUrl, { method: 'POST',
+      headers: { origin, cookie, 'content-type': 'application/json' }, body: '{}',
+    });
+    assert.equal((await approval(sellerCookie)).status, 403);
+    const httpApproved = await approval(adminCookie);
+    assert.equal(httpApproved.status, 201);
+    assert.equal((await httpApproved.json()).sellable, 7);
+    assert.equal((await approval(adminCookie)).status, 409);
   } finally {
+    if (app) await app.close();
     if (optionId) {
       await pool.query('DELETE FROM stock_change_requests WHERE option_id=$1', [optionId]);
       await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [optionId]);

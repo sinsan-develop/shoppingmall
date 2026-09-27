@@ -1,5 +1,17 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.3 재고 인증 HTTP WSL 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@a50c3256fa4ab957c1f59da74202d22050f0ae2a` (SSH 원격/WSL 일치). 직전 migration 0004는 WSL QA DB dry-run·정확한 QA DB 삭제 후 지정 `shoppingmall`에 적용했고, 정식 DB 전체 API 48개 중 43 pass·0 fail·환경별 5 skip, QA 테이블 12종·임시 컨테이너 잔류 0.
+- 판매자 `POST /catalog/seller/options/:optionId/stock`과 관리자 `POST /catalog/admin/stock-requests/:requestId/approve`를 세션 역할·Origin 확인 후 서비스에 연결했다. 가짜 역할 헤더의 미인증 404 RED→401 GREEN 로컬 HTTP 시험을 확인했다. 실제 DB HTTP 시험은 판매자/관리자 로그인, 다른 Origin, 음수, 0 즉시 반영, 7개 증가 승인, 판매자 승인 거부, 중복 승인 거부를 요구하도록 추가했으며 WSL 실제 실행 전이다.
+- 변경 파일: `apps/api/src/catalog/controller.ts`, `apps/api/test/inventory-http.test.mjs`, `inventory-db.test.mjs`, 본 현황. 오류: 의도한 경로 부재 RED 1회. 다음은 전체 로컬 gate·정확한 커밋 push→WSL 실제 인증 HTTP GREEN/전체 회귀·QA 정리 확인. UI/고객 구매 재고 경합은 아직 미구현이다.
+
+## 최신 상태 — 2026-09-27 S2.3 재고 migration·서비스 실제 WSL DB GREEN
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@a50c3256fa4ab957c1f59da74202d22050f0ae2a` (SSH 원격/WSL 일치). migration 0004는 기존 4건·옵션 0행·신규 테이블 부재를 확인한 후 적용했다. QA 전용 `shoppingmall_qa_mig_fc58`에서 5개 migration과 새 테이블 2개 생성 dry-run 성공; 정확한 QA DB를 삭제하고 부재 확인. 정식 개발 `shoppingmall`은 migration 이력 5건.
+- 서비스 실제 DB 시험: 타 판매자/관리자 재고 입력 거부, 음수 거부, 판매자 10개 증가 시 판매 가능 0 유지, 판매자 승인 거부·관리자 승인 후 10, 중복 승인 거부, 0 즉시 차단, 4개 재입고 승인 대기. targeted 2 pass; 전체 API 48개 중 43 pass·0 fail·환경별 5 skip. 최종 accounts/sellers/categories/products/revisions/options/inventory/requests/images/publications/audit 12종 모두 0행, `shoppingmall-s2-*` 임시 컨테이너 0, WSL checkout clean.
+- 변경 파일: 본 현황. 실제 DB 마이그레이션 오류 0; 처음 제한된 로컬 `drizzle-kit check`는 명령 접근 제한으로 실패 1회, 허용된 D: 작업 실행에서 재시도하여 통과. HTTP 권한·화면·판매자 재고 입력/관리자 승인 브라우저·마지막 수량 구매 경합은 미구현·미검증. S2.3 완료로 판정하지 않는다. 다음은 인증 HTTP API와 UI, 이후 고객 구매 전 재고 경합 계약을 진행한다.
+
 ## 최신 상태 — 2026-09-27 S2.3 재고 migration·서비스 WSL 검증 준비
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@fc58e08c7ab57ed8e31125e28d0467658fc33daf` (SSH 원격·WSL 일치). 재고 규칙 WSL 단위시험 3 pass, 로컬 전체 102개 중 84 pass·0 fail·DB-only 18 skip, PR 검사 8 pass, typecheck·lint·build 통과.

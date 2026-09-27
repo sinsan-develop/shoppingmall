@@ -7,6 +7,7 @@ import type { IncomingMessage } from 'node:http';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
+import { InventoryService } from '../inventory/service.js';
 import { ProductDrafts, type DraftInput } from './product-drafts.js';
 import { ProductReviews } from './product-reviews.js';
 import { ImageQuarantine } from './image-quarantine.js';
@@ -57,6 +58,12 @@ export class CatalogController {
     const pool = this.database.getPool();
     if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
     return new ProductReviews(pool);
+  }
+
+  private inventory() {
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    return new InventoryService(pool);
   }
 
   private requireLocalUpload() {
@@ -190,6 +197,36 @@ export class CatalogController {
     catch (error) {
       if (error instanceof Error && error.message === 'Invalid image target') throw new BadRequestException();
       if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
+  @Post('seller/options/:optionId/stock')
+  async setOptionStock(@Req() request: RequestHeaders, @Param('optionId') optionId: string,
+    @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    const quantity = body && typeof body === 'object' ? (body as Record<string, unknown>).quantity : undefined;
+    try { return await this.inventory().setStock(actor, optionId, quantity as number); }
+    catch (error) {
+      if (error instanceof Error && ['Invalid stock', 'Invalid stock target'].includes(error.message)) {
+        throw new BadRequestException({ status: 'invalid_stock', reason: error.message });
+      }
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
+  @Post('admin/stock-requests/:requestId/approve')
+  async approveStockIncrease(@Req() request: RequestHeaders, @Param('requestId') requestId: string) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    try { return await this.inventory().approveIncrease(actor, requestId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid stock request') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Pending stock request required') {
+        throw new ConflictException({ status: 'not_pending' });
+      }
       throw error;
     }
   }
