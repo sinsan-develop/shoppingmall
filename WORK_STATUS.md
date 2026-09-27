@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.4 공개 상품 상세 읽기 경계
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@054dd68f32180fb362906a599adb26c6d42cac95`. 공개 목록 DB/API와 검색 화면은 확인됐으며 상품 승인/공개 쓰기·이미지 공개는 아직 닫혀 있다.
+- 목표: 명시적 공개 포인터가 가리키는 approved revision만 상품 상세에서 읽고 옵션별 현재 판매 가능 수량·가격을 표시한다. 목록에서는 제외되는 품절 공개 상품의 상세는 품절 상태로 읽을 수 있으나 구매는 연결하지 않는다. pending/draft·다른 revision·비공개 object key는 응답에 넣지 않는다. 새 DB schema/Secret/외부 비용 없음.
+- 예상 파일: `apps/api/src/catalog/public-products.ts`, `controller.ts`, 공개 상품 DB 시험, 본 현황. 현재 `shoppingmall` DB는 QA 행 0·migration 5건. 목표 시험은 기존 QA fixture의 정확한 ID만 사용하고 정리한다.
+- 기존 공개 검색 DB fixture에 approved+재고 5 상세·pending 비공개·approved+품절 0 상세, object key 비노출, 잘못된 ID 400 및 HTTP 200/404를 요구하는 계약을 먼저 추가했다. 구현 전 WSL의 정확한 커밋에서 의도한 `service.get` 부재 RED를 확인하고 QA 잔류 0을 재조회한 뒤 구현한다.
+
 ## 진행 중 — 2026-09-27 S2.4 공개 상품 검색의 읽기 경계
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@2e45c4c831b0b9b2ac035ffad5682a84d84bc2fe`. 상품 승인·공개 쓰기 경계는 아직 닫힌 상태다.

@@ -42,8 +42,8 @@ test('public search only returns approved published revisions with sellable stoc
       return productId;
     };
     const visibleId = await makeProduct(`qa-${run}-고추`, 'approved', 5, true);
-    await makeProduct(`qa-${run}-비밀 양파`, 'pending', 5, false);
-    await makeProduct(`qa-${run}-품절 마늘`, 'approved', 0, true);
+    const pendingId = await makeProduct(`qa-${run}-비밀 양파`, 'pending', 5, false);
+    const soldOutId = await makeProduct(`qa-${run}-품절 마늘`, 'approved', 0, true);
     const service = new PublicProducts(pool);
     const visible = await service.list({ query: `qa-${run}`, categoryId: majorId, sellerId, sort: 'latest' });
     assert.deepEqual(visible.map((item) => item.productId), [visibleId]);
@@ -55,6 +55,15 @@ test('public search only returns approved published revisions with sellable stoc
     assert.deepEqual((await service.list({ query: `qa-${run}-농가`, categoryId: minorId, sort: 'price_asc' }))
       .map((item) => item.productId), [visibleId]);
     await assert.rejects(service.list({ sort: 'bogus' }), /Invalid search/);
+    const detail = await service.get(visibleId);
+    assert.equal(detail.productId, visibleId);
+    assert.equal(detail.title, `qa-${run}-고추`);
+    assert.deepEqual(detail.options.map((option) => ({ name: option.name, priceWon: option.priceWon,
+      sellableQuantity: option.sellableQuantity })), [{ name: '500g', priceWon: 23000, sellableQuantity: 5 }]);
+    assert.equal('objectKey' in detail, false);
+    assert.equal(await service.get(pendingId), null);
+    assert.equal((await service.get(soldOutId)).options[0].sellableQuantity, 0);
+    await assert.rejects(service.get('invalid'), /Invalid product target/);
 
     app = await createApp();
     await app.listen(0, '127.0.0.1');
@@ -66,6 +75,11 @@ test('public search only returns approved published revisions with sellable stoc
     assert.equal(allCategories.status, 200);
     assert.deepEqual((await allCategories.json()).map((item) => item.productId), [visibleId]);
     assert.equal((await fetch(`${base}/catalog/products?sort=bogus`)).status, 400);
+    const detailResponse = await fetch(`${base}/catalog/products/${visibleId}`);
+    assert.equal(detailResponse.status, 200);
+    assert.equal((await detailResponse.json()).options[0].sellableQuantity, 5);
+    assert.equal((await fetch(`${base}/catalog/products/${pendingId}`)).status, 404);
+    assert.equal((await fetch(`${base}/catalog/products/invalid`)).status, 400);
   } finally {
     if (app) await app.close();
     if (products.length) await pool.query('DELETE FROM product_publications WHERE product_id = ANY($1::uuid[])', [products]);
