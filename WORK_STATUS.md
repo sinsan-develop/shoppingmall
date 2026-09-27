@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S3.1 독립 계산 규칙 선행 검증
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@045eb10`. S2 상품 수정의 새 공개 API 승인 대기 중에도 다른 시스템에 영향이 없는 S3.1 내부 순수 계산만 진행한다. 이것은 S2 완료 판정이나 S3 Stage 선행 게이트 통과가 아니다.
+- 승인된 입력/범위: PRD 7.4·배송비 규칙과 `docs/design/DELIVERY_SCOPE_ADDENDUM.md`의 발송 방식별 묶음/판매자별 직접 발송·각 발송 주문 할인 전 50,000원 기준을 사용한다. 상품 옵션·판매자·수량·원화 단가의 가상 값으로 3개 발송 주문과 49,999/50,000/52,000(할인 후 47,000) 경계 시험을 RED→GREEN으로 작성한다.
+- 영향·제외: `apps/api/src/checkout/`의 내부 순수 함수와 단위시험만 신규 생성, DB/schema/공개 API/인증·권한/주문 예약·실프로모션/외부 비용은 변경하지 않는다. 판매자별 승인된 배송 정책은 호출자가 인자로 공급한다. 실제 DB/웹 장바구니·최종 견적 합격으로 확대 해석하지 않는다.
+- RED→GREEN: 신규 내부 모듈 부재 `ERR_MODULE_NOT_FOUND`로 목표 시험 RED, 구현 뒤 직접 판매자 A/B와 어울몰 발송 3묶음·할인 전 49,999/50,000원·비정상 수량/원화 오버플로 3 pass·0 fail. 첫 `apply_patch`는 신규 부모 폴더 부재로 1회 거부되어 정확한 `apps/api/src/checkout` 디렉터리만 만든 뒤 같은 패치를 적용했다. 제품 코드 오류나 사용자 자료 변경은 없고 같은 근본 원인 반복 0.
+- 로컬 회귀: `pnpm test` 총 158건 중 130 pass·28 DB/환경 skip·0 fail, PR 본문 8 pass, typecheck·lint·API/웹 production build와 `git diff --check` 통과. 로컬 DB skip은 실제 DB 통합 PASS가 아니며 WSL exact commit 회귀는 push 뒤 별도 수행한다.
+
 ## 2026-09-28 최신 S1/S2 WSL 전체 회귀
 
 - 담당/브랜치: 어울 단일 writer, 지정 WSL checkout exact SHA `8ee182a`. `local-postgres/shoppingmall` 연결의 Node 24 일회성 컨테이너에서 루트 `node --test-concurrency=1 --import tsx --test` 실행.
