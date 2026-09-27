@@ -5,7 +5,8 @@
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@ab3d3134cd686d1dc30ba8c87976ba040b1864d3`. 기존 승인된 전체 구축·S2.3 작업계획 범위에서 지정 `shoppingmall` 시험 DB만 migration 대상으로 삼고 실제 운영/Oracle DB는 건드리지 않는다.
 - 목표: 관리자 전역 기본값·명시 잠금, 판매자별 승인된 정책, 판매자 변경 요청 및 관리자 개별 결정/이력을 분리한다. 하나의 판매자에 동시 pending 요청은 하나만 허용한다. 승인 전 공개 정책 불변·타 판매자 차단·관리자 금지 지역 우선. 요청/승인 actor·역할·시각을 감사 이력으로 남긴다.
 - 단계: DB schema RED→migration·WSL DB GREEN, 서비스 DB/HTTP RED→GREEN, 역할별 화면·실제 브라우저 및 회귀. 이번 정책 단위값의 우편번호 구간/잠금은 운영 값 확정이 아니라 구현 계약이며 주문 스냅샷은 S3에서 다룬다. migration 전 DB 백업/현재 상태 확인 및 시험 가상 행만 정확히 정리한다.
-- WSL `96174f6`에서 schema 시험은 `shipping_policy_global` 부재(42P01)로 의도된 RED. migration 전 다른 활성 DB 작업 0, accounts/sellers/products/product_images 각 0행. PostgreSQL custom dump를 `/home/daon/deploy/shopping-backups/shoppingmall-s23-pre-fZhaBe.dump`에 48,157 bytes·SHA256 `952b7025d6caa938213ef12decccceca7e1010c73da02181e38ec315527e9400`으로 보존했다. 이 백업은 시험 DB 전용이며 자동 복원/운영 배포 증거가 아니다. Drizzle 생성 SQL은 새 정책 테이블 3개와 신규 FK/제약/인덱스만 포함하며 전역 기본 1행 INSERT를 추가했다. schema 적용·GREEN은 아직 전이다.
+- WSL `96174f6`에서 schema 시험은 `shipping_policy_global` 부재(42P01)로 의도된 RED. migration 전 다른 활성 DB 작업 0, accounts/sellers/products/product_images 각 0행. PostgreSQL custom dump를 `/home/daon/deploy/shopping-backups/shoppingmall-s23-pre-fZhaBe.dump`에 48,157 bytes·SHA256 `952b7025d6caa938213ef12decccceca7e1010c73da02181e38ec315527e9400`으로 보존했다. 이 백업은 시험 DB 전용이며 자동 복원/운영 배포 증거가 아니다. Drizzle 생성 SQL은 새 정책 테이블 3개와 신규 FK/제약/인덱스만 포함하며 전역 기본 1행 INSERT를 추가했다.
+- `5931aedaa1148f0a9bec6d08c2321cd6fb2f1314`를 WSL에 pull했다. 기존 backup을 고유 임시 `shoppingmall_s23_dryrun_5931` DB에 복원(기존 migration 5개)→새 migration 적용→schema 시험 1 pass·0 fail→migration 6개/전역 정책 1행/계정 0 확인 후 임시 DB만 drop했다. 동일 SHA로 지정 `shoppingmall` 시험 DB에 migration 적용·schema 시험 1 pass·0 fail. 원본 DB 백업은 보존하며 Oracle/운영 DB는 건드리지 않았다. 서비스 요청/승인 로직·화면·정책 실제 적용은 아직 미구현이므로 schema GREEN을 S2.3 완료로 표시하지 않는다.
 
 ## 진행 중 — 2026-09-27 S2.3 배송 정책 결정 규칙
 
