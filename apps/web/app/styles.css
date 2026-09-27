@@ -5,7 +5,7 @@ body{margin:0}
 .site-header{background:#fffaf1;border-bottom:1px solid #e9d2bb}
 .header-inner{min-height:82px;display:flex;align-items:center;gap:52px}
 .brand{font-family:"Gowun Batang",serif;font-size:30px;font-weight:700;white-space:nowrap}
-.search-preview{flex:1;max-width:590px;min-height:44px;display:flex;align-items:center;gap:12px;padding:0 18px;border:1px solid #b98b3c;border-radius:6px;color:#55462b}
+.search-preview{flex:1;min-width:0;max-width:590px;min-height:44px;display:flex;align-items:center;gap:12px;padding:0 18px;border:1px solid #b98b3c;border-radius:6px;color:#55462b}
 .search-preview>span:first-child{font-size:26px;line-height:1}
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .search-preview input{min-width:0;flex:1;border:0;background:transparent;color:#302a20;font:inherit;outline:0}
