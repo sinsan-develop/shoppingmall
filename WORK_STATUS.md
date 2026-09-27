@@ -5,6 +5,7 @@
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@05fa54131054003a38636a6ad684b16a0fd98be8` (로컬/원격/WSL 일치). 직전 QA 자료·포트·임시 컨테이너 잔류 0.
 - 계약/범위: 판매자가 자기 소속의 `draft` 초안만 삭제 요청할 수 있다. 사진·재고/승인 요청·다른 revision·고객 공개 이력이 하나라도 있으면 삭제를 거부하며, 성공 시 옵션→revision→product를 트랜잭션으로 제거하고 감사 이력은 남긴다. 타 판매자·고객·pending/approved 삭제 금지. UI에는 영구 삭제 확인과 보호 조건을 명시한다. 현재 사진·재고를 가진 초안의 정리와 판매 중지는 별도 Task로 남긴다.
 - 예상 파일: `apps/api/src/catalog/product-drafts.ts`, `controller.ts`, DB/HTTP 시험, 판매자 화면·시험, 본 현황. schema/Secret/외부 비용 없음. RED→GREEN·WSL 지정 DB 실제 시험, 가상 fixture는 식별 ID만 생성/정리한다. 실패 시 마지막 안전 commit을 유지하고 잔류 자료를 정확 ID로 정리한다.
+- `762af11`에서 DB/HTTP 목표 2건과 로컬 UI 1건은 삭제 함수/라우트/버튼 부재로 의도된 RED, WSL 가상 자료 잔류 0. 구현 `a895c3a` 첫 WSL 목표 2건은 UUID 패턴의 한 블록 누락으로 정상 ID를 400 거부했다(구현 오류 1회, 삭제 전 차단, 잔류 0). `4c424f3`에서 정확 패턴으로 수정한 뒤 WSL 목표 2 pass·0 fail·자료 잔류 0. `609cfccdf754c5edc87ef18b9f21055d51fabf8d`에서 사진·재고 연결·제출 상태 삭제 거부와 성공 시 감사 이력까지 지정 DB 1 pass·0 fail. 최종 로컬 전체 120건 중 98 pass·0 fail·DB 22 skip, PR 본문 8 pass, WSL API 전체 54건 중 48 pass·0 fail·환경별 6 skip, 전체 typecheck/lint/API·Next production build 통과. WSL accounts/sellers/categories/products/revisions/options/images/inventory/publications/audit 10종 각 0행, 9091/9092 listener·S2 임시 컨테이너 0, checkout clean. 브라우저에서 삭제 확인 창의 실제 클릭·반응형·200% 확대는 아직 미검증. 사진/재고/공개 이력이 있는 상품은 삭제 기능 대상이 아니며 이후 별도 정리·판매중지 흐름이 필요하다.
 
 ## 진행 중 — 2026-09-27 S2.2 판매자 상품 초안 수정
 
