@@ -1,5 +1,18 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S0 migration 읽기 전용 미리보기 명령
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@3754e41`. S0 명령표의 누락된 dry-run을 기존 적용용 `migrate.ts`와 분리해 `apps/api/scripts/migrate-dry-run.ts`·`migration-preview.ts` 및 목표 시험·package script로 추가했다. 적용 이력은 Drizzle journal 순서·SHA-256과 대조하고 불일치하면 실패한다. DB 접속은 `BEGIN TRANSACTION READ ONLY`에서 현재 DB 이름과 migration 이력만 읽고 `ROLLBACK`하며, 대기 파일 목록과 선택적 `--sql` 본문을 출력한다. schema/migration SQL/공개 API·권한 계약은 변경하지 않는다. 이는 SQL을 적용/롤백하는 검증이 아니라 **읽기 전용 적용 전 미리보기**이며 실제 SQL 실행 적합성은 격리 DB 적용 시험으로 별도 확인한다.
+- RED→로컬 GREEN: 목표 시험은 새 모듈 부재 `ERR_MODULE_NOT_FOUND`로 RED, 구현 뒤 pending prefix/완료 0건/해시·순서 불일치 거부 2 pass·0 fail. 로컬 전체 168건 중 139 pass·29 DB/환경 skip·0 fail, PR 본문 시험 8 pass, typecheck·lint·production build·diff check 종료 코드 0. 로컬 skip은 WSL DB 검증의 대체가 아니다.
+- WSL 검증 자원 계획: 안전 커밋을 지정 SSH 원격에 push하고 `/home/daon/deploy/shopping`에서 exact SHA fast-forward 후 Node 24 일회성 컨테이너로 명령 실행. 먼저 기존 `local-postgres/shoppingmall`의 migration 6건·계정/상품 0을 읽기 전용 비교하고, 별도 `pgvector/pgvector:0.8.2-pg15` 임시 컨테이너 `shoppingmall-s0-dryrun-86d4`(호스트 포트 없음, 임시 메모리 저장소, 독립 빈 `shoppingmall` DB)에 `--network container:...`로 실행해 기존 migration 6개를 pending으로 출력해도 drizzle schema/table이 만들어지지 않는지 확인한다. 공유 DB에도 같은 명령으로 0 pending·이력/자료 불변을 확인한다. 비밀값은 실행 중 난수/환경에서만 사용·출력하지 않고 정확한 QA 컨테이너는 시험 직후 stop/remove, 이름/포트/DB/checkout 잔류를 확인한다. 이 자체 QA를 정식 WSL 통합·운영 DB rollback으로 표기하지 않는다.
+
+## 진행 중 — 2026-09-28 S2.4 실제 제품 200% 확대 확인
+
+- 담당/범위: 어울 단일 writer, `codex/flat-v2-prototypes@3754e41`. 이미 승인된 Flat v2 제품 홈·상품검색의 **실제 Chrome 페이지 확대**를 확인한다. 단순 430px viewport 축소를 200% 증거로 대체하지 않는다. 제품 코드·DB/schema·API·권한 변경 없음.
+- QA 사전 확인/자원 계획: 지정 WSL checkout `3754e41` clean, 개발 DB accounts/products `0/0`, 9091/9092 HTTP listener 0, `shoppingmall-s24-zoom-` 컨테이너 0. 정확한 임시 이름 `shoppingmall-s24-zoom-web-8ac1`/`shoppingmall-s24-zoom-api-8ac1`, loopback 127.0.0.1:9091/9092, 새 Chrome 시험 탭 한 개만 사용한다. 실제 브라우저 키 입력이 페이지 zoom을 바꿨는지 계산된 CSS viewport/DPR로 먼저 확인한 뒤 가로 넘침·기본 탐색을 검사한다. 적용되지 않으면 실패/미검증으로 남기고 대체 viewport를 합격으로 기록하지 않는다. 종료 시 확대·viewport를 기본으로 복원, 시험 탭·정확한 두 컨테이너만 닫고 포트·DB·Git 잔류를 확인한다. QA 계정·상품은 생성하지 않는다.
+- 실행/판정: exact SHA `3754e41`의 임시 API `/ready`와 웹 홈 HTTP 각 200. 새 Chrome 시험 탭에서 기본 `devicePixelRatio=1`, `innerWidth=1584`, `clientWidth=scrollWidth=1569`, `visualViewport.scale=1`. 브라우저 입력 `ctrl+plus`, 대체 `ctrl+equal` 각각 뒤에 동일 지표 불변이어서 **실제 확대가 적용됐다는 증거 없음**. 이 환경에서 200% 표시·가로 넘침·키보드 결과는 **미검증**이며 앞서 확인한 430px viewport 결과로 대체하지 않는다. `ctrl+0` 후 기본 지표 불변, 탭 종료. 확대 입력 미적용 동일 원인 2회로 추가 키 반복을 멈췄다. 사용자 Chrome 설정·다른 탭은 변경하지 않았다.
+- 정리/다음: 지정 컨테이너 두 개만 stop/remove 후 잔류 0, 9091/9092 HTTP listener 0, 개발 DB accounts/products `0/0`, WSL checkout clean. 실배율 조절을 노출하는 브라우저 환경에서 200%를 다시 검증해야 한다. 다른 S2 미완료 항목은 계속한다.
+
 ## 진행 중 — 2026-09-28 S2.4 승인된 Flat v2 홈 헤더·히어로 반영
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@149ce75`. 신산님이 제품 시각 기준으로 채택한 `docs/design/assets/home-flat-v2.html`의 황금·크림 헤더/히어로·사진 자리표시를 현재 제품 홈의 기본 골격에 좁혀 반영한다. 새 디자인·콘텐츠 승인 판단이 아니라 기존 채택 시안의 구현이다. 상품 검색과 기존 메뉴 링크·서비스 구축 중 안내는 유지하고, 클릭 가능한 제철 상품/판매자 이야기 동선은 현재 실재하는 `/products`·`/#seller-story-title`만 쓴다. 장바구니·기획전 결제 등 미구현 링크를 만들지 않는다.
