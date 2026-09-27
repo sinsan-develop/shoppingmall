@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.4 고객 홈의 공개 카탈로그 연결
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@24a1342631985101db3b1bfe1fceae98826dc915`. Flat v2 홈·승인된 S2.4 계약을 따른다.
+- 목표/범위: 관리자 등록 대분류와 실제 공개·판매 가능한 최신 상품을 홈에 조회·탐색 링크로 표시한다. 개인화·기획전 관리·이미지 공개·장바구니는 이번 작업에 포함하지 않으며, 데이터가 없거나 API 연결이 안 되면 실제 상태를 알린다. 새 DB schema·Secret·외부 서비스·운영 자료 변경 없음.
+- 예상 파일: `apps/web/app/page.tsx`, `apps/web/test/page.test.mjs`, 필요 시 `apps/web/app/styles.css`, 본 현황. 기존 9091/9092는 현재 꺼져 있고 WSL `shoppingmall` DB QA 행 0, migration 5건. RED→GREEN 로컬 검증 후 안전한 commit/SSH push→WSL exact pull/build·브라우저 빈 상태 시험을 계획한다. 일회성 QA 컨테이너는 `shoppingmall-s2-home-api-*`, `shoppingmall-s2-home-web-*`로 명명하고 종료 후 포트·자료 잔류 0을 확인한다. 실패 시 이 branch의 직전 안전 commit으로 코드 복귀하고 DB에는 쓰지 않는다.
+- 기존 홈 정적 섹션은 서버 컴포넌트로 유지하고 카탈로그 조회만 고객 클라이언트 컴포넌트로 분리했다. 관리자 대분류 링크·공개 최신 상품 4개/가격·빈 결과/연결 오류의 시험은 구현 전 `HomeCatalogView` 부재 RED, 로컬 목표 4 pass로 GREEN. 로컬 전체 test 115건 중 95 pass·0 fail·DB 전용 20 skip, PR 본문 검사 8 pass, typecheck·lint·API/Next production build 10경로 통과. 실제 WSL/브라우저와 공개 상품 표시·200% 확대는 아직 미검증; 반복 구현 오류 0.
+
 ## 진행 중 — 2026-09-27 S2.4 공개 상품 상세 고객 화면
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@35c465968309fcfcab7b687a8f82a02c39936a10`. 공개 상품 목록/상세 API는 지정 DB 시험 통과, 이미지 공개/관리자 승인/장바구니는 아직 닫힌 경계다.

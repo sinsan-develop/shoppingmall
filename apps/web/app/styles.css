@@ -28,8 +28,10 @@ p{line-height:1.7}
 .feature-card p{font-family:"Gowun Batang",serif;font-size:22px;margin:16px 0 0}
 .card-kicker{font-size:13px;color:#624a24}
 .category-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.category-row span,.product-empty{display:grid;place-items:center;min-height:100px;background:#fffaf1;border:1px solid #e9d2bb;border-radius:8px}
+.category-link,.product-empty{display:grid;place-items:center;min-height:100px;background:#fffaf1;border:1px solid #e9d2bb;border-radius:8px}
+.category-link{color:#302a20;text-decoration:none;font-weight:700}.category-link:hover{background:#f2e6c8}.category-link:focus-visible{outline:3px solid #9c2b22;outline-offset:2px}
 .product-empty{min-height:190px;color:#675b48}
+.home-products{margin-top:28px}.home-products h3{font-family:"Gowun Batang",serif;font-size:20px;margin:12px 0}
 .search-main{padding-block:35px 80px}
 .search-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end;margin:28px 0}
 .search-filters label{grid-row:1;font-size:14px;font-weight:700}
