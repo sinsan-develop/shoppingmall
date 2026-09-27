@@ -120,10 +120,14 @@ test('only an operator publishes a fully scanned pending product and its exact p
     });
     await drafts.submit(seller, productId, nextRevisionId);
     assert.equal((await publicProducts.get(productId)).revisionId, revisionId);
+    assert.deepEqual((await drafts.listOwned(seller)).map(({ revisionId: id, status }) => ({ id, status })),
+      [{ id: nextRevisionId, status: 'pending' }]);
     await pool.query('UPDATE inventory_levels SET on_hand_quantity=6,sellable_quantity=6 WHERE option_id=$1', [oldOptionId]);
     await reviews.approve(admin, nextRevisionId, store, async () => {});
     const updated = await publicProducts.get(productId);
     assert.equal(updated.revisionId, nextRevisionId);
+    assert.deepEqual((await drafts.listOwned(seller)).map(({ revisionId: id, status }) => ({ id, status })),
+      [{ id: nextRevisionId, status: 'approved' }]);
     assert.deepEqual(updated.options.map(({ name, priceWon, sellableQuantity }) =>
       ({ name, priceWon, sellableQuantity })), [
       { name: '500g', priceWon: 25000, sellableQuantity: 6 },
