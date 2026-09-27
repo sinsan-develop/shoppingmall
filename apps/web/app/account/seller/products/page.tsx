@@ -10,11 +10,41 @@ type Draft = {
   shippingMode: 'seller_direct' | 'owool_fulfillment';
   options: { name: string; priceWon: number }[];
 };
-type ViewProps = { categories: Category[]; products: Product[]; busy: boolean; onCreate: (draft: Draft) => void };
+type ViewProps = { categories: Category[]; products: Product[]; busy: boolean;
+  onCreate: (draft: Draft) => void;
+  onUpload: (product: Product, file: File) => void;
+  onSubmitProposal: (product: Product) => void };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
-export function SellerProductView({ categories, products, busy, onCreate }: ViewProps) {
+function ProductDraftItem({ product, busy, onUpload, onSubmitProposal }: {
+  product: Product; busy: boolean; onUpload: ViewProps['onUpload']; onSubmitProposal: ViewProps['onSubmitProposal'];
+}) {
+  const [file, setFile] = useState<File>();
+  const [preview, setPreview] = useState<string>();
+  useEffect(() => {
+    if (!file) { setPreview(undefined); return; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  return <li className="draft-product-item">
+    <strong>{product.title}</strong> · {product.status === 'draft' ? '초안' : product.status === 'pending' ? '승인 대기' : product.status}
+    {product.status === 'draft' ? <div className="draft-image-actions">
+      <label htmlFor={`photo-${product.revisionId}`}>대표 사진(PNG·JPEG·WebP, 최대 5MB)</label>
+      <input id={`photo-${product.revisionId}`} type="file" accept="image/png,image/jpeg,image/webp"
+        onChange={(event) => setFile(event.currentTarget.files?.[0])} />
+      {preview ? <img src={preview} alt="선택한 사진의 로컬 미리보기" className="draft-image-preview" /> : null}
+      <p>미리보기는 선택한 기기에서만 보입니다. 업로드한 사진도 승인 전에는 고객에게 공개되지 않습니다</p>
+      <button type="button" className="secondary-button" disabled={busy || !file}
+        onClick={() => { if (file) onUpload(product, file); }}>사진 업로드</button>
+      <button type="button" className="secondary-button" disabled={busy}
+        onClick={() => onSubmitProposal(product)}>승인 요청</button>
+    </div> : null}
+  </li>;
+}
+
+export function SellerProductView({ categories, products, busy, onCreate, onUpload, onSubmitProposal }: ViewProps) {
   const [options, setOptions] = useState<Option[]>([{ name: '', priceWon: '' }]);
   const majors = categories.filter((item) => item.parentId === null);
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -30,7 +60,7 @@ export function SellerProductView({ categories, products, busy, onCreate }: View
   return <div className="catalog-admin-grid">
     <section className="account-card profile-card" aria-labelledby="new-product-title">
       <h2 id="new-product-title">상품 초안</h2>
-      <p>초안은 고객에게 공개되지 않습니다. 사진 등록과 관리자 승인 흐름은 다음 단계에서 제공합니다</p>
+      <p>초안은 고객에게 공개되지 않습니다. 저장 뒤 대표 사진을 등록하고 관리자 승인을 요청할 수 있습니다</p>
       <form className="account-form" onSubmit={submit}>
         <label htmlFor="product-category">상품 소분류</label>
         <select id="product-category" name="categoryId" required defaultValue="">
@@ -72,7 +102,8 @@ export function SellerProductView({ categories, products, busy, onCreate }: View
     <section className="account-card profile-card" aria-labelledby="product-list-title">
       <h2 id="product-list-title">내 상품 초안</h2>
       {products.length === 0 ? <p>아직 등록한 초안이 없습니다</p> : <ul className="catalog-list">
-        {products.map((item) => <li key={item.revisionId}>{item.title} · {item.status === 'draft' ? '초안' : item.status}</li>)}
+        {products.map((item) => <ProductDraftItem key={item.revisionId} product={item} busy={busy}
+          onUpload={onUpload} onSubmitProposal={onSubmitProposal} />)}
       </ul>}
     </section>
   </div>;
@@ -134,13 +165,50 @@ export default function SellerProductsPage() {
     }
   }
 
+  async function upload(product: Product, file: File) {
+    if (!apiOrigin || busy) return;
+    if (file.size > 5 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setMessage('PNG·JPEG·WebP 사진을 5MB 이하로 선택해 주세요');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/seller/products/${product.productId}/revisions/${product.revisionId}/images`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'content-type': file.type, 'x-image-purpose': 'thumbnail' }, body: file,
+      });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
+      if (!response.ok) { setMessage('사진을 저장하지 못했습니다. 개발용 업로드 환경과 파일 형식을 확인해 주세요'); return; }
+      setMessage('대표 사진을 비공개로 저장했습니다. 관리자 검토 전에는 고객에게 공개되지 않습니다');
+    } catch { setMessage('사진 저장 서버에 연결할 수 없습니다'); }
+    finally { setBusy(false); }
+  }
+
+  async function submitProposal(product: Product) {
+    if (!apiOrigin || busy) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/seller/products/${product.productId}/revisions/${product.revisionId}/submit`, {
+        method: 'POST', credentials: 'include',
+      });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
+      if (!response.ok) { setMessage('승인을 요청하지 못했습니다. 대표 사진과 옵션 등록 여부를 확인해 주세요'); return; }
+      await reload();
+      setMessage('관리자 승인을 요청했습니다. 아직 고객에게 공개되지 않습니다');
+    } catch { setMessage('승인 요청 서버에 연결할 수 없습니다'); }
+    finally { setBusy(false); }
+  }
+
   return <main className="shell account-shell">
     <a className="text-link" href="/account">내 계정으로</a>
     <h1>상품 등록</h1>
     {state === 'loading' ? <p role="status">판매자 권한 확인 중</p> : null}
     {state === 'unauthorized' ? <p role="alert">판매자 로그인 후 이용할 수 있습니다</p> : null}
     {state === 'unavailable' ? <p role="alert">상품 정보를 불러올 수 없습니다</p> : null}
-    {state === 'ready' ? <><SellerProductView categories={categories} products={products} busy={busy} onCreate={create} />
+    {state === 'ready' ? <><SellerProductView categories={categories} products={products} busy={busy}
+      onCreate={create} onUpload={upload} onSubmitProposal={submitProposal} />
       {message ? <p role="status">{message}</p> : null}</> : null}
   </main>;
 }

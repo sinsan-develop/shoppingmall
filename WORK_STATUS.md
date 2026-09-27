@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 판매자 사진·승인 요청 웹 연결 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@6391b103e33b3a95e32f7a3a236f71161e541707` (SSH 원격/WSL 일치). 제출 서비스 실제 DB 시험 2 pass·0 fail 및 전체 DB 회귀 41건 중 36 pass·0 fail·무DB 전용 5 skip. 최종 accounts/sellers/categories/products/revisions/options/images/publications/audit 전부 0행, 시험 컨테이너 0.
+- 판매자 상품 초안 목록에서 대표 사진 선택과 기기 내 미리보기, 개발용 비공개 업로드, 관리자 승인 요청을 구분했다. `pending`은 고객 공개가 아니며 실제 관리자 심사·안전 이미지 공개는 다음 구현 범위. SSR 화면 시험은 의도한 제어 부재 RED 1회→3 pass, 전체 workspace typecheck·lint·diff check 통과.
+- 변경 파일: `apps/web/app/account/seller/products/page.tsx`, `apps/web/app/styles.css`, `apps/web/test/seller-products.test.mjs`, 본 현황. WSL production build·실제 브라우저 사진 선택/업로드/제출은 아직 미검증. 다음은 SSH push→WSL exact commit build·브라우저 QA·잔류 정리. 개발용 업로드는 토글/루프백/전용 폴더 설정이 없으면 실패하도록 닫혀 있다.
+
 ## 최신 상태 — 2026-09-27 S2.2 판매자 제출 경계 DB GREEN 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@e1e52d9721372b520baca4c171618703e07605c2` (SSH 원격/WSL 일치). 앞선 사진 HTTP 전체 실제 DB 회귀 41건 중 36 pass·0 fail·무DB 전용 5 skip, QA 핵심 행 0 및 시험 컨테이너 0.
