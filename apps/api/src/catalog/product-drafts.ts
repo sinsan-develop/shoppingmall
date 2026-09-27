@@ -80,6 +80,69 @@ export class ProductDrafts {
     });
   }
 
+  async update(actor: AccessContext, productId: string, revisionId: string, input: DraftInput) {
+    if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
+      throw new Error('Forbidden');
+    }
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(productId) || !uuid.test(revisionId)) throw new Error('Invalid proposal target');
+    const data = validate(input);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const target = await client.query<{ seller_id: string; status: string }>(
+        `SELECT p.seller_id,r.status FROM products p JOIN product_revisions r ON r.product_id=p.id
+         WHERE p.id=$1 AND r.id=$2 FOR UPDATE OF p,r`, [productId, revisionId],
+      );
+      if (target.rows[0]?.seller_id !== actor.sellerId) throw new Error('Forbidden');
+      if (target.rows[0].status !== 'draft') throw new Error('Draft required');
+      const category = await client.query<{ parent_id: string | null }>(
+        'SELECT parent_id FROM product_categories WHERE id=$1', [data.categoryId],
+      );
+      if (!category.rows[0]?.parent_id) throw new Error('Minor category required');
+      const current = await client.query<{ id: string; name: string }>(
+        'SELECT id,name FROM product_options WHERE revision_id=$1 FOR UPDATE', [revisionId],
+      );
+      const retained = new Set(data.options.map((option) => option.name));
+      for (const option of current.rows) {
+        if (retained.has(option.name)) continue;
+        const dependencies = await client.query<{ total: number }>(
+          `SELECT ((SELECT count(*) FROM inventory_levels WHERE option_id=$1) +
+                   (SELECT count(*) FROM stock_change_requests WHERE option_id=$1))::int AS total`, [option.id],
+        );
+        if (dependencies.rows[0].total > 0) throw new Error('Stocked option cannot be removed');
+        await client.query('DELETE FROM product_options WHERE id=$1', [option.id]);
+      }
+      for (const [index, option] of data.options.entries()) {
+        const existing = current.rows.find((item) => item.name === option.name);
+        if (existing) {
+          await client.query('UPDATE product_options SET price_won=$2,display_order=$3 WHERE id=$1',
+            [existing.id, option.priceWon, index]);
+        } else {
+          await client.query(
+            'INSERT INTO product_options(revision_id,name,price_won,display_order) VALUES ($1,$2,$3,$4)',
+            [revisionId, option.name, option.priceWon, index],
+          );
+        }
+      }
+      await client.query('UPDATE products SET category_id=$2 WHERE id=$1', [productId, data.categoryId]);
+      await client.query(
+        `UPDATE product_revisions SET title=$2,description=$3,origin_label=$4,shipping_mode=$5 WHERE id=$1`,
+        [revisionId, data.title, data.description, data.originLabel, data.shippingMode],
+      );
+      await client.query(
+        `INSERT INTO audit_events(actor_account_id,active_role,seller_id,action,target_type,target_id)
+         VALUES ($1,'seller',$2,'product.draft_update','product_revision',$3)`,
+        [actor.accountId, actor.sellerId, revisionId],
+      );
+      await client.query('COMMIT');
+      return { productId, revisionId, status: 'draft' as const };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
+
   async listOwned(actor: AccessContext) {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
       throw new Error('Forbidden');

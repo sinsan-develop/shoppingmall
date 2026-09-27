@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException,
-  Get, Inject, NotFoundException, Param, PayloadTooLargeException, Post, Query, Req,
+  Get, Inject, NotFoundException, Param, Patch, PayloadTooLargeException, Post, Query, Req,
   ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
 import type { IncomingMessage } from 'node:http';
@@ -174,6 +174,23 @@ export class CatalogController {
       if (error instanceof Error && ['Invalid product', 'Invalid option', 'Option required', 'Minor category required'].includes(error.message)) {
         throw new BadRequestException({ status: 'invalid_draft', reason: error.message });
       }
+      throw error;
+    }
+  }
+
+  @Patch('seller/products/:productId/revisions/:revisionId')
+  async updateProductDraft(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    try { return await this.drafts().update(actor, productId, revisionId, body as DraftInput); }
+    catch (error) {
+      if (error instanceof Error && [
+        'Invalid proposal target', 'Invalid product', 'Invalid option', 'Option required',
+        'Minor category required', 'Stocked option cannot be removed',
+      ].includes(error.message)) throw new BadRequestException({ status: 'invalid_draft', reason: error.message });
+      if (error instanceof Error && error.message === 'Draft required') throw new ConflictException();
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
       throw error;
     }
   }
