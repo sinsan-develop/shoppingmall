@@ -5,6 +5,8 @@
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@46b888a`. 기존 `product-approve-db.test.mjs`의 고유 가상 판매자/상품과 `finally` 정리를 재사용한다. 새 상품/계정 fixture나 schema/API는 만들지 않는다.
 - 목표 검증: 공개 옵션 6개에서 판매자가 8개로 직접 입력하면 보유 8·판매 가능 6 및 관리자 증가 요청 대기다. 그 상태에서 다음 상품 수정안을 승인하면 같은 옵션명에 8·6만 승계하고 구옵션 대기 요청은 `superseded`, 뒤늦은 승인 시도는 거부되어야 한다. 먼저 기존 코드의 실제 WSL DB 시험으로 확인하며 실패 시 원인을 좁힌다.
 - 검증/정리 경계: 지정 WSL `local-postgres/shoppingmall`의 고유 시험 행만 사용하고 종료 후 accounts/products/requests/images 0을 확인한다. 이번 순차 교차검증을 동시 실행·주문 예약·S2 전체 검증으로 과장하지 않는다.
+- 실제 결과: exact SHA `8a10751`에서 단일 WSL DB 시험 1 pass·0 fail·0 skip. 같은 옵션의 새 개정에 보유 8·판매 가능 6이 승계되고, 새 옵션은 0, 구옵션 대기 증가 요청은 `superseded`, 뒤늦은 관리자 증가 승인은 거부됐다. 로컬 단일 시험 1 skip은 DB 부재 때문이며 GREEN 근거로 사용하지 않는다. `git diff --check` 통과.
+- 사후: WSL 시험 DB accounts/products/stock_change_requests/product_images 각각 0, 지정 checkout clean. 제품 코드는 변경하지 않고 기존 테스트만 20행 보강했다. 기능 오류 0, 반복 근본 원인 0. 동시 실행 경쟁·주문 예약과 전체 Stage/UAT는 여전히 미검증이다.
 
 ## 진행 중 — 2026-09-28 S1.3 가상 고객 탈퇴 요청 실브라우저 재검증
 
