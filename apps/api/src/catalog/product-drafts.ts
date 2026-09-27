@@ -306,6 +306,54 @@ export class ProductDrafts {
     return images.rows;
   }
 
+  async reorderImages(actor: AccessContext, productId: string, revisionId: string,
+    input: { id: string; purpose: 'thumbnail' | 'detail' }[]) {
+    if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
+      throw new Error('Forbidden');
+    }
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(productId) || !uuid.test(revisionId) || !Array.isArray(input) ||
+        input.length < 1 || input.length > 10 ||
+        input.some((item) => !item || !uuid.test(item.id) || !['thumbnail', 'detail'].includes(item.purpose)) ||
+        new Set(input.map((item) => item.id)).size !== input.length) {
+      throw new Error('Invalid image order');
+    }
+    if (input.filter((item) => item.purpose === 'thumbnail').length !== 1) {
+      throw new Error('One thumbnail required');
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const target = await client.query<{ seller_id: string; status: string }>(
+        `SELECT p.seller_id,r.status FROM product_revisions r JOIN products p ON p.id=r.product_id
+         WHERE p.id=$1 AND r.id=$2 FOR UPDATE OF r`, [productId, revisionId],
+      );
+      if (target.rows[0]?.seller_id !== actor.sellerId) throw new Error('Forbidden');
+      if (target.rows[0].status !== 'draft') throw new Error('Draft required');
+      const current = await client.query<{ id: string }>(
+        'SELECT id FROM product_images WHERE revision_id=$1 FOR UPDATE', [revisionId],
+      );
+      const ids = new Set(current.rows.map((item) => item.id));
+      if (current.rows.length !== input.length || input.some((item) => !ids.has(item.id))) {
+        throw new Error('Image set mismatch');
+      }
+      for (const [index, item] of input.entries()) {
+        await client.query('UPDATE product_images SET purpose=$2,display_order=$3 WHERE id=$1',
+          [item.id, item.purpose, index]);
+      }
+      await client.query(
+        `INSERT INTO audit_events(actor_account_id,active_role,seller_id,action,target_type,target_id)
+         VALUES ($1,'seller',$2,'product.images_reorder','product_revision',$3)`,
+        [actor.accountId, actor.sellerId, revisionId],
+      );
+      await client.query('COMMIT');
+      return { revisionId, count: input.length };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
+
   async submit(actor: AccessContext, productId: string, revisionId: string) {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
       throw new Error('Forbidden');
