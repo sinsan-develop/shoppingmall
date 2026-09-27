@@ -8,6 +8,70 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export class ProductReviews {
   constructor(private readonly pool: Pool) {}
 
+  async approve(actor: AccessContext, revisionId: string, store: ImageQuarantine,
+    scan: (bytes: Buffer) => Promise<void>) {
+    if (!canAccess(actor, 'approve-proposal', {})) throw new Error('Forbidden');
+    if (!uuid.test(revisionId)) throw new Error('Invalid proposal target');
+    const pending = await this.pool.query<{ product_id: string; seller_id: string }>(
+      `SELECT r.product_id,p.seller_id FROM product_revisions r JOIN products p ON p.id=r.product_id
+       WHERE r.id=$1 AND r.status='pending'`, [revisionId],
+    );
+    if (!pending.rows[0]) throw new Error('Pending proposal required');
+    const images = await this.pool.query<{
+      id: string; object_key: string; purpose: string; mime_type: string; size_bytes: number;
+    }>(
+      `SELECT id,object_key,purpose,mime_type,size_bytes FROM product_images
+       WHERE revision_id=$1 ORDER BY id`, [revisionId],
+    );
+    if (images.rows.filter((image) => image.purpose === 'thumbnail').length !== 1) {
+      throw new Error('One thumbnail required');
+    }
+    for (const image of images.rows) {
+      if (image.mime_type !== 'image/webp') throw new Error('Invalid image');
+      const bytes = await store.read(image.object_key);
+      if (bytes.length !== image.size_bytes) throw new Error('Invalid image');
+      await scan(bytes);
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const locked = await client.query<{ status: string; product_id: string; seller_id: string }>(
+        `SELECT r.status,r.product_id,p.seller_id FROM product_revisions r
+         JOIN products p ON p.id=r.product_id WHERE r.id=$1 FOR UPDATE OF r`, [revisionId],
+      );
+      if (locked.rows[0]?.status !== 'pending') throw new Error('Pending proposal required');
+      const currentImages = await client.query<{
+        id: string; object_key: string; purpose: string; mime_type: string; size_bytes: number;
+      }>(
+        `SELECT id,object_key,purpose,mime_type,size_bytes FROM product_images
+         WHERE revision_id=$1 ORDER BY id`, [revisionId],
+      );
+      if (JSON.stringify(currentImages.rows) !== JSON.stringify(images.rows)) throw new Error('Image set changed');
+      const options = await client.query('SELECT 1 FROM product_options WHERE revision_id=$1 LIMIT 1', [revisionId]);
+      if (!options.rowCount) throw new Error('Option required');
+      await client.query(
+        `UPDATE product_revisions SET status='approved',reviewed_by_account_id=$2,
+         reviewed_at=now(),review_reason=NULL WHERE id=$1`, [revisionId, actor.accountId],
+      );
+      await client.query(
+        `INSERT INTO product_publications(product_id,revision_id,published_by_account_id)
+         VALUES ($1,$2,$3) ON CONFLICT (product_id) DO UPDATE
+         SET revision_id=EXCLUDED.revision_id,published_by_account_id=EXCLUDED.published_by_account_id,
+             published_at=now()`, [locked.rows[0].product_id, revisionId, actor.accountId],
+      );
+      await client.query(
+        `INSERT INTO audit_events(actor_account_id,active_role,seller_id,action,target_type,target_id)
+         VALUES ($1,'admin',$2,'product.proposal_approve','product_revision',$3)`,
+        [actor.accountId, locked.rows[0].seller_id, revisionId],
+      );
+      await client.query('COMMIT');
+      return { productId: locked.rows[0].product_id, revisionId, status: 'approved' as const };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
+
   async listImages(actor: AccessContext, revisionId: string) {
     if (!canAccess(actor, 'approve-proposal', {})) throw new Error('Forbidden');
     if (!uuid.test(revisionId)) throw new Error('Invalid proposal target');

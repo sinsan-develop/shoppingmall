@@ -19,6 +19,20 @@ export type PublicSearch = {
 export class PublicProducts {
   constructor(private readonly pool: Pool) {}
 
+  /** The object key is returned only to the server-side image route, never to a customer payload. */
+  async getPublishedImage(productId: string, imageId: string) {
+    if (!uuid.test(productId) || !uuid.test(imageId)) throw new Error('Invalid image target');
+    const result = await this.pool.query<{ objectKey: string; mimeType: string }>(
+      `SELECT i.object_key AS "objectKey",i.mime_type AS "mimeType"
+       FROM product_publications pub
+       JOIN product_revisions r ON r.id=pub.revision_id AND r.product_id=pub.product_id
+       JOIN product_images i ON i.revision_id=r.id
+       WHERE pub.product_id=$1 AND i.id=$2 AND r.status='approved' AND i.mime_type='image/webp'`,
+      [productId, imageId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async get(productId: string) {
     if (typeof productId !== 'string' || !uuid.test(productId)) throw new Error('Invalid product target');
     const publication = await this.pool.query<{
