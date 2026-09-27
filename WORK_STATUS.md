@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.4 공개 상품 상세 고객 화면
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@35c465968309fcfcab7b687a8f82a02c39936a10`. 공개 상품 목록/상세 API는 지정 DB 시험 통과, 이미지 공개/관리자 승인/장바구니는 아직 닫힌 경계다.
+- 목표: 검색 결과에서 실제 상세 경로로 이동해 승인된 상품명·판매자·산지·발송 방식·설명·옵션 가격/판매 가능 수량과 품절 표시를 조회한다. 이미지는 허위 자리표시만 두고 사설 object key를 노출하지 않는다. S3 장바구니 전에는 구매 행동을 제공하지 않으며 준비 중임을 명시한다. 새 DB schema·Secret·외부 서비스 없음.
+- 예상 파일: `apps/web/app/products/page.tsx`, `app/products/[productId]/page.tsx`, 화면 시험/CSS, 본 현황. WSL에서는 Git pull·production build 후 공개 데이터 없는 기본 빈 상태와 비공개 ID 404 경계를 실제 브라우저에서 확인한다. QA 계정/상품을 따로 만들지 않는다.
+- 상세 화면 파일 부재 RED 1회 후 검색 카드 실제 링크와 승인 상품 상세 표시를 추가했다. 대표 사진은 미공개 안전 경계 때문에 자리표시, 구매 행동은 S3 전까지 제공하지 않는다. SSR 목표 3 pass, 로컬 전체 test·typecheck·lint·API/Next production build 통과하며 동적 `/products/[productId]` 경로가 생성됐다. 새 DB·외부 자원은 없다. 실제 WSL build/브라우저 비공개 ID 처리·모바일은 아직 미검증이다.
+
 ## 진행 중 — 2026-09-27 S2.4 공개 상품 상세 읽기 경계
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@054dd68f32180fb362906a599adb26c6d42cac95`. 공개 목록 DB/API와 검색 화면은 확인됐으며 상품 승인/공개 쓰기·이미지 공개는 아직 닫혀 있다.

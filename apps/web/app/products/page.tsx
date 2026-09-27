@@ -44,7 +44,7 @@ export function ProductSearchView({ query, sort, categoryId, categories, product
           <section className="search-results" aria-label="상품 검색 결과">
             {products.map((product) => <article className="search-product" key={product.productId}>
               <p className="eyebrow">{product.originLabel}</p>
-              <h2>{product.title}</h2>
+              <h2><a className="product-link" href={`/products/${encodeURIComponent(product.productId)}`}>{product.title}</a></h2>
               <p>{product.sellerName}</p>
               <p className="product-price">{product.minPriceWon.toLocaleString('ko-KR')}원부터</p>
             </article>)}
