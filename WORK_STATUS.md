@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S1.3 가상 고객 탈퇴 요청 실브라우저 재검증
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@73a1822`. 과거 신산님이 시험임을 모르고 취소한 흐름을, 실제 계정이 아닌 고유 가상 고객으로 명확히 구분해 재검증한다. 기능·권한·DB schema는 변경하지 않는다.
+- 임시 자료/자원 계획: WSL 지정 `local-postgres/shoppingmall`에만 QA ID `b17e2d90`의 `qa+…@example.invalid` 계정 5개와 판매자 3개를 기존 `qa-fixture.ts`로 생성한다. 웹/API 일회성 실행 이름은 `shoppingmall-s1-delete-web-b17e`·`shoppingmall-s1-delete-api-b17e`, build 컨테이너는 `shoppingmall-s1-delete-build-b17e`(자동 제거), loopback 9091/9092와 새 시험용 in-app browser 탭 1개만 쓴다. 사전 지정 포트/이름 점유 0, DB 전체 accounts 0, WSL SHA `73a1822`를 확인했다.
+- 수명·정리: 시험 직후 정확한 QA ID만 fixture reset으로 삭제하고 계정/탈퇴 요청/판매자 잔류 0을 확인한다. 시험용 탭·위 두 컨테이너만 닫고 9091/9092 listener 0을 확인한다. QA 비밀번호·DB 비밀번호는 출력·기록하지 않는다. 장애 시 데이터와 자원을 임의로 덮지 않고 정확한 ID를 조사한다.
+- 합격 경계: 고객 로그인→탈퇴 요청 확인→접수 결과와 DB 상태·audit를 실제 브라우저/DB에서 대조한다. 이는 **요청 접수** 검증이며 실제 계정 삭제·운영 승인·UAT가 아니다.
+
 ## 2026-09-28 S2 전체 WSL 시험 회귀
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@2a67e45`. 지정 WSL checkout의 정확한 커밋에서 Node 24 일회성 컨테이너로 루트 `node --test-concurrency=1 --import tsx --test` 전체 시험을 실제 `local-postgres/shoppingmall`에 연결해 실행했다.
