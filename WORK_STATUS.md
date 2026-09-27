@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 운영자 상품 반려 서비스 실제 DB 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@b9910451de4fabd385977540395a49704205ba1b` (SSH 원격 최신). 승인 대기 목록과 운영자 사유 반려를 우선 구현한다. 반려는 `pending` revision만 행 잠금 아래 `rejected`로 바꾸고 결정자·시각·사유·감사 이력을 남기며 기존 공개 포인터는 건드리지 않는다. 이미지 악성 검사/안전한 공개 저장이 아직 없으므로 승인·공개는 구현하지 않았다.
+- DB 시험은 판매자 목록·반려 거부, 빈 사유 거부, 운영자 반려 1회·중복 반려 거부, 공개 0, 별도 요청자/결정자 이력을 요구한다. 서비스 파일 부재 로컬 RED 1회→구현 후 로컬 typecheck·lint 통과. 무DB에서 이 시험은 skip이므로 실제 DB GREEN은 미검증.
+- 변경 파일: `apps/api/src/catalog/product-reviews.ts`, `apps/api/test/product-review-db.test.mjs`, 본 현황. 오류 누적: 의도한 서비스 파일 부재 RED 1회. 다음은 SSH push→WSL 실제 DB GREEN·정확한 QA 정리 확인. 관리자 UI/HTTP·안전 이미지 승인 단계와 고객 공개는 아직 미구현.
+
 ## 최신 상태 — 2026-09-27 판매자 화면 실제 브라우저 QA·정리
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@af8974389765c50391d283a80fd153e450d76ac0` (SSH 원격/WSL 일치). WSL 테스트용 API·웹 컨테이너와 실행 ID `a1b2c3d4`의 가상 계정 5개로 실제 in-app browser에서 판매자 로그인→상품 화면→대/소분류 선택→`시험 고추`·옵션 500g/23,000원 초안 저장을 확인했다. 저장 직후 대표 사진 선택·업로드·승인 요청 제어가 나타나고, 사진 없는 승인 요청은 오류 안내를 보여주며 DB revision은 `draft`, publication은 0이었다.
