@@ -159,6 +159,25 @@ test('only an operator publishes a fully scanned pending product and its exact p
       [pendingIncrease.requestId])).rows[0].status, 'superseded');
     await assert.rejects(inventory.approveIncrease(admin, pendingIncrease.requestId),
       /Pending stock request required/);
+    const fourth = await drafts.createRevision(seller, productId, store);
+    await drafts.submit(seller, productId, fourth.revisionId);
+    const [entry, approval] = await Promise.allSettled([
+      inventory.setStock(seller, latest.options[0].id, 4),
+      reviews.approve(admin, fourth.revisionId, store, async () => {}),
+    ]);
+    assert.equal(approval.status, 'fulfilled', approval.status === 'rejected' ? String(approval.reason) : undefined);
+    const raced = await publicProducts.get(productId);
+    assert.equal(raced.revisionId, fourth.revisionId);
+    const racedStock = (await pool.query(
+      'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1',
+      [raced.options[0].id],
+    )).rows[0];
+    if (entry.status === 'fulfilled') {
+      assert.deepEqual(racedStock, { on_hand_quantity: 4, sellable_quantity: 4 });
+    } else {
+      assert.match(String(entry.reason), /Published option required/);
+      assert.deepEqual(racedStock, { on_hand_quantity: 8, sellable_quantity: 6 });
+    }
   } finally {
     if (app) await app.close();
     if (productId) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
