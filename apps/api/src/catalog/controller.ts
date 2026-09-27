@@ -182,6 +182,18 @@ export class CatalogController {
     }
   }
 
+  @Get('seller/products/:productId/revisions/:revisionId/images')
+  async listProductImages(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string) {
+    const actor = await this.seller(request);
+    try { return await this.drafts().listImages(actor, productId, revisionId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid image target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
   @Post('admin/majors')
   async createMajor(@Req() request: RequestHeaders, @Body() body: unknown) {
     requireOrigin(request);

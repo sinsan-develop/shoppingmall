@@ -19,6 +19,10 @@ test('local image upload is disabled by default and rejects a forged seller head
     assert.equal((await request()).status, 404);
     process.env.ENABLE_LOCAL_UPLOAD = '1';
     assert.equal((await request()).status, 401);
+    const images = await fetch(`${base}/catalog/seller/products/00000000-0000-0000-0000-000000000001/revisions/00000000-0000-0000-0000-000000000002/images`, {
+      headers: { 'x-role': 'seller' },
+    });
+    assert.equal(images.status, 401);
   } finally {
     if (previous === undefined) delete process.env.ENABLE_LOCAL_UPLOAD;
     else process.env.ENABLE_LOCAL_UPLOAD = previous;

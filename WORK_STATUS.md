@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.2 판매자 소유 사진 메타데이터 조회 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 직전 비공개 이미지 컨테이너 보강 커밋 `4922db758dd93dc00b42fd5cdd8736007c5b18ad`는 SSH 별칭 원격·WSL checkout 일치. WSL 실제 `shoppingmall` DB API 43개 중 38 pass·0 fail·환경별 5 skip, 핵심 QA 테이블 10종 전부 0행, 임시 컨테이너 0, WSL checkout clean.
+- 다음 S2.2 범위로 판매자 본인 상품 revision의 사진 목적·형식·크기·표시 순서만 조회하고 원본 비공개 object key는 응답에서 제외한다. 다른 판매자/고객 거부를 DB 시험에 추가했고, 가짜 역할 헤더 GET은 404 RED→인증 필요 401 GREEN을 로컬 HTTP 시험으로 확인했다. 전체 typecheck·lint 통과; 실제 DB 목록 GREEN·전체 회귀·production build는 아직 미검증.
+- 변경 파일: `apps/api/src/catalog/product-drafts.ts`, `controller.ts`, `apps/api/test/product-image-db.test.mjs`, `product-image-http.test.mjs`, 본 현황. 오류: 의도한 경로 부재 RED 1회; 현재 구현 오류 0. 이 조회는 이미지 본문 공개나 검증된 썸네일 제공이 아니다. 다음은 전체 로컬 gate→commit/push→WSL 정확한 커밋 DB GREEN·QA 잔류 확인이다.
+
 ## 최신 상태 — 2026-09-27 S2.2 비공개 이미지 컨테이너 검사 보강
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@ebb5b70504bc1ef5e6cfbe6d896b029ff85906d2`에서 계속. 기존 격리 worktree를 재사용하고 신규 브랜치·자동화는 만들지 않았다.

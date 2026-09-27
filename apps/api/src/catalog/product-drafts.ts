@@ -146,6 +146,26 @@ export class ProductDrafts {
     }
   }
 
+  async listImages(actor: AccessContext, productId: string, revisionId: string) {
+    if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
+      throw new Error('Forbidden');
+    }
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(productId) || !uuid.test(revisionId)) throw new Error('Invalid image target');
+    const owned = await this.pool.query(
+      `SELECT 1 FROM product_revisions r JOIN products p ON p.id=r.product_id
+       WHERE p.id=$1 AND r.id=$2 AND p.seller_id=$3`, [productId, revisionId, actor.sellerId],
+    );
+    if (!owned.rowCount) throw new Error('Forbidden');
+    const images = await this.pool.query<{
+      id: string; purpose: 'thumbnail' | 'detail'; mimeType: string; sizeBytes: number; displayOrder: number;
+    }>(
+      `SELECT id,purpose,mime_type AS "mimeType",size_bytes AS "sizeBytes",display_order AS "displayOrder"
+       FROM product_images WHERE revision_id=$1 ORDER BY display_order,id`, [revisionId],
+    );
+    return images.rows;
+  }
+
   async submit(actor: AccessContext, productId: string, revisionId: string) {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
       throw new Error('Forbidden');

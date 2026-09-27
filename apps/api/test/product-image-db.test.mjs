@@ -53,6 +53,11 @@ test('only the owning seller stages private image metadata for its draft revisio
     assert.equal(rows.rows[0].purpose, 'thumbnail');
     assert.equal(rows.rows[0].object_key, objectKey);
     assert.deepEqual(await store.read(objectKey), png);
+    await assert.rejects(drafts.listImages({ accountId, role: 'seller', sellerId: sellerB }, productId, revisionId), /Forbidden/);
+    await assert.rejects(drafts.listImages({ accountId, role: 'customer' }, productId, revisionId), /Forbidden/);
+    assert.deepEqual(await drafts.listImages(seller, productId, revisionId), [{
+      id: image.id, purpose: 'thumbnail', mimeType: 'image/png', sizeBytes: png.length, displayOrder: 0,
+    }]);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
     await assert.rejects(drafts.submit({ accountId, role: 'seller', sellerId: sellerB }, productId, revisionId), /Forbidden/);
     const submitted = await drafts.submit(seller, productId, revisionId);
