@@ -57,6 +57,22 @@ test('seller deep link remains a visible and editable search filter', () => {
   assert.match(html, /value="seller-a" selected=""[^>]*>진주농가/);
 });
 
+test('category choices group each minor beneath its selectable major', () => {
+  const html = renderToStaticMarkup(createElement(ProductSearchView, {
+    query: '', sort: 'latest', categoryId: 'vegetable', loading: false, products: [],
+    categories: [
+      { id: 'chili', parentId: 'vegetable', name: '고추' },
+      { id: 'fruit', parentId: null, name: '과일' },
+      { id: 'blueberry', parentId: 'fruit', name: '블루베리' },
+      { id: 'vegetable', parentId: null, name: '채소' },
+      { id: 'onion', parentId: 'vegetable', name: '양파' },
+    ],
+  }));
+  assert.match(html, /<optgroup label="과일">.*value="fruit".*과일 전체.*value="blueberry".*블루베리.*<\/optgroup>/);
+  assert.match(html, /<optgroup label="채소">.*value="vegetable" selected="".*채소 전체.*value="chili".*고추.*value="onion".*양파.*<\/optgroup>/);
+  assert.ok(html.indexOf('label="과일"') < html.indexOf('label="채소"'));
+});
+
 test('approved product detail shows option price and sold-out status without private image keys', () => {
   const html = renderToStaticMarkup(createElement(ProductDetailView, {
     product: { productId: 'p1', title: '햇고추', description: '정성껏 기른 고추',

@@ -1,5 +1,19 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.4 상품 분류 계층 표시 회귀
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes`; WSL 개발 DB `shoppingmall`의 QA ID `c29e4a71` 가상 5품목만 사용. 실브라우저에서 분류 `<select>`가 API의 이름순 배열을 그대로 사용해 소분류와 대분류가 섞이는 결함을 확인했다. `대분류 → 해당 소분류 → 상품` 기존 승인 구조의 화면 표시 문제이며 DB 계약 변경은 없다.
+- RED→GREEN: `apps/web/test/public-products.test.mjs`에 의도적으로 섞은 부모/자식 배열의 그룹·선택 가능 대분류·순서 시험을 추가하여 1 fail을 확인. `apps/web/app/products/page.tsx`에서 한국어 이름순 대분류 optgroup 안에 대분류 전체 선택과 해당 소분류를 배치하여 목표 7 pass·0 fail.
+- 로컬 검증: 전체 145건 중 117 pass·28 환경 의존 skip·0 fail, PR 본문 검사 8 pass, 전체 typecheck/lint/API·Next production build 통과. 실제 WSL 새 빌드/브라우저 재시험은 이 기록 시점 미완료이며 로컬 PASS로 대신하지 않는다. 시험용 컨테이너 2개는 재빌드 전에 정확히 중지했다. 시험 계정·상품 fixture는 재검증 후 정확한 ID로 정리한다.
+- 다음: 변경분 안전 커밋→SSH 별칭 push→WSL 지정 checkout pull/build, 브라우저에서 분류/판매자/정렬·모바일·키보드 재검증 후 fixture/포트/컨테이너 잔류 0 확인. 동일 근본 원인 오류 3회 반복 없음.
+
+## 진행 중 — 2026-09-27 S1.3 고객 탈퇴 요청 브라우저 확인
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@7cd3a8b739b0146013bcc29b4a8bc67dabefb553`, WSL 개발 DB의 QA ID `b2c9e7d4` 가상 고객만 사용. 기존 API/DB 탈퇴 **요청** 시험은 통과했으며 실제 삭제 기능과 구분한다.
+- 브라우저에서 탈퇴 요청 확인창까지 도달했으나 신산님이 시험인 줄 모르고 취소하셨다. 이는 제품 오류가 아니며 요청 접수 완료의 브라우저 증거는 아직 없다. 신산님은 탈퇴 기능의 유지를 명시했다. 구현을 삭제하거나 사용자 계정을 탈퇴 처리하지 않았다.
+- 시험용 브라우저 탭을 닫고 QA ID 가상 계정 5개를 정확히 정리했다. `shoppingmall-s1-customer-web-7cd3`/`shoppingmall-s1-customer-api-7cd3` 두 시험 컨테이너만 중지하고 잔류 0, 개발 DB 전체 계정 0을 확인했다. 잔류 확인 SQL의 첫 시도는 셸 인용 문제 1회였고 전체 계정 수 읽기 전용 조회로 재확인했다. 동일 근본 원인 3회 반복 없음.
+- 다음: 해당 실제 브라우저 접수 결과는 미검증으로 유지하고 S2의 다른 미완료 개발·검증을 계속한다. 향후 명확히 식별된 가상 계정으로 고객 탈퇴 요청 접수를 재검증하며 실제 계정 삭제/출시 인수로 오인하지 않는다.
+
 ## 진행 중 — 2026-09-27 S2 다중 판매자·5품목 반복 QA 세트
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@1adb271ded9b3c7124fcdf8bac20472e037fa683`, SSH 별칭 원격 push→WSL `/home/daon/deploy/shopping` pull. `main`·운영/Oracle DB·실판매 데이터는 변경하지 않았다.

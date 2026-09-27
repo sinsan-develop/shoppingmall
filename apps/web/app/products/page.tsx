@@ -13,6 +13,7 @@ type ViewProps = { query: string; sort: string; categoryId: string; sellerId?: s
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
+const categoryOrder = new Intl.Collator('ko');
 
 export function ProductSearchView({ query, sort, categoryId, sellerId = '', categories, sellers = [], products,
   loading, error, onQueryChange = () => {}, onCategoryChange = () => {},
@@ -29,9 +30,14 @@ export function ProductSearchView({ query, sort, categoryId, sellerId = '', cate
         <select id="product-category" name="categoryId" value={categoryId}
           onChange={(event) => onCategoryChange(event.currentTarget.value)}>
           <option value="">전체 카테고리</option>
-          {categories.map((category) => <option key={category.id} value={category.id}>
-            {category.parentId ? `　${category.name}` : category.name}
-          </option>)}
+          {categories.filter((category) => category.parentId === null)
+            .sort((left, right) => categoryOrder.compare(left.name, right.name))
+            .map((major) => <optgroup key={major.id} label={major.name}>
+              <option value={major.id}>{major.name} 전체</option>
+              {categories.filter((category) => category.parentId === major.id)
+                .sort((left, right) => categoryOrder.compare(left.name, right.name))
+                .map((minor) => <option key={minor.id} value={minor.id}>{minor.name}</option>)}
+            </optgroup>)}
         </select>
         <label htmlFor="product-seller">판매자</label>
         <select id="product-seller" name="sellerId" value={sellerId}
