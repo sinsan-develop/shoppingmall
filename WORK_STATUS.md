@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S2.4 실제 제품 화면 1440/430 viewport QA
+
+- 담당/범위: 어울 단일 writer, `codex/flat-v2-prototypes@bade774`. 상품 수정 신규 API는 승인 답변 전 보류한다. 그와 독립된 현재 제품 홈·검색/상품 카드의 1440×900·430×844 viewport에서 실제 가로 넘침, 핵심 탐색·키보드 조작을 새 Chrome 시험 탭의 HTTP 화면으로 확인한다. 이는 브라우저 배율 200%나 모든 역할 화면/인쇄의 합격 증거가 아니다.
+- 사전 자원 확인: 지정 WSL checkout `bade774` clean, `local-postgres/shoppingmall` accounts/products 0, 9091/9092 listener 0, 지정 시험 컨테이너 이름 점유 0. 공유 WSL load 1.43, 가용 메모리 5.9Gi; 타 프로젝트 서비스는 건드리지 않는다.
+- QA 자원 계획: 정확한 QA ID `f7c9a82e`, 5개 `qa+f7c9a82e-*@example.invalid` 가상 계정과 `qa-f7c9a82e-public-chili*` 가상 공개 상품 25개만 개발 DB에 seed. 127.0.0.1:9091/9092의 임시 `shoppingmall-s24-viewport-web-f7c9`/`shoppingmall-s24-viewport-api-f7c9` 컨테이너와 새 Chrome 시험 탭 하나를 사용한다. 현재 SHA에서 필요한 빌드 후 `/ready`·웹 200을 확인하고 화면을 시험한다. 종료 즉시 시험 탭만 닫고 지정 컨테이너만 stop/remove, 정확한 QA ID만 fixture reset, DB 7종·포트·checkout 잔류를 확인한다. 비밀값은 출력·문서화하지 않는다.
+
 ## 진행 중 — 2026-09-28 S0 재현 명령표 현재화
 
 - 담당/범위: 어울 단일 writer. 현재 root package scripts·API/Web package scripts·migration·QA fixture와 `docs/DEVELOPMENT_ENVIRONMENT.md`를 대조해 설치/검사/WSL 동기화/DB 연결 전체 시험/QA 수명/수동 브라우저 검증 명령표를 문서 상단에 정리했다. 제품 코드·schema/API/권한·공유 환경을 변경하지 않는다.
