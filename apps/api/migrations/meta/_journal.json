@@ -29,6 +29,13 @@
       "when": 1790464544917,
       "tag": "0003_s2_product_revisions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790470724669,
+      "tag": "0004_s2_inventory",
+      "breakpoints": true
     }
   ]
 }

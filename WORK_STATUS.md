@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.3 재고 migration·서비스 WSL 검증 준비
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@fc58e08c7ab57ed8e31125e28d0467658fc33daf` (SSH 원격·WSL 일치). 재고 규칙 WSL 단위시험 3 pass, 로컬 전체 102개 중 84 pass·0 fail·DB-only 18 skip, PR 검사 8 pass, typecheck·lint·build 통과.
+- 계획된 DB 자원: WSL-server `local-postgres` 안에 **새 QA 전용** `shoppingmall_qa_mig_fc58`를 migration dry-run용으로만 생성한다. 기존 동일 이름 부재와 정확한 대상을 확인한 후 생성, 0000~0004 migration 적용·테이블/제약 확인 후 동일 QA DB만 삭제하고 부재를 재조회한다. `shoppingmall` 정식 개발 DB에는 검증 후 0004만 순서대로 적용한다. 일회성 Node container는 `shoppingmall-s2-mig-fc58` 이름으로 실행 후 `--rm` 및 잔류 0을 확인한다.
+- 새 테이블 `inventory_levels`는 옵션별 실제 보유/판매 가능 수량을 분리하고, `stock_change_requests`는 증가 승인·중복 대기·결정 이력을 기록한다. 판매자 감소·0은 즉시 반영하고, 증가·재판매는 관리자 승인까지 sellable을 유지하는 DB 서비스와 정확한 QA fixture 시험을 작성했다. 현재 로컬 무DB 권한 시험 1 pass·DB-only 1 skip, typecheck·lint 통과. 정식 DB migration·DB GREEN·HTTP/화면·구매 경쟁은 아직 미검증/미구현.
+- 변경 파일: `apps/api/src/db/schema.ts`, `migrations/0004_s2_inventory.sql`, `migrations/meta/*`, `apps/api/src/inventory/service.ts`, `apps/api/test/inventory-db.test.mjs`, 본 현황. 오류: 계획상 테이블 부재 확인 1회, 서비스 권한 RED 1회. 다음은 schema diff·전체 로컬 gate→safe commit/push→QA DB migration dry-run·삭제→정식 개발 DB migration·실제 DB 서비스 시험·잔류 확인.
+
 ## 최신 상태 — 2026-09-27 S2.3 재고 입력/승인 계산 규칙 시작
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. S2.3 계획의 재고 직접 입력과 증가 승인 경계를 데이터 적용 전에 순수 계산 규칙으로 고정했다. 현재 판매 가능 수량 이하의 입력은 즉시 축소/0 처리하고, 초과 입력은 실제 보유 수량만 변경한 채 판매 가능 수량을 유지한다. 관리자 승인 시에는 요청 수량과 승인 시점 실제 보유 수량 중 작은 값까지만 열어 초과 판매를 피한다.

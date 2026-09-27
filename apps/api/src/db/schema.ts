@@ -84,6 +84,32 @@ export const productOptions = pgTable('product_options', {
   check('product_options_price_ck', sql`${table.priceWon} >= 0`),
 ]);
 
+export const inventoryLevels = pgTable('inventory_levels', {
+  optionId: uuid('option_id').primaryKey().references(() => productOptions.id),
+  onHandQuantity: integer('on_hand_quantity').notNull().default(0),
+  sellableQuantity: integer('sellable_quantity').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  check('inventory_on_hand_ck', sql`${table.onHandQuantity} >= 0`),
+  check('inventory_sellable_ck', sql`${table.sellableQuantity} >= 0 AND ${table.sellableQuantity} <= ${table.onHandQuantity}`),
+]);
+
+export const stockChangeRequests = pgTable('stock_change_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  optionId: uuid('option_id').notNull().references(() => productOptions.id),
+  targetOnHand: integer('target_on_hand').notNull(),
+  status: text('status').notNull().default('pending'),
+  requestedByAccountId: uuid('requested_by_account_id').notNull().references(() => accounts.id),
+  decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+}, (table) => [
+  index('stock_requests_option_idx').on(table.optionId),
+  uniqueIndex('stock_requests_one_pending_uq').on(table.optionId).where(sql`${table.status} = 'pending'`),
+  check('stock_requests_target_ck', sql`${table.targetOnHand} > 0`),
+  check('stock_requests_status_ck', sql`${table.status} IN ('pending','approved','superseded','rejected')`),
+]);
+
 // The key points to a controlled store; untrusted remote URLs are never public image sources.
 export const productImages = pgTable('product_images', {
   id: uuid('id').primaryKey().defaultRandom(),
