@@ -48,7 +48,9 @@ test('HTTP shipping proposals stay seller-scoped and become public only after an
     const sellerCookie = await login(sellerAccountId, 'seller');
     const adminCookie = await login(adminAccountId, 'admin');
     const sellerUrl = `${base}/sellers/${sellerA}/policy`;
-    assert.equal((await (await fetch(sellerUrl)).json()).policy.feeWon, 3000);
+    const initial = await fetch(sellerUrl);
+    assert.equal(initial.status, 200);
+    assert.equal((await initial.json()).policy.feeWon, 3000);
     const proposal = { feeWon: 2000, freeThresholdWon: 60000, cutoffTime: '15:30', blockedPostalRanges: [] };
     const submit = (requestOrigin) => fetch(`${base}/seller/requests`, { method: 'POST',
       headers: { cookie: sellerCookie, origin: requestOrigin, 'content-type': 'application/json' },
