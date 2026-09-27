@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.3 재고 입력/승인 계산 규칙 시작
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. S2.3 계획의 재고 직접 입력과 증가 승인 경계를 데이터 적용 전에 순수 계산 규칙으로 고정했다. 현재 판매 가능 수량 이하의 입력은 즉시 축소/0 처리하고, 초과 입력은 실제 보유 수량만 변경한 채 판매 가능 수량을 유지한다. 관리자 승인 시에는 요청 수량과 승인 시점 실제 보유 수량 중 작은 값까지만 열어 초과 판매를 피한다.
+- 테스트 모듈 부재 RED 후 명시적 미구현 RED 3건→GREEN 3건. 로컬 전체 102건 중 84 pass·0 fail·DB-only 18 skip, PR 설명 8 pass, typecheck·lint·API/Next production build 통과. 변경 파일: `apps/api/src/inventory/stock-policy.ts`, `apps/api/test/stock-policy.test.mjs`, 본 현황. 초기 디렉터리 생성에 파일 도구 실패 1회 후 정확한 작업 경로만 생성했다.
+- 이 코드는 아직 DB 저장·권한·관리자 승인 API·구매 경합에 연결되지 않았다. 따라서 실제 품절 차단이나 S2.3 완료의 증거가 아니다. 다음은 계획된 재고 migration/서비스·인증 HTTP·WSL DB 경합 시험이다. 외부 공급자 연결은 계속 구축 후 처리한다.
+
 ## 최신 상태 — 2026-09-27 S2.2 판매자 사진 메타데이터 조회 WSL GREEN
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@6f75994d76ab3536059db8230a72b5ac229f5c0f` (SSH 원격·WSL 일치). 판매자 본인만 사진 메타데이터를 조회하고 다른 판매자·고객은 거부하며 비공개 object key는 응답에서 제외하는 DB 시험 통과. 실제 WSL PostgreSQL 전체 API 43개 중 38 pass·0 fail·환경별 5 skip.
