@@ -5,6 +5,9 @@
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@a7c04ca`. 제품·DB 자료 변경 없이 지정 WSL checkout의 동일 SHA production build로 빈 카탈로그 홈/상품 목록을 실제 브라우저에서 검증한다.
 - 임시 자원: 동일 SHA 웹 재빌드용 `shoppingmall-s24-zoom-build-a7c0`(자동 제거)과 `shoppingmall-s24-zoom-api-a7c0`·`shoppingmall-s24-zoom-web-a7c0` 두 실행 컨테이너를 WSL loopback 9092/9091에만 사용, 시험용 in-app browser 새 탭 1개를 사용한다. 사전 해당 포트·컨테이너 점유 0, accounts 0 확인. 검사 후 정확한 자원·시험 탭을 닫고 포트·DB 잔류 0을 확인한다.
 - 검증 예정: 홈/상품목록의 200% 확대 시 주요 동작과 가로 넘침, 검색 입력·메뉴의 키보드 접근. 상품·판매자 데이터가 없는 화면이므로 채워진 카드·구매 흐름의 검증으로 확대 해석하지 않는다.
+- 실제 결과: exact SHA `55ca391`의 WSL Node24 API·웹 production build 통과, API `/ready`와 홈 HTTP 200. 실제 in-app browser 기본 1280px에서는 document client/scroll 각 1265px. 430×844 viewport의 홈은 client/scroll 각 415px로 가로 넘침이 없고 검색·메뉴·히어로·기획전이 표시된다. 검색창→검색 버튼→로그인→홈/상품/기획전/판매자 이야기의 Tab 순서와 `:focus-visible`을 확인, Enter로 ‘고추’ 검색 시 `/products?q=...`의 빈 결과 화면으로 이동했고 해당 430px 화면도 client/scroll 각 430px이다.
+- 미검증/오류: in-app browser의 `Ctrl+plus` 5회와 `Ctrl+equal` 1회 후에도 관측 배율(devicePixelRatio 1)·내부 폭이 불변이어서 **실제 브라우저 200% 확대는 미검증**이다. 좁은 viewport 시험을 실제 확대 PASS로 대체하지 않는다. 상품·분류·판매자 데이터가 없는 화면이어서 채워진 카드·상품 상세·결제는 미검증. 제품 동작 오류 0, 확대 제어 제한 1종.
+- 정리: 시험 viewport reset·임시 탭 종료, 기록한 build 컨테이너 자동 제거 및 API/Web 두 컨테이너만 종료·제거. 사후 이름 일치 컨테이너 0, 9091/9092 listener 0, DB accounts/products 각 0, WSL checkout `55ca391` clean.
 
 ## 진행 중 — 2026-09-27 S2.2 공개 상품 개정·옵션 재고 승계
 
