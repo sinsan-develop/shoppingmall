@@ -56,6 +56,18 @@ test('only an operator publishes a fully scanned pending product and its exact p
     assert.equal((await fetch(publicImageUrl)).status, 404);
     assert.equal(await publicProducts.getPublishedImage(productId, imageId), null);
     await assert.rejects(reviews.approve(seller, revisionId, store, async () => {}), /Forbidden/);
+    const stagedMissingImage = await store.stageRemoval(objectKey);
+    try {
+      await assert.rejects(reviews.approve(admin, revisionId, store, async () => {}), { code: 'ENOENT' });
+      assert.equal((await pool.query('SELECT status FROM product_revisions WHERE id=$1', [revisionId])).rows[0].status, 'pending');
+      assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_publications WHERE product_id=$1', [productId])).rows[0].n, 0);
+    } finally {
+      await stagedMissingImage.restore();
+    }
+    await assert.rejects(reviews.approve(admin, revisionId, store,
+      async () => { throw new Error('Image scan unavailable'); }), /Image scan unavailable/);
+    assert.equal((await pool.query('SELECT status FROM product_revisions WHERE id=$1', [revisionId])).rows[0].status, 'pending');
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_publications WHERE product_id=$1', [productId])).rows[0].n, 0);
     await assert.rejects(reviews.approve(admin, revisionId, store, async () => { throw new Error('Image scan rejected'); }),
       /Image scan rejected/);
     assert.equal((await pool.query('SELECT status FROM product_revisions WHERE id=$1', [revisionId])).rows[0].status, 'pending');
