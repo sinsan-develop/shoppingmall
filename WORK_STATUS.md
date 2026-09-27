@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.2 판매자 미제출 초안 안전 삭제
+
+- 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@05fa54131054003a38636a6ad684b16a0fd98be8` (로컬/원격/WSL 일치). 직전 QA 자료·포트·임시 컨테이너 잔류 0.
+- 계약/범위: 판매자가 자기 소속의 `draft` 초안만 삭제 요청할 수 있다. 사진·재고/승인 요청·다른 revision·고객 공개 이력이 하나라도 있으면 삭제를 거부하며, 성공 시 옵션→revision→product를 트랜잭션으로 제거하고 감사 이력은 남긴다. 타 판매자·고객·pending/approved 삭제 금지. UI에는 영구 삭제 확인과 보호 조건을 명시한다. 현재 사진·재고를 가진 초안의 정리와 판매 중지는 별도 Task로 남긴다.
+- 예상 파일: `apps/api/src/catalog/product-drafts.ts`, `controller.ts`, DB/HTTP 시험, 판매자 화면·시험, 본 현황. schema/Secret/외부 비용 없음. RED→GREEN·WSL 지정 DB 실제 시험, 가상 fixture는 식별 ID만 생성/정리한다. 실패 시 마지막 안전 commit을 유지하고 잔류 자료를 정확 ID로 정리한다.
+
 ## 진행 중 — 2026-09-27 S2.2 판매자 상품 초안 수정
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@f8840c78c70ad20a19771a845c97dd2216c4f564`. 선행 S2 공개 카탈로그 QA가 정상 종료되어 지정 DB 핵심 9종 0행·임시 포트/컨테이너 0. S3는 S2 완료 전 착수하지 않는다.

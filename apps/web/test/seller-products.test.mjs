@@ -34,6 +34,7 @@ test('a seller draft has a local preview and explicit private-photo and proposal
   assert.match(html, /type="file"/);
   assert.match(html, /accept="image\/png,image\/jpeg,image\/webp"/);
   assert.match(html, /초안 수정/);
+  assert.match(html, /초안 삭제/);
   assert.doesNotMatch(html, /고객에게 공개 중/);
 });
 
@@ -43,6 +44,7 @@ test('submitted proposals are not editable from the seller screen', () => {
     busy: false, onCreate: () => {}, onUpload: () => {}, onSubmitProposal: () => {},
   }));
   assert.doesNotMatch(html, /초안 수정/);
+  assert.doesNotMatch(html, /초안 삭제/);
 });
 
 test('seller catalog cards can shrink within a narrow screen', () => {

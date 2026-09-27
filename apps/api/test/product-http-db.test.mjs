@@ -19,6 +19,7 @@ test('seller draft HTTP persists only its verified seller scope and stays unpubl
   let majorId;
   let minorId;
   let productId;
+  let deletableProductId;
   let app;
   try {
     accountId = await new AuthRepository(pool).createCustomerAccount(email, password);
@@ -83,6 +84,19 @@ test('seller draft HTTP persists only its verified seller scope and stays unpubl
     assert.ok(!(await listingB.json()).some((item) => item.productId === productId));
     assert.equal((await fetch(`${base}/catalog/seller/products`, { headers: { cookie: customerCookie } })).status, 403);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
+    const deleteCandidate = await create(sellerCookieA, { ...input, title: '삭제용 가상 마늘' });
+    assert.equal(deleteCandidate.status, 201);
+    const deletion = await deleteCandidate.json();
+    deletableProductId = deletion.productId;
+    const removeUrl = `${base}/catalog/seller/products/${deletion.productId}/revisions/${deletion.revisionId}`;
+    const remove = (cookie, requestOrigin = origin) => fetch(removeUrl, { method: 'DELETE',
+      headers: { cookie, origin: requestOrigin } });
+    assert.equal((await remove(customerCookie)).status, 403);
+    assert.equal((await remove(sellerCookieB)).status, 403);
+    assert.equal((await remove(sellerCookieA, 'https://untrusted.invalid')).status, 403);
+    assert.equal((await remove(sellerCookieA)).status, 200);
+    assert.equal((await pool.query('SELECT count(*)::int AS total FROM products WHERE id=$1',
+      [deletion.productId])).rows[0].total, 0);
   } finally {
     if (app) await app.close();
     if (accountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
@@ -90,6 +104,12 @@ test('seller draft HTTP persists only its verified seller scope and stays unpubl
       await pool.query('DELETE FROM product_options WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)', [productId]);
       await pool.query('DELETE FROM product_revisions WHERE product_id=$1', [productId]);
       await pool.query('DELETE FROM products WHERE id=$1', [productId]);
+    }
+    if (deletableProductId) {
+      await pool.query('DELETE FROM product_options WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)',
+        [deletableProductId]);
+      await pool.query('DELETE FROM product_revisions WHERE product_id=$1', [deletableProductId]);
+      await pool.query('DELETE FROM products WHERE id=$1', [deletableProductId]);
     }
     if (accountId) {
       await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [accountId]);

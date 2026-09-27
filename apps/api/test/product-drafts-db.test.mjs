@@ -18,6 +18,7 @@ test('a seller creates only its own non-public product draft in a minor category
   let minorId;
   let otherMinorId;
   let productId;
+  let deletableProductId;
   let stockedOptionId;
   try {
     accountId = await new AuthRepository(pool).createCustomerAccount(`qa+${randomUUID()}@example.invalid`, 'test-only-password-12345');
@@ -38,6 +39,18 @@ test('a seller creates only its own non-public product draft in a minor category
     await assert.rejects(drafts.create(seller, { ...input, options: [{ name: '500g', priceWon: -1 }] }), /Invalid option/);
     const created = await drafts.create(seller, input);
     productId = created.productId;
+    assert.equal(typeof drafts.deleteDraft, 'function');
+    const deletable = await drafts.create(seller, { ...input, title: '삭제용 시험 고추' });
+    deletableProductId = deletable.productId;
+    await assert.rejects(drafts.deleteDraft({ accountId, role: 'seller', sellerId: sellerB },
+      deletable.productId, deletable.revisionId), /Forbidden/);
+    await pool.query(`INSERT INTO product_images(revision_id,object_key,purpose,mime_type,size_bytes)
+      VALUES ($1,$2,'thumbnail','image/webp',100)`, [deletable.revisionId, `quarantine/qa-${suffix}-metadata`]);
+    await assert.rejects(drafts.deleteDraft(seller, deletable.productId, deletable.revisionId), /Protected draft data/);
+    await pool.query('DELETE FROM product_images WHERE revision_id=$1', [deletable.revisionId]);
+    await drafts.deleteDraft(seller, deletable.productId, deletable.revisionId);
+    assert.equal((await pool.query('SELECT count(*)::int AS total FROM products WHERE id=$1',
+      [deletable.productId])).rows[0].total, 0);
     const row = await pool.query(`SELECT p.seller_id, p.category_id, r.title, r.status, r.shipping_mode,
       o.name AS option_name, o.price_won FROM products p
       JOIN product_revisions r ON r.product_id=p.id JOIN product_options o ON o.revision_id=r.id WHERE p.id=$1`, [productId]);
@@ -102,6 +115,14 @@ test('a seller creates only its own non-public product draft in a minor category
       minorId);
   } finally {
     if (stockedOptionId) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [stockedOptionId]);
+    if (deletableProductId) {
+      await pool.query('DELETE FROM product_images WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)',
+        [deletableProductId]);
+      await pool.query('DELETE FROM product_options WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)',
+        [deletableProductId]);
+      await pool.query('DELETE FROM product_revisions WHERE product_id=$1', [deletableProductId]);
+      await pool.query('DELETE FROM products WHERE id=$1', [deletableProductId]);
+    }
     if (productId) {
       await pool.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
       await pool.query('DELETE FROM product_options WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)', [productId]);
