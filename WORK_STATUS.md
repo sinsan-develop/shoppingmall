@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 정리 완료 — 2026-09-27 과거 계획 worktree·로컬 브랜치
+
+- 담당/기준: 어울 단일 writer, 현재 `codex/flat-v2-prototypes@2713213ddd667a8eac30b63f4d21851b3904da09`. 사용자 지시의 과거 브랜치 로컬 정리만 수행; 현재 S2 작업 브랜치와 기본 `main` checkout의 기존 삭제 표시·미추적 `.github`는 보존했다.
+- 사전 검증: `git fetch origin main` 후 원격 `main@618c7ab08b72423efa6dd97c3e434f59696e03d3`에 과거 `codex/end-to-end-work-plan@74a814d8f4b61881ccaf50c83ae9b778a8d99521`가 ancestor임을 확인. 해당 원격 작업 ref는 없고, `D:\tmp\shoppingmall2-end-to-end-work-plan`은 clean·미추적/무시 파일 0·사용 프로세스 0·해석된 절대 경로 일치였다.
+- 조치/복구: 정확한 worktree를 정상 `git worktree remove`로 제거하고 해당 로컬 브랜치를 `git branch -d`로 삭제했다. 이후 worktree 목록에는 기본 checkout과 현재 S2 worktree만 남고 현재 브랜치는 clean이다. 제거한 계획 문서/커밋은 원격 `main`의 포함 이력에서 복구 가능하다. `main` checkout 자체는 업데이트·병합·초기화하지 않았다.
+- 검증/미검증: 현재 로컬 `pnpm test`는 146건 중 118 pass·28 DB/실검사 환경 skip·0 fail, PR 본문 검사 8 pass. 이 결과는 S2 전체 통합/인수 증거가 아니며 코드 변경은 없다. 작업 범위 오류 0, 동일 근본 원인 반복 0. 다음은 S2.2 공개 상품 수정/판매중지와 S2.4 편집형 홈·찜/재입고의 미결정 계약 확인 후 진행한다.
+
 ## 미검증 기록 — 2026-09-27 S1.3 가상 고객 탈퇴 요청 브라우저 재시험
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@1e99e168d15d21d07c8410437b7c81fac27bf3fd`; WSL 지정 checkout·`local-postgres/shoppingmall`의 정확한 QA ID `a9c61e34` 가상 고객/판매자/운영자 5계정만 사용. 실제 계정·운영 DB·Oracle·`main`은 건드리지 않았다.
