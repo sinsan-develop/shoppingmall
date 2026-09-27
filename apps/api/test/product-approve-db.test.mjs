@@ -11,6 +11,7 @@ import { ImageQuarantine } from '../src/catalog/image-quarantine.ts';
 import { ProductDrafts } from '../src/catalog/product-drafts.ts';
 import { ProductReviews } from '../src/catalog/product-reviews.ts';
 import { PublicProducts } from '../src/catalog/public-products.ts';
+import { InventoryService } from '../src/inventory/service.ts';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
 
@@ -130,6 +131,10 @@ test('only an operator publishes a fully scanned pending product and its exact p
     ]);
     assert.equal((await pool.query('SELECT sellable_quantity FROM inventory_levels WHERE option_id=$1',
       [oldOptionId])).rows[0].sellable_quantity, 6);
+    const inventory = new InventoryService(pool);
+    await assert.rejects(inventory.setStock(seller, oldOptionId, 9), /Published option required/);
+    const ownedStock = await inventory.listOwned(seller);
+    assert.deepEqual(ownedStock.map((item) => item.optionId).sort(), updated.options.map((item) => item.id).sort());
   } finally {
     if (app) await app.close();
     if (productId) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
