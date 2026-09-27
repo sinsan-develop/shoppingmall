@@ -16,6 +16,7 @@
 - 다음: RED를 실제 WSL DB에서 확인하고 기존 schema를 이용한 서비스 구현→GREEN→전체 회귀. 별도 공개 API/DB 계약 변경이 필요하면 정확한 경계를 보고하고 독립 작업을 계속한다. 사용자 인수/Oracle은 미검증.
 - 현재 결과: 새 수정 초안 서비스는 공개 버전을 유지하며 사진 파일을 별도 비공개 키로 복사한다. 관리자 승인 트랜잭션에서 기존 공개 옵션과 같은 이름의 승인 시점 재고만 새 버전에 옮기고 새 옵션은 0개다. 지난 옵션으로 재고를 다시 올리는 행위는 판매자 서비스에서 거부하며, 판매자 목록은 최신 개정 상태를 보여 준다. WSL 지정 DB 실제 시험은 기능 부재 RED→수정 후 1 pass·0 fail; 목록 구버전 노출과 구버전 재고 입력도 별도 RED→GREEN으로 확인했다. 사후 DB accounts/products/stock requests/images 0.
 - 로컬 검증: `pnpm test` 155건 중 127 pass·28 DB/환경 skip·0 fail, PR 본문 8 pass; typecheck·lint 통과. 기본 sandbox에서 `pnpm build`가 `.next/trace` 쓰기 EPERM으로 2회 실패했으며, D: worktree 쓰기 권한으로 동일 명령 단독 재실행해 API·웹 production build 통과. sandbox 실패를 제품 결함으로 단정하지 않는다.
+- 추가 회귀: exact SHA `a640ef4`의 지정 WSL `local-postgres/shoppingmall`에서 상품 초안·재고·승인·공개 검색 DB 시험을 `--test-concurrency=1`로 실행해 5 pass·0 fail·0 skip. 시험 뒤 DB accounts/products/stock requests/images 각각 0. 전체 DB suite와 실제 판매자 상품 수정 화면은 아직 미검증.
 - 오류·복구: 새 메서드 UUID 검사에서 구간 하나 누락 1회→기존 검사와 비교해 수정; RED 시험의 `finally`가 재고 요청보다 옵션을 먼저 삭제해 FK 실패 1회→잔류 QA ID를 읽기 전용 확인 후 정확한 시험 행만 트랜잭션 삭제(사후 0), 정리 순서를 수정. 같은 근본 원인 3회 연속 없음.
 - 미완료: 상품 수정의 실제 판매자 HTTP·화면 연결은 공개 API 추가 승인 응답 대기. 판매중지 요청, 최신 버전 초안 취소/삭제, 수정 전후 실제 브라우저·동시 재고 경쟁·전체 WSL 통합 회귀는 미검증. 기존 S2.2 전체 완료 또는 S2 Stage 종료를 주장하지 않는다.
 
