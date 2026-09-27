@@ -9,6 +9,7 @@
 - 로컬 회귀: `pnpm test` 총 158건 중 130 pass·28 DB/환경 skip·0 fail, PR 본문 8 pass, typecheck·lint·API/웹 production build와 `git diff --check` 통과. 로컬 DB skip은 실제 DB 통합 PASS가 아니며 WSL exact commit 회귀는 push 뒤 별도 수행한다.
 - WSL 재현: exact SHA `57129b7`을 지정 checkout으로 fast-forward 후 Node 24 일회성 컨테이너에서 실제 개발 DB 연결 전체 루트 시험 158건 중 **151 pass·7 환경 skip·0 fail**, 종료 코드 0. 사후 DB accounts/products/stock_change_requests/product_images 각 0, checkout clean. 이 순수 계산은 아직 장바구니·예약·판매자 정책 조회·실프로모션/결제에 연결되지 않았으며 S3.1/Stage 전체 완료 증거가 아니다.
 - 추가 경계: 어울몰 발송에 서로 다른 생산 판매자 A/B의 상품을 함께 넣으면 하나의 50,000원 발송 묶음이 되고, A의 직접 발송 23,000원은 별도 묶음·배송비 3,000원임을 목표 4 pass·0 fail로 검증했다. 판매자 원본 ID는 각 상품 행에 보존한다. 해당 테스트 보강 후 WSL 전체 회귀는 아직 재실행 전이며 별도로 기록한다.
+- 추가 WSL: exact SHA `89f5802`의 Node 24 일회성 시험에서 배송비·발송 묶음 단위시험 4 pass·0 fail·0 skip, checkout clean. 이 보강은 테스트만 변경했으며 위 전체 158건 WSL 회귀는 이전 SHA `57129b7` 증거임을 구분한다.
 
 ## 2026-09-28 최신 S1/S2 WSL 전체 회귀
 
