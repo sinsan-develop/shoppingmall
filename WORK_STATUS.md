@@ -4,6 +4,7 @@
 
 - 담당/범위: 어울 단일 writer. 현재 root package scripts·API/Web package scripts·migration·QA fixture와 `docs/DEVELOPMENT_ENVIRONMENT.md`를 대조해 설치/검사/WSL 동기화/DB 연결 전체 시험/QA 수명/수동 브라우저 검증 명령표를 문서 상단에 정리했다. 제품 코드·schema/API/권한·공유 환경을 변경하지 않는다.
 - 미구현·미검증: migration dry-run 명령과 자동 브라우저 E2E package script는 현재 없다. 실제 migration 스크립트는 적용 명령이라 공유 DB에서 시험 실행하지 않았다. 이 명령표가 S0/S2 전체 종료나 Oracle·PG·UAT 검증은 아니다. 문서 diff 검사와 동일 SHA push/WSL 동기화를 완료한 뒤 기록한다.
+- 검증/정리: 문서 2개만 변경했고 `git diff --check` 종료 코드 0. exact SHA `0b390f2`를 지정 SSH 별칭의 원격 작업 브랜치에 push하고 WSL `/home/daon/deploy/shopping`에 fast-forward했다. 로컬·원격·WSL 모두 같은 SHA, 로컬·WSL checkout clean; 시험 자료·서버 변경 없음. 작업 오류·동일 근본 원인 반복 0. 남은 것은 실제 migration dry-run 기능/격리 DB 검증과 자동 브라우저 E2E 도구 확정이다.
 
 ## 진행 중 — 2026-09-28 S2.2 승인 직전 이미지·검사 장애 경계
 
