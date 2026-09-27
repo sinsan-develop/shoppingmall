@@ -23,7 +23,7 @@ test('only an operator publishes a fully scanned pending product and its exact p
   const store = new ImageQuarantine(root);
   const suffix = randomUUID().slice(0, 8);
   let sellerAccountId; let adminAccountId; let sellerCategoryId; let sellerId;
-  let majorId; let minorId; let productId; let revisionId; let imageId; let objectKey;
+  let majorId; let minorId; let productId; let revisionId; let imageId; let objectKey; let nextRevisionId;
   let app;
   try {
     process.env.ENABLE_LOCAL_UPLOAD = '1';
@@ -101,13 +101,43 @@ test('only an operator publishes a fully scanned pending product and its exact p
     await assert.rejects(reviews.approve(admin, revisionId, store, async () => {}), /Pending proposal required/);
     const audit = await pool.query('SELECT action,actor_account_id FROM audit_events WHERE target_id=$1', [revisionId]);
     assert.ok(audit.rows.some((row) => row.action === 'product.proposal_approve' && row.actor_account_id === adminAccountId));
+    const oldOptionId = detail.options[0].id;
+    await pool.query('INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity) VALUES ($1,7,7)', [oldOptionId]);
+    await assert.rejects(drafts.createRevision({ accountId: sellerAccountId, role: 'seller', sellerId: randomUUID() },
+      productId, store), /Forbidden/);
+    const next = await drafts.createRevision(seller, productId, store);
+    nextRevisionId = next.revisionId;
+    assert.notEqual(nextRevisionId, revisionId);
+    assert.equal((await publicProducts.get(productId)).revisionId, revisionId);
+    const clonedImages = await pool.query('SELECT object_key FROM product_images WHERE revision_id=$1', [nextRevisionId]);
+    assert.equal(clonedImages.rows.length, 1);
+    assert.notEqual(clonedImages.rows[0].object_key, objectKey);
+    assert.deepEqual(await store.read(clonedImages.rows[0].object_key), await store.read(objectKey));
+    await drafts.update(seller, productId, nextRevisionId, {
+      categoryId: minorId, title: '수정 고추', description: '승인된 새 설명', originLabel: '전국',
+      shippingMode: 'seller_direct', options: [{ name: '500g', priceWon: 25000 }, { name: '1kg', priceWon: 43000 }],
+    });
+    await drafts.submit(seller, productId, nextRevisionId);
+    assert.equal((await publicProducts.get(productId)).revisionId, revisionId);
+    await pool.query('UPDATE inventory_levels SET on_hand_quantity=6,sellable_quantity=6 WHERE option_id=$1', [oldOptionId]);
+    await reviews.approve(admin, nextRevisionId, store, async () => {});
+    const updated = await publicProducts.get(productId);
+    assert.equal(updated.revisionId, nextRevisionId);
+    assert.deepEqual(updated.options.map(({ name, priceWon, sellableQuantity }) =>
+      ({ name, priceWon, sellableQuantity })), [
+      { name: '500g', priceWon: 25000, sellableQuantity: 6 },
+      { name: '1kg', priceWon: 43000, sellableQuantity: 0 },
+    ]);
+    assert.equal((await pool.query('SELECT sellable_quantity FROM inventory_levels WHERE option_id=$1',
+      [oldOptionId])).rows[0].sellable_quantity, 6);
   } finally {
     if (app) await app.close();
     if (productId) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
     if (sellerAccountId && adminAccountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id = ANY($1::uuid[])', [[sellerAccountId, adminAccountId]]);
-    if (imageId) await pool.query('DELETE FROM product_images WHERE id=$1', [imageId]);
-    if (revisionId) await pool.query('DELETE FROM product_options WHERE revision_id=$1', [revisionId]);
-    if (revisionId) await pool.query('DELETE FROM product_revisions WHERE id=$1', [revisionId]);
+    if (productId) await pool.query('DELETE FROM product_images WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)', [productId]);
+    if (productId) await pool.query('DELETE FROM inventory_levels WHERE option_id IN (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)', [productId]);
+    if (productId) await pool.query('DELETE FROM product_options WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)', [productId]);
+    if (productId) await pool.query('DELETE FROM product_revisions WHERE product_id=$1', [productId]);
     if (productId) await pool.query('DELETE FROM products WHERE id=$1', [productId]);
     if (minorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [minorId]);
     if (majorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [majorId]);
