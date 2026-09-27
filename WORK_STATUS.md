@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S2.4 검색 더 보기 키보드 초점 연속성
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@9f2b862`. 직전 25개 상품 브라우저 QA는 Enter로 더 보기 실행까지 확인했으나 버튼이 비활성화·제거된 뒤의 초점 위치는 확인하지 않았다. 실제 키보드 탐색이 첫 새 상품 또는 종료 안내로 이어지는지 먼저 재현한 뒤 필요한 경우 기존 검색 화면만 고친다. 새 API/DB/schema/권한 변경은 없다.
+- QA 자원 계획: 지정 WSL `local-postgres/shoppingmall` 개발 DB의 정확한 QA ID `e51a4c20` 및 25개 `qa-e51a4c20-public-chili*` 가상 상품·가상 계정 5개, loopback 9091/9092, 임시 컨테이너 `shoppingmall-s24-focus-api-e51a`/`shoppingmall-s24-focus-web-e51a`, 새 Chrome 시험 탭. 사용자 탭·Oracle·운영 자료는 건드리지 않는다. 검증 후 탭 종료→정확한 컨테이너 stop/remove→그 QA ID만 fixture reset→DB/포트/checkout 잔류 0을 확인한다.
+- 미검증/다음: 현재는 초점 위치에 대한 가설이며 결함으로 단정하지 않는다. 브라우저 RED 증거 후 화면 회귀 시험과 구현, 로컬/WSL/브라우저 GREEN을 분리해 기록한다. 실제 200% 확대는 이번 범위가 아니다.
+
 ## 현재 S2 Stage 잔여 게이트 대조 — 2026-09-28
 
 - 기준: `docs/WORK_PLAN.md` S2.1~S2.4와 현재 코드·아래 누적 증거를 대조했다. S2 Stage PR/병합은 아직 진행하지 않으며 S3의 순수 계산 선행 검증은 S2 완료나 Stage 순서 건너뛰기가 아니다.
