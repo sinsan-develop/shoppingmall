@@ -4,6 +4,8 @@
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@d287f00`. 기존 고유 가상 판매자/상품 시험의 공개 옵션을 재사용하고 상품 개정 승인과 구옵션 재고 감소 입력을 병행 호출한다. 새 fixture·schema/API/서비스 계약 변경은 없다.
 - 기대: 재고 입력이 먼저 확정되면 새 같은 이름 옵션은 감소값 4·4를 승계한다. 상품 승인이 먼저 확정되면 새 옵션은 기존 8·6을 승계하고 구옵션 입력은 `Published option required`로 거부된다. 두 호출 중 상품 승인 실패·교착·그 외 결과는 결함으로 조사한다. 실제 WSL DB 시험 뒤 정확한 행/파일 잔류 0을 확인한다.
+- 결과: exact SHA `9120c11`의 WSL 실제 DB 단일 병행 시험 1 pass·0 fail·0 skip. `Promise.allSettled`의 두 허용 직렬화 결과만 인정하는 회귀 검사를 추가했고 승인 성공·최신 공개 개정·승계 재고를 확인했다. 이 한 번의 실행이 가능한 두 선후관계를 모두 실제로 관측했다는 뜻은 아니다. 로컬 동일 시험은 DB가 없어 1 skip, `git diff --check` 통과.
+- 사후: DB accounts/products/stock_change_requests/product_images 각 0, WSL checkout clean. 서비스/DB/API 변경 없이 시험만 보강했다. 실행 오류·동일 근본 원인 반복 0. 명시적 두 스케줄 강제시험, S3 마지막 수량 구매 경쟁, S2 전체 Gate는 미검증이다.
 
 ## 진행 중 — 2026-09-28 S2.2 미승인 재고 증가와 상품 개정 승인 경계
 
