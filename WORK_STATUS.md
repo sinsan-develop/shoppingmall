@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.2 판매자 사진 메타데이터 조회 WSL GREEN
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@6f75994d76ab3536059db8230a72b5ac229f5c0f` (SSH 원격·WSL 일치). 판매자 본인만 사진 메타데이터를 조회하고 다른 판매자·고객은 거부하며 비공개 object key는 응답에서 제외하는 DB 시험 통과. 실제 WSL PostgreSQL 전체 API 43개 중 38 pass·0 fail·환경별 5 skip.
+- 로컬 전체 99개 중 81 pass·0 fail·DB-only 18 skip, PR 본문 시험 8 pass, typecheck·lint·API/Next production build 통과. WSL 시험 후 accounts/sellers/categories/products/revisions/options/images/publications/audit 10종 각 0행, 일회성 컨테이너 0, WSL checkout clean.
+- 변경 파일: 본 현황. 이번 실제 통합 시험 오류 0. S2.2의 완전한 이미지 디코딩/안전 공개 저장·관리자 승인/공개, S2.3 재고와 이후 Stage는 여전히 미구현이다. 다음은 승인된 계획의 이미지 안전 공개 경계 또는 독립적인 재고 계약을 계속 구현한다.
+
 ## 최신 상태 — 2026-09-27 S2.2 판매자 소유 사진 메타데이터 조회 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 직전 비공개 이미지 컨테이너 보강 커밋 `4922db758dd93dc00b42fd5cdd8736007c5b18ad`는 SSH 별칭 원격·WSL checkout 일치. WSL 실제 `shoppingmall` DB API 43개 중 38 pass·0 fail·환경별 5 skip, 핵심 QA 테이블 10종 전부 0행, 임시 컨테이너 0, WSL checkout clean.
