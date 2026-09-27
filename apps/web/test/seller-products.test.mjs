@@ -37,6 +37,7 @@ test('a seller draft has a local preview and explicit private-photo and proposal
   assert.match(html, /초안 삭제/);
   assert.match(html, /등록 사진 관리/);
   assert.match(readFileSync(new URL('../app/account/seller/products/page.tsx', import.meta.url), 'utf8'), /사진 제거/);
+  assert.match(readFileSync(new URL('../app/account/seller/products/page.tsx', import.meta.url), 'utf8'), /images\/\$\{item\.id\}\/preview/);
   assert.match(html, /대표 사진 1장/);
   assert.match(readFileSync(new URL('../app/account/seller/products/page.tsx', import.meta.url), 'utf8'), /사진 순서 저장/);
   assert.doesNotMatch(html, /고객에게 공개 중/);

@@ -7,11 +7,40 @@ type Proposal = { productId: string; revisionId: string; title: string; sellerNa
   options: { name: string; priceWon: number }[]; thumbnailCount: number; detailImageCount: number };
 type StockRequest = { requestId: string; optionId: string; sellerName: string; title: string;
   optionName: string; targetOnHand: number; sellable: number; createdAt: string };
-type ViewProps = { proposals: Proposal[]; busy: boolean; onReject: (revisionId: string, reason: string) => void };
+type ProposalImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number };
+type ViewProps = { proposals: Proposal[]; busy: boolean; onReject: (revisionId: string, reason: string) => void;
+  onLoadImages: (revisionId: string) => Promise<ProposalImage[]> };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
-export function AdminProposalView({ proposals, busy, onReject }: ViewProps) {
+function PendingPhotos({ item, busy, onLoadImages }: {
+  item: Proposal; busy: boolean; onLoadImages: ViewProps['onLoadImages'];
+}) {
+  const [images, setImages] = useState<ProposalImage[]>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  async function loadImages() {
+    setLoading(true); setError('');
+    try { setImages(await onLoadImages(item.revisionId)); }
+    catch { setError('심사 사진을 불러오지 못했습니다'); }
+    finally { setLoading(false); }
+  }
+  return <div>
+    <button type="button" className="secondary-button" disabled={busy || loading || item.thumbnailCount + item.detailImageCount === 0}
+      onClick={() => void loadImages()}>심사 사진 보기</button>
+    {error ? <p role="alert">{error}</p> : null}
+    {images ? <ul className="draft-image-list" aria-label="비공개 심사 사진">
+      {images.map((image, index) => <li key={image.id}>
+        {apiOrigin ? <img className="draft-image-preview"
+          src={`${apiOrigin}/catalog/admin/proposals/${item.revisionId}/images/${image.id}/preview`}
+          alt={`비공개 심사 ${image.purpose === 'thumbnail' ? '대표' : '상세'} 사진 ${index + 1}`} loading="lazy" /> : null}
+        <span>{index + 1}번 · {image.purpose === 'thumbnail' ? '대표' : '상세'}</span>
+      </li>)}
+    </ul> : null}
+  </div>;
+}
+
+export function AdminProposalView({ proposals, busy, onReject, onLoadImages }: ViewProps) {
   function reject(event: FormEvent<HTMLFormElement>, revisionId: string) {
     event.preventDefault();
     const reason = String(new FormData(event.currentTarget).get('reason') ?? '').trim();
@@ -30,6 +59,7 @@ export function AdminProposalView({ proposals, busy, onReject }: ViewProps) {
           {option.name} · {option.priceWon.toLocaleString('ko-KR')}원
         </li>)}</ul>
         <p>대표 사진 {item.thumbnailCount}개 · 상세 사진 {item.detailImageCount}개</p>
+        <PendingPhotos item={item} busy={busy} onLoadImages={onLoadImages} />
         <form className="account-form" onSubmit={(event) => reject(event, item.revisionId)}>
           <label htmlFor={`reason-${item.revisionId}`}>반려 사유</label>
           <textarea id={`reason-${item.revisionId}`} name="reason" required maxLength={500} rows={2} />
@@ -111,6 +141,15 @@ export default function AdminProposalsPage() {
     finally { setBusy(false); }
   }
 
+  async function loadImages(revisionId: string): Promise<ProposalImage[]> {
+    if (!apiOrigin) throw new Error('API unavailable');
+    const response = await fetch(`${apiOrigin}/catalog/admin/proposals/${revisionId}/images`,
+      { credentials: 'include' });
+    if (response.status === 401 || response.status === 403) { setState('unauthorized'); throw new Error('Unauthorized'); }
+    if (!response.ok) throw new Error('Images unavailable');
+    return response.json() as Promise<ProposalImage[]>;
+  }
+
   async function approveStock(requestId: string) {
     if (!apiOrigin || busy) return;
     setBusy(true);
@@ -133,7 +172,8 @@ export default function AdminProposalsPage() {
     {state === 'loading' ? <p role="status">운영자 권한 확인 중</p> : null}
     {state === 'unauthorized' ? <p role="alert">운영자 로그인 후 이용할 수 있습니다</p> : null}
     {state === 'unavailable' ? <p role="alert">승인 대기 목록을 불러올 수 없습니다</p> : null}
-    {state === 'ready' ? <><AdminProposalView proposals={proposals} busy={busy} onReject={reject} />
+    {state === 'ready' ? <><AdminProposalView proposals={proposals} busy={busy} onReject={reject}
+      onLoadImages={loadImages} />
       <AdminStockView requests={stockRequests} busy={busy} onApprove={approveStock} />
       {message ? <p role="status">{message}</p> : null}</> : null}
   </main>;

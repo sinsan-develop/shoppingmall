@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -31,6 +32,9 @@ test('review queue shows each seller proposal with a required rejection reason b
   for (const label of ['상품 승인 대기', '시험 고추', '농가 A', '반려 사유', '반려']) {
     assert.match(html, new RegExp(label));
   }
+  assert.match(html, /심사 사진 보기/);
+  assert.match(readFileSync(new URL('../app/account/admin/proposals/page.tsx', import.meta.url), 'utf8'),
+    /images\/\$\{image\.id\}\/preview/);
   assert.doesNotMatch(html, />승인</);
 });
 
