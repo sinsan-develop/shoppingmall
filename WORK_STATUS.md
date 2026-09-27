@@ -4,6 +4,7 @@
 
 - 담당/범위: 어울 단일 writer, `codex/flat-v2-prototypes@70cabe1`. S0 명령표의 migration dry-run 공백을 공유 개발 DB 변경 없이 좁혀 검증한다. 현재 `apps/api/migrations/0000`~`0005`의 **기존 SQL만** 동일 source checkout의 일회성 PostgreSQL에 적용해 구문·순서·migration 이력을 확인한다. 새로운 migration, 공유 `local-postgres/shoppingmall` 적용, schema/API/권한 변경은 하지 않는다.
 - 격리 자원 계획: WSL에 이미 있는 실제 개발 DB와 같은 `pgvector/pgvector:0.8.2-pg15` 이미지의 임시 컨테이너 `shoppingmall-s0-migrate-check-70ca`, 호스트 포트 미노출·별도 초기 빈 DB `shoppingmall`, QA ID `migrate-70ca`. 자격정보는 실행 시 난수로 생성해 기록·출력하지 않는다. Node 24 일회성 컨테이너는 해당 PostgreSQL의 네트워크만 공유하고 `/home/daon/deploy/shopping` checkout을 읽는다. 시험 뒤 임시 DB 컨테이너를 stop/remove하고 이름·볼륨·호스트 포트 잔류를 확인한다. 기존 `local-postgres` DB의 계정·상품·migration 상태는 시험 전후 읽기 전용으로 비교한다. 이것은 **격리된 빈 DB 적용 재현**이며 현재 공유 DB에 대한 실제 SQL preview/dry-run 또는 정식 WSL 통합 PASS로 표시하지 않는다.
+- 실행/정리: exact SHA `b289069`의 읽기 전용 소스 마운트와 일회성 Node 24에서 기존 `migrate.ts`를 분리된 PostgreSQL 15 빈 DB에 실행했다. 첫 실행은 `Migrations applied` 후 **검증 SQL 셸 인용 오류 1회**로 종료 코드 1; `trap`이 지정 DB 컨테이너를 제거했고 공유 DB `accounts/products/migrations=0/0/6` 불변을 확인했다. 새 격리 DB에서 SQL 인용을 바로잡은 재실행은 `Migrations applied`, migration 이력 **6건**, public 테이블 **21개**, 종료 코드 0. 재실행 뒤 정확한 QA 컨테이너 0, 공유 DB `0/0/6`, WSL checkout clean. 호스트 포트는 공개하지 않았고 `--rm`으로 실행했으나 익명 Docker volume의 개별 ID별 삭제 증거는 수집하지 못했다. 실제 운영/공유 DB migration은 실행하지 않았고 새 SQL을 만들지 않았다. 같은 근본 원인 1회, 재시도 성공. 이는 빈 DB 기존 migration 재생 증거이며 공유 DB에 대한 미적용 migration preview/dry-run, rollback, 업그레이드 경로, 정식 통합의 대체 증거는 아니다.
 
 ## 진행 중 — 2026-09-28 S2.4 실제 제품 화면 1440/430 viewport QA
 
