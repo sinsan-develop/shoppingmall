@@ -5,6 +5,8 @@
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@daea5f7`. 이전 in-app browser 단축키 시험은 실제 배율이 불변이었으므로, 별도의 새 Chrome 시험 탭에서 브라우저 확대가 가능한지 확인한다. 기존 사용자 탭·설정은 건드리지 않고 시험 탭만 사용한다.
 - 임시 자원: WSL loopback 9091의 `shoppingmall-s24-zoom-chrome-web-daea` 일회성 Web 컨테이너, 시험용 Chrome 새 탭 1개. 필요 시 읽기 전용 API 응답용 `shoppingmall-s24-zoom-chrome-api-daea`를 9092에만 켠다. 사전 9091/9092 listener·이 이름의 컨테이너 0, WSL SHA `daea5f7` clean. DB 자료 생성 없음. 종료 시 정확한 탭/컨테이너만 닫고 포트·DB 잔류를 확인한다.
 - 판정 기준: 실제 브라우저 배율을 관측해 200%인지 확인한 뒤 홈/상품검색의 가로 넘침·검색 입력·키보드를 검사한다. 단축키가 배율을 바꾸지 못하면 실제 200%는 미검증으로 남기며 viewport 축소를 대신 제시하지 않는다. 사용자 브라우저 확대 설정이 바뀌면 반드시 원래 값으로 복원한다.
+- 실제 결과: WSL exact SHA `f468624`의 Web·API 일회성 서버 HTTP 200(`/ready` 포함)에서 Chrome 새 시험 탭의 홈을 열었다. Chrome 기본 상태는 `devicePixelRatio=1`, `innerWidth=1898`, 문서 client/scroll 각 1883, 검색 입력 계산 글자 16px. `Control+plus` 입력 뒤에도 이 네 관측값과 접근성 상태가 불변이었다. 따라서 Chrome 자동 제어에서도 **실제 200% 확대가 적용되지 않았고 해당 QA는 미검증**이다. 화면 폭을 줄여 200% PASS로 표기하지 않는다. API 연결 전 홈 오류 표시는 API 시작 후 로딩 상태로 바뀌었으며 제품 결함 판정에 사용하지 않는다.
+- 정리: 해당 Chrome 시험 탭 닫음, 이름을 기록한 Web/API 두 컨테이너만 stop·remove, 9091/9092 listener·이름 일치 실행 컨테이너 0, DB accounts/products 0, WSL checkout clean. 첫 시작 직후 `web:000`과 Chrome 일시적 CDP reload timeout 각 1회는 서버 기동 대기/브라우저 제어 지연으로, 이후 200 및 상태 조회로 구분했다. 사용자 브라우저 배율 값은 변하지 않아 복원할 변경이 없다. 실제 수동 브라우저 배율 QA는 후속 게이트다.
 
 ## 진행 중 — 2026-09-28 S2.2 재고 입력·상품 승인 병행 회귀
 
