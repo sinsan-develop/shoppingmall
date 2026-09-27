@@ -8,6 +8,7 @@ import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
 import { ProductDrafts, type DraftInput } from './product-drafts.js';
+import { ProductReviews } from './product-reviews.js';
 import { ImageQuarantine } from './image-quarantine.js';
 import { CatalogTaxonomy } from './taxonomy.js';
 
@@ -50,6 +51,12 @@ export class CatalogController {
     const pool = this.database.getPool();
     if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
     return new ProductDrafts(pool);
+  }
+
+  private reviews() {
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    return new ProductReviews(pool);
   }
 
   private requireLocalUpload() {
@@ -181,6 +188,30 @@ export class CatalogController {
     const actor = await this.admin(request);
     try { return { id: await this.taxonomy().createMajor(actor, this.name(body)) }; }
     catch (error) { this.rethrowCatalog(error); }
+  }
+
+  @Get('admin/proposals')
+  async pendingProposals(@Req() request: RequestHeaders) {
+    const actor = await this.admin(request);
+    return this.reviews().listPending(actor);
+  }
+
+  @Post('admin/proposals/:revisionId/reject')
+  async rejectProposal(@Req() request: RequestHeaders, @Param('revisionId') revisionId: string,
+    @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    const reason = body && typeof body === 'object' ? (body as Record<string, unknown>).reason : undefined;
+    try { return await this.reviews().reject(actor, revisionId, reason as string); }
+    catch (error) {
+      if (error instanceof Error && ['Invalid proposal target', 'Review reason required'].includes(error.message)) {
+        throw new BadRequestException({ status: 'invalid_review', reason: error.message });
+      }
+      if (error instanceof Error && error.message === 'Pending proposal required') {
+        throw new ConflictException({ status: 'not_pending' });
+      }
+      throw error;
+    }
   }
 
   @Post('admin/minors')

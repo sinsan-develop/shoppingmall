@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 운영자 상품 반려 API·화면 WSL 검증 대기
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@90f75881a83c61f56eac2cdd582cb811ffcc9e85` (SSH 원격/WSL 일치). 운영자 전용 대기 목록과 사유 반려 서비스 WSL 실제 DB 1 pass·0 fail; 시험 QA 핵심 행 0. 반려는 별도 요청자/결정자·사유/시각·감사 기록을 남기고 고객 공개 0을 유지한다.
+- `GET /catalog/admin/proposals`, `POST /catalog/admin/proposals/:id/reject`와 운영자 `/account/admin/proposals`를 연결했다. 가짜 `x-role: admin` 접근은 무DB HTTP 404 RED→401 GREEN; 화면은 세션 확인 전 목록 비노출 및 사유 필수/안전하지 않은 승인 버튼 없음 SSR RED→2 pass. 전체 workspace typecheck·lint·diff check 통과.
+- 변경 파일: `apps/api/src/catalog/controller.ts`, `apps/api/test/catalog-http.test.mjs`, `apps/web/app/account/admin/proposals/page.tsx`, `apps/web/app/account/page.tsx`, `apps/web/test/admin-proposals.test.mjs`, 본 현황. 오류 누적: 의도한 API 경로 부재 RED 1회·화면 파일 부재 RED 1회, 새 화면 디렉터리 부재로 첫 apply_patch 실패 1회 후 정확한 경로 생성. WSL HTTP 실제 DB/Next production build·브라우저는 미검증. 상품 승인/공개는 이미지 안전화 이후 구현.
+
 ## 최신 상태 — 2026-09-27 운영자 상품 반려 서비스 실제 DB 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@b9910451de4fabd385977540395a49704205ba1b` (SSH 원격 최신). 승인 대기 목록과 운영자 사유 반려를 우선 구현한다. 반려는 `pending` revision만 행 잠금 아래 `rejected`로 바꾸고 결정자·시각·사유·감사 이력을 남기며 기존 공개 포인터는 건드리지 않는다. 이미지 악성 검사/안전한 공개 저장이 아직 없으므로 승인·공개는 구현하지 않았다.
