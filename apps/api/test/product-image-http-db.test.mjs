@@ -76,9 +76,28 @@ test('the local-only HTTP upload accepts an owned draft, rejects cross-seller ac
     const image = await response.json();
     assert.match(image.objectKey, /^quarantine\//);
     assert.equal(image.mimeType, 'image/webp');
-    assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_images WHERE revision_id=$1', [revisionId])).rows[0].n, 1);
+    const detailResponse = await upload(png, { 'x-image-purpose': 'detail' });
+    assert.equal(detailResponse.status, 201);
+    const detail = await detailResponse.json();
+    const orderUrl = `${url}/order`;
+    const order = (images, headers = {}) => fetch(orderUrl, { method: 'PATCH',
+      headers: { cookie, origin, 'content-type': 'application/json', ...headers },
+      body: JSON.stringify({ images }),
+    });
+    const desired = [{ id: detail.id, purpose: 'thumbnail' }, { id: image.id, purpose: 'detail' }];
+    assert.equal((await order(desired, { origin: 'https://untrusted.invalid' })).status, 403);
+    assert.equal((await order(desired, { cookie: wrongCookie })).status, 403);
+    assert.equal((await order([{ id: image.id, purpose: 'thumbnail' }])).status, 400);
+    assert.equal((await order(desired)).status, 200);
+    const listing = await fetch(url, { headers: { cookie } });
+    assert.equal(listing.status, 200);
+    assert.deepEqual((await listing.json()).map(({ id, purpose, displayOrder }) => ({ id, purpose, displayOrder })), [
+      { id: detail.id, purpose: 'thumbnail', displayOrder: 0 },
+      { id: image.id, purpose: 'detail', displayOrder: 1 },
+    ]);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_images WHERE revision_id=$1', [revisionId])).rows[0].n, 2);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_publications WHERE product_id=$1', [productId])).rows[0].n, 0);
-    assert.equal((await readdir(join(root, 'quarantine'))).length, 1);
+    assert.equal((await readdir(join(root, 'quarantine'))).length, 2);
   } finally {
     if (app) await app.close();
     if (accountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
