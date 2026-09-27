@@ -1,5 +1,19 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-09-28 현재 실행 명령표와 미구현 경계
+
+| 작업 | 현재 실제 명령·경로 | 확인 범위 |
+|---|---|---|
+| Windows 설치 | 작업 worktree 루트에서 `pnpm install --frozen-lockfile` | `pnpm-lock.yaml` 고정 의존성 설치 |
+| Windows 기본 검증 | 같은 루트에서 `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` | DB 연결이 없는 로컬 시험의 skip은 별도 집계 |
+| WSL 코드 동기화 | 로컬 작업 브랜치를 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git`로 push한 뒤 `ssh WSL-server`, `/home/daon/deploy/shopping`에서 `git pull --ff-only git@github-sinsan-develop:sinsan-develop/shoppingmall.git codex/flat-v2-prototypes`, `git rev-parse HEAD`, `git status --short` | 정확한 commit과 clean 여부를 먼저 대조. WSL checkout에서 직접 개발하지 않음 |
+| WSL DB 연결 전체 시험 | 지정 checkout을 마운트한 Node 24 일회성 컨테이너의 `/app`에서 `node --test-concurrency=1 --import tsx --test` | `DATABASE_URL`은 실행 환경의 비밀값으로 공급. 현재 환경 skip 7건을 PASS로 합치지 않음. 가상 자료 정리·DB 잔류를 별도 확인 |
+| QA seed/reset | `apps/api`에서 `node --import tsx scripts/qa-fixture.ts seed|reset` 또는 `node --import tsx scripts/qa-public-fixture.ts seed|reset`(실행 시 `seed`와 `reset` 중 하나만 입력) | 고유 `QA_RUN_ID`, 환경의 `DATABASE_URL`, seed 시 `QA_FIXTURE_PASSWORD`; 공개 fixture는 선택적으로 `QA_PUBLIC_PRODUCT_COUNT=1..25`. 예상 행 수·수명·정리 대상을 작업현황에 먼저 기록. 비밀번호·DB URL은 대화·Git에 기록하지 않음 |
+| 실제 제품 브라우저 확인 | 개발 웹 `http://127.0.0.1:9091`, API `http://127.0.0.1:9092/ready`에서 같은 SHA·HTTP 상태를 확인하고 고객/판매자/관리자 흐름을 수동 검증 | 현재 자동 브라우저 E2E package script 없음. 실제 200% 배율·인쇄·인수는 별도 증거 없으면 미검증 |
+| migration dry-run | **명령 없음**. `apps/api/scripts/migrate.ts`는 실제 DB 적용만 수행 | 공유 `shoppingmall` DB에서 dry-run으로 실행 금지. 격리 시험 DB·복구 경계와 dry-run 구현 후 검증 필요 |
+
+위 표는 존재하는 명령과 현재 한계를 적은 것이며 Stage 전체 통과 선언이 아니다. 포트·컨테이너·QA ID는 매 시험 전 점유와 소유자를 다시 확인한다.
+
 ## 2026-09-27 재현 명령·현재 경계
 
 - Windows 정본은 `D:\Project\shoppingmall2`의 격리 worktree이며 현재 제품 작업 브랜치는 `codex/flat-v2-prototypes`다. `main`에 직접 개발하지 않는다. 실제 작업 checkout에서 `pnpm install --frozen-lockfile`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`를 실행한다. 로컬 `pnpm test`의 DB 의존 skip은 WSL DB 검증을 대신하지 않는다.

@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S0 재현 명령표 현재화
+
+- 담당/범위: 어울 단일 writer. 현재 root package scripts·API/Web package scripts·migration·QA fixture와 `docs/DEVELOPMENT_ENVIRONMENT.md`를 대조해 설치/검사/WSL 동기화/DB 연결 전체 시험/QA 수명/수동 브라우저 검증 명령표를 문서 상단에 정리했다. 제품 코드·schema/API/권한·공유 환경을 변경하지 않는다.
+- 미구현·미검증: migration dry-run 명령과 자동 브라우저 E2E package script는 현재 없다. 실제 migration 스크립트는 적용 명령이라 공유 DB에서 시험 실행하지 않았다. 이 명령표가 S0/S2 전체 종료나 Oracle·PG·UAT 검증은 아니다. 문서 diff 검사와 동일 SHA push/WSL 동기화를 완료한 뒤 기록한다.
+
 ## 진행 중 — 2026-09-28 S2.2 승인 직전 이미지·검사 장애 경계
 
 - 담당/범위: 어울 단일 writer, 기존 작업 브랜치 `codex/flat-v2-prototypes@55d20c6`. 기존 `product-approve-db.test.mjs`의 정확한 가상 상품·격리 사진·`finally` 정리를 재사용해 승인 직전 실제 보관 사진 부재 및 검사 서비스 불가가 공개를 차단하는지 확인한다. 승인 서비스·DB/schema/공개 API/권한 계약은 변경하지 않는다.
