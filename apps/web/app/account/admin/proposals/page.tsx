@@ -9,6 +9,7 @@ type StockRequest = { requestId: string; optionId: string; sellerName: string; t
   optionName: string; targetOnHand: number; sellable: number; createdAt: string };
 type ProposalImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number };
 type ViewProps = { proposals: Proposal[]; busy: boolean; onReject: (revisionId: string, reason: string) => void;
+  onApprove?: (revisionId: string) => void;
   onLoadImages: (revisionId: string) => Promise<ProposalImage[]> };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -40,7 +41,7 @@ function PendingPhotos({ item, busy, onLoadImages }: {
   </div>;
 }
 
-export function AdminProposalView({ proposals, busy, onReject, onLoadImages }: ViewProps) {
+export function AdminProposalView({ proposals, busy, onReject, onApprove, onLoadImages }: ViewProps) {
   function reject(event: FormEvent<HTMLFormElement>, revisionId: string) {
     event.preventDefault();
     const reason = String(new FormData(event.currentTarget).get('reason') ?? '').trim();
@@ -48,7 +49,7 @@ export function AdminProposalView({ proposals, busy, onReject, onLoadImages }: V
   }
   return <section className="account-card profile-card" aria-labelledby="pending-proposal-title">
     <h2 id="pending-proposal-title">상품 승인 대기</h2>
-    <p>판매자의 요청은 심사 전까지 고객에게 보이지 않습니다. 반려에는 사유와 결정 이력이 남습니다</p>
+    <p>사진과 상품 내용을 확인해 주세요. 승인은 서버의 악성코드 검사 통과 후 고객에게 반영되며, 반려에는 사유가 남습니다</p>
     {proposals.length === 0 ? <p>현재 승인 대기 상품이 없습니다</p> : <ul className="catalog-list">
       {proposals.map((item) => <li key={item.revisionId} className="draft-product-item">
         <strong>{item.title}</strong> · {item.sellerName}<br />
@@ -60,6 +61,8 @@ export function AdminProposalView({ proposals, busy, onReject, onLoadImages }: V
         </li>)}</ul>
         <p>대표 사진 {item.thumbnailCount}개 · 상세 사진 {item.detailImageCount}개</p>
         <PendingPhotos item={item} busy={busy} onLoadImages={onLoadImages} />
+        {item.thumbnailCount === 1 && onApprove ? <button type="button" className="primary-button"
+          disabled={busy} onClick={() => onApprove(item.revisionId)}>상품 승인</button> : null}
         <form className="account-form" onSubmit={(event) => reject(event, item.revisionId)}>
           <label htmlFor={`reason-${item.revisionId}`}>반려 사유</label>
           <textarea id={`reason-${item.revisionId}`} name="reason" required maxLength={500} rows={2} />
@@ -67,7 +70,7 @@ export function AdminProposalView({ proposals, busy, onReject, onLoadImages }: V
         </form>
       </li>)}
     </ul>}
-    <p>상품 승인·공개는 안전한 이미지 검사와 공개 저장 경로를 갖춘 뒤 제공합니다</p>
+    <p>이미지 검사기 오류나 사진 누락이 있으면 승인을 중단하고 현재 공개 상품은 유지합니다</p>
   </section>;
 }
 
@@ -141,6 +144,24 @@ export default function AdminProposalsPage() {
     finally { setBusy(false); }
   }
 
+  async function approveProduct(revisionId: string) {
+    if (!apiOrigin || busy) return;
+    setBusy(true); setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/admin/proposals/${revisionId}/approve`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
+      if (!response.ok) {
+        setMessage(response.status === 503 ? '사진 검사 서비스를 사용할 수 없어 공개하지 않았습니다' :
+          '상품을 승인하지 못했습니다. 사진·옵션과 요청 상태를 확인해 주세요');
+        return;
+      }
+      await load(); setMessage('검사를 통과한 상품을 승인·공개하고 운영 이력을 기록했습니다');
+    } catch { setMessage('상품 검토 서버에 연결할 수 없습니다'); }
+    finally { setBusy(false); }
+  }
+
   async function loadImages(revisionId: string): Promise<ProposalImage[]> {
     if (!apiOrigin) throw new Error('API unavailable');
     const response = await fetch(`${apiOrigin}/catalog/admin/proposals/${revisionId}/images`,
@@ -173,6 +194,7 @@ export default function AdminProposalsPage() {
     {state === 'unauthorized' ? <p role="alert">운영자 로그인 후 이용할 수 있습니다</p> : null}
     {state === 'unavailable' ? <p role="alert">승인 대기 목록을 불러올 수 없습니다</p> : null}
     {state === 'ready' ? <><AdminProposalView proposals={proposals} busy={busy} onReject={reject}
+      onApprove={(id) => void approveProduct(id)}
       onLoadImages={loadImages} />
       <AdminStockView requests={stockRequests} busy={busy} onApprove={approveStock} />
       {message ? <p role="status">{message}</p> : null}</> : null}

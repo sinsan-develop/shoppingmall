@@ -51,3 +51,17 @@ test('operator can review proposal facts and option prices without private image
   }
   assert.doesNotMatch(html, /quarantine\/private-key|objectKey/);
 });
+
+test('operator gets an explicit product approval action only for a proposal with a thumbnail', () => {
+  const html = renderToStaticMarkup(createElement(AdminProposalView, {
+    proposals: [{ productId: 'product', revisionId: 'revision', title: '시험 고추', sellerName: '농가 A',
+      proposedAt: '2026-09-27', description: '상품 설명', originLabel: '전국',
+      shippingMode: 'seller_direct', options: [{ name: '500g', priceWon: 23000 }],
+      thumbnailCount: 1, detailImageCount: 0 }],
+    busy: false, onReject: () => {}, onApprove: () => {}, onLoadImages: async () => [],
+  }));
+  assert.match(html, />상품 승인<\/button>/);
+  assert.match(readFileSync(new URL('../app/account/admin/proposals/page.tsx', import.meta.url), 'utf8'),
+    /admin\/proposals\/\$\{revisionId\}\/approve/);
+  assert.doesNotMatch(html, /quarantine\/|objectKey/);
+});
