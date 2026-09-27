@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2 홈 메뉴·판매자 탐색 연결
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@27f7b61517e91b07f540643a158b30defa012dd5`, `main` 미변경. 승인된 홈 5영역 중 정적 메뉴를 실제 링크로 바꾸고 공개 상품의 판매자 이름→해당 판매자 상품 검색을 연결했다. 검색 화면은 판매자 필터의 현재 선택을 표시·수정하며 URL 조건을 유지한다. 판매자 소개는 공개/판매 가능 목록의 첫 페이지에 등장한 판매자만 표시하며 전체 판매자 디렉터리·편집 가능한 관리자 추천/기획전은 아직 아니다.
+- RED→GREEN/변경: 홈 메뉴의 비상호작용 span 및 판매자 딥링크에 선택 필터 부재를 각 테스트에서 실패로 확인한 뒤 `apps/web/app/page.tsx`, `home-catalog.tsx`, `products/page.tsx`, `styles.css`, `test/page.test.mjs`, `test/public-products.test.mjs`만 변경. 메뉴 키보드 포커스 스타일과 5열 데스크톱/2열 모바일 검색 폼을 적용했다. 시도 중 잘못 지정한 `apps/web/app/styles.css` 상대 경로 1회는 실제 웹 패키지 경로로 수정했고 제품 오류는 아니다. 동일 근본 원인 3회 반복 없음.
+- 로컬 검증: 전체 테스트 142건 중 115 pass·0 fail·DB/실 ClamAV 등 환경 의존 27 skip, PR 본문 검증 8 pass. 목표 웹 10 pass, 전체 typecheck/lint/API·Next production build 통과. 이 결과만으로 실제 DB·브라우저 PASS를 주장하지 않는다.
+- WSL/브라우저: SSH 원격 push→WSL 지정 checkout pull, 동일 SHA production Web build와 API `/ready` 200·Web 200. QA ID `6fa1b209` 가상 공개 상품 1·판매자 A/B/어울몰/고객/관리자 계정으로 실제 브라우저 홈 메뉴·대분류·추천 상품·판매자 카드 표시를 확인했다. 판매자 A 링크에서 A 선택/상품 1건, 판매자 B로 바꿔 검색하면 0건. 430px 홈·검색 문서 `scrollWidth=clientWidth`(각 415/430), 판매자 필터에서 Tab 후 정렬 선택으로 이동 확인. 200% 실제 브라우저 확대/인쇄/대비는 미검증이며 viewport 축소를 확대 PASS로 대체하지 않는다. WSL API 전체 66건 중 59 pass·0 fail·환경별 7 skip.
+- 정리: 시험 브라우저 탭/viewport·확대 키 상태를 기본으로 복원 후 탭 종료, 정확한 임시 Web/API 컨테이너 2개 종료. `qa-public-fixture reset` 이후 지정 상품/개정/분류/판매자 분류/판매자/계정 각 0행. 다음은 편집 가능한 홈 추천/기획전과 남은 S2 상품 수정·판매중지·찜·재입고 및 Stage gate이며, 전체 구축/인수 완료 아님. 기존 공개 상품의 새 버전에서 재고를 승계하는 방식은 신산님에게 선택 질문을 보냈고 응답 전에는 그 부분을 변경하지 않는다.
+
 ## 진행 중 — 2026-09-27 S2.2 승인 전후 실브라우저 사진·재고 검증
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@5c75295bef2e6c65c4ca7fa501594fd75cd93c53`; 로컬→`github-sinsan-develop` SSH push→WSL `/home/daon/deploy/shopping` fast-forward pull. `main`·Oracle·운영 데이터 미변경. QA 실행 ID `a438c918`, `local-postgres`의 `shoppingmall` 개발 DB, 가상 계정 5개만 사용했다.
