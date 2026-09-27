@@ -145,6 +145,20 @@ export class CatalogController {
     }
   }
 
+  @Get('products/:productId')
+  async getPublicProduct(@Param('productId') productId: string) {
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    try {
+      const product = await new PublicProducts(pool).get(productId);
+      if (!product) throw new NotFoundException();
+      return product;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid product target') throw new BadRequestException();
+      throw error;
+    }
+  }
+
   @Get('seller/products')
   async listOwnedProducts(@Req() request: RequestHeaders) {
     const actor = await this.seller(request);

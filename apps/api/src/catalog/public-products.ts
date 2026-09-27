@@ -19,6 +19,35 @@ export type PublicSearch = {
 export class PublicProducts {
   constructor(private readonly pool: Pool) {}
 
+  async get(productId: string) {
+    if (typeof productId !== 'string' || !uuid.test(productId)) throw new Error('Invalid product target');
+    const publication = await this.pool.query<{
+      productId: string; revisionId: string; title: string; description: string; originLabel: string;
+      shippingMode: string; sellerId: string; sellerName: string; categoryId: string; categoryName: string;
+    }>(
+      `SELECT p.id AS "productId",r.id AS "revisionId",r.title,r.description,
+              r.origin_label AS "originLabel",r.shipping_mode AS "shippingMode",
+              s.id AS "sellerId",s.display_name AS "sellerName",
+              c.id AS "categoryId",c.name AS "categoryName"
+       FROM product_publications pub
+       JOIN products p ON p.id=pub.product_id
+       JOIN product_revisions r ON r.id=pub.revision_id AND r.product_id=p.id
+       JOIN sellers s ON s.id=p.seller_id
+       JOIN product_categories c ON c.id=p.category_id
+       WHERE p.id=$1 AND r.status='approved'`, [productId],
+    );
+    if (!publication.rows[0]) return null;
+    const options = await this.pool.query<{
+      id: string; name: string; priceWon: number; sellableQuantity: number;
+    }>(
+      `SELECT o.id,o.name,o.price_won AS "priceWon",
+              coalesce(i.sellable_quantity,0)::int AS "sellableQuantity"
+       FROM product_options o LEFT JOIN inventory_levels i ON i.option_id=o.id
+       WHERE o.revision_id=$1 ORDER BY o.display_order,o.id`, [publication.rows[0].revisionId],
+    );
+    return { ...publication.rows[0], options: options.rows };
+  }
+
   async list(input: PublicSearch = {}) {
     const { query = '', categoryId, sellerId, sort = 'latest', page = 1 } = input;
     if (typeof query !== 'string' || query.trim().length > 80 ||
