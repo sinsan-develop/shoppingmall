@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 판매자 제품 화면 WSL production build 통과
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@652266ea8e443f7b263ba9ff7a1550f69eb9697a` (SSH 원격/WSL 일치). WSL Next.js production build에서 8개 정적 경로와 `/account/seller/products` 생성, 컴파일·TypeScript 통과. 직전 WSL API 실제 DB 전체 41건 중 36 pass·0 fail·무DB 전용 5 skip, QA 핵심 행 0.
+- 사진 선택/기기 내 미리보기·개발 전용 비공개 업로드·승인 요청의 SSR 3 pass, 루트 typecheck/lint 통과. 실제 브라우저 파일 선택·업로드·상태 새로고침, 모바일·200% 확대·키보드 접근 및 관리자 승인/공개는 아직 미검증/미구현. 개발 전용 업로드 환경변수가 없으면 UI는 실패 안내를 표시한다.
+- 변경 파일: 본 현황. 이번 WSL 빌드 오류 0. 다음은 브라우저 QA 및 관리자 심사·승인 안전 경계 구현; 외부 저장소/악성 파일 검사/운영 이미지 공개는 미구현이다.
+
 ## 최신 상태 — 2026-09-27 판매자 사진·승인 요청 웹 연결 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@6391b103e33b3a95e32f7a3a236f71161e541707` (SSH 원격/WSL 일치). 제출 서비스 실제 DB 시험 2 pass·0 fail 및 전체 DB 회귀 41건 중 36 pass·0 fail·무DB 전용 5 skip. 최종 accounts/sellers/categories/products/revisions/options/images/publications/audit 전부 0행, 시험 컨테이너 0.
