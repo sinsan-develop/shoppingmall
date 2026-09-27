@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.2 상품 사진 악성코드 검사 계약
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@00fe981d8d2bebf274f0e478d76531540f60df08`; S2.2 미완료인 공개 승인에 앞서 재인코딩된 이미지 바이트의 악성코드 검사 계약부터 RED→GREEN으로 구현한다. 다음 수정 대상은 `apps/api/src/catalog/image-scanner.ts`, 단위 시험, 본 현황. DB schema/지속 데이터/Secret/운영 공개 경로는 이번 단위에서 변경하지 않는다.
+- 안전 경계: ClamAV 공식 INSTREAM 프로토콜의 4바이트 big-endian 길이·0 길이 종료·NUL 응답을 사용한다. 무인증 TCP 스캐너는 loopback만 허용하고 미설정·연결 실패·시간 초과·알 수 없는 응답은 모두 검사 실패로 닫는다. 검사기 GREEN은 실제 바이러스 DB·공개 승인·상품 이미지 제공의 증거가 아니며 그 통합 작업은 후속이다.
+- 예정 검증: 가짜 로컬 스캐너의 clean/infected/error/timeout·구성 오류 계약 RED→GREEN, typecheck/lint/build와 WSL 동일 SHA 재실행. 실패 시 안전한 직전 commit 유지, 시험 소켓·컨테이너 잔류를 확인한다. 같은 근본 원인 오류가 3회 반복되면 예외 보고한다.
+- 현재 결과: `apps/api/test/image-scanner.test.mjs`에서 모듈 부재 RED 1회 후 `apps/api/src/catalog/image-scanner.ts` 구현으로 clean/감염/오류/시간초과 3 pass·0 fail. 로컬 API typecheck·전체 lint·diff check 통과. 잘못 지정한 `node ../../node_modules/typescript/bin/tsc`는 패키지 실행 파일 위치 오류 1회였으며 올바른 `pnpm --filter @shoppingmall/api typecheck`에서 통과했다. ClamAV 프레이밍 근거는 [공식 프로토콜](https://docs.clamav.net/manual/Usage/ClamdProtocol.html)이다. 실제 ClamAV 프로세스/바이러스 정의 갱신·공개 승인 연결·WSL 동일 SHA 시험은 아직 미검증이다.
+
 ## 검증 완료 — 2026-09-27 S2.3 배송 정책 요청·승인 브라우저 흐름
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@5b124b1a9639f346aa22ebafcd84a5b48fa4a0a0`; 지정 SSH 원격/WSL 동일 SHA, `main` 미변경. 판매자 요청→관리자 승인→판매자별 공개 정책 변경을 시험 계정으로 브라우저에서 확인한다. 전역 정책 변경은 공유 시험 DB의 기본값을 바꾸므로 이번 QA에서 수행하지 않는다.
