@@ -9,6 +9,7 @@
 - 다음 WSL 자원: 정확한 변경 SHA를 SSH 별칭 push→WSL 지정 checkout pull/build 후 임시 컨테이너 `shoppingmall-s24-contrast-api`/`shoppingmall-s24-contrast-web`를 127.0.0.1:9092/9091에서 실행, 빈 개발 DB 공개 홈/로그인 화면의 실제 계산된 주요 색상을 브라우저에서 확인. 테스트 계정/상품은 만들지 않고 끝나면 두 컨테이너와 시험 탭만 종료, 포트/계정 0을 확인한다.
 - 실제 브라우저 발견: `e3476aa` WSL build·API/Web 200에서 홈 시각 배치와 `hero .eyebrow=rgb(119,85,27)`, 검색 테두리 `rgb(164,125,59)` 적용 확인. 반면 정적 시험이 검사한 `.search-hint`는 화면에서 사용되지 않고, 실제 검색 placeholder는 브라우저 기본 `rgb(117,117,117)`/크림 배경으로 약 4.43:1이었다. 기존 시험은 이 요소를 검증하지 못하므로 placeholder pseudo-element 직접 검사로 RED→GREEN 보정한다. 임시 두 컨테이너는 재빌드 전에 정확히 종료한다.
 - 추가 RED→GREEN: 실제 placeholder pseudo-element를 겨냥한 시험은 CSS 규칙 부재로 1 fail(기존 7 pass). `color:#756a55;opacity:1`을 명시해 목표 8 pass·0 fail. 현재 시험 탭/임시 컨테이너 2개 종료. 재빌드와 최종 브라우저 계산값·전체 회귀는 아직 남았다. 기존 미사용 `.search-hint` 수정 결과는 화면 대비 증거로 세지 않는다.
+- 최종 대표 화면 검증/정리: `a71e5bd` SSH 별칭 push→WSL 지정 checkout pull 및 Next production build 통과, API/Web 200. 실제 브라우저 홈 computed style은 검색 placeholder `rgb(117,106,85)`, 헤더 `rgb(255,250,241)`, 검색 경계 `rgb(164,125,59)`, 히어로 eyebrow `rgb(119,85,27)`/배경 `rgb(242,230,200)`이며 문서 가로 clientWidth/scrollWidth 각 1265px. 로그인 화면은 기본 버튼 배경 `rgb(139,104,40)`/흰 글자, 입력 경계 `rgb(161,133,86)`/흰 표면 확인. 목표 정적 8 pass와 로컬 전체 test/typecheck/lint/build 통과, WSL 시험 계정·상품 생성 없음. 브라우저 탭/정확한 임시 두 컨테이너 종료, 사후 포트 listener·컨테이너 0, DB accounts 0, checkout `a71e5bd` clean. 실제 200% 확대·전체 화면/상태의 전수 대비·상품 데이터가 있는 카드 검증은 여전히 미검증이며 S2 전체 gate/인수 완료 아님. 동일 근본 원인 오류 3회 반복 없음.
 
 ## 진행 중 — 2026-09-27 S1.3 탈퇴 요청 실제 브라우저 재검증
 
