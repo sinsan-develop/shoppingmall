@@ -175,7 +175,7 @@ export class CatalogController {
       if (error instanceof Error && error.message === 'Image too large') throw new PayloadTooLargeException();
       if (error instanceof Error && [
         'Invalid image target', 'Draft required', 'Image limit reached',
-        'Unsupported image', 'Image MIME mismatch',
+        'Unsupported image', 'Image MIME mismatch', 'Invalid image container',
       ].includes(error.message)) throw new BadRequestException({ status: 'invalid_image', reason: error.message });
       if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
       throw error;

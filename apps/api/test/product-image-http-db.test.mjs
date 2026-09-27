@@ -9,7 +9,7 @@ import { createApp } from '../src/app.ts';
 import { AuthRepository } from '../src/auth/repository.ts';
 import { ProductDrafts } from '../src/catalog/product-drafts.ts';
 
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=', 'base64');
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
 
 test('the local-only HTTP upload accepts an owned draft, rejects cross-seller access and never publishes it', {
   skip: !process.env.DATABASE_URL,

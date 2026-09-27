@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 S2.2 비공개 이미지 컨테이너 검사 보강
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@ebb5b70504bc1ef5e6cfbe6d896b029ff85906d2`에서 계속. 기존 격리 worktree를 재사용하고 신규 브랜치·자동화는 만들지 않았다.
+- 업로드 단계의 파일 시그니처만으로 잘린 PNG·추가 바이트·손상 CRC·잘린 JPEG·RIFF 길이가 틀린 WebP가 수락되는 결함을 RED 시험으로 재현했다. PNG 청크 경계/CRC/IEND, JPEG 종료 마커, WebP RIFF 길이/형식의 기본 검사를 추가해 비공개 저장 전에 거부한다. 실제 기존 1×1 PNG 시험 자료의 잘못된 IDAT CRC도 보정했다. HTTP 잘못된 컨테이너는 400으로 매핑했다.
+- 로컬 `pnpm test` 99개 중 81 pass·0 fail·DB-only 18 skip, PR 본문 검사 8 pass, 전체 typecheck·lint 통과. 첫 build는 이 세션의 D: 쓰기 sandbox 권한 부족으로 TS5033 실패 1회; 같은 소스의 승인된 D: 작업 경로에서 권한을 높여 다시 실행한 build는 API·Next 9 정적 경로 모두 성공. 기능 결함 원인의 반복은 없다.
+- 변경 파일: `apps/api/src/catalog/image-quarantine.ts`, `controller.ts`, `apps/api/test/image-quarantine.test.mjs`, `product-image-db.test.mjs`, `product-image-http-db.test.mjs`, 본 현황. 이 검사는 완전한 디코딩·재인코딩이나 악성코드 검사/공개 저장을 대신하지 않는다. 고객 공개·관리자 승인은 계속 닫혀 있으며 S2.2 미완료다. 다음은 SSH 별칭 원격 push→WSL 정확한 커밋의 실제 DB 회귀·시험 잔류 확인, 이후 안전 공개 이미지 처리와 승인 흐름이다.
+
 ## 최신 상태 — 2026-09-27 시간별 후속 자동 실행은 미설정
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@e9cd13ae0d93d45fdf19678080cb060028452172` (SSH 원격 최신). 전체 구축을 대화 간에 이어가기 위한 매시간 heartbeat 자동화 생성 1회는 사용자의 별도 일정·반복 실행 승인이 없다는 자동 검토에 의해 거부됐다. 자동화나 반복 실행은 생성되지 않았고 이를 우회하지 않는다.

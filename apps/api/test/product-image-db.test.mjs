@@ -9,7 +9,7 @@ import { AuthRepository } from '../src/auth/repository.ts';
 import { ImageQuarantine } from '../src/catalog/image-quarantine.ts';
 import { ProductDrafts } from '../src/catalog/product-drafts.ts';
 
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=', 'base64');
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
 
 test('only the owning seller stages private image metadata for its draft revision', {
   skip: !process.env.DATABASE_URL,
