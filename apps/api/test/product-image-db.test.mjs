@@ -80,6 +80,13 @@ test('only the owning seller stages private image metadata for its draft revisio
       { id: detail.id, purpose: 'thumbnail', displayOrder: 0 },
       { id: image.id, purpose: 'detail', displayOrder: 1 },
     ]);
+    await assert.rejects(drafts.removeImage({ accountId, role: 'seller', sellerId: sellerB },
+      productId, revisionId, image.id, store), /Forbidden/);
+    assert.deepEqual(await drafts.removeImage(seller, productId, revisionId, image.id, store),
+      { imageId: image.id, status: 'deleted' });
+    objectKeys.splice(objectKeys.indexOf(image.objectKey), 1);
+    await assert.rejects(store.read(image.objectKey), { code: 'ENOENT' });
+    assert.deepEqual((await drafts.listImages(seller, productId, revisionId)).map(({ id }) => id), [detail.id]);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
     await assert.rejects(drafts.submit({ accountId, role: 'seller', sellerId: sellerB }, productId, revisionId), /Forbidden/);
     const submitted = await drafts.submit(seller, productId, revisionId);
@@ -88,6 +95,7 @@ test('only the owning seller stages private image metadata for its draft revisio
     await assert.rejects(drafts.submit(seller, productId, revisionId), /Draft required/);
     await assert.rejects(drafts.addImage(seller, productId, revisionId, 'detail', png, 'image/png', store), /Draft required/);
     await assert.rejects(drafts.reorderImages(seller, productId, revisionId, desired), /Draft required/);
+    await assert.rejects(drafts.removeImage(seller, productId, revisionId, detail.id, store), /Draft required/);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_publications WHERE product_id=$1', [productId])).rows[0].total, 0);
   } finally {
     if (accountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);

@@ -96,9 +96,12 @@ test('the local-only HTTP upload accepts an owned draft, rejects cross-seller ac
       { id: detail.id, purpose: 'thumbnail', displayOrder: 0 },
       { id: image.id, purpose: 'detail', displayOrder: 1 },
     ]);
-    assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_images WHERE revision_id=$1', [revisionId])).rows[0].n, 2);
+    const removeUrl = `${url}/${image.id}`;
+    assert.equal((await fetch(removeUrl, { method: 'DELETE', headers: { cookie, origin: 'https://untrusted.invalid' } })).status, 403);
+    assert.equal((await fetch(removeUrl, { method: 'DELETE', headers: { cookie, origin } })).status, 200);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_images WHERE revision_id=$1', [revisionId])).rows[0].n, 1);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM product_publications WHERE product_id=$1', [productId])).rows[0].n, 0);
-    assert.equal((await readdir(join(root, 'quarantine'))).length, 2);
+    assert.equal((await readdir(join(root, 'quarantine'))).length, 1);
   } finally {
     if (app) await app.close();
     if (accountId) await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
