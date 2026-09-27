@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 최신 상태 — 2026-09-27 운영자 인증 HTTP 반려 DB GREEN
+
+- 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@844c6cd03207c5f68eeb048d0cc7c5a18cc4be64` (SSH 원격/WSL 일치). 실제 WSL PostgreSQL에서 운영자 로그인→승인 대기 조회→다른 Origin 403·빈 사유 400·정상 반려 201·중복 409·공개 0 시험 1 pass·0 fail. accounts/sellers/product_categories/products/revisions/audit 모두 0행.
+- 변경 파일: 본 현황. 이번 HTTP DB 시험 오류 0. 안전한 이미지 디코딩·재인코딩·공개 저장 및 승인 전 고객 공개 차단 구현, 재고·검색/홈·주문/결제·정산·앱 등 승인된 계획의 나머지 Stage를 이어서 수행해야 한다. 외부 공급자 계정은 사용자 지시대로 구축 뒤 일괄 확인하며 현재의 mock/개발 경계와 구분한다.
+
 ## 최신 상태 — 2026-09-27 관리자 반려 실제 HTTP DB 계약 확장 검증 대기
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@11cf242b5be9af951cc58a44dbb407a57cfe3edd` (SSH 원격 최신). 앞선 WSL 실제 DB 전체 API 42건 중 37 pass·0 fail·무DB 전용 5 skip, Next production build 9경로, QA 잔류 0.
