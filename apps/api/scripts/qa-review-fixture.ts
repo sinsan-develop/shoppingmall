@@ -44,8 +44,9 @@ async function resetProduct(client: PoolClient, runId: string) {
      JOIN product_revisions r ON r.product_id=p.id
      JOIN sellers s ON s.id=p.seller_id
      JOIN product_categories c ON c.id=p.category_id
-     WHERE s.display_name=$1 AND c.name=$2 AND r.title=$3`,
-    [names.sellerA, product.minor, product.title],
+     JOIN product_categories major ON major.id=c.parent_id
+     WHERE s.display_name=$1 AND c.name=$2 AND major.name=$3`,
+    [names.sellerA, product.minor, product.major],
   );
   for (const row of target.rows) {
     await client.query('DELETE FROM product_images WHERE revision_id=$1', [row.revision_id]);
