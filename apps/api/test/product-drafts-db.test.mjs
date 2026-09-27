@@ -17,6 +17,7 @@ test('a seller creates only its own non-public product draft in a minor category
   let majorId;
   let minorId;
   let productId;
+  let stockedOptionId;
   try {
     accountId = await new AuthRepository(pool).createCustomerAccount(`qa+${randomUUID()}@example.invalid`, 'test-only-password-12345');
     sellerCategoryId = (await pool.query('INSERT INTO seller_categories (name) VALUES ($1) RETURNING id', [`qa-${suffix}-group`])).rows[0].id;
@@ -64,6 +65,14 @@ test('a seller creates only its own non-public product draft in a minor category
       [created.revisionId]);
     assert.deepEqual(editedOptions.rows.map((option) => [option.name, option.price_won]),
       [['500g', 25000], ['1kg', 45000]]);
+    stockedOptionId = (await pool.query('SELECT id FROM product_options WHERE revision_id=$1 AND name=$2',
+      [created.revisionId, '1kg'])).rows[0].id;
+    await pool.query('INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity) VALUES ($1,2,0)',
+      [stockedOptionId]);
+    await assert.rejects(drafts.update(seller, created.productId, created.revisionId,
+      { ...edited, options: [{ name: '500g', priceWon: 25000 }] }), /Stocked option cannot be removed/);
+    assert.equal((await pool.query('SELECT count(*)::int AS total FROM product_options WHERE revision_id=$1',
+      [created.revisionId])).rows[0].total, 2);
     await pool.query("UPDATE product_revisions SET status='pending' WHERE id=$1", [created.revisionId]);
     await assert.rejects(drafts.update(seller, created.productId, created.revisionId, input), /Draft required/);
     await pool.query("UPDATE product_revisions SET status='draft' WHERE id=$1", [created.revisionId]);
@@ -76,6 +85,7 @@ test('a seller creates only its own non-public product draft in a minor category
     assert.equal(audit.rows[0].action, 'product.draft_create');
     assert.equal(audit.rows[0].seller_id, sellerA);
   } finally {
+    if (stockedOptionId) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [stockedOptionId]);
     if (productId) {
       await pool.query('DELETE FROM product_options WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)', [productId]);
       await pool.query('DELETE FROM product_revisions WHERE product_id=$1', [productId]);
