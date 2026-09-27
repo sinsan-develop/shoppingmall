@@ -62,6 +62,9 @@ test('public search only returns approved published revisions with sellable stoc
     const response = await fetch(`${base}/catalog/products?q=${encodeURIComponent(`qa-${run}`)}&categoryId=${majorId}&sort=latest`);
     assert.equal(response.status, 200);
     assert.deepEqual((await response.json()).map((item) => item.productId), [visibleId]);
+    const allCategories = await fetch(`${base}/catalog/products?q=${encodeURIComponent(`qa-${run}`)}&categoryId=&sort=price_asc`);
+    assert.equal(allCategories.status, 200);
+    assert.deepEqual((await allCategories.json()).map((item) => item.productId), [visibleId]);
     assert.equal((await fetch(`${base}/catalog/products?sort=bogus`)).status, 400);
   } finally {
     if (app) await app.close();

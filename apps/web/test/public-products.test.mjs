@@ -28,4 +28,8 @@ test('public product search shows server results and bounded controls without st
   }));
   assert.match(empty, /검색 결과가 없습니다/);
   assert.match(renderToStaticMarkup(createElement(ProductsPage)), /상품을 찾고 있습니다/);
+  const priceSort = renderToStaticMarkup(createElement(ProductSearchView, {
+    query: '고추', sort: 'price_asc', categoryId: '', categories: [], products: [], loading: false,
+  }));
+  assert.match(priceSort, /value="price_asc" selected=""/);
 });

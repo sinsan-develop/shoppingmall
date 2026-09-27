@@ -8,6 +8,7 @@
 - DB 계약 시험은 서비스 파일 부재 RED 1회 후 공개 포인터+approved+판매 가능 재고만 반환하고 비공개 키 미노출/문자 그대로 검색/대·소분류·판매자 필터/최저가 정렬과 공개 HTTP 200·잘못된 정렬 400을 요구한다. 서비스·GET API 구현 후 로컬 typecheck 통과, 무DB에서 시험은 1 skip이므로 실제 GREEN이 아니다. 다음은 정확한 커밋으로 WSL DB 목표 시험과 전체 회귀·QA 정리를 확인한다.
 - 정확한 `fa7e81730eb79f782dd8a82054d4d7a8d45dc384` SSH push→WSL pull 후 지정 DB 공개 검색 서비스+익명 HTTP 목표 시험 1 pass·0 fail, 전체 API 52건 중 46 pass·0 fail·환경별 6 skip. 로컬 110건 중 90 pass·0 fail·DB 전용 20 skip, PR 검사 8 pass·typecheck·lint·API/웹 build 9경로 통과. 최종 QA 핵심 10종 각 0행, migration 5건·임시 컨테이너 0·WSL checkout clean. 아직 실제 고객 화면에 API 연결·상품 승인/공개 쓰기·실이미지 URL·브라우저 검색 E2E는 미구현/미검증이다.
 - 홈 장식용 검색을 실제 `/products?q=...` 폼으로 바꾸고, 공개 API 기반 상품 검색 화면(대/소분류·최신/가격 정렬·빈 결과·연결 오류)을 추가했다. SSR 시험 파일 부재 RED 1회→목표 2 pass, 로컬 전체 112건 중 92 pass·0 fail·DB 전용 20 skip, PR 검사 8 pass, typecheck·lint·API/Next build 10경로 통과. 검색 화면은 상품 상세·이미지·결제 링크를 아직 제공하지 않는다. 이 화면의 WSL/실제 브라우저·모바일 검증 전이며 공개 상품이 없는 DB의 빈 결과가 정상 기준이다.
+- WSL 정확한 `1eedb9d7205e3eca98a47eebf1f33db9e98aac60` Next build 10경로·API health/공개 목록 []/웹 200 후 실제 in-app browser 홈 검색→결과 화면·390px 모바일 표시·Tab으로 분류/정렬 접근을 확인했다. 가격 정렬을 키보드로 제출하면 `categoryId=`가 포함되어 API 400, 화면 오류가 나는 실제 결함 1회 발견했다. 또한 URL 정렬값은 바뀌었는데 무제어 select 표시가 최신순으로 남았다. 정확한 두 시험 컨테이너 종료·viewport reset·QA 탭 종료 후 API의 빈 전체 필터 정규화와 검색 입력/select의 URL 상태 반영을 수정했다. 수정 전 WSL API 400 재현, 새 DB·UI 회귀 시험 추가, 로컬 전체 test·typecheck·lint·API/웹 build 통과. 수정 커밋의 WSL DB/browser GREEN은 아직 미검증이며 임시 서버를 재시작하지 않았다.
 
 ## 진행 중 — 2026-09-27 S2.2 이미지 안전 공개 경계
 

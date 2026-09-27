@@ -134,8 +134,8 @@ export class CatalogController {
     try {
       return await new PublicProducts(pool).list({
         query: query.q as string | undefined,
-        categoryId: query.categoryId as string | undefined,
-        sellerId: query.sellerId as string | undefined,
+        categoryId: query.categoryId === '' ? undefined : query.categoryId as string | undefined,
+        sellerId: query.sellerId === '' ? undefined : query.sellerId as string | undefined,
         sort: query.sort as string | undefined,
         page: query.page === undefined ? 1 : Number(query.page),
       });

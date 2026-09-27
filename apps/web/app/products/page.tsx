@@ -17,16 +17,16 @@ export function ProductSearchView({ query, sort, categoryId, categories, product
       <h1>상품 검색</h1>
       <form className="search-filters" action="/products" method="get" role="search">
         <label htmlFor="product-query">상품명 또는 판매자</label>
-        <input id="product-query" name="q" type="search" defaultValue={query} maxLength={80} />
+        <input key={query} id="product-query" name="q" type="search" defaultValue={query} maxLength={80} />
         <label htmlFor="product-category">상품 카테고리</label>
-        <select id="product-category" name="categoryId" defaultValue={categoryId}>
+        <select key={categoryId} id="product-category" name="categoryId" defaultValue={categoryId}>
           <option value="">전체 카테고리</option>
           {categories.map((category) => <option key={category.id} value={category.id}>
             {category.parentId ? `　${category.name}` : category.name}
           </option>)}
         </select>
         <label htmlFor="product-sort">정렬</label>
-        <select id="product-sort" name="sort" defaultValue={sort}>
+        <select key={sort} id="product-sort" name="sort" defaultValue={sort}>
           <option value="latest">최신순</option>
           <option value="price_asc">최저가순</option>
           <option value="price_desc">높은 가격순</option>
