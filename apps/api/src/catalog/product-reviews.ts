@@ -49,6 +49,44 @@ export class ProductReviews {
       if (JSON.stringify(currentImages.rows) !== JSON.stringify(images.rows)) throw new Error('Image set changed');
       const options = await client.query('SELECT 1 FROM product_options WHERE revision_id=$1 LIMIT 1', [revisionId]);
       if (!options.rowCount) throw new Error('Option required');
+      const published = await client.query<{ revision_id: string }>(
+        'SELECT revision_id FROM product_publications WHERE product_id=$1 FOR UPDATE',
+        [locked.rows[0].product_id],
+      );
+      if (published.rows[0]) {
+        const oldOptions = await client.query<{ id: string; name: string }>(
+          'SELECT id,name FROM product_options WHERE revision_id=$1 ORDER BY id FOR UPDATE',
+          [published.rows[0].revision_id],
+        );
+        const newOptions = await client.query<{ id: string; name: string }>(
+          'SELECT id,name FROM product_options WHERE revision_id=$1 ORDER BY id FOR UPDATE', [revisionId],
+        );
+        const newStock = await client.query(
+          'SELECT 1 FROM inventory_levels WHERE option_id=ANY($1::uuid[]) LIMIT 1',
+          [newOptions.rows.map((option) => option.id)],
+        );
+        if (newStock.rowCount) throw new Error('Revision stock must start empty');
+        for (const oldOption of oldOptions.rows) {
+          const replacement = newOptions.rows.find((option) => option.name === oldOption.name);
+          if (!replacement) continue;
+          const stock = await client.query<{ on_hand_quantity: number; sellable_quantity: number }>(
+            'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1 FOR UPDATE',
+            [oldOption.id],
+          );
+          if (stock.rows[0]) {
+            await client.query(
+              `INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity)
+               VALUES ($1,$2,$3)`,
+              [replacement.id, stock.rows[0].on_hand_quantity, stock.rows[0].sellable_quantity],
+            );
+          }
+        }
+        await client.query(
+          `UPDATE stock_change_requests SET status='superseded',decided_at=now()
+           WHERE option_id=ANY($1::uuid[]) AND status='pending'`,
+          [oldOptions.rows.map((option) => option.id)],
+        );
+      }
       await client.query(
         `UPDATE product_revisions SET status='approved',reviewed_by_account_id=$2,
          reviewed_at=now(),review_reason=NULL WHERE id=$1`, [revisionId, actor.accountId],

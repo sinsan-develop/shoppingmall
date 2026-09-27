@@ -80,6 +80,80 @@ export class ProductDrafts {
     });
   }
 
+  /** A published product gets a separate private draft; neither its public rows nor stock are changed here. */
+  async createRevision(actor: AccessContext, productId: string, store: ImageQuarantine) {
+    if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
+      throw new Error('Forbidden');
+    }
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(productId)) throw new Error('Invalid proposal target');
+    const client = await this.pool.connect();
+    const copiedKeys: string[] = [];
+    try {
+      await client.query('BEGIN');
+      const published = await client.query<{
+        seller_id: string; revision_id: string; version: number; title: string;
+        description: string; origin_label: string; shipping_mode: string;
+      }>(
+        `SELECT p.seller_id,pub.revision_id,r.version,r.title,r.description,r.origin_label,r.shipping_mode
+         FROM products p JOIN product_publications pub ON pub.product_id=p.id
+         JOIN product_revisions r ON r.id=pub.revision_id
+         WHERE p.id=$1 FOR UPDATE OF p,pub,r`, [productId],
+      );
+      if (published.rows[0]?.seller_id !== actor.sellerId) throw new Error('Forbidden');
+      const source = published.rows[0];
+      const existing = await client.query(
+        `SELECT 1 FROM product_revisions WHERE product_id=$1 AND status IN ('draft','pending') LIMIT 1`,
+        [productId],
+      );
+      if (existing.rowCount) throw new Error('Active revision already exists');
+      const version = await client.query<{ next_version: number }>(
+        'SELECT max(version)::int+1 AS next_version FROM product_revisions WHERE product_id=$1', [productId],
+      );
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO product_revisions(product_id,version,title,description,origin_label,shipping_mode,status,proposed_by_account_id)
+         VALUES ($1,$2,$3,$4,$5,$6,'draft',$7) RETURNING id`,
+        [productId, version.rows[0].next_version, source.title, source.description,
+          source.origin_label, source.shipping_mode, actor.accountId],
+      );
+      const revisionId = created.rows[0].id;
+      await client.query(
+        `INSERT INTO product_options(revision_id,name,price_won,display_order)
+         SELECT $1,name,price_won,display_order FROM product_options WHERE revision_id=$2`,
+        [revisionId, source.revision_id],
+      );
+      const images = await client.query<{
+        object_key: string; purpose: string; display_order: number;
+      }>(
+        `SELECT object_key,purpose,display_order FROM product_images
+         WHERE revision_id=$1 ORDER BY display_order,id`, [source.revision_id],
+      );
+      for (const image of images.rows) {
+        const copied = await store.put(await store.read(image.object_key), 'image/webp');
+        copiedKeys.push(copied.objectKey);
+        await client.query(
+          `INSERT INTO product_images(revision_id,object_key,purpose,mime_type,size_bytes,display_order)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [revisionId, copied.objectKey, image.purpose, copied.mimeType, copied.sizeBytes, image.display_order],
+        );
+      }
+      await client.query(
+        `INSERT INTO audit_events(actor_account_id,active_role,seller_id,action,target_type,target_id)
+         VALUES ($1,'seller',$2,'product.revision_create','product_revision',$3)`,
+        [actor.accountId, actor.sellerId, revisionId],
+      );
+      await client.query('COMMIT');
+      return { productId, revisionId, status: 'draft' as const };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      const cleanup = await Promise.allSettled(copiedKeys.map((key) => store.remove(key)));
+      const failures = cleanup.filter((result) => result.status === 'rejected');
+      if (failures.length) throw new AggregateError([error, ...failures.map((result) => result.reason)],
+        'Revision rollback left quarantined files');
+      throw error;
+    } finally { client.release(); }
+  }
+
   async update(actor: AccessContext, productId: string, revisionId: string, input: DraftInput) {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
       throw new Error('Forbidden');
