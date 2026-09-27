@@ -5,6 +5,7 @@
 - 담당/브랜치: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@300c188465df3a4367a695f08e780ac885ed83f0`. 사진이 포함된 미제출 초안은 현재 영구 삭제가 차단된다.
 - 목표/계약: 판매자는 자기 `draft` revision의 비공개 사진 한 장을 제거할 수 있다. 다른 판매자·제출/승인된 revision·다른 사진 ID는 차단한다. DB 행과 격리 파일은 먼저 같은 저장소의 비공개 복구 위치로 옮기고, DB 실패 시 원위치로 되돌린다. DB 성공 후 파일 제거가 실패하면 비공개 복구 위치에 남겨 고객 노출 없이 명시적으로 보고한다. 저장소·DB schema/Secret/외부 연동은 변경하지 않는다.
 - 예정 검증: 저장소 단위·DB/HTTP RED→GREEN, 판매자 UI 확인 버튼, 로컬 및 WSL 시험·임시 자료 잔류. 파일/DB 원자성 실패 경계와 브라우저 미검증은 별도 기록한다.
+- 실행 결과: `3d606ff`의 로컬 저장소·화면 시험 2건은 기능 부재로 의도된 RED, WSL DB/HTTP 목표 2건은 함수/route 부재로 RED. `0a281cc604112919ff14083ef6cace429cb2d06d`에서 비공개 quarantine→trash 이동·실패 복구·DB 확정 뒤 purge, 판매자 소유 `draft` 한정 제거 API/화면을 구현했다. 로컬 저장소/화면 9 pass·0 fail, 전체 120건 중 98 pass·0 fail·DB 22 skip, PR 본문 8 pass, 전체 typecheck/lint·API/Next production build 통과. WSL 지정 DB 목표 2 pass·0 fail, API 전체 54건 중 48 pass·0 fail·환경별 6 skip. WSL SHA 일치·clean, S2 임시 컨테이너 0, accounts/sellers/categories/products/revisions/options/images/publications/audit 9종 각 0행. DB 이후 purge 실패 시 응답은 `cleanup_pending`이며 trash의 수동 복구·정리 절차는 아직 미구현이다. 커밋 결과가 불명확해지는 DB 연결 단절과 서버 중단 중 이동된 파일의 자동 복구, 실제 브라우저 클릭·200% 확대·인쇄는 미검증. 이 기능은 개발용 로컬 업로드에만 열려 있고 생산 이미지 공개·승인은 여전히 차단한다. S2/전체 구축 미완료.
 
 ## 진행 중 — 2026-09-27 S2.2 미제출 상품 사진 순서·용도 관리
 
