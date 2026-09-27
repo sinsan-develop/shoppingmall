@@ -165,6 +165,19 @@ export class CatalogController {
     return this.drafts().listOwned(actor);
   }
 
+  @Get('seller/products/:productId/revisions/:revisionId')
+  async getEditableProductDraft(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string) {
+    const actor = await this.seller(request);
+    try { return await this.drafts().getEditable(actor, productId, revisionId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Draft required') throw new ConflictException();
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
   @Post('seller/products')
   async createProductDraft(@Req() request: RequestHeaders, @Body() body: unknown) {
     requireOrigin(request);

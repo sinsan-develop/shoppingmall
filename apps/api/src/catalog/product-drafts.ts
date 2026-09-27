@@ -143,6 +143,32 @@ export class ProductDrafts {
     } finally { client.release(); }
   }
 
+  async getEditable(actor: AccessContext, productId: string, revisionId: string) {
+    if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
+      throw new Error('Forbidden');
+    }
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(productId) || !uuid.test(revisionId)) throw new Error('Invalid proposal target');
+    const target = await this.pool.query<{
+      sellerId: string; status: string; categoryId: string; title: string; description: string;
+      originLabel: string; shippingMode: 'seller_direct' | 'owool_fulfillment';
+    }>(
+      `SELECT p.seller_id AS "sellerId",p.category_id AS "categoryId",r.status,r.title,r.description,
+              r.origin_label AS "originLabel",r.shipping_mode AS "shippingMode"
+       FROM products p JOIN product_revisions r ON r.product_id=p.id
+       WHERE p.id=$1 AND r.id=$2`, [productId, revisionId],
+    );
+    if (target.rows[0]?.sellerId !== actor.sellerId) throw new Error('Forbidden');
+    if (target.rows[0].status !== 'draft') throw new Error('Draft required');
+    const options = await this.pool.query<{ name: string; priceWon: number }>(
+      'SELECT name,price_won AS "priceWon" FROM product_options WHERE revision_id=$1 ORDER BY display_order,id',
+      [revisionId],
+    );
+    const row = target.rows[0];
+    return { categoryId: row.categoryId, title: row.title, description: row.description,
+      originLabel: row.originLabel, shippingMode: row.shippingMode, options: options.rows };
+  }
+
   async listOwned(actor: AccessContext) {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
       throw new Error('Forbidden');
