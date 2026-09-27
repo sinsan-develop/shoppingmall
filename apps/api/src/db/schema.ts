@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import type { PostalRange, ShippingPolicy } from '../shipping/policy.js';
 
 export const identityKind = pgEnum('identity_kind', ['email', 'phone', 'kakao', 'apple']);
 export const activeRole = pgEnum('active_role', ['customer', 'seller', 'admin']);
@@ -40,6 +41,49 @@ export const sellers = pgTable('sellers', {
   displayName: text('display_name').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const shippingPolicyGlobal = pgTable('shipping_policy_global', {
+  id: integer('id').primaryKey().default(1),
+  feeWon: integer('fee_won').notNull().default(3000),
+  freeThresholdWon: integer('free_threshold_won').notNull().default(50000),
+  cutoffTime: text('cutoff_time'),
+  blockedPostalRanges: jsonb('blocked_postal_ranges').$type<PostalRange[]>().notNull().default([]),
+  lockedFee: boolean('locked_fee').notNull().default(false),
+  lockedThreshold: boolean('locked_threshold').notNull().default(false),
+  lockedCutoff: boolean('locked_cutoff').notNull().default(false),
+  updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  check('shipping_global_one_row_ck', sql`${table.id} = 1`),
+  check('shipping_global_money_ck', sql`${table.feeWon} BETWEEN 0 AND 1000000000 AND ${table.freeThresholdWon} BETWEEN 0 AND 1000000000`),
+  check('shipping_global_cutoff_ck', sql`${table.cutoffTime} IS NULL OR ${table.cutoffTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  check('shipping_global_ranges_ck', sql`jsonb_typeof(${table.blockedPostalRanges}) = 'array'`),
+]);
+
+export const sellerShippingPolicyRequests = pgTable('seller_shipping_policy_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sellerId: uuid('seller_id').notNull().references(() => sellers.id),
+  policy: jsonb('policy').$type<ShippingPolicy>().notNull(),
+  status: text('status').notNull().default('pending'),
+  requestedByAccountId: uuid('requested_by_account_id').notNull().references(() => accounts.id),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  decisionReason: text('decision_reason'),
+}, (table) => [
+  index('shipping_requests_seller_idx').on(table.sellerId),
+  uniqueIndex('shipping_requests_one_pending_uq').on(table.sellerId).where(sql`${table.status} = 'pending'`),
+  check('shipping_requests_status_ck', sql`${table.status} IN ('pending','approved','rejected')`),
+  check('shipping_requests_policy_ck', sql`jsonb_typeof(${table.policy}) = 'object'`),
+]);
+
+export const sellerShippingPolicies = pgTable('seller_shipping_policies', {
+  sellerId: uuid('seller_id').primaryKey().references(() => sellers.id),
+  policy: jsonb('policy').$type<ShippingPolicy>().notNull(),
+  approvedRequestId: uuid('approved_request_id').notNull().references(() => sellerShippingPolicyRequests.id),
+  approvedByAccountId: uuid('approved_by_account_id').notNull().references(() => accounts.id),
+  approvedAt: timestamp('approved_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [check('seller_shipping_policy_ck', sql`jsonb_typeof(${table.policy}) = 'object'`)]);
 
 // Seller proposals are immutable revisions. Customer reads use product_publications only.
 export const products = pgTable('products', {

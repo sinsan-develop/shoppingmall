@@ -36,6 +36,13 @@
       "when": 1790470724669,
       "tag": "0004_s2_inventory",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790491382011,
+      "tag": "0005_s2_shipping_policy",
+      "breakpoints": true
     }
   ]
 }
