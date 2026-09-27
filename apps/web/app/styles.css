@@ -76,7 +76,7 @@ p{line-height:1.7}
 .profile-message{grid-column:1/-1;color:#71511d}
 @media(max-width:760px){.profile-grid{grid-template-columns:1fr}}
 .catalog-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;align-items:start;margin-top:28px}
-.catalog-admin-grid .account-card{max-width:none;margin:0}
+.catalog-admin-grid .account-card{min-width:0;max-width:none;margin:0;overflow-wrap:anywhere}
 .catalog-admin-grid h3{font-size:17px;margin:22px 0 0}
 .catalog-admin-grid .account-form{padding-bottom:20px;border-bottom:1px solid #e9d2bb}
 .catalog-list{padding-left:22px;line-height:1.9}

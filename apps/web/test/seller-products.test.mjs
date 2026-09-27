@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -42,6 +43,11 @@ test('submitted proposals are not editable from the seller screen', () => {
     busy: false, onCreate: () => {}, onUpload: () => {}, onSubmitProposal: () => {},
   }));
   assert.doesNotMatch(html, /초안 수정/);
+});
+
+test('seller catalog cards can shrink within a narrow screen', () => {
+  const styles = readFileSync(new URL('../app/styles.css', import.meta.url), 'utf8');
+  assert.match(styles, /\.catalog-admin-grid \.account-card\{[^}]*min-width:0/);
 });
 
 test('seller enters exact option quantity and sees approval-pending stock separately', () => {
