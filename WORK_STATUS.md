@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-27 S2.2 승인 전후 실브라우저 사진·재고 검증
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@5c75295bef2e6c65c4ca7fa501594fd75cd93c53`; 로컬→`github-sinsan-develop` SSH push→WSL `/home/daon/deploy/shopping` fast-forward pull. `main`·Oracle·운영 데이터 미변경. QA 실행 ID `a438c918`, `local-postgres`의 `shoppingmall` 개발 DB, 가상 계정 5개만 사용했다.
+- 실제 브라우저: 운영자가 가상 대분류 `채소`/소분류 `고추` 등록, 판매자 A가 가상 햇고추 500g·23,000원 초안 및 64×64 PNG 1장 업로드→비공개 WebP 대표사진·보유 10/판매 가능 0 확인→상품/재고 증가 승인 요청. 비로그인 고객 검색은 승인 전 0건. 운영자 화면은 대표사진 1장·옵션·산지·판매자를 표시했고 실제 스캐너를 거친 상품 승인 및 재고 증가 승인 뒤 대기 목록이 비었다. 비로그인 고객 검색은 같은 상품 1건, 상세는 23,000원·판매 가능 10개·공개 대표사진 `naturalWidth=64` 확인.
+- 발견/수정: 처음 비공개 심사 사진과 공개 상세 사진의 교차 출처 직접 `<img>`는 브라우저에서 `naturalWidth=0`으로 깨졌다. 인증된 비공개 사진은 `credentials: include`, 공개 사진은 `omit`으로 CORS fetch 후 브라우저 blob URL에 표시하고 정리 시 revoke한다. 관리자 승인 동작은 심사 사진 전부가 실제 로드된 뒤에만 노출한다. 수정 `5b8e2de`, `2381c6a`; QA 식별 자료·이미지 개별 정리 도구 `5c75295`.
+- 검증: 사진 수정 목표 테스트 18 pass·0 fail, API QA 정리 대상 테스트 1 pass·0 fail, API/Web typecheck 및 Web production build 통과. WSL Web production build는 각 수정 SHA에서 통과. 브라우저에서 비공개/공개 이미지 모두 실제 64×64 로드 확인. 실제 ClamAV 검사는 앞선 `04a064d`의 HTTP/EICAR 증거와 이번 운영자 승인 성공으로 구분한다. 사진 출력 초기 오류 1종을 두 화면에서 수정했으며 `node --test`의 TSX 로더 누락 1회, npm workspace 위치 오류 1회, UI 자동화 locator timeout 2회는 올바른 실행/DOM 조회로 보정했다. 동일 근본 원인 3회 연속 오류 없음.
+- 정리: QA 브라우저 탭 2개 종료, 지정 Web/API/ClamAV 일회성 컨테이너 3개 종료. 전용 정리 스크립트가 정확한 상품 1·격리 이미지 1·가상 계정 5개를 제거했다. 사후 지정 상품/개정/이미지/상품·판매자 분류/판매자/계정 7종 각 0행 확인; QA 업로드 전용 빈 폴더와 로컬 가상 PNG·빈 폴더 제거. WSL checkout은 `5c75295`로 pull, 원격 동일 SHA 확인. `shoppingmall` DB 백업은 보존한다.
+- 미검증/다음: 이 회차는 기본 데스크톱 브라우저 실제 흐름만 검증했다. S2.2 기존 공개 버전의 새 수정 승인·판매중지, 사진 누락/검사기 장애의 실제 UI, 모바일·200%·키보드·대비, 운영 객체 스토리지/최신 바이러스 정의, Stage 전체 회귀·PR은 미완료다. 다음은 계획의 남은 S2.2 계약을 RED→GREEN으로 구현하고 S2 전체 필수 gate까지 계속한다. 외부 서비스 계정·Oracle·PG 실연동은 별도 U0 이후이며 이번 PASS로 주장하지 않는다.
+
 ## 진행 중 — 2026-09-27 S2.2 관리자 상품 승인·공개 이미지 연결
 
 - 담당/브랜치: 어울 단일 writer, `codex/flat-v2-prototypes@6136a64d0df661bebe5b80556e4187365b268e6f`. 선행 이미지 검사 계약은 모의/격리 실제 ClamAV에서 확인했으나 상품 승인과 공개 제공에는 아직 연결되지 않았다. 다음에는 pending revision의 모든 비공개 WebP 바이트를 실제 스캐너로 검사해 clean일 때만 관리자 권한 트랜잭션으로 approved/publication/audit를 기록하고, 공개 이미지 GET은 승인된 publication 포인터에 연결된 사진만 서버가 비공개 저장소에서 읽도록 한다. 직접 파일 경로/객체 키는 고객에게 공개하지 않는다.
