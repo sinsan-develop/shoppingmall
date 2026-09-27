@@ -17,15 +17,16 @@ type ViewProps = { categories: Category[]; products: Product[]; stock: Stock[]; 
   onCreate: (draft: Draft) => void;
   onLoadDraft: (product: Product) => Promise<Draft>;
   onUpdate: (product: Product, draft: Draft) => void;
+  onDelete: (product: Product) => void;
   onUpload: (product: Product, file: File) => void;
   onSubmitProposal: (product: Product) => void;
   onSetStock: (optionId: string, quantity: number) => void };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
-function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, onUpload, onSubmitProposal }: {
+function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, onDelete, onUpload, onSubmitProposal }: {
   product: Product; categories: Category[]; busy: boolean;
-  onLoadDraft: ViewProps['onLoadDraft']; onUpdate: ViewProps['onUpdate'];
+  onLoadDraft: ViewProps['onLoadDraft']; onUpdate: ViewProps['onUpdate']; onDelete: ViewProps['onDelete'];
   onUpload: ViewProps['onUpload']; onSubmitProposal: ViewProps['onSubmitProposal'];
 }) {
   const [file, setFile] = useState<File>();
@@ -51,6 +52,10 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
   return <li className="draft-product-item">
     <strong>{product.title}</strong> · {product.status === 'draft' ? '초안' : product.status === 'pending' ? '승인 대기' : product.status}
     {product.status === 'draft' ? <div className="draft-image-actions">
+      <p>사진·재고·공개 이력이 없는 미제출 초안만 삭제할 수 있습니다</p>
+      <button type="button" className="secondary-button" disabled={busy}
+        onClick={() => { if (window.confirm('이 상품 초안을 영구 삭제하시겠습니까?')) onDelete(product); }}>
+        초안 삭제</button>
       <button type="button" className="secondary-button" disabled={busy || editLoading}
         onClick={() => editing ? setEditing(undefined) : void openEditor()}>
         {editing ? '수정 취소' : '초안 수정'}
@@ -117,7 +122,7 @@ function ProductDraftItem({ product, categories, busy, onLoadDraft, onUpdate, on
   </li>;
 }
 
-export function SellerProductView({ categories, products, stock = [], busy, onCreate, onLoadDraft, onUpdate,
+export function SellerProductView({ categories, products, stock = [], busy, onCreate, onLoadDraft, onUpdate, onDelete,
   onUpload, onSubmitProposal, onSetStock }: ViewProps) {
   const [options, setOptions] = useState<Option[]>([{ name: '', priceWon: '' }]);
   const majors = categories.filter((item) => item.parentId === null);
@@ -177,7 +182,8 @@ export function SellerProductView({ categories, products, stock = [], busy, onCr
       <h2 id="product-list-title">내 상품 초안</h2>
       {products.length === 0 ? <p>아직 등록한 초안이 없습니다</p> : <ul className="catalog-list">
         {products.map((item) => <ProductDraftItem key={item.revisionId} product={item} categories={categories} busy={busy}
-          onLoadDraft={onLoadDraft} onUpdate={onUpdate} onUpload={onUpload} onSubmitProposal={onSubmitProposal} />)}
+          onLoadDraft={onLoadDraft} onUpdate={onUpdate} onDelete={onDelete}
+          onUpload={onUpload} onSubmitProposal={onSubmitProposal} />)}
       </ul>}
     </section>
     <section className="account-card profile-card" aria-labelledby="seller-stock-title">
@@ -288,6 +294,21 @@ export default function SellerProductsPage() {
     finally { setBusy(false); }
   }
 
+  async function removeDraft(product: Product) {
+    if (!apiOrigin || busy) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/seller/products/${product.productId}/revisions/${product.revisionId}`,
+        { method: 'DELETE', credentials: 'include' });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
+      if (!response.ok) { setMessage('초안을 삭제하지 못했습니다. 사진·재고·제출 또는 공개 이력을 확인해 주세요'); return; }
+      await reload();
+      setMessage('미제출 상품 초안을 삭제했습니다');
+    } catch { setMessage('초안 삭제 서버에 연결할 수 없습니다'); }
+    finally { setBusy(false); }
+  }
+
   async function upload(product: Product, file: File) {
     if (!apiOrigin || busy) return;
     if (file.size > 5 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
@@ -350,7 +371,7 @@ export default function SellerProductsPage() {
     {state === 'unauthorized' ? <p role="alert">판매자 로그인 후 이용할 수 있습니다</p> : null}
     {state === 'unavailable' ? <p role="alert">상품 정보를 불러올 수 없습니다</p> : null}
     {state === 'ready' ? <><SellerProductView categories={categories} products={products} stock={stock} busy={busy}
-      onCreate={create} onLoadDraft={loadDraft} onUpdate={updateDraft}
+      onCreate={create} onLoadDraft={loadDraft} onUpdate={updateDraft} onDelete={removeDraft}
       onUpload={upload} onSubmitProposal={submitProposal} onSetStock={updateStock} />
       {message ? <p role="status">{message}</p> : null}</> : null}
   </main>;

@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, ConflictException, Controller, ForbiddenException,
+  BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException,
   Get, Inject, NotFoundException, Param, Patch, PayloadTooLargeException, Post, Query, Req,
   ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
@@ -203,6 +203,22 @@ export class CatalogController {
         'Minor category required', 'Stocked option cannot be removed',
       ].includes(error.message)) throw new BadRequestException({ status: 'invalid_draft', reason: error.message });
       if (error instanceof Error && ['Draft required', 'Published category cannot change'].includes(error.message)) {
+        throw new ConflictException({ status: 'draft_conflict', reason: error.message });
+      }
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
+  @Delete('seller/products/:productId/revisions/:revisionId')
+  async deleteProductDraft(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    try { return await this.drafts().deleteDraft(actor, productId, revisionId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
+      if (error instanceof Error && ['Draft required', 'Protected draft data'].includes(error.message)) {
         throw new ConflictException({ status: 'draft_conflict', reason: error.message });
       }
       if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();

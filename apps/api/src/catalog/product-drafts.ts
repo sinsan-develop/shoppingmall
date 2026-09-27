@@ -173,6 +173,53 @@ export class ProductDrafts {
       originLabel: row.originLabel, shippingMode: row.shippingMode, options: options.rows };
   }
 
+  async deleteDraft(actor: AccessContext, productId: string, revisionId: string) {
+    if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
+      throw new Error('Forbidden');
+    }
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(productId) || !uuid.test(revisionId)) throw new Error('Invalid proposal target');
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const target = await client.query<{ seller_id: string; status: string }>(
+        `SELECT p.seller_id,r.status FROM products p JOIN product_revisions r ON r.product_id=p.id
+         WHERE p.id=$1 AND r.id=$2 FOR UPDATE OF p,r`, [productId, revisionId],
+      );
+      if (target.rows[0]?.seller_id !== actor.sellerId) throw new Error('Forbidden');
+      if (target.rows[0].status !== 'draft') throw new Error('Draft required');
+      const dependencies = await client.query<{
+        images: number; stock: number; requests: number; publications: number; revisions: number;
+      }>(
+        `SELECT
+          (SELECT count(*)::int FROM product_images WHERE revision_id=$2) AS images,
+          (SELECT count(*)::int FROM inventory_levels i JOIN product_options o ON o.id=i.option_id
+            WHERE o.revision_id=$2) AS stock,
+          (SELECT count(*)::int FROM stock_change_requests q JOIN product_options o ON o.id=q.option_id
+            WHERE o.revision_id=$2) AS requests,
+          (SELECT count(*)::int FROM product_publications WHERE product_id=$1) AS publications,
+          (SELECT count(*)::int FROM product_revisions WHERE product_id=$1 AND id<>$2) AS revisions`,
+        [productId, revisionId],
+      );
+      if (Object.values(dependencies.rows[0]).some((count) => count > 0)) {
+        throw new Error('Protected draft data');
+      }
+      await client.query('DELETE FROM product_options WHERE revision_id=$1', [revisionId]);
+      await client.query('DELETE FROM product_revisions WHERE id=$1', [revisionId]);
+      await client.query('DELETE FROM products WHERE id=$1', [productId]);
+      await client.query(
+        `INSERT INTO audit_events(actor_account_id,active_role,seller_id,action,target_type,target_id)
+         VALUES ($1,'seller',$2,'product.draft_delete','product',$3)`,
+        [actor.accountId, actor.sellerId, productId],
+      );
+      await client.query('COMMIT');
+      return { productId, status: 'deleted' as const };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
+
   async listOwned(actor: AccessContext) {
     if (!actor.sellerId || !canAccess(actor, 'request-proposal', { sellerId: actor.sellerId })) {
       throw new Error('Forbidden');
