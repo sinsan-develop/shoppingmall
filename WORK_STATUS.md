@@ -4,6 +4,7 @@
 
 - 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. S2.1의 부모 없는 자식·빈 이름·같은 부모 중복 차단을 기존 분류 등록 DB/HTTP 시험에 명시한다. 기존 `catalog-http-db.test.mjs`의 무작위 QA 계정·분류 ID와 `finally` 정리를 재사용한다. 제품 code/schema/API/권한 변경 없음. 불변 계약 예상: 미존재 부모 400, 빈 소분류명 400, 같은 부모·이름 중복 409, 성공 행/감사 기록 수 불변.
 - 자원/검증: 기록 commit/push 후 지정 WSL checkout을 동일 SHA로 fast-forward, Node 24 자동 제거 `shoppingmall-s21-minor-qa`로 `local-postgres/shoppingmall` 연결 목표 시험을 실행한다. 사전 전용 이름과 accounts/categories 0을 확인하며 호스트 포트·새 DB·운영 자료 없음. 시험은 자체 QA ID만 삭제한다. 사후 QA 계정/분류/감사·컨테이너·checkout 잔류 0을 확인한다. 오류/동일 근본 원인 반복 현재 0.
+- 검증/정리: 변경 파일은 기존 `apps/api/test/catalog-http-db.test.mjs`의 경계 주장 3개와 현황뿐이다. 구문·diff check 0, 브랜치 commit `16b3edd8c599cfa6fcf3570a512f8213e9669610` SSH 원격 push→지정 WSL checkout 동일 SHA fast-forward. WSL 실DB HTTP 목표 시험 **1 pass·0 skip·0 fail**, 종료 코드 0. 미존재 부모·빈 이름 400, 같은 부모 중복 409를 확인했다. 실행 전/후 account_identities/product_categories/audit_events 각각 `0/0/0`, 전용 컨테이너 `--rm` 제거·잔류 0, WSL checkout clean. 제품 변경/DB schema 변경 없음, 테스트 실행 오류 0·동일 근본 원인 반복 0. 분류 이동/과거 주문 스냅샷은 주문 기능 이후 별도 확인하며 S2 전체 완료로 표시하지 않는다.
 
 ## 진행 중 — 2026-09-29 S2.4 Chrome 실제 200% 확대 재검증
 
