@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
 import { PublicProducts } from '../src/catalog/public-products.ts';
+import { ProductSaleStops } from '../src/catalog/product-sale-stops.ts';
 
 test('public browser fixture exposes one sellable QA product and resets only its run', {
   skip: !process.env.DATABASE_URL,
@@ -124,6 +125,46 @@ test('public browser fixture reset removes a QA product after a private second r
       } catch (error) { await client.query('ROLLBACK'); throw error; }
       finally { client.release(); }
       await runQaFixture('reset', runId, process.env.DATABASE_URL);
+    }
+    await pool.end();
+  }
+});
+
+test('public browser fixture reset removes approved sale-stop history for only its QA product', {
+  skip: !process.env.DATABASE_URL,
+}, async () => {
+  const runId = randomBytes(4).toString('hex');
+  const { runQaPublicFixture } = await import('../scripts/qa-public-fixture.ts');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  let productId;
+  let reset = false;
+  try {
+    const seeded = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
+    productId = seeded.productId;
+    const seller = await pool.query(
+      `SELECT r.account_id AS "accountId",r.seller_id AS "sellerId"
+       FROM account_roles r JOIN account_identities i ON i.account_id=r.account_id
+       WHERE i.identifier=$1 AND r.role='seller'`, [`qa+${runId}-seller-a@example.invalid`]);
+    const admin = await pool.query(
+      `SELECT r.account_id AS "accountId" FROM account_roles r
+       JOIN account_identities i ON i.account_id=r.account_id
+       WHERE i.identifier=$1 AND r.role='admin'`, [`qa+${runId}-admin@example.invalid`]);
+    const stops = new ProductSaleStops(pool);
+    const requested = await stops.request({ ...seller.rows[0], role: 'seller' }, productId, 'QA 판매중지');
+    await stops.approve({ ...admin.rows[0], role: 'admin' }, requested.requestId);
+    await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
+    reset = true;
+    const remaining = await pool.query(`SELECT
+      (SELECT count(*)::int FROM product_sale_stop_requests WHERE product_id=$1) AS stops,
+      (SELECT count(*)::int FROM products WHERE id=$1) AS products,
+      (SELECT count(*)::int FROM account_identities WHERE identifier=$2) AS accounts,
+      (SELECT count(*)::int FROM audit_events WHERE target_id=$3) AS audit`,
+    [productId, `qa+${runId}-seller-a@example.invalid`, requested.requestId]);
+    assert.deepEqual(remaining.rows[0], { stops: 0, products: 0, accounts: 0, audit: 0 });
+  } finally {
+    if (!reset && productId) {
+      await pool.query('DELETE FROM product_sale_stop_requests WHERE product_id=$1', [productId]);
+      await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
     }
     await pool.end();
   }

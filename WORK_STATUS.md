@@ -1,5 +1,18 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.2 판매중지 migration·실DB 검증
+
+- 담당/승인: 어울 단일 writer. 신산님이 신규 API와 `shoppingmall` 개발 DB의 전용 테이블·마이그레이션을 승인했고, 이번 턴에 작업 브랜치 4커밋의 지정 SSH 원격 push를 명시 승인했다. 로컬 `codex/flat-v2-prototypes@a765cc47d5bd4a77007c353ae3494ff26593eed0`의 `pnpm test` 181건 중 149 pass·32 DB/환경 skip·0 fail, PR 본문 8 pass, typecheck/lint/build 각 exit 0, diff check 0. 원격 같은 SHA를 `git ls-remote`로 확인했고 WSL 지정 `/home/daon/deploy/shopping`을 이 SHA로 `pull --ff-only`하여 clean 확인. 로컬의 32 skip은 DB PASS가 아니다.
+- 자원/절차: 정확한 개발 DB는 WSL `local-postgres/shoppingmall`. 먼저 migration dry-run으로 현재 DB명·Drizzle 이력·대기 파일을 읽기 전용 확인한다. 격리 문법/적용 시험은 같은 개발 PostgreSQL 컨테이너 내 전용 임시 DB `shoppingmall_s22_d7a1e0c2`에서만 0000→0006을 적용하고 schema·시험 결과를 확인한 뒤 임시 DB를 제거한다. 대상 DB 기존 자료는 초기화하지 않고 0006의 신규 테이블/인덱스만 승인 범위에서 적용한다. Node24 자동 제거 컨테이너 접두사 `shoppingmall-s22-d7a1`과 지정 `postgres_env_default` 네트워크·기존 checkout만 사용하며 새 호스트 포트·제품 공개/실결제 없음. 전용 테스트는 자체 UUID QA 계정/판매자/상품/중지 요청을 `finally`로 정리한다. 종료 시 임시 DB/컨테이너·QA 행·checkout SHA/clean을 확인한다.
+- 미검증/다음: 현재는 승인/원격/WSL SHA와 로컬 정적·단위 검증까지만 완료. 격리 migration, 개발 DB 실제 적용, 판매중지 DB·HTTP·브라우저, 경쟁 조건과 S2.2 전체 검증은 아직 수행 전. migration 오류 시 실제 개발 DB 적용을 중단하고 원인·복구 경계를 기록한다.
+- migration·회귀 실제 결과: `shoppingmall` 개발 DB의 읽기 전용 dry-run은 기존 6건 적용·대기 `0006_s2_product_sale_stop` 1건/7문장/SHA-256 `9ee2bd00d8e3e2131efeb80e4238c6d80ae03436874b5596ebdb2d7ee1c8d523`이었다. 전용 빈 DB `shoppingmall_s22_d7a1e0c2`에 0000~0006을 적용한 뒤 판매중지 실DB·HTTP 시험 **1 pass·0 skip·0 fail**, migration 7건과 QA 행 0을 확인하고 정확한 임시 DB를 제거했다. 개발 `shoppingmall`에는 승인된 0006만 적용해 migration 총 7건·신규 판매중지 행 0; 동일 실DB·HTTP 시험 **1 pass·0 skip·0 fail**. 전체 WSL DB 연결 회귀는 **181 tests/174 pass/7 skip/0 fail**이며 로컬 DB 미연결 32 skip과 구분한다. 사후 계정/판매자/분류/상품/개정/옵션/공개/이미지/판매중지/감사 각 0, `shoppingmall-s22-d7a1*` 일회성 컨테이너 0, 임시 DB 부재, WSL checkout `a765cc4` clean. 첫 read-only SQL의 따옴표 인용 오류 1회 후 재실행 성공; 제품 오류/동일 원인 3회 반복 없음. 실제 브라우저와 S2.2 전체 완료는 여전히 미검증이다.
+
+## 진행 중 — 2026-09-29 S2.2 판매중지 역할별 실브라우저 QA
+
+- 담당/대상: 어울 단일 writer. 지정 WSL checkout `a765cc47d5bd4a77007c353ae3494ff26593eed0`, `local-postgres/shoppingmall`의 승인된 migration 7건 상태를 사용한다. 기존 가상 공개 상품 fixture `QA_RUN_ID=d7a1e0c2`, 가상 고객/판매자 A·B/어울몰·관리자 5계정/3판매자와 공개 상품 1개만 시험 중 생성한다. 비밀번호는 가상 시험 전용이고 문서·Git에 남기지 않는다.
+- 자원/절차: 시작 전 9091/9092 포트·전용 컨테이너·관련 DB 행 0을 대조한다. Node24 자동 제거 빌드/API/Web 컨테이너 접두사 `shoppingmall-s22-stop-d7a1`, `postgres_env_default` 네트워크와 기존 checkout, loopback 9091/9092, 새 브라우저 시험 탭 1개만 사용한다. 판매자 A로 판매중지 요청→승인 전 고객 공개 상태 유지→관리자 계정으로 반려/재요청 또는 승인→고객 검색 제외/상세 판매 가능 수량 0을 실제 UI에서 확인한다. 실결제·실상품/실계정 없음. 시험 후 탭·정확한 전용 컨테이너만 종료, 고유 fixture reset, DB 계정/판매자/상품/판매중지/감사·포트·checkout 잔류를 검사한다. 실패한 단계를 PASS로 승격하지 않는다.
+- QA 정리 결함 조사/RED 계획: 신규 `product_sale_stop_requests`는 `products`·`accounts`에 `ON DELETE no action` 외래키를 가지는데 기존 `qa-public-fixture.ts`의 `resetPublicProduct`는 공개/재고/사진/옵션/개정/상품만 지우고 판매중지 요청은 누락한다. `qa-fixture.ts`는 이후 계정 감사·역할을 지우므로 상품 삭제 단계에서 FK로 실패할 가능성이 높다. 관련 외래키·기존 정리 순서를 코드와 생성 SQL로 대조했고 가설은 “해당 QA 상품의 중지 이력 삭제 누락”이다. 테스트 파일에 승인된 중지 이력을 만든 뒤 전체 fixture reset과 해당 상품/계정/감사 잔류 0을 단언했다. RED 실행은 현재 로컬 DB가 없으므로 안전 commit/push→동일 WSL SHA의 지정 개발 DB에서 단일 시험으로 확인한다. 실패 시 시험의 `finally`가 정확한 productId 중지 요청만 삭제하고 fixture reset을 다시 실행하도록 복구 경로를 둔다. 이후 최소 수정은 QA fixture의 동일 productId 삭제 순서만 추가하고 GREEN/전체 회귀/브라우저를 수행한다. 실제 사용자 상품·판매중지 이력 삭제는 금지.
+
 ## 진행 중 — 2026-09-29 S2.2 기존 검증 커밋 사진 버튼 실브라우저 보강
 
 - 담당/경계: 어울 단일 writer. 현 로컬 작업 브랜치 `codex/flat-v2-prototypes@11907da`는 원격보다 3커밋 앞서며 push가 자동 안전 검토에서 2회 거부됐다. 이 변경의 실DB 검증은 진행하지 않는다. 사진 버튼 코드는 이미 지정 WSL checkout의 깨끗한 `da56a39c6643f4ea22ba445604d7eaf8da888664`에 있으므로 그 **이전 커밋의 기존 코드만** 독립 시험한다. 새 변경의 통합 증거로 승격하지 않는다.
