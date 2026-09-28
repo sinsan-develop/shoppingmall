@@ -158,6 +158,7 @@ function ProductDraftItem({ product, categories, busy, onCreateRevision, onLoadD
               onChange={(event) => setEditing({ ...editing, options: editing.options.map((item, position) =>
                 position === index ? { ...item, priceWon: event.target.value } : item) })} /></div>
           {editing.options.length > 1 ? <button type="button" className="secondary-button" disabled={busy}
+            aria-label={`옵션 ${index + 1} 제거`}
             onClick={() => setEditing({ ...editing, options: editing.options.filter((_, position) => position !== index) })}>
             옵션 제거</button> : null}
         </div>)}
@@ -196,10 +197,13 @@ function ProductDraftItem({ product, categories, busy, onCreateRevision, onLoadD
               <option value="thumbnail">대표 사진</option><option value="detail">상세 사진</option>
             </select>
             <button type="button" className="secondary-button" disabled={busy || imageBusy || index === 0}
+              aria-label={`사진 ${index + 1} 위로 이동`}
               onClick={() => moveImage(index, -1)}>위로</button>
             <button type="button" className="secondary-button" disabled={busy || imageBusy || index === images.length - 1}
+              aria-label={`사진 ${index + 1} 아래로 이동`}
               onClick={() => moveImage(index, 1)}>아래로</button>
             <button type="button" className="secondary-button" disabled={busy || imageBusy}
+              aria-label={`사진 ${index + 1} 제거`}
               onClick={() => void removeImage(item.id)}>사진 제거</button>
           </li>)}
         </ol>}
@@ -261,6 +265,7 @@ export function SellerProductView({ categories, products, stock = [], busy, onCr
               value={option.priceWon} onChange={(event) => setOptions(options.map((item, position) =>
                 position === index ? { ...item, priceWon: event.target.value } : item))} /></div>
           {options.length > 1 ? <button type="button" className="secondary-button" disabled={busy}
+            aria-label={`옵션 ${index + 1} 제거`}
             onClick={() => setOptions(options.filter((_, position) => position !== index))}>옵션 제거</button> : null}
         </div>)}
         <button type="button" className="secondary-button" disabled={busy || options.length >= 20}

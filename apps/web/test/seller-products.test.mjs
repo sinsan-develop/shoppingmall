@@ -43,6 +43,14 @@ test('a seller draft has a local preview and explicit private-photo and proposal
   assert.doesNotMatch(html, /고객에게 공개 중/);
 });
 
+test('repeated seller photo and option actions identify their row for assistive technology', () => {
+  const source = readFileSync(new URL('../app/account/seller/products/page.tsx', import.meta.url), 'utf8');
+  assert.match(source, /aria-label={`사진 \$\{index \+ 1\} 위로 이동`}/);
+  assert.match(source, /aria-label={`사진 \$\{index \+ 1\} 아래로 이동`}/);
+  assert.match(source, /aria-label={`사진 \$\{index \+ 1\} 제거`}/);
+  assert.equal([...source.matchAll(/aria-label={`옵션 \$\{index \+ 1\} 제거`}/g)].length, 2);
+});
+
 test('submitted proposals are not editable from the seller screen', () => {
   const html = renderToStaticMarkup(createElement(SellerProductView, {
     categories: [], products: [{ productId: 'product', revisionId: 'revision', title: '고추', status: 'pending' }],

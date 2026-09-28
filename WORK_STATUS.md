@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.2 판매자 상품 사진·옵션 반복 동작 이름
+
+- 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 판매자 상품 초안의 사진마다 `위로`·`아래로`·`사진 제거`, 옵션마다 `옵션 제거`가 반복되어 화면낭독기 버튼 목록에서 대상 행을 구별하기 어렵다. 기존 표시 문구·DOM 버튼·기능·디자인은 유지하고 버튼의 접근 가능한 이름에 1부터 시작하는 행 번호만 추가한다. API/schema/DB/Secret/권한 변경 없음.
+- TDD/검증: `apps/web/test/seller-products.test.mjs`에 사진 이동·제거와 옵션 제거의 행별 `aria-label` 구조 단언을 먼저 추가해 기존 8건 중 1건 의도한 RED, 이어 `apps/web/app/account/seller/products/page.tsx`의 두 옵션 양식과 사진 버튼 3종에 `aria-label` 추가 후 목표 8 pass·0 fail. 파일 diff·전체 test/typecheck/lint/build 및 WSL exact-SHA production 빌드/브라우저는 별도로 확인한다. 현 제품 오류 0, 의도한 RED 1회, 동일 근본 원인 반복 0. 사진 실제 삭제·재정렬/업로드는 이 변경의 시험 범위가 아니다.
+- 로컬 결과: 두 옵션 양식 모두 같은 행별 이름을 갖도록 단언을 보강했다. 루트 `pnpm test` 종료 코드 0(로컬 DB/환경 시험 skip은 별도), `pnpm typecheck`·`pnpm lint` 0, 허용된 D: 경로 `pnpm build` 0/Next 12경로. 새 제품 오류 0. 실제 로그인 뒤 비공개 사진 목록의 화면낭독기 AX 이름은 사진이 있는 가상 초안 브라우저 환경을 별도 구성해야 하므로 이번 구조 시험을 그 증거로 승격하지 않는다. 다음은 안전 commit/push 및 지정 WSL exact-SHA build 후 QA 자원을 정리한다.
+
 ## 검증 완료 — 2026-09-29 S1.2 계정 자동 병합 금지·명시 연결 실DB 회귀
 
 - 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 기존 S1 계정 계약에서 이메일 계정과 별도 휴대폰 가입 계정은 합쳐지지 않으며, 다른 계정의 번호 연결은 거부하고 미사용 번호만 현재 고객 계정에 명시 연결된다는 DB 회귀를 보강한다. 제품 API/schema/Secret/권한 코드는 변경하지 않는다.
