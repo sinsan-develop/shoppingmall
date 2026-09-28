@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.2 심사 사진 누락의 관리자 실브라우저 차단 QA
+
+- 담당/목적: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`의 이미 승인된 사진 공개 게이트를 실제 관리자 화면에서 검증한다. 변경할 제품 code/schema/API/권한 없음. 기존 `qa-review-fixture.ts`는 메타데이터 전용 `quarantine/qa-*` 대표 사진 행만 만들며 실제 이미지 파일을 생성하지 않는다. 예상은 가상 관리자 로그인→대기 상품→`심사 사진 보기`→비공개 미리보기 실패 안내, `상품 승인` 버튼 비노출, 공개 publication 0·pending 유지다. 사진 검사기 자체 중단/복구와 성공 승인은 이 fixture로 증명하지 않는다.
+- 자원/수명: 고유 QA ID `a41f7c92` 가상 계정 5개·판매자 3개·대기 상품 1개·사진 메타데이터 1행을 정확한 `WSL-server`의 `local-postgres/shoppingmall`에 시험 중에만 생성한다. Node 24 자동 제거 빌드 `shoppingmall-s22-missing-build-a41f`, loopback 9091/9092 API/Web `shoppingmall-s22-missing-api-a41f`/`shoppingmall-s22-missing-web-a41f`, 새 in-app browser 시험 탭 1개만 사용한다. 소유 어울, 수명 이번 화면 시험까지. 시작 전 DB·이름·포트 상태를 읽고 exact SHA build/seed 후 시험한다. 종료 시 탭/정확한 두 컨테이너만 닫고 `a41f7c92` fixture만 reset한 뒤 accounts/products/revisions/images/audit·컨테이너/포트/checkout 잔류 0을 확인한다. 실제 계정·사진·결제·Oracle/운영 자료 없음, 비밀값 원문 비기록. 현재 오류 0·반복 근본 원인 0.
+
 ## 진행 중 — 2026-09-29 S1.2 한 계정의 판매자·관리자 HTTP 권한 분리
 
 - 담당/계약: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. S1.2 필수 조건인 동일인의 판매자 세션으로 관리자 업무 불가와 반대 방향을 실DB·HTTP에서 명시 검증한다. 기존 `seller-login-db.test.mjs`의 고유 QA fixture/정리와 운영자 계정에 판매자 A/B grant를 부여하는 절차를 재사용한다. 동일 계정의 검증된 관리자·판매자 A 토큰으로 각각 자기 경로 200, 반대 역할 경로 403을 `x-role` 위조 헤더와 함께 확인한다. 제품 code/schema/API/권한 변경 없음.
