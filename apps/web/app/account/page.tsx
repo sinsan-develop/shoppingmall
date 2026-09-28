@@ -47,7 +47,7 @@ export default function AccountPage() {
   const roleLabel = session?.role === 'customer' ? '구매자'
     : session?.role === 'seller' ? '판매자' : '운영자';
   return (
-    <main className="shell account-shell">
+    <main id="main-content" tabIndex={-1} className="shell account-shell">
       <a className="text-link" href="/">어울몰 홈</a>
       <section className="account-card" aria-labelledby="account-title">
         <p className="eyebrow">어울몰 계정</p>

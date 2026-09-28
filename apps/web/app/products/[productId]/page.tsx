@@ -14,7 +14,7 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
 export function ProductDetailView({ product, loading = false, error }: ViewProps) {
-  return <main className="shell detail-main">
+  return <main id="main-content" tabIndex={-1} className="shell detail-main">
     <a className="text-link" href="/products">상품 검색으로</a>
     {loading ? <p role="status">상품을 불러오고 있습니다</p> : !product ?
       <p role="alert">{error ?? '상품을 찾을 수 없습니다'}</p> : <>

@@ -117,7 +117,7 @@ export default function CustomerProfilePage() {
   }
 
   return (
-    <main className="shell account-shell">
+    <main id="main-content" tabIndex={-1} className="shell account-shell">
       <a className="text-link" href="/account">내 계정으로</a>
       <h1>배송지와 알림 설정</h1>
       {state === 'loading' ? <p role="status">고객 정보 확인 중</p> : null}

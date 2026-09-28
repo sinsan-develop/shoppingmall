@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.4 공통 키보드 본문 건너뛰기
+
+- 담당/근거: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 승인된 실제 제품 접근성 점검에서 모든 구매자/판매자/운영자 화면에 `<main>`은 있으나 첫 키보드 포커스로 헤더/검색·메뉴를 건너뛸 공통 링크가 없음을 확인했다. 사용한 `web-design-guidelines`의 현행 규칙은 skip link와 가시적인 focus 상태를 요구한다. React 성능 스킬 기준에서는 기존 서버 layout의 정적 링크만 쓰며 새 클라이언트 상태/번들을 만들지 않는다.
+- 변경 계약: `apps/web/app/layout.tsx`의 body 첫 요소에 `본문으로 건너뛰기` 앵커→`#main-content`, 화면 11개의 기존 `<main>`에 같은 id와 프로그램 포커스 대상 `tabIndex={-1}`만 추가한다. `styles.css`에는 평소 화면 밖·포커스 시 화면 안의 고대비 링크 스타일을 추가한다. RED 구조/렌더 시험→GREEN, typecheck/lint/build·제품 키보드 실제 확인을 순서대로 수행한다. 제품 API/schema/권한·DB/Secret/비용 영향 없음. 기존 헤더·본문 의미 구조 보존, 문제 시 이 commit 변경만 되돌릴 수 있다. 오류/동일 근본 원인 반복 현재 0.
+- RED→GREEN 및 로컬: 새 `skip-navigation.test.mjs`의 첫 실행은 Next RootLayout의 CSS import를 Node 직접 import해 시험 하네스 `ERR_UNKNOWN_FILE_EXTENSION` 1회가 발생했다. 제품 실패가 아니어서 동일 파일의 정적 구조 검사로 고쳤고, 그 후 `body` 첫 skip link 부재를 예상대로 RED(exit 1) 확인했다. 정적 링크/11개 main target/포커스 시 보이는 CSS만 추가하자 목표 시험 **1 pass·0 skip·0 fail**. 로컬 전체 `pnpm test` 종료 코드 0(DB 미연결 skip 별도), PR 본문 8 pass, `pnpm typecheck`·`pnpm lint`·권한 허용 `pnpm build` 각각 0/Next 12경로. 첫 시험 하네스 오류 1회, 동일 원인 반복 0. 실제 브라우저 Tab→링크 표시→Enter→본문 포커스는 아직 미검증이며 WSL exact SHA에서 이어서 확인한다.
+
 ## 진행 중 — 2026-09-29 S2.1 전국 산지 비제한 상품 초안 회귀
 
 - 담당/목적: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 신산님이 지역은 브랜드 표현일 뿐 상품 등록의 내부 제한이 없다고 결정한 계약을 기존 상품 초안 실DB 시험에서 명시한다. 현 QA 초안의 모호한 `전국 어느 산지` 대신 경남 밖 시험 산지 `강원 양양`을 사용하고 DB `origin_label` 보존을 단언한다. 제품 code/schema/API/권한 변경 없음.

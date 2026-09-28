@@ -128,7 +128,7 @@ export default function AdminShippingPage() {
     finally { setBusy(false); }
   }
 
-  return <main className="shell account-shell">
+  return <main id="main-content" tabIndex={-1} className="shell account-shell">
     <a className="text-link" href="/account">내 계정으로</a>
     <h1>배송 정책 관리</h1>
     {state === 'loading' ? <p role="status">운영자 권한 확인 중</p> : null}

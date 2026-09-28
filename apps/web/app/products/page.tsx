@@ -24,7 +24,7 @@ export function ProductSearchView({ query, sort, categoryId, sellerId = '', cate
   onQueryChange = () => {}, onCategoryChange = () => {},
   onSellerChange = () => {}, onSortChange = () => {} }: ViewProps) {
   return (
-    <main className="shell search-main">
+    <main id="main-content" tabIndex={-1} className="shell search-main">
       <a className="text-link" href="/">어울몰 홈으로</a>
       <h1>상품 검색</h1>
       <form className="search-filters" action="/products" method="get" role="search">

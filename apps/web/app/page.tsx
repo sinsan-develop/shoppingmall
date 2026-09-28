@@ -24,7 +24,7 @@ export default function Page() {
           <a href="/#seller-story-title">판매자 이야기</a>
         </nav>
       </header>
-      <main className="shell">
+      <main id="main-content" tabIndex={-1} className="shell">
         <section className="hero" aria-labelledby="home-title">
           <div className="hero-inner">
             <div className="hero-content">
