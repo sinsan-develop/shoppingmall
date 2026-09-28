@@ -76,22 +76,27 @@ async function seedPublicProduct(client: PoolClient, runId: string, count: numbe
 async function resetPublicProduct(client: PoolClient, runId: string) {
   const names = qaNames(runId);
   const product = productNames(runId);
-  const target = await client.query<{ id: string; revision_id: string }>(
-    `SELECT p.id,r.id AS revision_id FROM products p
-     JOIN product_revisions r ON r.product_id=p.id
+  const target = await client.query<{ id: string }>(
+    `SELECT DISTINCT p.id FROM products p
      JOIN sellers s ON s.id=p.seller_id
      JOIN product_categories c ON c.id=p.category_id
-     WHERE s.display_name=$1 AND c.name=$2 AND (r.title=$3 OR r.title LIKE $4)`,
-    [names.sellerA, product.minor, product.title, `${product.title}-extra-%`],
+     WHERE s.display_name=$1 AND c.name=$2`,
+    [names.sellerA, product.minor],
   );
   for (const row of target.rows) {
-    await client.query('DELETE FROM product_publications WHERE product_id=$1 AND revision_id=$2', [row.id, row.revision_id]);
+    await client.query('DELETE FROM product_publications WHERE product_id=$1', [row.id]);
+    await client.query(`DELETE FROM stock_change_requests WHERE option_id IN
+      (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)`, [row.id]);
+    await client.query('DELETE FROM product_images WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)',
+      [row.id]);
     await client.query(
-      'DELETE FROM inventory_levels WHERE option_id IN (SELECT id FROM product_options WHERE revision_id=$1)',
-      [row.revision_id],
+      `DELETE FROM inventory_levels WHERE option_id IN
+        (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)`,
+      [row.id],
     );
-    await client.query('DELETE FROM product_options WHERE revision_id=$1', [row.revision_id]);
-    await client.query('DELETE FROM product_revisions WHERE id=$1', [row.revision_id]);
+    await client.query('DELETE FROM product_options WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)',
+      [row.id]);
+    await client.query('DELETE FROM product_revisions WHERE product_id=$1', [row.id]);
     await client.query('DELETE FROM products WHERE id=$1', [row.id]);
   }
   await client.query(

@@ -4,6 +4,8 @@
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@bbe58a0`. 신산님이 승인한 판매 중 상품 수정안 API·UI의 실제 화면 시험을 준비한다. 현재 `qa-public-fixture.ts reset`은 최초 revision만 가정해 추가 수정안이 생기면 QA 상품 삭제가 실패할 수 있다. 제품 schema/API/권한은 변경하지 않고 **고유 QA seller/category/product에 속한 모든 revision만** 정리하도록 시험 도구를 보강한다.
 - RED/GREEN 계획: `qa-public-fixture-db.test.mjs`에 고유 무작위 QA ID의 공개 상품을 seed한 뒤 두 번째 비공개 revision과 옵션을 만들고 reset이 계정·상품·개정·옵션·분류까지 제거하는 시험을 먼저 추가한다. RED 시 정확한 상품 ID·run ID만 별도 안전 정리하고 전체 DB를 초기화하지 않는다. WSL 지정 `local-postgres/shoppingmall`에서 시험하고 사후 계정·상품·개정·이미지·감사 이력 0을 확인한다. 실제 브라우저 검증은 fixture 정리 GREEN 뒤 같은 SHA로 진행한다. QA 자료는 시험 중에만 존재하고 비밀번호·DB URL은 기록하지 않는다. 현재 기능 오류 0, 반복 근본 원인 0.
+- RED 실제 결과: exact SHA `beefbec3c71de16eb2eecfd44e6a0b28cd1cb7b1`의 WSL DB 새 목표 시험 1 fail·0 skip. 두 번째 비공개 revision 때문에 기존 reset이 `product_publications_product_id_products_id_fk` 23503으로 실패했다. 시험의 별도 정확 ID 비상 정리 후 accounts/products/revisions/options/publications `0/0/0/0/0`, WSL checkout clean. 계획한 결함 재현이며 반복 오류가 아니다.
+- GREEN 변경/로컬: `qa-public-fixture.ts` reset 대상을 고유 QA 판매자·분류의 상품 ID로 한정하고 그 상품의 publication·재고 요청·이미지·재고·옵션·모든 revision을 의존성 순서대로 삭제한 다음 기존 QA 계정을 정리한다. 로컬 `pnpm test` 171건 중 141 pass·30 DB/환경 skip·0 fail 및 PR 본문 검사 8 pass, typecheck·lint 종료 코드 0. 실DB 목표/전체·build·브라우저는 아직 미검증이며 통과로 표시하지 않는다. 제품 schema/API/권한 변경 없음.
 
 ## 진행 중 — 2026-09-28 S2.2 승인된 판매 중 상품 수정안 API·화면
 
