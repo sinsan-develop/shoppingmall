@@ -4,6 +4,7 @@
 
 - 담당/계약: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. S1.2 필수 조건인 동일인의 판매자 세션으로 관리자 업무 불가와 반대 방향을 실DB·HTTP에서 명시 검증한다. 기존 `seller-login-db.test.mjs`의 고유 QA fixture/정리와 운영자 계정에 판매자 A/B grant를 부여하는 절차를 재사용한다. 동일 계정의 검증된 관리자·판매자 A 토큰으로 각각 자기 경로 200, 반대 역할 경로 403을 `x-role` 위조 헤더와 함께 확인한다. 제품 code/schema/API/권한 변경 없음.
 - 자원/순서: 기존 브랜치에 시험·현황을 안전 commit/push하고 지정 WSL checkout 동일 SHA에서 `local-postgres/shoppingmall`에 연결한다. Node 24 자동 제거 컨테이너 `shoppingmall-s12-multirole-qa` 하나로 목표·전체 시험을 각각 실행한다(동시 실행 아님). 소유 어울, 이번 두 시험 명령 동안만, 새 DB·볼륨·호스트 포트 없음. 시험은 새 `qa+…@example.invalid` 5계정/3판매자를 고유 무작위 ID로 만들고 `finally`에서 그 ID만 reset한다. 실행 전 이름 점유/DB 행, 종료 후 accounts/sellers/sessions/audit·컨테이너/checkout 잔류 0을 확인한다. 비밀값은 출력하지 않는다. 실제 브라우저에서 한 사람이 역할을 전환하는 동선은 이 DB+HTTP 시험 범위 밖이며, 앞선 별개 계정의 역할별 화면 QA와 혼동하지 않는다. 현재 오류 0·같은 근본 원인 반복 0.
+- 실행 결과: 시험/현황 commit `5be570c3174efc2b4f48f3ac940d87e227ea1956`를 SSH 별칭 원격 push→지정 WSL checkout fast-forward했다. 구문·typecheck·diff check 종료 코드 0, 로컬 전체 174건 중 144 pass·30 DB/환경 skip·0 fail 및 PR 본문 8 pass. WSL exact SHA에서 동일 관리자 계정의 관리자·판매자 A 토큰을 사용해 자기 역할 HTTP 200과 서로 반대 역할 HTTP 403을 각각 확인한 목표 시험 **1 pass·0 fail·0 skip**. 이어 전체 DB 연결 시험 **174건 중 167 pass·7 환경 skip·0 fail**, 종료 코드 0. 사전 accounts/sellers/sessions/audit `0/0/0/0`, 사후 accounts/sellers/seller_categories/sessions/audit `0/0/0/0/0`, 정확한 `shoppingmall-s12-multirole-qa` 컨테이너 0, WSL checkout clean·동일 SHA. 실제 한 사람의 브라우저 역할 전환·다른 API 전수·S1 Stage PR/인수는 이 증거 밖이다. 실행 오류 0, 반복 근본 원인 오류 0.
 
 ## 진행 중 — 2026-09-29 S1.2 만료 세션 실DB·HTTP 경계 재검증
 
