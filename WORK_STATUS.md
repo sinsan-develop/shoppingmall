@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S1.2 계정 자동 병합 금지·명시 연결 실DB 회귀
+
+- 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 기존 S1 계정 계약에서 이메일 계정과 별도 휴대폰 가입 계정은 합쳐지지 않으며, 다른 계정의 번호 연결은 거부하고 미사용 번호만 현재 고객 계정에 명시 연결된다는 DB 회귀를 보강한다. 제품 API/schema/Secret/권한 코드는 변경하지 않는다.
+- 변경/검증: `apps/api/test/auth-db.test.mjs`에 고유 QA 이메일과 두 가상 번호로 분리 가입·중복 연결 거부·명시 연결 후 로그인 계정 ID를 대조하는 시험을 추가했다. `DATABASE_URL` 없는 로컬 실행은 skip으로 명시한다. 안전 commit/push 후 지정 WSL checkout exact SHA의 `local-postgres/shoppingmall`에서 목표 시험 0 skip을 요구한다. 시험 계정·세션·감사 행은 `finally`로 각 정확한 account ID만 정리하고 사전/사후 DB 행 수를 비교한다. 별도 호스트 포트, 외부 계정, 운영 자료 없음. 현재 실행 오류·같은 원인 반복 0.
+- 로컬 검사: `node --check`·`git diff --check` 0. 루트 `pnpm test` 176건 중 145 pass·31 DB/환경 skip·0 fail, 별도 PR 본문 8 pass·0 fail. 새 DB 시험은 로컬에서 skip이므로 통과 증거로 쓰지 않는다. `pnpm typecheck`와 `pnpm lint`는 각각 0. 첫 `pnpm build`는 D: `.next/trace` 쓰기 EPERM으로 종료 코드 1(제품 오류 아님), 허용된 같은 작업 경로에서 재실행한 빌드는 종료 코드 0·Next 12경로. 빌드 쓰기 권한 오류 1회, 동일 원인 반복 0. 다음은 안전 commit/push와 WSL exact-SHA 실DB 목표 시험이다.
+
 ## 검증 완료 — 2026-09-29 S1.3 탈퇴 요청 확인의 안전한 키보드 기본 포커스
 
 - 담당/근거: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 고객 탈퇴 요청은 운영 검토용 접수이며 실제 계정 삭제는 별개다. 현재 확인 단계의 위험한 `요청 접수 확인` 버튼에 `autoFocus`가 있어 Enter 재입력으로 의도치 않은 접수가 가능하다. 기존 기능/문구/서버 권한은 그대로 두고 자동 포커스만 `취소`로 이동한다. 이는 S1.3 UI 안전성·접근성 범위이며 제품 API/schema/DB/Secret 변경 없음.
