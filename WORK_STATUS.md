@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S1.1 깨끗한 소스 설치·빌드 재현
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@74fe9bc11dd2babf5fbd935b0db19500e616b622`. 계획서 S1.1의 clean checkout frozen 설치/테스트/typecheck/lint/build 증거를 만든다. 제품 코드·schema/API/권한은 변경하지 않는다. 현재 branch clean, Node 24.18.0·pnpm 11.19.0, `D:\tmp` 가용·약 198GB 여유, 정확한 임시 대상 미존재를 확인했다.
+- 격리 QA 자원: Git HEAD의 tracked source만 `D:\tmp\shoppingmall2-s11-clean-c7e14a59.tar`와 `D:\tmp\shoppingmall2-s11-clean-c7e14a59\`에 일시 추출한다. 이는 새 Git branch/worktree가 아니며 현재 작업 checkout과 WSL DB/서버에 쓰지 않는다. `pnpm install --frozen-lockfile --offline`부터 시도하고 루트 test/typecheck/lint/build를 명령별 종료 코드로 기록한다. 설치가 실제로 필요한 원격 패키지 때문에 실패하면 외부 저장소 경계를 확인해 원인을 기록하며 성공으로 간주하지 않는다. 시험 종료 시 절대경로·내용·소유를 재확인한 정확한 임시 archive/폴더만 제거하고 부재를 확인한다. GitHub CI 실제 job, DB/브라우저, Android native·인수 결과는 이 시험과 별개다. 현재 오류 0·같은 근본 원인 반복 0.
+
 ## 진행 중 — 2026-09-29 S2.2 상품 수정안 편집 후 기존 공개값 유지 화면 QA
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@b14fc0dd6642ba5c7d47f0a9747b9250b4336506`. 이미 승인된 판매 중 상품의 비공개 수정안 생성/편집 API·화면을 실제 브라우저에서 연결해 확인한다. 새로운 제품 코드/schema/API/권한 변경은 없다. 지정 WSL checkout 동일 SHA·clean, 9091/9092 listener와 계획한 전용 컨테이너 0, 개발 DB accounts/products/revisions `0/0/0`을 사전 확인했다.
