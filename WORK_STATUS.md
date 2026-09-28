@@ -4,6 +4,8 @@
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@74fe9bc11dd2babf5fbd935b0db19500e616b622`. 계획서 S1.1의 clean checkout frozen 설치/테스트/typecheck/lint/build 증거를 만든다. 제품 코드·schema/API/권한은 변경하지 않는다. 현재 branch clean, Node 24.18.0·pnpm 11.19.0, `D:\tmp` 가용·약 198GB 여유, 정확한 임시 대상 미존재를 확인했다.
 - 격리 QA 자원: Git HEAD의 tracked source만 `D:\tmp\shoppingmall2-s11-clean-c7e14a59.tar`와 `D:\tmp\shoppingmall2-s11-clean-c7e14a59\`에 일시 추출한다. 이는 새 Git branch/worktree가 아니며 현재 작업 checkout과 WSL DB/서버에 쓰지 않는다. `pnpm install --frozen-lockfile --offline`부터 시도하고 루트 test/typecheck/lint/build를 명령별 종료 코드로 기록한다. 설치가 실제로 필요한 원격 패키지 때문에 실패하면 외부 저장소 경계를 확인해 원인을 기록하며 성공으로 간주하지 않는다. 시험 종료 시 절대경로·내용·소유를 재확인한 정확한 임시 archive/폴더만 제거하고 부재를 확인한다. GitHub CI 실제 job, DB/브라우저, Android native·인수 결과는 이 시험과 별개다. 현재 오류 0·같은 근본 원인 반복 0.
+- 실행 결과: 계획 기록 커밋 `acabac2bfc891bd5db19e67e68ade1df1da301ff`의 tracked source를 격리 추출했다. Node 24.18.0/pnpm 11.19.0에서 `pnpm install --frozen-lockfile --offline`은 lockfile 검증·643개 패키지 로컬 store 재사용, 다운로드 0, 종료 코드 0. 격리 루트 `pnpm test` 174건 중 144 pass·30 DB/환경 skip·0 fail, PR 본문 검사 8 pass·0 fail; `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 종료 코드 0(Next 12개 경로). 임시 archive 2,027,520바이트, 추출 디렉터리는 `.git` 없는 비재분석점으로 확인한 뒤 정확한 `D:\tmp` 두 대상만 제거했고 둘 다 부재. 작업 브랜치 파일·WSL DB/서비스는 변경하지 않았다. 실행 오류·동일 근본 원인 반복 0.
+- 판정/다음: S1.1의 깨끗한 소스 frozen 설치·로컬 검사 재현 증거는 확보했다. 로컬 30 skip을 DB PASS로 보지 않으며 GitHub CI 실제 job·별도 S1 Stage PR/merged-main smoke는 미검증이다. 다른 S1/S2 계약·전체 개발 완료는 이 검증의 범위 밖이다. 다음은 계획 순서상 가능한 S1.1 CI 실제 상태와 S1.2/1.3 잔여를 권한 경계 안에서 확인한다.
 
 ## 진행 중 — 2026-09-29 S2.2 상품 수정안 편집 후 기존 공개값 유지 화면 QA
 
