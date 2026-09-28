@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.2 상품 수정안 편집 후 기존 공개값 유지 화면 QA
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@b14fc0dd6642ba5c7d47f0a9747b9250b4336506`. 이미 승인된 판매 중 상품의 비공개 수정안 생성/편집 API·화면을 실제 브라우저에서 연결해 확인한다. 새로운 제품 코드/schema/API/권한 변경은 없다. 지정 WSL checkout 동일 SHA·clean, 9091/9092 listener와 계획한 전용 컨테이너 0, 개발 DB accounts/products/revisions `0/0/0`을 사전 확인했다.
+- QA 자원 계획: 고유 ID `9e7c42b1`의 가상 계정 5개·판매자 3개·공개 가상 고추 1개를 기존 `qa-public-fixture.ts`로 정확한 `WSL-server`의 `local-postgres/shoppingmall`에 시험 중에만 만든다. Node 24 자동 제거 빌드 컨테이너, loopback 9091/9092의 `shoppingmall-s22-edit-9e7c-web`/`shoppingmall-s22-edit-9e7c-api`, 새 Chrome 시험 탭 1개를 사용한다. 판매자 로그인→수정안 생성→제목·500g 가격 변경·저장→고객 상세의 기존 제목·23,000원·재고 5개 유지와 DB 공개/비공개 개정 분리를 대조한다. 실제 사진/결제/실계정 없음. 끝나면 정확한 탭·컨테이너만 종료, 같은 QA ID만 fixture reset, DB/포트/컨테이너/checkout 잔류 0을 확인한다. 실패 시 같은 범위만 정리하고 미검증으로 남긴다. 실행 오류 0, 반복 근본 원인 0.
+
 ## 진행 중 — 2026-09-28 S2.4 검색 중복 페이지 종료 경계
 
 - 담당/범위: 어울 단일 writer, `codex/flat-v2-prototypes@21eecc26f8a512d42e00f6700e8bdea6f556a982`. 기존 공개 검색의 `더 보기`가 이미 표시된 24개만 다시 받으면 중복 상품은 숨기지만 다음 페이지 버튼을 계속 노출하는 경계를 보강한다. 승인된 S2.4 검색 범위의 화면 내부 상태 계산과 시험만 변경하고 DB/schema/공개 API/권한·상품 자료는 변경하지 않는다.
