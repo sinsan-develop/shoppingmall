@@ -4,6 +4,8 @@
 
 - 담당/목적: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 과거 in-app browser에서는 키보드 확대가 배율을 바꾸지 않아 200%를 미검증으로 남겼다. 이번에는 기존 Chrome의 사용자 탭을 건드리지 않고 **새 시험 탭 하나**에서 실제 브라우저 확대 명령 및 현재 배율 신호를 확인한다. 배율이 실제 200%가 되지 않으면 viewport 축소를 대리 증거로 쓰지 않고 미검증을 유지한다. 제품 code/schema/API/DB 변경 없음.
 - 자원/수명: 지정 WSL checkout을 안전 commit/push 후 동일 SHA로 fast-forward하고 Node 24 자동 제거 웹 빌드 컨테이너 `shoppingmall-s24-zoom-build-20260929`, loopback 9091의 자동 제거 웹 `shoppingmall-s24-zoom-web-20260929`만 사용한다. QA DB seed·API/9092·사용자 탭·Oracle/운영 자료는 건드리지 않는다. 시작 전 전용 이름/포트/checkout과 DB accounts/products 0을 확인한다. 종료 시 시험 탭을 닫고 배율이 변했다면 원래 값으로 복원, 해당 웹 컨테이너만 stop/remove, 포트/DB/checkout 잔류를 확인한다. 오류·같은 근본 원인 반복 현재 0.
+- 실행/판정: 기록 commit `91abaed`를 WSL checkout에 fast-forward·clean, Node 24 exact-SHA Next 12경로 빌드 0, 임시 웹 `/` HTTP 200. 기존 사용자 Chrome 탭과 분리한 새 탭의 100% 기준 `devicePixelRatio=1`, `innerWidth=1928`, `clientWidth=scrollWidth=1913`을 측정했다. CUA의 `ctrl+plus`와 `ctrl+equal`을 각 1회 보냈으나 두 번 모두 dpr=1/폭 동일, 접근성 트리 변화도 없었다. 따라서 **실제 200% 확대 검증 미달**이며 640px viewport 시험을 그 증거로 대체하지 않는다. 같은 입력 경로의 실패 2회에서 재시도를 멈췄다. 확대가 적용되지 않아 복원할 배율 변경은 없었다.
+- 정리/다음: 새 시험 탭 종료, 정확한 `shoppingmall-s24-zoom-web-20260929`만 stop/`--rm` 제거, 해당 이름 컨테이너 0·9091 HTTP 미응답, DB accounts/products 각 0, 지정 WSL checkout `91abaed` clean. 사용자 탭·DB 자료·Oracle에는 영향 없음. 실제 200%는 사용자 수동 Chrome 배율 또는 별도 신뢰 가능한 브라우저 제어 경로로 후속 확인한다. 이번 실패는 제품의 200% 레이아웃 결함을 증명하지도 않는다. 오류/동일 원인 반복 2회, 3회 중단 기준 미도달.
 
 ## 진행 중 — 2026-09-29 S2.2 심사 사진 누락의 관리자 실브라우저 차단 QA
 
