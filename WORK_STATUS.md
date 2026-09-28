@@ -4,6 +4,7 @@
 
 - 담당/목적: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 신산님이 지역은 브랜드 표현일 뿐 상품 등록의 내부 제한이 없다고 결정한 계약을 기존 상품 초안 실DB 시험에서 명시한다. 현 QA 초안의 모호한 `전국 어느 산지` 대신 경남 밖 시험 산지 `강원 양양`을 사용하고 DB `origin_label` 보존을 단언한다. 제품 code/schema/API/권한 변경 없음.
 - 자원/검증: 기존 `product-drafts-db.test.mjs`의 고유 QA ID·`finally` 정리만 재사용. 기록 commit/push→지정 WSL checkout 동일 SHA의 Node 24 자동 제거 `shoppingmall-s21-origin-qa`에서 실 `local-postgres/shoppingmall` 연결 목표 시험 0 skip, 사전/사후 QA 계정·상품·개정·분류/감사·컨테이너 0 확인. 운영·Oracle/타 서비스와 host port 변경 없음. 실제 여러 지역 전체의 정책/상품 사진 승인은 별도 검증으로 남긴다. 오류·동일 근본 원인 반복 현재 0.
+- 결과/정리: 구문·diff check 0, 테스트/현황 commit `03c684725bcf45e8c53721b254115808f61e0ed2` SSH push→WSL 동일 SHA fast-forward·clean. 기존 DB 시험은 `강원 양양` 산지를 입력하고 `origin_label`이 그대로 저장됐는지 대조한다. Node 24 실DB 목표 시험 **1 pass·0 skip·0 fail**, 종료 코드 0. 사전/사후 account_identities/products/product_revisions/product_categories/audit_events 각 `0/0/0/0/0`, 해당 QA 컨테이너 `--rm` 잔류 0, WSL checkout clean. 제품/API/schema 변경 없음, 실행 오류·같은 원인 반복 0. 이는 지역 비제한 샘플 한 건의 증거이지 전국 모든 상품이나 실제 승인/인수 증거가 아니다.
 
 ## 진행 중 — 2026-09-29 S2.1 소분류 유효성 실DB·HTTP 보강
 
