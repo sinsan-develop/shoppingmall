@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.2 판매중지 API 승인·기준선 동기화
+
+- 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes` worktree. 신산님이 판매자 요청→관리자 승인/반려→승인 시 신규 구매 차단의 권장안에 필요한 새 API 추가를 직접 승인했다. 재시작 후에도 요청·결정·사유를 보존할 별도 DB 테이블/migration의 승인 포함 여부는 정확히 질문했고 답변 전에는 schema/API 제품 코드를 변경하지 않는다. 승인 전 기존 공개 상품 유지, 기존 주문·재고·감사 이력 보존이 목표다.
+- Git 판정: 원격 `main@618c7ab`은 같은 작업 브랜치의 앞선 PR #4를 이미 병합했고 현재 브랜치에는 그 뒤 후속 commit이 있어 양쪽이 분기됐다. 기존 브랜치의 clean 상태와 merge-tree 충돌 0을 확인한 후 `git merge --no-edit origin/main`으로 현재 브랜치에 정상 병합했다. 새 브랜치/worktree, `main` 직접 커밋, force push 없음. 병합 commit `2a1d2f9`이며 원격 작업 브랜치 push/WSL 동기화는 이 기록 시점 미실행이다.
+- 병합 후 로컬 검증: `pnpm test` 174건 중 144 pass·30 DB/환경 skip·0 fail, PR 본문 검사 8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 종료 코드 0, Next 12개 경로. 이 결과는 DB 연결 30건·GitHub CI 실제 job·WSL exact-SHA·브라우저/사용자 인수를 증명하지 않는다. 이번 동기화 오류 0, 같은 근본 원인 반복 0.
+- 다음: 이 기록을 안전한 commit으로 만든 뒤 승인된 SSH 원격에 작업 브랜치를 push하고 지정 WSL checkout에서 exact-SHA DB 회귀를 수행한다. 판매중지 schema 포함 답변이 오면 그 범위에 한해 RED→GREEN으로 구현한다. 승인받지 않은 DB 변경은 계속 보류하고 S1/S2 독립 미완료 작업을 진행한다.
+
 ## 진행 중 — 2026-09-29 S1.1 깨끗한 소스 설치·빌드 재현
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@74fe9bc11dd2babf5fbd935b0db19500e616b622`. 계획서 S1.1의 clean checkout frozen 설치/테스트/typecheck/lint/build 증거를 만든다. 제품 코드·schema/API/권한은 변경하지 않는다. 현재 branch clean, Node 24.18.0·pnpm 11.19.0, `D:\tmp` 가용·약 198GB 여유, 정확한 임시 대상 미존재를 확인했다.
