@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S2.2 관리자 상품 반려 실제 화면 검증
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@d0d696f`. 기존 관리자 반려 API·DB 시험과 관리자 화면은 구현되어 있으나 실제 브라우저에서 사유 입력→반려→공개 차단의 증거가 없다. 제품 코드/schema/API를 변경하지 않는 독립 QA다.
+- QA 자원 계획: 고유 ID `f2e9c4a1`의 가상 계정 5개·판매자 3개·대기 상품 1개·메타데이터 전용 가상 사진 1행을 `qa-review-fixture.ts seed`로 `WSL-server`의 `local-postgres/shoppingmall`에만 생성한다. 이미지 파일/실계정/실판매/실결제는 사용하지 않는다. 동일 SHA의 WSL 빌드용 자동 제거 컨테이너 `shoppingmall-s22-reject-build-f2e9`, loopback 9091/9092의 `shoppingmall-s22-reject-web-f2e9`·`shoppingmall-s22-reject-api-f2e9`, 새 시험 Chrome 탭 1개를 시험 중에만 사용한다. 관리자 로그인→사유 입력→반려 메시지, DB rejected/공개 0/감사 근거를 대조한다. 종료 시 탭과 정확한 두 실행 컨테이너만 종료하고 동일 ID fixture reset 뒤 계정·상품·이미지·감사·포트/컨테이너·Git 잔류를 확인한다. 생성 직전 점유를 다시 읽는다. 오류 0, 반복 근본 원인 0.
+
 ## 진행 중 — 2026-09-28 S2.2 상품 수정안 실브라우저 QA 선행 fixture 정리 경계
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@bbe58a0`. 신산님이 승인한 판매 중 상품 수정안 API·UI의 실제 화면 시험을 준비한다. 현재 `qa-public-fixture.ts reset`은 최초 revision만 가정해 추가 수정안이 생기면 QA 상품 삭제가 실패할 수 있다. 제품 schema/API/권한은 변경하지 않고 **고유 QA seller/category/product에 속한 모든 revision만** 정리하도록 시험 도구를 보강한다.
