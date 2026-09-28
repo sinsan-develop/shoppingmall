@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.2 기존 검증 커밋 사진 버튼 실브라우저 보강
+
+- 담당/경계: 어울 단일 writer. 현 로컬 작업 브랜치 `codex/flat-v2-prototypes@11907da`는 원격보다 3커밋 앞서며 push가 자동 안전 검토에서 2회 거부됐다. 이 변경의 실DB 검증은 진행하지 않는다. 사진 버튼 코드는 이미 지정 WSL checkout의 깨끗한 `da56a39c6643f4ea22ba445604d7eaf8da888664`에 있으므로 그 **이전 커밋의 기존 코드만** 독립 시험한다. 새 변경의 통합 증거로 승격하지 않는다.
+- QA 자원/사전 상태: `WSL-server`의 지정 `/home/daon/deploy/shopping`과 `local-postgres/shoppingmall`만 사용. 9091/9092 listener·전용 shoppingmall 컨테이너 0, accounts/sellers/products/product_images/audit_events `0/0/0/0/0`. 고유 `QA_RUN_ID=c9e2b6a4`의 기존 `qa-public-fixture.ts` 가상 고객/판매자/관리자 계정과 공개 상품 1개를 시험 중에만 생성한다. 전용 Node24 자동 제거 API/Web 컨테이너 `shoppingmall-s22-photo-api-c9e2`/`shoppingmall-s22-photo-web-c9e2`, 필요 시 동일 접두사의 build 컨테이너, 루프백 9091/9092, 전용 `/tmp/shoppingmall-upload-photo-c9e2b6a4` 저장소, 새 브라우저 시험 탭 1개만 사용한다. 테스트 비밀번호는 가상 계정 전용이며 Git/문서에는 쓰지 않는다.
+- 시험/정리: 가상 판매자 A로 기존 공개 상품의 비공개 수정안 생성→기존 승인 사진과 무관한 비공개 시험 사진 업로드→사진 목록의 `사진 1 위로 이동`/`사진 1 아래로 이동`/`사진 1 제거` 접근성 이름, 필요하면 두 번째 사진으로 행별 이름·키보드 조작을 확인한다. 비공개 사진만 사용하고 실제 승인/고객 공개·실결제 없음. 종료 시 시험 탭·정확한 전용 컨테이너만 닫고 `QA_RUN_ID=c9e2b6a4` fixture reset, 전용 이미지 object key/저장소만 정리한다. 계정/판매자/분류/상품/개정/옵션/공개/이미지/감사 행과 포트·컨테이너 잔류 0, WSL checkout SHA/clean을 대조한다. 실패 시 수행된 범위와 오류 횟수를 추가 기록하고 미검증으로 남긴다.
+- 실제 결과: 이전 WSL SHA `da56a39c6643f4ea22ba445604d7eaf8da888664`에서 Node 24 production 웹 빌드 0, API `/ready` 정상/웹 `/login` 200. QA `c9e2b6a4`의 공개 상품에 비공개 수정안과 PNG 업로드 2건을 만들고 판매자 시험 계정으로 실제 브라우저 로그인했다. 등록 사진 관리의 접근성 트리에서 1·2번 사진마다 위로/아래로/제거 버튼의 행별 이름과 양끝 이동 버튼의 비활성 상태를 확인했다. `사진 2 위로 이동`에 Enter를 입력하자 사진 순서가 바뀌고 버튼 이름도 현재 행 번호로 갱신됐으며, 다시 Enter로 원래 순서로 되돌렸다. 사진 제거·순서 저장·관리자 승인/고객 공개는 실행하지 않았다. 이는 이전 SHA의 사진 UI만 검증하며 로컬 판매중지 신규 코드의 통합/실DB/실브라우저 검증은 아니다.
+- 자원 정리/오류: 새 시험 탭 종료, 정확한 QA API/Web 컨테이너 2개 stop/자동 제거, fixture `reset:true`, 전용 `/tmp/shoppingmall-upload-photo-c9e2b6a4`의 실제 경로와 사진 2개를 확인한 후 해당 폴더만 제거했다. 사후 account_identities/sellers/product_categories/products/product_revisions/product_options/product_publications/product_images/audit_events `0/0/0/0/0/0/0/0/0`, 전용 컨테이너·업로드 폴더 잔류 0, 로컬 9091/9092 포트 미응답, WSL checkout 구 SHA/clean. 경로 확인용 일회성 PowerShell→SSH 인용 오류 1회 후 읽기 전용 재확인에 성공했으며 제품 실패 아님·같은 근본 원인 반복 0. 새 판매중지 DB 시험은 원격 전송 게이트로 여전히 미검증이다.
+
 ## 진행 중 — 2026-09-29 S2.2 판매중지 요청·관리자 결정
 
 - 담당/승인: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 신산님이 판매중지 신규 API와 `shoppingmall` 개발 DB 전용 테이블·마이그레이션을 각각 직접 승인. 기존 분리 worktree만 사용한다. Superpowers 계획 형식은 정본 `docs/WORK_PLAN.md`의 Stage 표와 다르므로 계획 추적은 PMO 지정 `WORK_STATUS.md`에 이어 적고 새 worktree나 중복 계획 파일은 만들지 않는다.
