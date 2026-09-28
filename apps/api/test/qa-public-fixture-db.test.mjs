@@ -76,3 +76,55 @@ test('public browser fixture can seed 25 paginated products and remove only its 
     await pool.end();
   }
 });
+
+test('public browser fixture reset removes a QA product after a private second revision exists', {
+  skip: !process.env.DATABASE_URL,
+}, async () => {
+  const runId = randomBytes(4).toString('hex');
+  const { runQaPublicFixture } = await import('../scripts/qa-public-fixture.ts');
+  const { runQaFixture } = await import('../scripts/qa-fixture.ts');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  let productId;
+  let cleaned = false;
+  try {
+    const seeded = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
+    productId = seeded.productId;
+    const account = await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [`qa+${runId}-seller-a@example.invalid`]);
+    const draft = await pool.query(
+      `INSERT INTO product_revisions(product_id,version,title,description,origin_label,shipping_mode,status,proposed_by_account_id)
+       VALUES ($1,2,$2,'QA private revision','경남 진주','seller_direct','draft',$3) RETURNING id`,
+      [productId, `qa-${runId}-public-chili`, account.rows[0].account_id],
+    );
+    await pool.query('INSERT INTO product_options(revision_id,name,price_won,display_order) VALUES ($1,$2,$3,0)',
+      [draft.rows[0].id, '500g', 25000]);
+    await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
+    const remaining = await pool.query(`SELECT
+      (SELECT count(*)::int FROM products WHERE id=$1) AS products,
+      (SELECT count(*)::int FROM product_revisions WHERE product_id=$1) AS revisions,
+      (SELECT count(*)::int FROM account_identities WHERE identifier=$2) AS accounts`,
+    [productId, `qa+${runId}-seller-a@example.invalid`]);
+    assert.deepEqual(remaining.rows[0], { products: 0, revisions: 0, accounts: 0 });
+    cleaned = true;
+  } finally {
+    if (!cleaned && productId) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
+        await client.query(`DELETE FROM inventory_levels WHERE option_id IN
+          (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)`, [productId]);
+        await client.query(`DELETE FROM product_options WHERE revision_id IN
+          (SELECT id FROM product_revisions WHERE product_id=$1)`, [productId]);
+        await client.query('DELETE FROM product_revisions WHERE product_id=$1', [productId]);
+        await client.query('DELETE FROM products WHERE id=$1', [productId]);
+        await client.query('DELETE FROM product_categories WHERE name=$1', [`qa-${runId}-public-minor`]);
+        await client.query('DELETE FROM product_categories WHERE name=$1', [`qa-${runId}-public-major`]);
+        await client.query('COMMIT');
+      } catch (error) { await client.query('ROLLBACK'); throw error; }
+      finally { client.release(); }
+      await runQaFixture('reset', runId, process.env.DATABASE_URL);
+    }
+    await pool.end();
+  }
+});

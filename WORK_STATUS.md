@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-28 S2.2 상품 수정안 실브라우저 QA 선행 fixture 정리 경계
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@bbe58a0`. 신산님이 승인한 판매 중 상품 수정안 API·UI의 실제 화면 시험을 준비한다. 현재 `qa-public-fixture.ts reset`은 최초 revision만 가정해 추가 수정안이 생기면 QA 상품 삭제가 실패할 수 있다. 제품 schema/API/권한은 변경하지 않고 **고유 QA seller/category/product에 속한 모든 revision만** 정리하도록 시험 도구를 보강한다.
+- RED/GREEN 계획: `qa-public-fixture-db.test.mjs`에 고유 무작위 QA ID의 공개 상품을 seed한 뒤 두 번째 비공개 revision과 옵션을 만들고 reset이 계정·상품·개정·옵션·분류까지 제거하는 시험을 먼저 추가한다. RED 시 정확한 상품 ID·run ID만 별도 안전 정리하고 전체 DB를 초기화하지 않는다. WSL 지정 `local-postgres/shoppingmall`에서 시험하고 사후 계정·상품·개정·이미지·감사 이력 0을 확인한다. 실제 브라우저 검증은 fixture 정리 GREEN 뒤 같은 SHA로 진행한다. QA 자료는 시험 중에만 존재하고 비밀번호·DB URL은 기록하지 않는다. 현재 기능 오류 0, 반복 근본 원인 0.
+
 ## 진행 중 — 2026-09-28 S2.2 승인된 판매 중 상품 수정안 API·화면
 
 - 담당/승인: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@a3ca4db`. 신산님이 권장안의 신규 `POST /catalog/seller/products/:productId/revisions` 추가를 직접 승인했다. 이는 판매자가 **자기 판매 중 상품**의 비공개 수정안을 만드는 좁은 범위이며, 취소·판매중지·다른 Stage의 지속 API/schema까지 승인한 것은 아니다. 기존 `ProductDrafts.createRevision`과 공개 승인 경계를 재사용한다.
