@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S1.3 탈퇴 요청 확인의 안전한 키보드 기본 포커스
+
+- 담당/근거: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 고객 탈퇴 요청은 운영 검토용 접수이며 실제 계정 삭제는 별개다. 현재 확인 단계의 위험한 `요청 접수 확인` 버튼에 `autoFocus`가 있어 Enter 재입력으로 의도치 않은 접수가 가능하다. 기존 기능/문구/서버 권한은 그대로 두고 자동 포커스만 `취소`로 이동한다. 이는 S1.3 UI 안전성·접근성 범위이며 제품 API/schema/DB/Secret 변경 없음.
+- 검증 계획: 기존 `customer-profile.test.mjs`에 확인 버튼 자동 포커스 금지·취소 버튼 자동 포커스 RED를 먼저 작성하고, `deletion-request-controls.tsx`만 수정해 GREEN. 전체 로컬 test/typecheck/lint/build, 기존 WSL exact-SHA DB 시험 및 가상 고객 실브라우저 흐름은 별도 범위로 구분한다. 적용 전/후 diff, 실패 횟수·미검증·rollback은 아래에 기록한다. 현재 오류/같은 원인 반복 0.
+- RED→GREEN/변경 전후: 기존 HTML은 확인 버튼 `autofocus`이며 취소 버튼은 포커스 없음. 이 상태에서 새 목표 시험 2건 중 1건 실패(예상 RED)했고, 컴포넌트의 `autoFocus` 속성만 확인→취소로 옮기자 2 pass·0 skip·0 fail. 변경 파일 `deletion-request-controls.tsx`와 `customer-profile.test.mjs`, 현황. 기존 탈퇴 접수 API·문구·권한은 변경하지 않았다. 로컬 전체 `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 종료 코드 0(Next 12경로); 로컬 DB skip은 별도 유지. 실행 오류 0, 같은 원인 반복 0.
+- 실브라우저 QA 계획: 안전 commit/push→지정 WSL checkout 동일 SHA. 고유 QA ID `f09a82c1`의 `qa+…@example.invalid` 5가상 계정/3판매자만 기존 `qa-fixture.ts`로 `local-postgres/shoppingmall`에 시험 중 생성하고, Node 24 자동 제거 build/API/Web `shoppingmall-s13-focus-build-f09a`/`shoppingmall-s13-focus-api-f09a`/`shoppingmall-s13-focus-web-f09a`, loopback 9091/9092, 새 in-app browser 시험 탭 1개를 쓴다. 사전 정확한 이름·포트/DB 0 확인. 가상 고객 로그인→탈퇴 요청 접수→초점 취소→Enter 취소→DB account_deletion_requests 0을 확인한다. **실제 가상 계정 삭제/탈퇴 처리하지 않음**. 끝나면 탭/두 컨테이너만 종료하고 ID `f09a82c1`만 reset, DB 계정/탈퇴 요청/audit·포트·컨테이너/checkout 잔류 0 확인. 비밀번호/DB URL 출력·문서화 금지, 다른 서비스 변경 없음.
+
 ## 진행 중 — 2026-09-29 S2.4 공통 키보드 본문 건너뛰기
 
 - 담당/근거: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 승인된 실제 제품 접근성 점검에서 모든 구매자/판매자/운영자 화면에 `<main>`은 있으나 첫 키보드 포커스로 헤더/검색·메뉴를 건너뛸 공통 링크가 없음을 확인했다. 사용한 `web-design-guidelines`의 현행 규칙은 skip link와 가시적인 focus 상태를 요구한다. React 성능 스킬 기준에서는 기존 서버 layout의 정적 링크만 쓰며 새 클라이언트 상태/번들을 만들지 않는다.

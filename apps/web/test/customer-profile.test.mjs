@@ -23,5 +23,7 @@ test('deletion request requires an in-page confirmation with cancel and explicit
   assert.match(confirmation, /실제 계정 삭제는 운영 검토 후 진행됩니다/);
   assert.match(confirmation, /요청 접수 확인/);
   assert.match(confirmation, /취소/);
+  assert.doesNotMatch(confirmation, /<button[^>]*autofocus[^>]*>요청 접수 확인<\/button>/i);
+  assert.match(confirmation, /<button[^>]*autofocus[^>]*>취소<\/button>/i);
   assert.doesNotMatch(confirmation, /window\.confirm/);
 });
