@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S1.2 역할별 실제 브라우저 경계 QA 준비
+
+- 담당/목적: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`의 현재 기능 commit. S1.2 자동 권한 회귀와 별도로 고객·판매자·관리자 로그인 화면 및 다른 역할 URL의 권한 없음 표시를 실제 브라우저에서 확인한다. 제품/schema/API/권한 코드는 바꾸지 않는다. 판매중지 DB 범위 응답과 독립적인 기존 기능 QA다.
+- 사전 읽기 전용 확인: 지정 WSL checkout `63cc3ce` clean, 원격 작업 브랜치는 이 기록 시점 `19263b2`이고 차이는 현황 문서뿐이다. `local-postgres/shoppingmall` accounts/sellers/products/revisions/images/audit 각 0행, 9091/9092 listener 0. 기존 DB 네트워크 `postgres_env_default`와 Node 24 이미지가 있으며 타 프로젝트 컨테이너는 유지한다.
+- QA 자원/수명: 고유 `QA_RUN_ID=c834ad10`의 `qa+…@example.invalid` 가상 계정 5개(고객·판매자 A/B·어울몰 판매자·관리자)와 판매자 3개를 기존 `qa-fixture.ts`로 정확한 개발 DB에 시험 중에만 생성한다. 저장소의 같은 SHA를 Web/API 빌드하기 위한 자동 제거 `shoppingmall-s12-role-build-c834`, loopback 9091/9092의 자동 제거 API/Web `shoppingmall-s12-role-api-c834`·`shoppingmall-s12-role-web-c834`, 새 시험 브라우저 탭 1개만 쓴다. 실제 계정·결제·상품 없음. 시작 직전 이름·포트·DB 빈 상태를 다시 확인하고, 끝나면 시험 탭/정확한 두 실행 컨테이너만 종료하고 `c834ad10`만 reset하여 accounts/sellers/audit·포트/컨테이너/checkout 잔류 0을 확인한다. 시험 자격정보 원문은 기록하지 않는다. 오류·동일 근본 원인 반복 현재 0.
+- 목표/미검증: 세 역할 각각 자기 화면 접근, 고객이 판매자/관리자 URL로 직접 진입 불가, 판매자가 관리자 URL로 직접 진입 불가, 로그아웃 후 비공개 자료 비노출을 브라우저 화면과 API/DB로 대조한다. 브라우저 환경에서 막히면 그 범위는 미검증으로 남기며 자동 시험을 실제 화면 증거로 승격하지 않는다.
+
 ## 진행 중 — 2026-09-29 S2.2 판매중지 API 승인·기준선 동기화
 
 - 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes` worktree. 신산님이 판매자 요청→관리자 승인/반려→승인 시 신규 구매 차단의 권장안에 필요한 새 API 추가를 직접 승인했다. 재시작 후에도 요청·결정·사유를 보존할 별도 DB 테이블/migration의 승인 포함 여부는 정확히 질문했고 답변 전에는 schema/API 제품 코드를 변경하지 않는다. 승인 전 기존 공개 상품 유지, 기존 주문·재고·감사 이력 보존이 목표다.
