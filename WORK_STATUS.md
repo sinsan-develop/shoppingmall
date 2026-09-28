@@ -1,10 +1,11 @@
 # 어울몰 작업현황
 
-## 진행 중 — 2026-09-29 S1.2 계정 자동 병합 금지·명시 연결 실DB 회귀
+## 검증 완료 — 2026-09-29 S1.2 계정 자동 병합 금지·명시 연결 실DB 회귀
 
 - 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 기존 S1 계정 계약에서 이메일 계정과 별도 휴대폰 가입 계정은 합쳐지지 않으며, 다른 계정의 번호 연결은 거부하고 미사용 번호만 현재 고객 계정에 명시 연결된다는 DB 회귀를 보강한다. 제품 API/schema/Secret/권한 코드는 변경하지 않는다.
 - 변경/검증: `apps/api/test/auth-db.test.mjs`에 고유 QA 이메일과 두 가상 번호로 분리 가입·중복 연결 거부·명시 연결 후 로그인 계정 ID를 대조하는 시험을 추가했다. `DATABASE_URL` 없는 로컬 실행은 skip으로 명시한다. 안전 commit/push 후 지정 WSL checkout exact SHA의 `local-postgres/shoppingmall`에서 목표 시험 0 skip을 요구한다. 시험 계정·세션·감사 행은 `finally`로 각 정확한 account ID만 정리하고 사전/사후 DB 행 수를 비교한다. 별도 호스트 포트, 외부 계정, 운영 자료 없음. 현재 실행 오류·같은 원인 반복 0.
 - 로컬 검사: `node --check`·`git diff --check` 0. 루트 `pnpm test` 176건 중 145 pass·31 DB/환경 skip·0 fail, 별도 PR 본문 8 pass·0 fail. 새 DB 시험은 로컬에서 skip이므로 통과 증거로 쓰지 않는다. `pnpm typecheck`와 `pnpm lint`는 각각 0. 첫 `pnpm build`는 D: `.next/trace` 쓰기 EPERM으로 종료 코드 1(제품 오류 아님), 허용된 같은 작업 경로에서 재실행한 빌드는 종료 코드 0·Next 12경로. 빌드 쓰기 권한 오류 1회, 동일 원인 반복 0. 다음은 안전 commit/push와 WSL exact-SHA 실DB 목표 시험이다.
+- WSL 실DB 검증/정리: 시험·계획 commit `368ddd364e30bd3a517c6a06a48977ab76994b54`를 승인된 SSH 별칭으로 push하고 지정 WSL checkout을 `git pull --ff-only`해 동일 SHA·clean을 확인했다. 실행 전 accounts 관련 identities/sessions/audit `0/0/0`. Node 24 자동 제거 `shoppingmall-s12-authlink-368d`에서 실 `local-postgres/shoppingmall`을 연결해 `auth-db.test.mjs` **2 pass·0 skip·0 fail**, 종료 코드 0. 분리 전화 가입과 이메일 계정 ID 불일치, 다른 계정 번호 연결 거부, 미사용 번호 명시 연결 뒤 원래 이메일 계정으로 휴대폰 로그인됨을 단언했다. 종료 후 accounts/identities/sessions/audit `0/0/0/0`, 해당 컨테이너 잔류 0, WSL checkout clean·동일 SHA. 본 시험의 제품 오류·반복 원인 0. 외부 SMS 본인 확인·실계정 연결·전체 S1 인수는 이 시험으로 증명되지 않는다.
 
 ## 검증 완료 — 2026-09-29 S1.3 탈퇴 요청 확인의 안전한 키보드 기본 포커스
 
