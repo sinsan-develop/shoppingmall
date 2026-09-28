@@ -5,6 +5,7 @@
 - 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 판매자 상품 초안의 사진마다 `위로`·`아래로`·`사진 제거`, 옵션마다 `옵션 제거`가 반복되어 화면낭독기 버튼 목록에서 대상 행을 구별하기 어렵다. 기존 표시 문구·DOM 버튼·기능·디자인은 유지하고 버튼의 접근 가능한 이름에 1부터 시작하는 행 번호만 추가한다. API/schema/DB/Secret/권한 변경 없음.
 - TDD/검증: `apps/web/test/seller-products.test.mjs`에 사진 이동·제거와 옵션 제거의 행별 `aria-label` 구조 단언을 먼저 추가해 기존 8건 중 1건 의도한 RED, 이어 `apps/web/app/account/seller/products/page.tsx`의 두 옵션 양식과 사진 버튼 3종에 `aria-label` 추가 후 목표 8 pass·0 fail. 파일 diff·전체 test/typecheck/lint/build 및 WSL exact-SHA production 빌드/브라우저는 별도로 확인한다. 현 제품 오류 0, 의도한 RED 1회, 동일 근본 원인 반복 0. 사진 실제 삭제·재정렬/업로드는 이 변경의 시험 범위가 아니다.
 - 로컬 결과: 두 옵션 양식 모두 같은 행별 이름을 갖도록 단언을 보강했다. 루트 `pnpm test` 종료 코드 0(로컬 DB/환경 시험 skip은 별도), `pnpm typecheck`·`pnpm lint` 0, 허용된 D: 경로 `pnpm build` 0/Next 12경로. 새 제품 오류 0. 실제 로그인 뒤 비공개 사진 목록의 화면낭독기 AX 이름은 사진이 있는 가상 초안 브라우저 환경을 별도 구성해야 하므로 이번 구조 시험을 그 증거로 승격하지 않는다. 다음은 안전 commit/push 및 지정 WSL exact-SHA build 후 QA 자원을 정리한다.
+- WSL exact-SHA/정리: `c366d748bde402e957c83a6b4f3faea0739295aa`를 승인된 SSH 별칭으로 push→지정 checkout `git pull --ff-only` 동일 SHA·clean. 기존 Node 24 이미지의 자동 제거 `shoppingmall-s22-a11y-build-c366`에서 Next production 12경로 빌드 종료 코드 0. 전용 컨테이너 잔류 0, checkout clean·동일 SHA. QA 계정/DB 자료·호스트 포트는 만들지 않았다. 실제 판매자 로그인·사진 목록 AX/키보드 조작은 별도 시험이 필요하며 이 빌드로 통과 처리하지 않는다. 실행 오류·동일 근본 원인 반복 0.
 
 ## 검증 완료 — 2026-09-29 S1.2 계정 자동 병합 금지·명시 연결 실DB 회귀
 
