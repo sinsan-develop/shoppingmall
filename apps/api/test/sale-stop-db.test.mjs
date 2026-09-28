@@ -14,7 +14,7 @@ test('seller stop requests wait for operator; rejection preserves sale and appro
   const tag = randomUUID().slice(0, 8);
   const accounts = [];
   let sellerCategoryId; let sellerId; let otherSellerId; let majorId; let minorId;
-  let productId; let revisionId; let optionId;
+  let productId; let revisionId; let optionId; let replacementRevisionId; let replacementOptionId;
   let app;
   try {
     const auth = new AuthRepository(pool);
@@ -111,6 +111,25 @@ test('seller stop requests wait for operator; rejection preserves sale and appro
     assert.equal(stopped.options[0].sellableQuantity, 0);
     assert.equal((await pool.query('SELECT sellable_quantity FROM inventory_levels WHERE option_id=$1', [optionId])).rows[0].sellable_quantity, 5);
     assert.equal((await pool.query('SELECT revision_id FROM product_publications WHERE product_id=$1', [productId])).rows[0].revision_id, revisionId);
+    await pool.query('UPDATE inventory_levels SET on_hand_quantity=9,sellable_quantity=9 WHERE option_id=$1', [optionId]);
+    assert.equal((await publicProducts.get(productId)).options[0].sellableQuantity, 0);
+    assert.deepEqual(await publicProducts.list({ query: `qa-${tag}-고추` }), []);
+    replacementRevisionId = (await pool.query(`INSERT INTO product_revisions
+      (product_id,version,title,description,origin_label,shipping_mode,status,proposed_by_account_id)
+      VALUES ($1,2,$2,'수정 설명','전국','seller_direct','approved',$3) RETURNING id`,
+    [productId, `qa-${tag}-고추 수정`, accounts[0]])).rows[0].id;
+    replacementOptionId = (await pool.query('INSERT INTO product_options(revision_id,name,price_won) VALUES ($1,$2,$3) RETURNING id',
+      [replacementRevisionId, '500g', 25000])).rows[0].id;
+    await pool.query('INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity) VALUES ($1,10,10)',
+      [replacementOptionId]);
+    await pool.query('UPDATE product_publications SET revision_id=$2 WHERE product_id=$1',
+      [productId, replacementRevisionId]);
+    const revisedStopped = await publicProducts.get(productId);
+    assert.equal(revisedStopped.revisionId, replacementRevisionId);
+    assert.equal(revisedStopped.saleStopped, true);
+    assert.equal(revisedStopped.options[0].priceWon, 25000);
+    assert.equal(revisedStopped.options[0].sellableQuantity, 0);
+    assert.deepEqual(await publicProducts.list({ query: `qa-${tag}-고추` }), []);
     assert.deepEqual((await stops.listOwn(seller)).map((r) => r.status), ['approved', 'rejected']);
     assert.equal((await stops.listOwn(other)).length, 0);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM audit_events WHERE target_id=ANY($1::text[])',
@@ -121,8 +140,11 @@ test('seller stop requests wait for operator; rejection preserves sale and appro
     if (productId) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
     if (accounts.length) await pool.query('DELETE FROM audit_events WHERE actor_account_id=ANY($1::uuid[])', [accounts]);
     if (optionId) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [optionId]);
+    if (replacementOptionId) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [replacementOptionId]);
     if (optionId) await pool.query('DELETE FROM product_options WHERE id=$1', [optionId]);
+    if (replacementOptionId) await pool.query('DELETE FROM product_options WHERE id=$1', [replacementOptionId]);
     if (revisionId) await pool.query('DELETE FROM product_revisions WHERE id=$1', [revisionId]);
+    if (replacementRevisionId) await pool.query('DELETE FROM product_revisions WHERE id=$1', [replacementRevisionId]);
     if (productId) await pool.query('DELETE FROM products WHERE id=$1', [productId]);
     if (minorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [minorId]);
     if (majorId) await pool.query('DELETE FROM product_categories WHERE id=$1', [majorId]);
