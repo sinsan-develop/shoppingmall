@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.1 전국 산지 비제한 상품 초안 회귀
+
+- 담당/목적: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 신산님이 지역은 브랜드 표현일 뿐 상품 등록의 내부 제한이 없다고 결정한 계약을 기존 상품 초안 실DB 시험에서 명시한다. 현 QA 초안의 모호한 `전국 어느 산지` 대신 경남 밖 시험 산지 `강원 양양`을 사용하고 DB `origin_label` 보존을 단언한다. 제품 code/schema/API/권한 변경 없음.
+- 자원/검증: 기존 `product-drafts-db.test.mjs`의 고유 QA ID·`finally` 정리만 재사용. 기록 commit/push→지정 WSL checkout 동일 SHA의 Node 24 자동 제거 `shoppingmall-s21-origin-qa`에서 실 `local-postgres/shoppingmall` 연결 목표 시험 0 skip, 사전/사후 QA 계정·상품·개정·분류/감사·컨테이너 0 확인. 운영·Oracle/타 서비스와 host port 변경 없음. 실제 여러 지역 전체의 정책/상품 사진 승인은 별도 검증으로 남긴다. 오류·동일 근본 원인 반복 현재 0.
+
 ## 진행 중 — 2026-09-29 S2.1 소분류 유효성 실DB·HTTP 보강
 
 - 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. S2.1의 부모 없는 자식·빈 이름·같은 부모 중복 차단을 기존 분류 등록 DB/HTTP 시험에 명시한다. 기존 `catalog-http-db.test.mjs`의 무작위 QA 계정·분류 ID와 `finally` 정리를 재사용한다. 제품 code/schema/API/권한 변경 없음. 불변 계약 예상: 미존재 부모 400, 빈 소분류명 400, 같은 부모·이름 중복 409, 성공 행/감사 기록 수 불변.

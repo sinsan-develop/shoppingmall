@@ -31,7 +31,7 @@ test('a seller creates only its own non-public product draft in a minor category
     const drafts = new ProductDrafts(pool);
     const seller = { accountId, role: 'seller', sellerId: sellerA };
     const input = {
-      categoryId: minorId, title: '  시험 고추  ', description: '가상 농산물', originLabel: '전국 어느 산지',
+      categoryId: minorId, title: '  시험 고추  ', description: '가상 농산물', originLabel: '강원 양양',
       shippingMode: 'seller_direct', options: [{ name: '500g', priceWon: 23000 }],
     };
     await assert.rejects(drafts.create({ accountId, role: 'customer' }, input), /Forbidden/);
@@ -60,7 +60,7 @@ test('a seller creates only its own non-public product draft in a minor category
       [deletable.productId])).rows[0].total, 0);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM audit_events WHERE target_id=$1 AND action=$2',
       [deletable.productId, 'product.draft_delete'])).rows[0].total, 1);
-    const row = await pool.query(`SELECT p.seller_id, p.category_id, r.title, r.status, r.shipping_mode,
+    const row = await pool.query(`SELECT p.seller_id, p.category_id, r.title, r.status, r.shipping_mode, r.origin_label,
       o.name AS option_name, o.price_won FROM products p
       JOIN product_revisions r ON r.product_id=p.id JOIN product_options o ON o.revision_id=r.id WHERE p.id=$1`, [productId]);
     assert.equal(row.rows.length, 1);
@@ -69,6 +69,7 @@ test('a seller creates only its own non-public product draft in a minor category
     assert.equal(row.rows[0].title, '시험 고추');
     assert.equal(row.rows[0].status, 'draft');
     assert.equal(row.rows[0].shipping_mode, 'seller_direct');
+    assert.equal(row.rows[0].origin_label, '강원 양양');
     assert.equal(row.rows[0].price_won, 23000);
     assert.equal(typeof drafts.getEditable, 'function');
     const editable = await drafts.getEditable(seller, created.productId, created.revisionId);
