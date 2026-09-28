@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { mergeProductPage } from './search-pagination';
 
 type Category = { id: string; parentId: string | null; name: string };
 type Seller = { id: string; displayName: string };
@@ -164,19 +165,12 @@ export default function ProductsPage() {
       if (!response.ok) throw new Error('상품을 더 불러올 수 없습니다');
       const nextProducts: unknown = await response.json();
       if (!Array.isArray(nextProducts)) throw new Error('상품을 더 불러올 수 없습니다');
-      const existingIds = new Set(products.map((product) => product.productId));
-      const firstNew = nextProducts.find((product: Product) => !existingIds.has(product.productId));
-      setProducts((current) => {
-        const seen = new Set(current.map((product) => product.productId));
-        return [...current, ...nextProducts.filter((product: Product) => !seen.has(product.productId))];
-      });
+      const merged = mergeProductPage(products, nextProducts as Product[], nextPage);
+      setProducts(merged.products);
       pageRef.current = nextPage;
-      const nextHasMore = nextProducts.length === 24 && nextPage < 1000;
-      const ended = nextProducts.length === 0 || (!firstNew && !nextHasMore);
-      setHasMore(nextHasMore);
-      setEndOfResults(ended);
-      setFocusTarget(firstNew ? `product-link-${firstNew.productId}` :
-        ended ? 'search-end' : 'search-more');
+      setHasMore(merged.hasMore);
+      setEndOfResults(merged.ended);
+      setFocusTarget(merged.firstNewId ? `product-link-${merged.firstNewId}` : 'search-end');
     } catch {
       if (!controller.signal.aborted) {
         setLoadMoreError('상품을 더 불러올 수 없습니다. 다시 시도해 주세요');
