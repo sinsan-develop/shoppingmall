@@ -6,6 +6,8 @@
 - Git 판정: 원격 `main@618c7ab`은 같은 작업 브랜치의 앞선 PR #4를 이미 병합했고 현재 브랜치에는 그 뒤 후속 commit이 있어 양쪽이 분기됐다. 기존 브랜치의 clean 상태와 merge-tree 충돌 0을 확인한 후 `git merge --no-edit origin/main`으로 현재 브랜치에 정상 병합했다. 새 브랜치/worktree, `main` 직접 커밋, force push 없음. 병합 commit `2a1d2f9`이며 원격 작업 브랜치 push/WSL 동기화는 이 기록 시점 미실행이다.
 - 병합 후 로컬 검증: `pnpm test` 174건 중 144 pass·30 DB/환경 skip·0 fail, PR 본문 검사 8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 종료 코드 0, Next 12개 경로. 이 결과는 DB 연결 30건·GitHub CI 실제 job·WSL exact-SHA·브라우저/사용자 인수를 증명하지 않는다. 이번 동기화 오류 0, 같은 근본 원인 반복 0.
 - 다음: 이 기록을 안전한 commit으로 만든 뒤 승인된 SSH 원격에 작업 브랜치를 push하고 지정 WSL checkout에서 exact-SHA DB 회귀를 수행한다. 판매중지 schema 포함 답변이 오면 그 범위에 한해 RED→GREEN으로 구현한다. 승인받지 않은 DB 변경은 계속 보류하고 S1/S2 독립 미완료 작업을 진행한다.
+- WSL QA 사전 자원 기록: 브랜치 merge·현황 기록 commit `63cc3ce6f306f04fe49e1ea26a0a370e87010742`를 SSH 별칭 원격에 push했고 지정 `/home/daon/deploy/shopping`이 같은 SHA로 fast-forward·clean임을 확인했다. 기존 `local-postgres/shoppingmall`의 DB 연결 회귀에 Node 24 기존 이미지와 자동 제거 `shoppingmall-s22-main-sync-63cc3ce` 컨테이너 1개만 사용한다. 소유 어울, 수명 이번 전체 시험 한 번, 호스트 port 노출/새 DB·볼륨 없음. 실행 직전 이름 충돌을 확인하고 끝나면 `--rm`과 이름 잔류 0·QA DB 행 0을 확인한다. DB 비밀값은 WSL 실행 환경에서만 전달하고 출력/파일화하지 않는다.
+- WSL 실행/정리 결과: 사전 DB accounts/products/revisions/audit `0/0/0/0`, 컨테이너 이름 비어 있음을 확인했다. exact SHA `63cc3ce`에서 Node 24 전체 DB 연결 시험 **174건 중 167 pass·7 환경 skip·0 fail**, 종료 코드 0. 사후 accounts/sellers/products/revisions/images/audit 6종 각 0행, 해당 컨테이너 잔류 0, WSL checkout clean·동일 SHA. 이는 기존 main 동기화 후 회귀 증거이며 새 판매중지 기능/실브라우저/정식 인수 증거가 아니다. 시험·정리 오류 0, 같은 근본 원인 반복 0.
 
 ## 진행 중 — 2026-09-29 S1.1 깨끗한 소스 설치·빌드 재현
 
