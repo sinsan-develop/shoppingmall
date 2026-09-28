@@ -8,6 +8,8 @@ type Proposal = { productId: string; revisionId: string; title: string; sellerNa
   options: { name: string; priceWon: number }[]; thumbnailCount: number; detailImageCount: number };
 type StockRequest = { requestId: string; optionId: string; sellerName: string; title: string;
   optionName: string; targetOnHand: number; sellable: number; createdAt: string };
+type SaleStopRequest = { id: string; productId: string; sellerName: string; title: string;
+  reason: string; requestedAt: string };
 type ProposalImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number };
 type ViewProps = { proposals: Proposal[]; busy: boolean; onReject: (revisionId: string, reason: string) => void;
   onApprove?: (revisionId: string) => void;
@@ -100,22 +102,53 @@ export function AdminStockView({ requests, busy, onApprove }: {
   </section>;
 }
 
+export function AdminSaleStopView({ requests, busy, onApprove, onReject }: {
+  requests: SaleStopRequest[]; busy: boolean; onApprove: (requestId: string) => void;
+  onReject: (requestId: string, reason: string) => void;
+}) {
+  return <section className="account-card profile-card" aria-labelledby="pending-sale-stop-title">
+    <h2 id="pending-sale-stop-title">판매중지 승인 대기</h2>
+    <p>승인하면 신규 구매가 차단되며, 반려하면 판매가 유지됩니다. 재고·기존 주문은 보존됩니다</p>
+    {requests.length === 0 ? <p>현재 판매중지 요청이 없습니다</p> : <ul className="catalog-list">
+      {requests.map((item) => <li key={item.id} className="draft-product-item">
+        <strong>{item.sellerName} · {item.title}</strong>
+        <p>요청 사유: {item.reason}</p>
+        <small>요청 시각: {new Date(item.requestedAt).toLocaleString('ko-KR')}</small>
+        <div><button type="button" className="secondary-button" disabled={busy}
+          onClick={() => onApprove(item.id)}>판매중지 승인</button></div>
+        <form className="account-form" onSubmit={(event) => {
+          event.preventDefault();
+          const reason = String(new FormData(event.currentTarget).get('reason') ?? '').trim();
+          if (reason) onReject(item.id, reason);
+        }}>
+          <label htmlFor={`stop-reject-${item.id}`}>반려 사유</label>
+          <textarea id={`stop-reject-${item.id}`} name="reason" required maxLength={500} rows={2} />
+          <button type="submit" className="secondary-button" disabled={busy}>판매중지 반려</button>
+        </form>
+      </li>)}
+    </ul>}
+  </section>;
+}
+
 export default function AdminProposalsPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'unauthorized' | 'unavailable'>('loading');
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [stockRequests, setStockRequests] = useState<StockRequest[]>([]);
+  const [saleStopRequests, setSaleStopRequests] = useState<SaleStopRequest[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
   async function load(signal?: AbortSignal) {
     if (!apiOrigin) throw new Error('API unavailable');
-    const [proposalResponse, stockResponse] = await Promise.all([
+    const [proposalResponse, stockResponse, stopResponse] = await Promise.all([
       fetch(`${apiOrigin}/catalog/admin/proposals`, { credentials: 'include', signal }),
       fetch(`${apiOrigin}/catalog/admin/stock-requests`, { credentials: 'include', signal }),
+      fetch(`${apiOrigin}/catalog/admin/sale-stop-requests`, { credentials: 'include', signal }),
     ]);
-    if (!proposalResponse.ok || !stockResponse.ok) throw new Error('Review queue unavailable');
+    if (!proposalResponse.ok || !stockResponse.ok || !stopResponse.ok) throw new Error('Review queue unavailable');
     setProposals(await proposalResponse.json() as Proposal[]);
     setStockRequests(await stockResponse.json() as StockRequest[]);
+    setSaleStopRequests(await stopResponse.json() as SaleStopRequest[]);
   }
 
   useEffect(() => {
@@ -195,6 +228,23 @@ export default function AdminProposalsPage() {
     finally { setBusy(false); }
   }
 
+  async function decideSaleStop(requestId: string, decision: 'approve' | 'reject', reason?: string) {
+    if (!apiOrigin || busy) return;
+    setBusy(true); setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/admin/sale-stop-requests/${requestId}/${decision}`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(reason ? { reason } : {}),
+      });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
+      if (!response.ok) { setMessage('판매중지 결정을 기록하지 못했습니다. 요청 상태를 다시 확인해 주세요'); return; }
+      await load();
+      setMessage(decision === 'approve' ? '판매중지를 승인했습니다. 신규 구매가 차단됩니다' :
+        '판매중지를 반려했습니다. 기존 판매가 유지됩니다');
+    } catch { setMessage('판매중지 검토 서버에 연결할 수 없습니다'); }
+    finally { setBusy(false); }
+  }
+
   return <main id="main-content" tabIndex={-1} className="shell account-shell">
     <a className="text-link" href="/account">내 계정으로</a>
     <h1>상품 요청 검토</h1>
@@ -205,6 +255,9 @@ export default function AdminProposalsPage() {
       onApprove={(id) => void approveProduct(id)}
       onLoadImages={loadImages} />
       <AdminStockView requests={stockRequests} busy={busy} onApprove={approveStock} />
+      <AdminSaleStopView requests={saleStopRequests} busy={busy}
+        onApprove={(id) => void decideSaleStop(id, 'approve')}
+        onReject={(id, reason) => void decideSaleStop(id, 'reject', reason)} />
       {message ? <p role="status">{message}</p> : null}</> : null}
   </main>;
 }

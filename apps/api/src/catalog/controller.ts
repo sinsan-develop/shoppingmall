@@ -13,6 +13,7 @@ import { ProductReviews } from './product-reviews.js';
 import { ImageQuarantine } from './image-quarantine.js';
 import { scanImageWithClamd } from './image-scanner.js';
 import { PublicProducts } from './public-products.js';
+import { ProductSaleStops } from './product-sale-stops.js';
 import { CatalogTaxonomy } from './taxonomy.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string } };
@@ -60,6 +61,12 @@ export class CatalogController {
     const pool = this.database.getPool();
     if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
     return new ProductReviews(pool);
+  }
+
+  private saleStops() {
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    return new ProductSaleStops(pool);
   }
 
   private inventory() {
@@ -183,6 +190,27 @@ export class CatalogController {
   async listOwnedProducts(@Req() request: RequestHeaders) {
     const actor = await this.seller(request);
     return this.drafts().listOwned(actor);
+  }
+
+  @Get('seller/sale-stop-requests')
+  async ownSaleStopRequests(@Req() request: RequestHeaders) {
+    return this.saleStops().listOwn(await this.seller(request));
+  }
+
+  @Post('seller/products/:productId/sale-stop-requests')
+  async requestSaleStop(@Req() request: RequestHeaders, @Param('productId') productId: string, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    const reason = body && typeof body === 'object' ? (body as Record<string, unknown>).reason : undefined;
+    try { return await this.saleStops().request(actor, productId, reason as string); }
+    catch (error) {
+      if (error instanceof Error && ['Invalid stop target', 'Stop reason required'].includes(error.message))
+        throw new BadRequestException({ status: 'invalid_stop_request', reason: error.message });
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      if (error instanceof Error && ['Published product required', 'Sale already stopped', 'Pending stop request exists'].includes(error.message))
+        throw new ConflictException({ status: 'stop_request_conflict', reason: error.message });
+      throw error;
+    }
   }
 
   @Get('seller/products/:productId/revisions/:revisionId')
@@ -428,6 +456,39 @@ export class CatalogController {
   async pendingProposals(@Req() request: RequestHeaders) {
     const actor = await this.admin(request);
     return this.reviews().listPending(actor);
+  }
+
+  @Get('admin/sale-stop-requests')
+  async pendingSaleStopRequests(@Req() request: RequestHeaders) {
+    return this.saleStops().listPending(await this.admin(request));
+  }
+
+  @Post('admin/sale-stop-requests/:requestId/approve')
+  async approveSaleStop(@Req() request: RequestHeaders, @Param('requestId') requestId: string) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    try { return await this.saleStops().approve(actor, requestId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid stop request') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Pending stop request required')
+        throw new ConflictException({ status: 'not_pending' });
+      throw error;
+    }
+  }
+
+  @Post('admin/sale-stop-requests/:requestId/reject')
+  async rejectSaleStop(@Req() request: RequestHeaders, @Param('requestId') requestId: string, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    const reason = body && typeof body === 'object' ? (body as Record<string, unknown>).reason : undefined;
+    try { return await this.saleStops().reject(actor, requestId, reason as string); }
+    catch (error) {
+      if (error instanceof Error && ['Invalid stop request', 'Review reason required'].includes(error.message))
+        throw new BadRequestException({ status: 'invalid_review', reason: error.message });
+      if (error instanceof Error && error.message === 'Pending stop request required')
+        throw new ConflictException({ status: 'not_pending' });
+      throw error;
+    }
   }
 
   @Get('admin/proposals/:revisionId/images')

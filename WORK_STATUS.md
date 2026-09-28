@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.2 판매중지 요청·관리자 결정
+
+- 담당/승인: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 신산님이 판매중지 신규 API와 `shoppingmall` 개발 DB 전용 테이블·마이그레이션을 각각 직접 승인. 기존 분리 worktree만 사용한다. Superpowers 계획 형식은 정본 `docs/WORK_PLAN.md`의 Stage 표와 다르므로 계획 추적은 PMO 지정 `WORK_STATUS.md`에 이어 적고 새 worktree나 중복 계획 파일은 만들지 않는다.
+- 계약: 판매자는 자기 판매 상품의 사유 있는 판매중지를 요청하고 관리자 승인 전 공개·재고·구매 가능 수량이 그대로다. 반려 후 재요청은 가능하다. 관리자 승인 시 신규 목록에서 제외하고 상세의 판매 가능 수량은 0으로 표시한다. 공개 버전·물리 재고·과거 이력은 보존하며 승인된 중지의 재개방은 별도 정책 전까지 제공하지 않는다. 타 판매자·고객·권한 없는 결정·중복 대기/승인을 차단한다. 모든 요청·결정·감사 이력을 남긴다.
+- 자원/수명: 로컬 D: 작업 worktree에서 파일·로컬 시험만 사용. DB RED/GREEN은 branch 안전 commit/push 뒤 지정 WSL checkout의 exact SHA에서 기존 `local-postgres/shoppingmall` 개발 DB와 자동 제거 Node 24 QA 컨테이너 하나를 사용한다. 전용 UUID QA 계정/판매자/상품·중지 요청은 시험 `finally`에서 ID별 제거하고 DB 행 수·컨테이너·checkout 잔류를 확인한다. 기존 타 프로젝트/운영 자료, Oracle, 외부 계정은 건드리지 않는다. migration은 먼저 읽기 전용 dry-run과 격리 적용 검증, 이후 승인된 정확한 개발 DB에만 적용한다.
+- 변경/검증: `sale-stop-db.test.mjs`에 타 판매자·관리자 요청 거부, 빈 사유/중복, 요청·반려 중 공개 유지, 승인 뒤 목록 제외·상세 수량 0, 기존 재고·공개 버전 보존, 감사 4건/이력 격리를 먼저 명시. 로컬 첫 실행은 새 서비스 파일 부재로 예상 RED 1건. `product-sale-stops.ts`, catalog controller/public-products, Drizzle schema와 생성된 `0006_s2_product_sale_stop` migration을 작업 중. `pnpm typecheck` 0. Drizzle 생성 첫 시도는 도구 진입 실패 1회, 직접 실행은 D: sandbox EPERM 1회(제품 오류 아님), 허용된 동일 경로 재실행으로 SQL·snapshot·journal 생성 성공. 같은 근본 원인 3회 연속 없음.
+- 미검증/다음: 실DB migration 및 RED→GREEN, HTTP 권한·Origin·이력, 판매자/관리자 화면, 전체 회귀/브라우저, 재고 증가·상품 개정과 중지의 교차 경합, S3 주문 견적에서의 최종 구매 재검증, 정식 WSL E2E·인수/Oracle은 아직 검증 전. 다음은 HTTP·화면 계약을 보강한 뒤 안전 commit/push, 격리 migration 시험→정식 개발 DB 적용·QA·정리한다. 승인된 판매중지 기능이 S2.2 전체 완료를 뜻하지 않는다.
+- 로컬 checkpoint: 판매자·관리자 화면 단위시험은 각 계약 RED 뒤 합계 **15 pass·0 fail**. 루트 `pnpm test` **180건 중 148 pass·32 환경/DB skip·0 fail**, 별도 PR 본문 8 pass. 새 실DB 시험은 DB 미연결로 skip이므로 GREEN 증거가 아니다. `pnpm typecheck`·`pnpm lint` 0, `pnpm build` 첫 시도는 D: build 출력 EPERM 1회, 허용된 같은 경로 재실행 종료 코드 0/Next 12경로. 이후 DB 시험에 HTTP 401·Origin/타 판매자 403·관리자 목록/결정·공개 GET까지 추가했고 WSL 실DB에서 첫 실행을 기다린다. `git diff --check` 0; 제품 오류 0, 동일 원인 3회 반복 없음.
+
 ## 진행 중 — 2026-09-29 S2.2 판매자 상품 사진·옵션 반복 동작 이름
 
 - 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 판매자 상품 초안의 사진마다 `위로`·`아래로`·`사진 제거`, 옵션마다 `옵션 제거`가 반복되어 화면낭독기 버튼 목록에서 대상 행을 구별하기 어렵다. 기존 표시 문구·DOM 버튼·기능·디자인은 유지하고 버튼의 접근 가능한 이름에 1부터 시작하는 행 번호만 추가한다. API/schema/DB/Secret/권한 변경 없음.

@@ -4,7 +4,9 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { PrivateImage } from '../../private-image';
 
 type Category = { id: string; parentId: string | null; name: string };
-type Product = { productId: string; revisionId: string; title: string; status: string };
+type Product = { productId: string; revisionId: string; title: string; status: string; isPublished?: boolean };
+type SaleStopRequest = { id: string; productId: string; status: 'pending' | 'approved' | 'rejected';
+  reason: string; requestedAt?: string; decisionReason?: string | null };
 type Stock = { optionId: string; productId: string; title: string; optionName: string;
   onHand: number; sellable: number; pendingRequestId: string | null };
 type Option = { name: string; priceWon: string };
@@ -17,6 +19,7 @@ type Draft = {
 };
 type EditDraft = Omit<Draft, 'options'> & { options: Option[] };
 type ViewProps = { categories: Category[]; products: Product[]; stock: Stock[]; busy: boolean;
+  saleStopRequests?: SaleStopRequest[]; onRequestSaleStop?: (productId: string, reason: string) => void;
   onCreate: (draft: Draft) => void;
   onCreateRevision: (product: Product) => void;
   onLoadDraft: (product: Product) => Promise<Draft>;
@@ -32,8 +35,9 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
 function ProductDraftItem({ product, categories, busy, onCreateRevision, onLoadDraft, onUpdate, onDelete, onUpload,
-  onLoadImages, onOrderImages, onRemoveImage, onSubmitProposal }: {
+  onLoadImages, onOrderImages, onRemoveImage, onSubmitProposal, saleStopRequest, onRequestSaleStop }: {
   product: Product; categories: Category[]; busy: boolean;
+  saleStopRequest?: SaleStopRequest; onRequestSaleStop?: ViewProps['onRequestSaleStop'];
   onCreateRevision: ViewProps['onCreateRevision'];
   onLoadDraft: ViewProps['onLoadDraft']; onUpdate: ViewProps['onUpdate']; onDelete: ViewProps['onDelete'];
   onUpload: ViewProps['onUpload']; onLoadImages: ViewProps['onLoadImages'];
@@ -103,6 +107,22 @@ function ProductDraftItem({ product, categories, busy, onCreateRevision, onLoadD
   return <li className="draft-product-item">
     <strong>{product.title}</strong> · {product.status === 'draft' ? '초안' : product.status === 'pending' ? '승인 대기' :
       product.status === 'approved' ? '판매 중' : product.status}
+    {(product.isPublished || product.status === 'approved') && saleStopRequest?.status === 'approved' ?
+      <p>판매중지 승인됨 · 신규 구매가 차단되었습니다</p> : null}
+    {(product.isPublished || product.status === 'approved') && saleStopRequest?.status === 'pending' ?
+      <p>판매중지 승인 대기 · 관리자 승인 전에는 계속 판매됩니다</p> : null}
+    {(product.isPublished || product.status === 'approved') && !['pending', 'approved'].includes(saleStopRequest?.status ?? '') ?
+      <form className="account-form" onSubmit={(event) => {
+        event.preventDefault();
+        const reason = String(new FormData(event.currentTarget).get('reason') ?? '').trim();
+        if (reason) onRequestSaleStop?.(product.productId, reason);
+      }}>
+        {saleStopRequest?.status === 'rejected' ? <p>이전 요청 반려: {saleStopRequest.decisionReason}</p> : null}
+        <p>관리자 승인 전에는 판매가 유지됩니다</p>
+        <label htmlFor={`sale-stop-reason-${product.productId}`}>판매중지 사유</label>
+        <textarea id={`sale-stop-reason-${product.productId}`} name="reason" required maxLength={500} rows={2} />
+        <button type="submit" className="secondary-button" disabled={busy || !onRequestSaleStop}>판매중지 요청</button>
+      </form> : null}
     {product.status === 'approved' ? <div className="draft-image-actions">
       <p>수정안은 관리자 승인 전까지 고객에게 공개되지 않습니다. 현재 판매 중인 상품은 그대로 유지됩니다</p>
       <button type="button" className="secondary-button" disabled={busy}
@@ -217,7 +237,8 @@ function ProductDraftItem({ product, categories, busy, onCreateRevision, onLoadD
 }
 
 export function SellerProductView({ categories, products, stock = [], busy, onCreate, onCreateRevision, onLoadDraft, onUpdate, onDelete,
-  onUpload, onLoadImages, onOrderImages, onRemoveImage, onSubmitProposal, onSetStock }: ViewProps) {
+  onUpload, onLoadImages, onOrderImages, onRemoveImage, onSubmitProposal, onSetStock,
+  saleStopRequests = [], onRequestSaleStop }: ViewProps) {
   const [options, setOptions] = useState<Option[]>([{ name: '', priceWon: '' }]);
   const majors = categories.filter((item) => item.parentId === null);
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -277,6 +298,8 @@ export function SellerProductView({ categories, products, stock = [], busy, onCr
       <h2 id="product-list-title">내 상품 초안</h2>
       {products.length === 0 ? <p>아직 등록한 초안이 없습니다</p> : <ul className="catalog-list">
         {products.map((item) => <ProductDraftItem key={item.revisionId} product={item} categories={categories} busy={busy}
+          saleStopRequest={saleStopRequests.find((request) => request.productId === item.productId)}
+          onRequestSaleStop={onRequestSaleStop}
           onCreateRevision={onCreateRevision}
           onLoadDraft={onLoadDraft} onUpdate={onUpdate} onDelete={onDelete}
           onUpload={onUpload} onLoadImages={onLoadImages} onOrderImages={onOrderImages}
@@ -313,21 +336,24 @@ export default function SellerProductsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [stock, setStock] = useState<Stock[]>([]);
+  const [saleStopRequests, setSaleStopRequests] = useState<SaleStopRequest[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
   async function reload(signal?: AbortSignal) {
     if (!apiOrigin) throw new Error('API origin unavailable');
     const options = { credentials: 'include' as const, signal };
-    const [categoryResponse, productResponse, stockResponse] = await Promise.all([
+    const [categoryResponse, productResponse, stockResponse, stopResponse] = await Promise.all([
       fetch(`${apiOrigin}/catalog/categories`, options),
       fetch(`${apiOrigin}/catalog/seller/products`, options),
       fetch(`${apiOrigin}/catalog/seller/stock`, options),
+      fetch(`${apiOrigin}/catalog/seller/sale-stop-requests`, options),
     ]);
-    if (!categoryResponse.ok || !productResponse.ok || !stockResponse.ok) throw new Error('Catalog unavailable');
+    if (!categoryResponse.ok || !productResponse.ok || !stockResponse.ok || !stopResponse.ok) throw new Error('Catalog unavailable');
     setCategories(await categoryResponse.json() as Category[]);
     setProducts(await productResponse.json() as Product[]);
     setStock(await stockResponse.json() as Stock[]);
+    setSaleStopRequests(await stopResponse.json() as SaleStopRequest[]);
   }
 
   useEffect(() => {
@@ -518,6 +544,22 @@ export default function SellerProductsPage() {
     finally { setBusy(false); }
   }
 
+  async function requestSaleStop(productId: string, reason: string) {
+    if (!apiOrigin || busy) return;
+    setBusy(true); setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/catalog/seller/products/${productId}/sale-stop-requests`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
+      if (!response.ok) { setMessage('판매중지를 요청하지 못했습니다. 사유와 기존 요청 상태를 확인해 주세요'); return; }
+      await reload();
+      setMessage('판매중지를 요청했습니다. 관리자 승인 전에는 판매가 유지됩니다');
+    } catch { setMessage('판매중지 요청 서버에 연결할 수 없습니다'); }
+    finally { setBusy(false); }
+  }
+
   return <main id="main-content" tabIndex={-1} className="shell account-shell">
     <a className="text-link" href="/account">내 계정으로</a>
     <h1>상품 등록</h1>
@@ -525,6 +567,7 @@ export default function SellerProductsPage() {
     {state === 'unauthorized' ? <p role="alert">판매자 로그인 후 이용할 수 있습니다</p> : null}
     {state === 'unavailable' ? <p role="alert">상품 정보를 불러올 수 없습니다</p> : null}
     {state === 'ready' ? <><SellerProductView categories={categories} products={products} stock={stock} busy={busy}
+      saleStopRequests={saleStopRequests} onRequestSaleStop={requestSaleStop}
       onCreate={create} onCreateRevision={createRevision} onLoadDraft={loadDraft} onUpdate={updateDraft} onDelete={removeDraft}
       onUpload={upload} onLoadImages={loadImages} onOrderImages={orderImages}
       onRemoveImage={removeImage}

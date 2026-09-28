@@ -70,6 +70,25 @@ test('an approved product offers a private revision request, not direct public e
   assert.doesNotMatch(html, /초안 수정/);
 });
 
+test('seller sees a reasoned sale-stop request and cannot resubmit a pending or approved stop', () => {
+  const props = { categories: [], busy: false, onCreate: () => {}, onCreateRevision: () => {},
+    onRequestSaleStop: () => {} };
+  const product = { productId: 'product', revisionId: 'revision', title: '고추', status: 'approved' };
+  const available = renderToStaticMarkup(createElement(SellerProductView,
+    { ...props, products: [product], saleStopRequests: [] }));
+  assert.match(available, /판매중지 요청/);
+  assert.match(available, /판매중지 사유/);
+  assert.match(available, /관리자 승인 전.*판매/);
+  const pending = renderToStaticMarkup(createElement(SellerProductView, { ...props, products: [product],
+    saleStopRequests: [{ id: 'request', productId: 'product', status: 'pending', reason: '일시 중단' }] }));
+  assert.match(pending, /판매중지 승인 대기/);
+  assert.doesNotMatch(pending, /판매중지 요청<\/button>/);
+  const approved = renderToStaticMarkup(createElement(SellerProductView, { ...props, products: [product],
+    saleStopRequests: [{ id: 'request', productId: 'product', status: 'approved', reason: '일시 중단' }] }));
+  assert.match(approved, /판매중지 승인됨/);
+  assert.doesNotMatch(approved, /판매중지 요청<\/button>/);
+});
+
 test('seller catalog cards can shrink within a narrow screen', () => {
   const styles = readFileSync(new URL('../app/styles.css', import.meta.url), 'utf8');
   assert.match(styles, /\.catalog-admin-grid \.account-card\{[^}]*min-width:0/);

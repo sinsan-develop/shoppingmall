@@ -3,7 +3,18 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import AdminProposalsPage, { AdminProposalView, AdminStockView } from '../app/account/admin/proposals/page.tsx';
+import AdminProposalsPage, { AdminProposalView, AdminStockView, AdminSaleStopView } from '../app/account/admin/proposals/page.tsx';
+
+test('operator can decide each seller stop request with a required rejection reason', () => {
+  const html = renderToStaticMarkup(createElement(AdminSaleStopView, {
+    requests: [{ id: 'request-a', productId: 'product-a', sellerName: '농가 A', title: '고추',
+      reason: '출고 중단', requestedAt: '2026-09-29' }], busy: false,
+    onApprove: () => {}, onReject: () => {},
+  }));
+  for (const label of ['판매중지 승인 대기', '농가 A', '고추', '출고 중단', '판매중지 승인', '반려 사유'])
+    assert.match(html, new RegExp(label));
+  assert.match(html, /required/);
+});
 
 test('review queue does not expose proposals before operator session check', () => {
   const html = renderToStaticMarkup(createElement(AdminProposalsPage));

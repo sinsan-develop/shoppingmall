@@ -300,10 +300,12 @@ export class ProductDrafts {
     }
     const result = await this.pool.query<{
       productId: string; revisionId: string; title: string; status: string; categoryId: string;
+      isPublished: boolean;
     }>(
       `SELECT * FROM (
          SELECT DISTINCT ON (p.id) p.id AS "productId",r.id AS "revisionId",r.title,r.status,
-                p.category_id AS "categoryId"
+                p.category_id AS "categoryId",
+                EXISTS(SELECT 1 FROM product_publications pub WHERE pub.product_id=p.id) AS "isPublished"
          FROM products p JOIN product_revisions r ON r.product_id=p.id
          WHERE p.seller_id=$1 AND r.status <> 'rejected'
          ORDER BY p.id,r.version DESC

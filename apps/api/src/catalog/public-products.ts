@@ -38,11 +38,14 @@ export class PublicProducts {
     const publication = await this.pool.query<{
       productId: string; revisionId: string; title: string; description: string; originLabel: string;
       shippingMode: string; sellerId: string; sellerName: string; categoryId: string; categoryName: string;
+      saleStopped: boolean;
     }>(
       `SELECT p.id AS "productId",r.id AS "revisionId",r.title,r.description,
               r.origin_label AS "originLabel",r.shipping_mode AS "shippingMode",
               s.id AS "sellerId",s.display_name AS "sellerName",
-              c.id AS "categoryId",c.name AS "categoryName"
+              c.id AS "categoryId",c.name AS "categoryName",
+              EXISTS(SELECT 1 FROM product_sale_stop_requests stop
+                WHERE stop.product_id=p.id AND stop.status='approved') AS "saleStopped"
        FROM product_publications pub
        JOIN products p ON p.id=pub.product_id
        JOIN product_revisions r ON r.id=pub.revision_id AND r.product_id=p.id
@@ -55,9 +58,10 @@ export class PublicProducts {
       id: string; name: string; priceWon: number; sellableQuantity: number;
     }>(
       `SELECT o.id,o.name,o.price_won AS "priceWon",
-              coalesce(i.sellable_quantity,0)::int AS "sellableQuantity"
+              CASE WHEN $2::boolean THEN 0 ELSE coalesce(i.sellable_quantity,0)::int END AS "sellableQuantity"
        FROM product_options o LEFT JOIN inventory_levels i ON i.option_id=o.id
-       WHERE o.revision_id=$1 ORDER BY o.display_order,o.id`, [publication.rows[0].revisionId],
+       WHERE o.revision_id=$1 ORDER BY o.display_order,o.id`,
+      [publication.rows[0].revisionId, publication.rows[0].saleStopped],
     );
     const images = await this.pool.query<{ id: string; purpose: string; displayOrder: number }>(
       `SELECT id,purpose,display_order AS "displayOrder" FROM product_images
@@ -78,7 +82,8 @@ export class PublicProducts {
       throw new Error('Invalid search');
     }
     const params: (string | number)[] = [];
-    const conditions = ["r.status='approved'"];
+    const conditions = ["r.status='approved'", `NOT EXISTS (SELECT 1 FROM product_sale_stop_requests stop
+      WHERE stop.product_id=p.id AND stop.status='approved')`];
     if (query.trim()) {
       params.push(query.trim().toLowerCase());
       conditions.push(`(strpos(lower(r.title),$${params.length})>0 OR strpos(lower(s.display_name),$${params.length})>0)`);

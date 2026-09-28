@@ -180,6 +180,25 @@ export const productPublications = pgTable('product_publications', {
     foreignColumns: [productRevisions.productId, productRevisions.id] }),
 ]);
 
+// Append-only decisions are retained; an approved stop hides new sale without deleting a publication or stock.
+export const productSaleStopRequests = pgTable('product_sale_stop_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  status: text('status').notNull().default('pending'),
+  reason: text('reason').notNull(),
+  requestedByAccountId: uuid('requested_by_account_id').notNull().references(() => accounts.id),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  decisionReason: text('decision_reason'),
+}, (table) => [
+  index('product_sale_stops_product_idx').on(table.productId),
+  uniqueIndex('product_sale_stops_one_pending_uq').on(table.productId).where(sql`${table.status} = 'pending'`),
+  uniqueIndex('product_sale_stops_one_approved_uq').on(table.productId).where(sql`${table.status} = 'approved'`),
+  check('product_sale_stops_status_ck', sql`${table.status} IN ('pending','approved','rejected')`),
+  check('product_sale_stops_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
+]);
+
 export const accountIdentities = pgTable('account_identities', {
   id: uuid('id').primaryKey().defaultRandom(),
   accountId: uuid('account_id').notNull().references(() => accounts.id),
