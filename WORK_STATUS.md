@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S1.2 만료 세션 실DB·HTTP 경계 재검증
+
+- 담당/목적: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. S1.2 계획의 세션 만료 거부는 `AuthRepository.getSession`에서 구현돼 있지만 실제 DB+HTTP의 독립 회귀 증거가 없었다. 기존 `apps/api/test/auth-http-db.test.mjs`의 고유 가상 계정과 `finally` 정리를 재사용해, 정상 세션 `/auth/me` 200을 먼저 확인한 뒤 **그 시험 계정의 유일한 활성 세션만** 과거 시각으로 만료시키고 `/auth/me`·판매자·관리자 API가 401인지 검사한다. 이는 이미 구현된 행동의 검증 보강이며 제품 code/schema/권한/API를 변경하지 않는다.
+- 시험 자원: 변경 테스트를 기존 브랜치에 안전 commit/push하고 지정 WSL checkout 동일 SHA에서 기존 `local-postgres/shoppingmall`을 연결한 Node 24 자동 제거 `shoppingmall-s12-expiry-qa` 컨테이너 한 개로 목표 시험과 전체 DB suite를 실행한다. 소유 어울, 수명 해당 명령 동안만, 새 DB·볼륨·호스트 포트 없음. 시험의 `qa+UUID@example.invalid` 계정은 `finally`에서 정확한 accountId만 정리하며, 사후 accounts/sessions/audit·컨테이너/checkout 잔류 0을 확인한다. 실행 전 이름 점유와 DB 행을 확인하고 비밀값은 원격 프로세스 환경에만 공급한다. 현재 오류 0·반복 근본 원인 0.
+- 경계: DB 미설정 로컬 skip은 합격 증거가 아니며 WSL 목표 시험이 실제 0 skip으로 끝나야 한다. 이미 구현된 만료 판정의 확인이므로 신규 제품 코드 RED/GREEN 변경은 없다. 브라우저의 세션 시간 경과, 실제 외부 로그인·Oracle 인수까지 증명하지 않는다.
+
 ## 진행 중 — 2026-09-29 S1.2 역할별 실제 브라우저 경계 QA 준비
 
 - 담당/목적: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`의 현재 기능 commit. S1.2 자동 권한 회귀와 별도로 고객·판매자·관리자 로그인 화면 및 다른 역할 URL의 권한 없음 표시를 실제 브라우저에서 확인한다. 제품/schema/API/권한 코드는 바꾸지 않는다. 판매중지 DB 범위 응답과 독립적인 기존 기능 QA다.

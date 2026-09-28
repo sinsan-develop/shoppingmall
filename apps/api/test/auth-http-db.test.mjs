@@ -63,6 +63,26 @@ test('HTTP login, role switch and logout use persisted grants, not request heade
     });
     assert.equal(logout.status, 201);
     assert.equal((await fetch(`${base}/auth/me`, { headers: { cookie: adminCookie } })).status, 401);
+
+    const expiringLogin = await fetch(`${base}/auth/login`, {
+      method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://127.0.0.1:9091' },
+      body: JSON.stringify({ email, password }),
+    });
+    assert.equal(expiringLogin.status, 201);
+    const expiringCookie = expiringLogin.headers.get('set-cookie')?.split(';')[0];
+    assert.equal((await fetch(`${base}/auth/me`, { headers: { cookie: expiringCookie } })).status, 200);
+    const expired = await pool.query(
+      `UPDATE auth_sessions SET expires_at=now()-interval '1 second'
+       WHERE account_id=$1 AND revoked_at IS NULL RETURNING id`, [accountId],
+    );
+    assert.equal(expired.rowCount, 1);
+    assert.equal((await fetch(`${base}/auth/me`, { headers: { cookie: expiringCookie } })).status, 401);
+    assert.equal((await fetch(`${base}/catalog/seller/products`, {
+      headers: { cookie: expiringCookie, 'x-role': 'seller' },
+    })).status, 401);
+    assert.equal((await fetch(`${base}/catalog/admin/proposals`, {
+      headers: { cookie: expiringCookie, 'x-role': 'admin' },
+    })).status, 401);
   } finally {
     if (app) await app.close();
     if (accountId) {
