@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { Pool, type PoolClient } from 'pg';
 import { qaNames, runQaFixture, validateQaRunId } from './qa-fixture.js';
@@ -32,7 +33,7 @@ async function seedProduct(client: PoolClient, runId: string) {
     [revisionId, '500g', 23000]);
   // Metadata only: this key has no image bytes and must never become a public asset.
   await client.query(`INSERT INTO product_images(revision_id,object_key,purpose,mime_type,size_bytes,display_order)
-    VALUES ($1,$2,'thumbnail','image/webp',100,0)`, [revisionId, `quarantine/qa-${runId}-metadata-only`]);
+    VALUES ($1,$2,'thumbnail','image/webp',100,0)`, [revisionId, `quarantine/${randomUUID()}.webp`]);
   return { productId, revisionId, adminEmail: names.emails[4] };
 }
 
