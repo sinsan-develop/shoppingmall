@@ -4,6 +4,8 @@
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@d0d696f`. 기존 관리자 반려 API·DB 시험과 관리자 화면은 구현되어 있으나 실제 브라우저에서 사유 입력→반려→공개 차단의 증거가 없다. 제품 코드/schema/API를 변경하지 않는 독립 QA다.
 - QA 자원 계획: 고유 ID `f2e9c4a1`의 가상 계정 5개·판매자 3개·대기 상품 1개·메타데이터 전용 가상 사진 1행을 `qa-review-fixture.ts seed`로 `WSL-server`의 `local-postgres/shoppingmall`에만 생성한다. 이미지 파일/실계정/실판매/실결제는 사용하지 않는다. 동일 SHA의 WSL 빌드용 자동 제거 컨테이너 `shoppingmall-s22-reject-build-f2e9`, loopback 9091/9092의 `shoppingmall-s22-reject-web-f2e9`·`shoppingmall-s22-reject-api-f2e9`, 새 시험 Chrome 탭 1개를 시험 중에만 사용한다. 관리자 로그인→사유 입력→반려 메시지, DB rejected/공개 0/감사 근거를 대조한다. 종료 시 탭과 정확한 두 실행 컨테이너만 종료하고 동일 ID fixture reset 뒤 계정·상품·이미지·감사·포트/컨테이너·Git 잔류를 확인한다. 생성 직전 점유를 다시 읽는다. 오류 0, 반복 근본 원인 0.
+- 실제 결과: exact SHA `0b571bf3c4b304314c91495a27bd572d58f930f9`의 WSL API/Next 빌드 종료 코드 0, `/ready`·`/login` HTTP 200. seed 계정/상품/개정/이미지 `5/1/1/1`. 별도 Chrome 탭에서 가상 운영자 로그인→상품 요청 검토→대기 고추·판매자/산지/가격/대표 메타데이터 1건 확인→가상 사유 입력·반려 클릭을 수행했다. 화면은 대기 목록 빈 상태와 ‘반려 사유와 운영 이력을 기록했습니다’를 표시했다. DB 대조에서 개정 `rejected`, 공개 `0`, `review_reason`에 입력 사유, 관리자 ID·심사 시각 존재, `product.proposal_reject` 감사 사건 1건을 확인했다. `audit_events.details`는 비어 있고 **사유의 정본은 개정의 `review_reason`**이다. 이미지 파일이 없는 QA 메타데이터이므로 사진 열기·승인은 수행하지 않았다.
+- 정리/경계: 시험 Chrome 탭 종료, 이름을 확인한 QA API/Web 두 컨테이너만 중지·자동 제거, `qa-review-fixture.ts reset`으로 ID `f2e9c4a1`만 제거. accounts/sellers/products/revisions/images/audit `0/0/0/0/0/0`, 9091/9092 listener·해당 이름 실행 컨테이너 0, WSL checkout clean/동일 SHA. 실이미지 검사·승인 성공, 타 판매자 브라우저 권한, 200% 확대·인쇄·Oracle/UAT는 이 검증의 범위 밖이다. 이 QA 기능 오류·반복 근본 원인 0.
 
 ## 진행 중 — 2026-09-28 S2.2 상품 수정안 실브라우저 QA 선행 fixture 정리 경계
 
