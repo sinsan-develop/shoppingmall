@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.1 소분류 유효성 실DB·HTTP 보강
+
+- 담당/범위: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. S2.1의 부모 없는 자식·빈 이름·같은 부모 중복 차단을 기존 분류 등록 DB/HTTP 시험에 명시한다. 기존 `catalog-http-db.test.mjs`의 무작위 QA 계정·분류 ID와 `finally` 정리를 재사용한다. 제품 code/schema/API/권한 변경 없음. 불변 계약 예상: 미존재 부모 400, 빈 소분류명 400, 같은 부모·이름 중복 409, 성공 행/감사 기록 수 불변.
+- 자원/검증: 기록 commit/push 후 지정 WSL checkout을 동일 SHA로 fast-forward, Node 24 자동 제거 `shoppingmall-s21-minor-qa`로 `local-postgres/shoppingmall` 연결 목표 시험을 실행한다. 사전 전용 이름과 accounts/categories 0을 확인하며 호스트 포트·새 DB·운영 자료 없음. 시험은 자체 QA ID만 삭제한다. 사후 QA 계정/분류/감사·컨테이너·checkout 잔류 0을 확인한다. 오류/동일 근본 원인 반복 현재 0.
+
 ## 진행 중 — 2026-09-29 S2.4 Chrome 실제 200% 확대 재검증
 
 - 담당/목적: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`. 과거 in-app browser에서는 키보드 확대가 배율을 바꾸지 않아 200%를 미검증으로 남겼다. 이번에는 기존 Chrome의 사용자 탭을 건드리지 않고 **새 시험 탭 하나**에서 실제 브라우저 확대 명령 및 현재 배율 신호를 확인한다. 배율이 실제 200%가 되지 않으면 viewport 축소를 대리 증거로 쓰지 않고 미검증을 유지한다. 제품 code/schema/API/DB 변경 없음.
