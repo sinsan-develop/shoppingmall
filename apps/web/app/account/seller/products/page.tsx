@@ -105,7 +105,8 @@ function ProductDraftItem({ product, categories, busy, onCreateRevision, onLoadD
     return () => URL.revokeObjectURL(url);
   }, [file]);
   return <li className="draft-product-item">
-    <strong>{product.title}</strong> · {product.status === 'draft' ? '초안' : product.status === 'pending' ? '승인 대기' :
+    <strong>{product.title}</strong> · {saleStopRequest?.status === 'approved' ? '판매중지' :
+      product.status === 'draft' ? '초안' : product.status === 'pending' ? '승인 대기' :
       product.status === 'approved' ? '판매 중' : product.status}
     {(product.isPublished || product.status === 'approved') && saleStopRequest?.status === 'approved' ?
       <p>판매중지 승인됨 · 신규 구매가 차단되었습니다</p> : null}
@@ -124,7 +125,8 @@ function ProductDraftItem({ product, categories, busy, onCreateRevision, onLoadD
         <button type="submit" className="secondary-button" disabled={busy || !onRequestSaleStop}>판매중지 요청</button>
       </form> : null}
     {product.status === 'approved' ? <div className="draft-image-actions">
-      <p>수정안은 관리자 승인 전까지 고객에게 공개되지 않습니다. 현재 판매 중인 상품은 그대로 유지됩니다</p>
+      <p>수정안은 관리자 승인 전까지 고객에게 공개되지 않습니다.
+        {saleStopRequest?.status === 'approved' ? ' 판매중지 상태는 유지됩니다' : ' 현재 판매 중인 상품은 그대로 유지됩니다'}</p>
       <button type="button" className="secondary-button" disabled={busy}
         onClick={() => onCreateRevision(product)}>상품 수정안 만들기</button>
     </div> : null}

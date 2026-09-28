@@ -87,6 +87,7 @@ test('seller sees a reasoned sale-stop request and cannot resubmit a pending or 
     saleStopRequests: [{ id: 'request', productId: 'product', status: 'approved', reason: '일시 중단' }] }));
   assert.match(approved, /판매중지 승인됨/);
   assert.doesNotMatch(approved, /판매중지 요청<\/button>/);
+  assert.doesNotMatch(approved, /판매 중|현재 판매 중인 상품/);
 });
 
 test('seller catalog cards can shrink within a narrow screen', () => {

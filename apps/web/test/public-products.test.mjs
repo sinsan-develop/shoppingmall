@@ -121,6 +121,17 @@ test('approved product detail shows option price and sold-out status without pri
   assert.doesNotMatch(html, /objectKey|quarantine\/|장바구니에 담기/);
 });
 
+test('approved sale stop is explained as a stop rather than ordinary sold-out stock', () => {
+  const html = renderToStaticMarkup(createElement(ProductDetailView, {
+    product: { productId: 'p1', title: '햇고추', description: '상품 설명', sellerName: '어울 농가',
+      originLabel: '경남 진주', shippingMode: 'seller_direct', saleStopped: true,
+      options: [{ id: 'o1', name: '500g', priceWon: 23000, sellableQuantity: 0 }] },
+  }));
+  assert.match(html, /판매중지.*신규 구매/);
+  assert.doesNotMatch(html, /품절/);
+  assert.match(html, /23,000원/);
+});
+
 test('approved product detail displays only server-gated image IDs and keeps private keys hidden', () => {
   const html = renderToStaticMarkup(createElement(ProductDetailView, {
     product: { productId: 'p1', title: '햇고추', description: '상품 설명', sellerName: '어울 농가',

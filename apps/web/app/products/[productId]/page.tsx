@@ -7,7 +7,7 @@ import { PublicImage } from '../../account/private-image';
 type Option = { id: string; name: string; priceWon: number; sellableQuantity: number };
 type ProductImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number };
 type Product = { productId: string; title: string; description: string; originLabel: string;
-  sellerName: string; shippingMode: string; options: Option[]; images?: ProductImage[] };
+  sellerName: string; shippingMode: string; options: Option[]; images?: ProductImage[]; saleStopped?: boolean };
 type ViewProps = { product?: Product; loading?: boolean; error?: string };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -34,11 +34,13 @@ export function ProductDetailView({ product, loading = false, error }: ViewProps
             <h1>{product.title}</h1>
             <p>판매자 {product.sellerName}</p>
             <p>발송 방식 {product.shippingMode === 'owool_fulfillment' ? '어울몰 모아 발송' : '판매자 직접 발송'}</p>
+            {product.saleStopped ? <p role="status">판매중지 승인으로 신규 구매가 중단되었습니다</p> : null}
             <h2>옵션과 가격</h2>
             <ul className="detail-options">
               {product.options.map((option) => <li key={option.id}>
                 <span>{option.name}</span><strong>{option.priceWon.toLocaleString('ko-KR')}원</strong>
-                <span>{option.sellableQuantity > 0 ? `판매 가능 ${option.sellableQuantity}개` : '품절'}</span>
+                <span>{product.saleStopped ? '판매중지' : option.sellableQuantity > 0 ?
+                  `판매 가능 ${option.sellableQuantity}개` : '품절'}</span>
               </li>)}
             </ul>
             <p className="section-note">장바구니와 주문 기능은 구축 중입니다</p>
