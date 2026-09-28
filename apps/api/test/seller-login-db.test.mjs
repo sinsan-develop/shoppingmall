@@ -4,8 +4,9 @@ import test from 'node:test';
 import { Pool } from 'pg';
 import { runQaFixture, qaNames } from '../scripts/qa-fixture.ts';
 import { AuthRepository } from '../src/auth/repository.ts';
+import { createApp } from '../src/app.ts';
 
-test('seller-only fixture logs into its one seller without accepting another seller scope', {
+test('a multi-role account keeps seller scope and admin HTTP permissions separate', {
   skip: !process.env.DATABASE_URL,
 }, async () => {
   const runId = randomBytes(4).toString('hex');
@@ -13,6 +14,7 @@ test('seller-only fixture logs into its one seller without accepting another sel
   const names = qaNames(runId);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const auth = new AuthRepository(pool);
+  let app;
   try {
     await runQaFixture('seed', runId, process.env.DATABASE_URL, password);
     const sellerA = await auth.loginEmail(names.emails[1], password, 'seller');
@@ -30,7 +32,21 @@ test('seller-only fixture logs into its one seller without accepting another sel
     await assert.rejects(auth.loginEmail(names.emails[4], password, 'seller'));
     const selected = await auth.loginEmail(names.emails[4], password, 'seller', a.sellerId);
     assert.equal((await auth.getSession(selected.token)).sellerId, a.sellerId);
+    app = await createApp();
+    await app.listen(0, '127.0.0.1');
+    const base = `http://127.0.0.1:${app.getHttpServer().address().port}/catalog`;
+    const adminCookie = `sm_session=${admin.token}`;
+    const sellerCookie = `sm_session=${selected.token}`;
+    assert.equal((await fetch(`${base}/admin/proposals`, { headers: { cookie: adminCookie } })).status, 200);
+    assert.equal((await fetch(`${base}/seller/products`, { headers: { cookie: sellerCookie } })).status, 200);
+    assert.equal((await fetch(`${base}/admin/proposals`, {
+      headers: { cookie: sellerCookie, 'x-role': 'admin' },
+    })).status, 403);
+    assert.equal((await fetch(`${base}/seller/products`, {
+      headers: { cookie: adminCookie, 'x-role': 'seller' },
+    })).status, 403);
   } finally {
+    if (app) await app.close();
     await runQaFixture('reset', runId, process.env.DATABASE_URL);
     await pool.end();
   }
