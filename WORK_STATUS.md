@@ -5,6 +5,7 @@
 - 담당/목적: 어울 단일 writer. 현재 승인된 판매중지 API·schema를 유지한 채 가상 판매자 계정의 동일 상품 재요청 HTTP 2건이 동시에 도착하면 하나만 접수되고 다른 하나는 409이며 추가 이력/감사 기록이 생기지 않는지 검증한다. 기존 `sale-stop-db.test.mjs`의 고유 UUID·`finally` 정리만 사용한다.
 - 절차/자원: 로컬 시험은 DB 없을 때 해당 항목 skip이라고 분리 기록하고, 안전 commit/push→지정 WSL checkout 동일 SHA→기존 `local-postgres/shoppingmall` 개발 DB와 자동 제거 Node24 전용 `shoppingmall-s22-stop-race-d7a1` 컨테이너에서 목표 시험을 실행한다. 사전/사후 fixture 행·컨테이너·checkout 청결을 확인한다. 실상품·운영/Oracle·외부 계정은 건드리지 않는다.
 - 완료 조건/미검증: 201 한 건과 409 한 건, 승인은 해당 한 건에만 가능, 공개 차단·이력 수 기존 계약 그대로, 목표 시험 0 skip. 재고 최종 1개 주문 경합은 S3 기능 이후의 별개 시험이다. 실패하면 원인 분석 후 같은 Stage 범위에서 최소 수정하고 실행 증거를 기록한다.
+- 실제 결과/정리: 테스트·계획 commit `8a05dcc92ec337e85bed382fccce41dd53b996f8`을 지정 SSH 원격에 push하고 WSL checkout 동일 SHA fast-forward. 전용 Node24 컨테이너에서 실DB·HTTP 목표 시험 **1 pass·0 skip·0 fail**. 동시 2요청의 상태 코드 `[201,409]`, 관리자 대기 목록 1건, 해당 요청 승인·고객 목록 제외·승인/반려 총 이력·감사 수 기존 주장까지 통과했다. 사후 account_identities/sellers/product_categories/products/product_revisions/product_options/product_publications/product_images/product_sale_stop_requests/audit_events 각 0, 전용 시험 컨테이너 0, WSL checkout clean. 실행 오류 0, 같은 근본 원인 반복 0. 단일 상품 재요청 경합 증거이며 고객 주문 마지막 재고 경합 증거는 아니다.
 
 ## 진행 중 — 2026-09-29 S2.2 이미지 악성파일 실제 데몬 시험
 
