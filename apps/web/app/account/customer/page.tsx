@@ -120,7 +120,7 @@ export default function CustomerProfilePage() {
   return (
     <main id="main-content" tabIndex={-1} className="shell account-shell">
       <a className="text-link" href="/account">내 계정으로</a>
-      <h1>배송지와 알림 설정</h1>
+      <h1>내 쇼핑과 배송 설정</h1>
       {state === 'loading' ? <p role="status">고객 정보 확인 중</p> : null}
       {state === 'unauthorized' ? <p role="alert">구매자 로그인 후 이용할 수 있습니다</p> : null}
       {state === 'unavailable' ? <p role="alert">고객 정보를 불러올 수 없습니다</p> : null}

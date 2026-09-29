@@ -6,7 +6,7 @@ type Option = { id: string; name: string; sellableQuantity: number };
 type Product = { productId: string; title: string; saleStopped?: boolean; options: Option[] };
 type Favorite = { productId: string };
 type Restock = { id: string; productId: string; optionName: string; status: string };
-type Access = 'loading' | 'ready' | 'unauthorized' | 'unavailable';
+type Access = 'loading' | 'ready' | 'unauthorized' | 'forbidden' | 'unavailable';
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -31,6 +31,7 @@ export function EngagementControlsView({ product, access, favorite, activeRestoc
   return <section className="engagement-controls" aria-label="찜과 재입고 신청">
     {access === 'loading' ? <p role="status">찜과 재입고 신청 확인 중</p> : null}
     {access === 'unauthorized' ? <p>로그인 후 찜과 재입고 신청을 이용하실 수 있습니다. <a className="text-link" href="/login">로그인</a></p> : null}
+    {access === 'forbidden' ? <p>찜과 재입고 신청은 구매자 역할로 전환한 뒤 이용하실 수 있습니다</p> : null}
     {access === 'unavailable' ? <p role="alert">찜과 재입고 신청을 확인할 수 없습니다. 잠시 후 다시 이용해 주세요</p> : null}
     {access === 'ready' ? <>
       <button type="button" className="secondary-button" disabled={Boolean(busy)} onClick={onFavorite}
@@ -76,9 +77,10 @@ export function EngagementControls({ product }: { product: Product }) {
       fetch(`${apiOrigin}/customer/restock-subscriptions`, { credentials: 'include', signal: controller.signal }),
     ]).then(async ([favorites, restock]) => {
       if (!gate.current.isCurrent(request, product.productId) || controller.signal.aborted) return;
-      if (favorites.status === 401 || restock.status === 401 || favorites.status === 403 || restock.status === 403) {
+      if (favorites.status === 401 || restock.status === 401) {
         setAccess('unauthorized'); return;
       }
+      if (favorites.status === 403 || restock.status === 403) { setAccess('forbidden'); return; }
       if (!favorites.ok || !restock.ok) throw new Error('Load failed');
       const [favoriteRows, restockRows] = await Promise.all([
         favorites.json() as Promise<Favorite[]>, restock.json() as Promise<Restock[]>,

@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { EngagementControlsView, createEngagementLoadGate } from '../app/products/[productId]/engagement-controls.tsx';
 import { EngagementListsView } from '../app/account/customer/engagement-lists.tsx';
+import CustomerProfilePage from '../app/account/customer/page.tsx';
 
 const product = { productId: 'p1', title: '고추', saleStopped: false, options: [
   { id: 'in-stock', name: '1kg', sellableQuantity: 2 },
@@ -23,6 +24,17 @@ test('customer controls offer sign-in advice and only a sold-out published optio
   assert.doesNotMatch(ready, /1kg 재입고 신청/);
   assert.match(ready, /고추 찜하기/);
   assert.doesNotMatch(view({ product: { ...product, saleStopped: true } }), /500g 재입고 신청/);
+});
+
+test('signed-in non-customer role is told to use a buyer role, not to log in again', () => {
+  const forbidden = view({ access: 'forbidden' });
+  assert.match(forbidden, /구매자 역할로 전환/);
+  assert.doesNotMatch(forbidden, /로그인 후/);
+  assert.doesNotMatch(forbidden, /재입고 신청<\/button>/);
+});
+
+test('customer account heading names the newly added shopping lists', () => {
+  assert.match(renderToStaticMarkup(createElement(CustomerProfilePage)), /내 쇼핑과 배송 설정/);
 });
 
 test('pending and errors never look like completed saves, and buttons have specific names', () => {
