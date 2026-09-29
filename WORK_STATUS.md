@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.2 이미지 악성파일 실제 데몬 시험
+
+- 담당/범위: 어울 단일 writer. WSL 지정 checkout `030fcaf792c6c00dcb5e92bc2975bcf1410b3bba` clean, 기존 로컬 이미지 `clamav/clamav-debian:1.4.3`과 포함된 오프라인 시그니처 DB를 확인했다. 전용 `clamd-local.conf`로 `127.0.0.1:3310`에서만 임시 `shoppingmall-s22-clamd-d7a1` 데몬을 구동했다. 다른 서비스·DB·운영 데이터·외부 다운로드는 변경하지 않았다.
+- 검증/정리: healthy와 루프백 listener를 확인한 뒤 자동 제거 Node24 시험 컨테이너에서 `CLAMD_INTEGRATION=1` 대상 시험 **1 pass·0 skip·0 fail**. 재인코딩된 정상 WebP 허용 및 무해한 EICAR 시험 문자열 거부가 실제 데몬 응답으로 확인됐다. 전용 데몬 stop/`--rm` 후 해당 이름의 컨테이너 0·3310 listener 없음. 시그니처 DB가 7일 이상 오래됐다는 경고가 있어 최신 위협 탐지 성능·운영 스캐너 준비를 증명하지 않는다. 실행 오류 0, 같은 원인 반복 0.
+- 남은 범위: 이미지 엔드투엔드·실상품 자료, S2.2 전체 통합과 S2.3 이후 Stage, Oracle·사용자 인수는 미완료다.
+
 ## 진행 중 — 2026-09-29 S2.2 판매중지 실제 화면·시험 자원 정리
 
 - 담당/대상: 어울 단일 writer. 승인된 개발 DB migration 0006, 제품 SHA `9299fd8`, WSL 지정 checkout과 일회성 Node24 API/Web, 고유 `QA_RUN_ID=d7a1e0c2`를 사용했다. 신규 공개 API·운영 배포·실결제는 없다.
@@ -7,7 +13,7 @@
 - 시험/정리: 판매중지 이력이 있는 공개 상품 fixture reset이 FK `23503`으로 실패하는 결함을 전용 실DB 시험 RED로 재현한 뒤, 해당 실행의 상품 ID에 속한 중지 요청을 먼저 삭제하는 최소 수정 `9299fd8`로 GREEN(4 pass·0 skip) 확인했다. 브라우저 탭은 닫았고 종료 명령 시 해당 `--rm` API/Web 컨테이너는 이미 없어 Docker가 정확한 이름에 대해 `No such container`를 반환했다. `docker ps -a`에서 전용 이름 0, 고유 fixture reset `{"reset":true}`, 사후 account_identities/sellers/product_categories/products/product_revisions/product_options/product_publications/product_images/product_sale_stop_requests/audit_events 각 0을 확인했다. 컨테이너 종료 명령의 이미 없음 응답 1회는 제품 결함이 아니다.
 - 수정 SHA 로컬 재검증: `pnpm test` 182건 중 149 pass·33 DB 미연결 skip·0 fail, PR 본문 8 pass, `pnpm typecheck`·`pnpm lint` 각 exit 0. 로컬 빌드 첫 시도는 D: 산출물 쓰기 제한 `EPERM`으로 실패했으나 동일 코드·명령을 승인된 파일 쓰기 권한으로 재실행하여 API/Next 12경로 build exit 0. WSL 실DB 전체 저장소 회귀는 진행 중이며 결과를 별도 기록한다. 로컬 skip과 WSL 실DB 결과를 혼동하지 않는다.
 - WSL 전체 회귀/사후 확인: 지정 checkout `9299fd8496c09b0675047a8a526c3ddcf133e399`의 개발 DB 연결 전체 저장소 시험 **182 tests/175 pass/7 skip/0 fail**, PR 본문 **8 pass/0 fail**. API 단독 시험은 84 tests/77 pass/7 skip/0 fail이며 전체 저장소 집계를 대신하지 않는다. `git status --short` 빈 결과, 전용 컨테이너 0, 사후 위 DB 10개 테이블 각 0을 재확인했다. 이 검사는 개발 DB와 mock 계약 증거이며 Oracle/실공급자/UAT 증거가 아니다.
-- 미검증/다음: S2.2 전체 Stage, 악성 파일 실제 데몬 격리 시험, 실브라우저 주문 차단, S2.3~S8 및 사용자 인수는 완료 판정하지 않는다. 다음 독립 계획 작업을 이어간다.
+- 미검증/다음: S2.2 전체 Stage, 실브라우저 주문 차단, S2.3~S8 및 사용자 인수는 완료 판정하지 않는다. 실제 악성 파일 검사 데몬의 격리 시험 결과는 위 후속 기록에 별도 기재했다. 다음 독립 계획 작업을 이어간다.
 
 ## 진행 중 — 2026-09-29 S2.2 판매중지 migration·실DB 검증
 
