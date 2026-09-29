@@ -54,6 +54,15 @@ async function seed(client: PoolClient, runId: string, password: string) {
 
 async function reset(client: PoolClient, runId: string) {
   const names = qaNames(runId);
+  const sellerIds = (await client.query<{ id: string }>(
+    `SELECT s.id FROM sellers s JOIN seller_categories c ON c.id=s.category_id
+     WHERE c.name=$1 AND s.display_name = ANY($2::text[])`,
+    [names.category, [names.sellerA, names.sellerB, names.owool]],
+  )).rows.map((row) => row.id);
+  if (sellerIds.length) {
+    await client.query('DELETE FROM seller_shipping_policies WHERE seller_id = ANY($1::uuid[])', [sellerIds]);
+    await client.query('DELETE FROM seller_shipping_policy_requests WHERE seller_id = ANY($1::uuid[])', [sellerIds]);
+  }
   const accountResult = await client.query<{ id: string }>(
     'SELECT account_id AS id FROM account_identities WHERE kind = $1 AND identifier = ANY($2::text[])',
     ['email', names.emails],

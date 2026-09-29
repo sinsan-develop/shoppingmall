@@ -36,6 +36,27 @@
       "when": 1790470724669,
       "tag": "0004_s2_inventory",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790491382011,
+      "tag": "0005_s2_shipping_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790620433616,
+      "tag": "0006_s2_product_sale_stop",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790710456822,
+      "tag": "0007_s2_customer_favorites_restock",
+      "breakpoints": true
     }
   ]
 }

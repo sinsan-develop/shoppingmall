@@ -53,6 +53,9 @@ test('admin HTTP classification registration is scoped, public-readable and audi
     response = await create('minors', adminCookie, { parentId: major, name: `베리-${suffix}` });
     assert.equal(response.status, 201);
     minor = (await response.json()).id;
+    assert.equal((await create('minors', adminCookie, { parentId: randomUUID(), name: `고아-${suffix}` })).status, 400);
+    assert.equal((await create('minors', adminCookie, { parentId: major, name: '  ' })).status, 400);
+    assert.equal((await create('minors', adminCookie, { parentId: major, name: `베리-${suffix}` })).status, 409);
     assert.equal((await create('minors', adminCookie, { parentId: minor, name: `3단계-${suffix}` })).status, 400);
     response = await create('seller-categories', adminCookie, { name: `생산자-${suffix}` });
     assert.equal(response.status, 201);

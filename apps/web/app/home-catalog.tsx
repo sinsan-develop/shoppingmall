@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 
 type Category = { id: string; parentId: string | null; name: string };
-type Product = { productId: string; title: string; sellerName: string; originLabel: string; minPriceWon: number };
+type Product = { productId: string; title: string; sellerId?: string; sellerName: string;
+  originLabel: string; minPriceWon: number };
 type HomeCatalogProps = { categories: Category[]; products: Product[]; loading: boolean; error?: string };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -11,6 +12,8 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
 
 export function HomeCatalogView({ categories, products, loading, error }: HomeCatalogProps) {
   const majorCategories = categories.filter((category) => category.parentId === null);
+  const sellers = [...new Map(products.filter((product) => product.sellerId)
+    .map((product) => [product.sellerId, product.sellerName])).entries()];
   return (
     <>
       <section className="home-section" aria-labelledby="categories-title">
@@ -38,6 +41,14 @@ export function HomeCatalogView({ categories, products, loading, error }: HomeCa
                   <p className="product-price">{product.minPriceWon.toLocaleString('ko-KR')}원부터</p>
                 </article>)}
             </div>}
+      </section>
+      <section className="home-section" aria-labelledby="seller-story-title">
+        <div className="section-heading"><p className="eyebrow">OUR SELLERS</p><h2 id="seller-story-title">판매자 이야기</h2></div>
+        <p className="section-note">농가와 어울몰 판매자의 상품을 같은 기준으로 소개합니다</p>
+        {loading ? <p role="status">판매자를 불러오는 중</p> : error ? <p role="alert">{error}</p> :
+          sellers.length === 0 ? <p className="section-note">소개할 판매자가 없습니다</p> :
+            <div className="seller-story-links">{sellers.map(([id, name]) =>
+              <a className="category-link" key={id} href={`/products?sellerId=${encodeURIComponent(id!)}`}>{name}</a>)}</div>}
       </section>
     </>
   );

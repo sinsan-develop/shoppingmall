@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -11,6 +12,26 @@ test('home search is an actual product search form, not a decorative preview', (
   assert.match(html, /action="\/products"/);
   assert.match(html, /name="q"/);
   assert.match(html, /상품 검색/);
+});
+
+test('approved Flat v2 home hero leads to live catalog and story with labeled photo placeholders', () => {
+  const html = renderToStaticMarkup(createElement(HomePage));
+  assert.match(html, /전국 산지의 정성을/);
+  assert.match(html, /href="\/products"[^>]*>제철 상품 둘러보기<\/a>/);
+  assert.match(html, /href="\/#seller-story-title"[^>]*>어울몰 이야기<\/a>/);
+  assert.match(html, /aria-label="상품 사진 자리표시"/);
+  assert.match(html, /수확한 고추 사진/);
+  assert.match(html, /서비스 구축 중입니다/);
+});
+
+test('home menu links reach a real catalog or an existing home section', () => {
+  const html = renderToStaticMarkup(createElement(HomePage));
+  assert.match(html, /href="\/"[^>]*>홈<\/a>/);
+  assert.match(html, /href="\/products"[^>]*>제철 농산물<\/a>/);
+  assert.match(html, /href="\/#events-title"[^>]*>기획전<\/a>/);
+  assert.match(html, /href="\/#seller-story-title"[^>]*>판매자 이야기<\/a>/);
+  const source = readFileSync(new URL('../app/home-catalog.tsx', import.meta.url), 'utf8');
+  assert.match(source, /id="seller-story-title"/);
 });
 
 test('public product search shows server results and bounded controls without staged image keys', () => {
@@ -36,6 +57,57 @@ test('public product search shows server results and bounded controls without st
   assert.match(priceSort, /value="price_asc" selected=""/);
 });
 
+test('seller deep link remains a visible and editable search filter', () => {
+  const html = renderToStaticMarkup(createElement(ProductSearchView, {
+    query: '', sort: 'latest', categoryId: '', sellerId: 'seller-a',
+    categories: [], sellers: [{ id: 'seller-a', displayName: '진주농가' }],
+    products: [], loading: false,
+  }));
+  assert.match(html, /name="sellerId"/);
+  assert.match(html, /value="seller-a" selected=""[^>]*>진주농가/);
+});
+
+test('category choices group each minor beneath its selectable major', () => {
+  const html = renderToStaticMarkup(createElement(ProductSearchView, {
+    query: '', sort: 'latest', categoryId: 'vegetable', loading: false, products: [],
+    categories: [
+      { id: 'chili', parentId: 'vegetable', name: '고추' },
+      { id: 'fruit', parentId: null, name: '과일' },
+      { id: 'blueberry', parentId: 'fruit', name: '블루베리' },
+      { id: 'vegetable', parentId: null, name: '채소' },
+      { id: 'onion', parentId: 'vegetable', name: '양파' },
+    ],
+  }));
+  assert.match(html, /<optgroup label="과일">.*value="fruit".*과일 전체.*value="blueberry".*블루베리.*<\/optgroup>/);
+  assert.match(html, /<optgroup label="채소">.*value="vegetable" selected="".*채소 전체.*value="chili".*고추.*value="onion".*양파.*<\/optgroup>/);
+  assert.ok(html.indexOf('label="과일"') < html.indexOf('label="채소"'));
+});
+
+test('public search exposes more products only when another page may exist', () => {
+  const products = Array.from({ length: 24 }, (_, index) => ({
+    productId: `p${index}`, title: `상품 ${index}`, sellerName: '판매자', originLabel: '산지', minPriceWon: 1000,
+  }));
+  const view = (hasMore, loadingMore = false) => renderToStaticMarkup(createElement(ProductSearchView, {
+    query: '', sort: 'latest', categoryId: '', categories: [], products, loading: false,
+    hasMore, loadingMore,
+  }));
+  assert.match(view(true), /상품 더 보기/);
+  assert.match(view(true, true), /상품을 더 불러오는 중/);
+  assert.match(view(true, true), /disabled=""/);
+  assert.doesNotMatch(view(false), /상품 더 보기/);
+  assert.match(view(true), /id="product-link-p0"/);
+  const ended = renderToStaticMarkup(createElement(ProductSearchView, {
+    query: '', sort: 'latest', categoryId: '', categories: [], products, loading: false,
+    endOfResults: true,
+  }));
+  assert.match(ended, /id="search-end"[^>]*tabindex="-1"[^>]*>모든 상품을 확인했습니다/);
+});
+
+test('narrow product search gives each filter the full available width', () => {
+  const styles = readFileSync(new URL('../app/styles.css', import.meta.url), 'utf8');
+  assert.match(styles, /@media\(max-width:600px\)\{\.search-filters\{grid-template-columns:minmax\(0,1fr\)\}/);
+});
+
 test('approved product detail shows option price and sold-out status without private image keys', () => {
   const html = renderToStaticMarkup(createElement(ProductDetailView, {
     product: { productId: 'p1', title: '햇고추', description: '정성껏 기른 고추',
@@ -47,4 +119,29 @@ test('approved product detail shows option price and sold-out status without pri
     assert.match(html, new RegExp(phrase));
   }
   assert.doesNotMatch(html, /objectKey|quarantine\/|장바구니에 담기/);
+});
+
+test('approved sale stop is explained as a stop rather than ordinary sold-out stock', () => {
+  const html = renderToStaticMarkup(createElement(ProductDetailView, {
+    product: { productId: 'p1', title: '햇고추', description: '상품 설명', sellerName: '어울 농가',
+      originLabel: '경남 진주', shippingMode: 'seller_direct', saleStopped: true,
+      options: [{ id: 'o1', name: '500g', priceWon: 23000, sellableQuantity: 0 }] },
+  }));
+  assert.match(html, /판매중지.*신규 구매/);
+  assert.doesNotMatch(html, /품절/);
+  assert.match(html, /23,000원/);
+});
+
+test('approved product detail displays only server-gated image IDs and keeps private keys hidden', () => {
+  const html = renderToStaticMarkup(createElement(ProductDetailView, {
+    product: { productId: 'p1', title: '햇고추', description: '상품 설명', sellerName: '어울 농가',
+      originLabel: '경남 진주', shippingMode: 'seller_direct', options: [],
+      images: [{ id: 'i1', purpose: 'thumbnail', displayOrder: 0 },
+        { id: 'i2', purpose: 'detail', displayOrder: 1 }] },
+  }));
+  assert.match(html, /사진을 불러오는 중/);
+  const source = readFileSync(new URL('../app/products/[productId]/page.tsx', import.meta.url), 'utf8');
+  assert.match(source, /images\/\$\{encodeURIComponent\(product\.images\[0\]\.id\)\}/);
+  assert.match(source, /images\/\$\{encodeURIComponent\(image\.id\)\}/);
+  assert.doesNotMatch(html, /quarantine\/|objectKey|상품 사진 준비 중/);
 });

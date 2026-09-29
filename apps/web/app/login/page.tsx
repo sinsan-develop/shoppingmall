@@ -39,7 +39,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="shell account-shell">
+    <main id="main-content" tabIndex={-1} className="shell account-shell">
       <a className="text-link" href="/">어울몰 홈</a>
       <section className="account-card" aria-labelledby="login-title">
         <p className="eyebrow">어울몰 계정</p>

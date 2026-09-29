@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { DeletionRequestControls } from './deletion-request-controls';
 
 type Address = {
   id: string; label: string; recipientName: string; phone: string;
@@ -22,6 +23,7 @@ export default function CustomerProfilePage() {
   const [preferences, setPreferences] = useState<Preferences>({ marketingEmail: false, marketingSms: false, push: false });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [confirmDeletion, setConfirmDeletion] = useState(false);
 
   useEffect(() => {
     if (!apiOrigin) { setState('unavailable'); return; }
@@ -97,7 +99,7 @@ export default function CustomerProfilePage() {
   }
 
   async function requestDeletion() {
-    if (!apiOrigin || busy || !window.confirm('탈퇴 요청을 접수할까요? 실제 계정 삭제는 운영 검토 후 진행됩니다.')) return;
+    if (!apiOrigin || busy || !confirmDeletion) return;
     setBusy(true);
     setMessage('');
     try {
@@ -106,6 +108,7 @@ export default function CustomerProfilePage() {
       });
       setMessage(response.ok ? '탈퇴 요청이 접수되었습니다. 계정은 아직 삭제되지 않았습니다'
         : response.status === 409 ? '이미 접수된 탈퇴 요청이 있습니다' : '탈퇴 요청을 접수하지 못했습니다');
+      if (response.ok || response.status === 409) setConfirmDeletion(false);
     } catch {
       setMessage('서버에 연결할 수 없습니다');
     } finally {
@@ -114,7 +117,7 @@ export default function CustomerProfilePage() {
   }
 
   return (
-    <main className="shell account-shell">
+    <main id="main-content" tabIndex={-1} className="shell account-shell">
       <a className="text-link" href="/account">내 계정으로</a>
       <h1>배송지와 알림 설정</h1>
       {state === 'loading' ? <p role="status">고객 정보 확인 중</p> : null}
@@ -155,7 +158,9 @@ export default function CustomerProfilePage() {
             <section className="account-card profile-card" aria-labelledby="deletion-title">
               <h2 id="deletion-title">탈퇴 요청</h2>
               <p>요청을 접수해 운영자가 검토합니다. 이 단계에서 계정이 즉시 삭제되지는 않습니다</p>
-              <button className="primary-button" type="button" disabled={busy} onClick={requestDeletion}>탈퇴 요청 접수</button>
+              <DeletionRequestControls confirming={confirmDeletion} busy={busy}
+                onBegin={() => { setMessage(''); setConfirmDeletion(true); }}
+                onCancel={() => setConfirmDeletion(false)} onConfirm={requestDeletion} />
             </section>
           </div>
           {message ? <p role="status" className="profile-message">{message}</p> : null}

@@ -1,11 +1,12 @@
 import {
-  BadRequestException, Body, ConflictException, Controller, ForbiddenException,
-  Get, Inject, Post, Put, Req, ServiceUnavailableException, UnauthorizedException,
+  BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException,
+  Get, Inject, NotFoundException, Param, Post, Put, Req, ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
 import { CustomerProfile, type AddressInput, type PreferenceInput } from './profile.js';
+import { CustomerEngagement } from './engagement.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string } };
 
@@ -21,7 +22,38 @@ export class CustomerController {
     const actor = await new AuthRepository(pool).getSession(token);
     if (!actor) throw new UnauthorizedException();
     if (actor.role !== 'customer') throw new ForbiddenException();
-    return { actor, profile: new CustomerProfile(pool) };
+    return { actor, profile: new CustomerProfile(pool), engagement: new CustomerEngagement(pool) };
+  }
+
+  @Get('favorites')
+  async listFavorites(@Req() request: RequestHeaders) {
+    const { actor, engagement } = await this.context(request);
+    return engagement.listFavorites(actor);
+  }
+
+  @Put('favorites/:productId')
+  async addFavorite(@Req() request: RequestHeaders, @Param('productId') productId: string) {
+    requireOrigin(request);
+    const { actor, engagement } = await this.context(request);
+    try {
+      return await engagement.addFavorite(actor, productId);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid product') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Product unavailable') throw new NotFoundException();
+      throw error;
+    }
+  }
+
+  @Delete('favorites/:productId')
+  async removeFavorite(@Req() request: RequestHeaders, @Param('productId') productId: string) {
+    requireOrigin(request);
+    const { actor, engagement } = await this.context(request);
+    try {
+      return await engagement.removeFavorite(actor, productId);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid product') throw new BadRequestException();
+      throw error;
+    }
   }
 
   @Get('addresses')

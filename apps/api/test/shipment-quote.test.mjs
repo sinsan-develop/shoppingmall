@@ -1,0 +1,93 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { groupShipmentLines, quoteShipments, shippingFeeWon } from '../src/checkout/shipment-quote.ts';
+import { defaultShippingPolicy } from '../src/shipping/policy.ts';
+
+test('one cart separates two direct sellers and one owool fulfillment into three shipment amounts', () => {
+  const lines = [
+    { optionId: 'chili', sellerId: 'seller-a', shippingMode: 'seller_direct', quantity: 2, unitPriceWon: 23000 },
+    { optionId: 'powder', sellerId: 'owool', shippingMode: 'owool_fulfillment', quantity: 1, unitPriceWon: 18000 },
+    { optionId: 'onion', sellerId: 'seller-a', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 12000 },
+    { optionId: 'garlic', sellerId: 'seller-b', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 16000 },
+    { optionId: 'blueberry', sellerId: 'seller-b', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 28000 },
+  ];
+  const groups = groupShipmentLines(lines);
+  assert.deepEqual(groups.map(({ key, preDiscountGoodsWon, lines: ownLines }) =>
+    ({ key, preDiscountGoodsWon, optionIds: ownLines.map(({ optionId }) => optionId) })), [
+    { key: 'seller_direct:seller-a', preDiscountGoodsWon: 58000, optionIds: ['chili', 'onion'] },
+    { key: 'owool_fulfillment', preDiscountGoodsWon: 18000, optionIds: ['powder'] },
+    { key: 'seller_direct:seller-b', preDiscountGoodsWon: 44000, optionIds: ['garlic', 'blueberry'] },
+  ]);
+  assert.deepEqual(groups.map((group) => shippingFeeWon(group.preDiscountGoodsWon, defaultShippingPolicy)),
+    [0, 3000, 3000]);
+  assert.equal(lines[0].quantity, 2);
+});
+
+test('free shipping uses each shipment pre-discount goods amount at the exact threshold', () => {
+  assert.equal(shippingFeeWon(49999, defaultShippingPolicy), 3000);
+  assert.equal(shippingFeeWon(50000, defaultShippingPolicy), 0);
+  assert.equal(shippingFeeWon(52000, defaultShippingPolicy), 0);
+  const discountedPaymentGoodsWon = 52000 - 5000;
+  assert.equal(discountedPaymentGoodsWon, 47000);
+  assert.equal(shippingFeeWon(52000, defaultShippingPolicy), 0);
+  assert.equal(shippingFeeWon(39999, { feeWon: 3500, freeThresholdWon: 40000 }), 3500);
+  assert.equal(shippingFeeWon(40000, { feeWon: 3500, freeThresholdWon: 40000 }), 0);
+});
+
+test('owool fulfillment pools producer sellers but never mixes their direct shipment', () => {
+  const groups = groupShipmentLines([
+    { optionId: 'a-warehouse', sellerId: 'seller-a', shippingMode: 'owool_fulfillment',
+      quantity: 1, unitPriceWon: 26000 },
+    { optionId: 'b-warehouse', sellerId: 'seller-b', shippingMode: 'owool_fulfillment',
+      quantity: 1, unitPriceWon: 24000 },
+    { optionId: 'a-direct', sellerId: 'seller-a', shippingMode: 'seller_direct',
+      quantity: 1, unitPriceWon: 23000 },
+  ]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups.map(({ key, preDiscountGoodsWon, sellerId }) =>
+    ({ key, preDiscountGoodsWon, sellerId })), [
+    { key: 'owool_fulfillment', preDiscountGoodsWon: 50000, sellerId: null },
+    { key: 'seller_direct:seller-a', preDiscountGoodsWon: 23000, sellerId: 'seller-a' },
+  ]);
+  assert.deepEqual(groups[0].lines.map((line) => line.sellerId), ['seller-a', 'seller-b']);
+  assert.deepEqual(groups.map((group) => shippingFeeWon(group.preDiscountGoodsWon, defaultShippingPolicy)), [0, 3000]);
+});
+
+test('shipment arithmetic rejects malformed quantities, money and unsafe totals', () => {
+  const line = { optionId: 'one', sellerId: 'seller-a', shippingMode: 'seller_direct',
+    quantity: 1, unitPriceWon: 1000 };
+  for (const patch of [
+    { quantity: 0 }, { quantity: 1.5 }, { quantity: -1 }, { unitPriceWon: -1 },
+    { unitPriceWon: 1.5 }, { shippingMode: 'mixed' }, { sellerId: '' }, { optionId: '' },
+  ]) assert.throws(() => groupShipmentLines([{ ...line, ...patch }]), /Invalid shipment line/);
+  assert.throws(() => groupShipmentLines([{ ...line, quantity: Number.MAX_SAFE_INTEGER, unitPriceWon: 2 }]),
+    /Invalid shipment amount/);
+  assert.throws(() => shippingFeeWon(-1, defaultShippingPolicy), /Invalid shipment amount/);
+});
+
+test('a server quote totals each seller shipment with its effective policy, not the combined cart threshold', () => {
+  const quote = quoteShipments([
+    { optionId: 'chili', sellerId: 'seller-a', shippingMode: 'seller_direct', quantity: 2, unitPriceWon: 23000 },
+    { optionId: 'powder', sellerId: 'owool', shippingMode: 'owool_fulfillment', quantity: 1, unitPriceWon: 18000 },
+    { optionId: 'onion', sellerId: 'seller-a', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 12000 },
+    { optionId: 'garlic', sellerId: 'seller-b', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 16000 },
+    { optionId: 'blueberry', sellerId: 'seller-b', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 28000 },
+  ], (group) => group.sellerId === 'seller-b'
+    ? { feeWon: 3500, freeThresholdWon: 40000 }
+    : defaultShippingPolicy);
+  assert.deepEqual(quote.shipments.map(({ key, goodsWon, shippingWon, totalWon }) =>
+    ({ key, goodsWon, shippingWon, totalWon })), [
+    { key: 'seller_direct:seller-a', goodsWon: 58000, shippingWon: 0, totalWon: 58000 },
+    { key: 'owool_fulfillment', goodsWon: 18000, shippingWon: 3000, totalWon: 21000 },
+    { key: 'seller_direct:seller-b', goodsWon: 44000, shippingWon: 0, totalWon: 44000 },
+  ]);
+  assert.equal(quote.goodsWon, 120000);
+  assert.equal(quote.shippingWon, 3000);
+  assert.equal(quote.totalWon, 123000);
+  assert.throws(() => quoteShipments([], () => defaultShippingPolicy), /Empty cart/);
+  assert.throws(() => quoteShipments([
+    { optionId: 'one', sellerId: 'a', shippingMode: 'seller_direct', quantity: 1,
+      unitPriceWon: Number.MAX_SAFE_INTEGER },
+    { optionId: 'two', sellerId: 'b', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 1 },
+  ], () => defaultShippingPolicy), /Invalid shipment amount/);
+});

@@ -47,7 +47,7 @@ export default function AccountPage() {
   const roleLabel = session?.role === 'customer' ? '구매자'
     : session?.role === 'seller' ? '판매자' : '운영자';
   return (
-    <main className="shell account-shell">
+    <main id="main-content" tabIndex={-1} className="shell account-shell">
       <a className="text-link" href="/">어울몰 홈</a>
       <section className="account-card" aria-labelledby="account-title">
         <p className="eyebrow">어울몰 계정</p>
@@ -58,9 +58,11 @@ export default function AccountPage() {
         {state === 'ready' && session ? (
           <div>
             <p>현재 역할: <strong>{roleLabel}</strong></p>
-            {session.role === 'seller' ? <p><a className="text-link" href="/account/seller/products">상품 초안 등록</a><br />주문 관리는 준비 중입니다</p> : null}
+            {session.role === 'seller' ? <p><a className="text-link" href="/account/seller/products">상품 초안 등록</a><br />
+              <a className="text-link" href="/account/seller/shipping">배송 정책 변경 요청</a><br />주문 관리는 준비 중입니다</p> : null}
             {session.role === 'admin' ? <p><a className="text-link" href="/account/admin/catalog">분류·판매자 등록</a><br />
-              <a className="text-link" href="/account/admin/proposals">상품 요청 검토</a><br />그 밖의 운영 관리 기능은 준비 중입니다</p> : null}
+              <a className="text-link" href="/account/admin/proposals">상품 요청 검토</a><br />
+              <a className="text-link" href="/account/admin/shipping">배송 정책 관리</a><br />그 밖의 운영 관리 기능은 준비 중입니다</p> : null}
             {session.role === 'customer' ? <p><a className="text-link" href="/account/customer">배송지·알림 설정</a><br />주문 기능은 준비 중입니다</p> : null}
             <button type="button" className="primary-button" disabled={busy} onClick={logout}>로그아웃</button>
           </div>

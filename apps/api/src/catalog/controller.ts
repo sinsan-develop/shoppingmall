@@ -1,7 +1,7 @@
 import {
-  BadRequestException, Body, ConflictException, Controller, ForbiddenException,
-  Get, Inject, NotFoundException, Param, PayloadTooLargeException, Post, Query, Req,
-  ServiceUnavailableException, UnauthorizedException,
+  BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException,
+  Get, Header, Inject, NotFoundException, Param, Patch, PayloadTooLargeException, Post, Query, Req,
+  ServiceUnavailableException, StreamableFile, UnauthorizedException,
 } from '@nestjs/common';
 import type { IncomingMessage } from 'node:http';
 import { readToken, requireOrigin } from '../auth/controller.js';
@@ -11,7 +11,9 @@ import { InventoryService } from '../inventory/service.js';
 import { ProductDrafts, type DraftInput } from './product-drafts.js';
 import { ProductReviews } from './product-reviews.js';
 import { ImageQuarantine } from './image-quarantine.js';
+import { scanImageWithClamd } from './image-scanner.js';
 import { PublicProducts } from './public-products.js';
+import { ProductSaleStops } from './product-sale-stops.js';
 import { CatalogTaxonomy } from './taxonomy.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string } };
@@ -59,6 +61,12 @@ export class CatalogController {
     const pool = this.database.getPool();
     if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
     return new ProductReviews(pool);
+  }
+
+  private saleStops() {
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    return new ProductSaleStops(pool);
   }
 
   private inventory() {
@@ -159,10 +167,63 @@ export class CatalogController {
     }
   }
 
+  @Get('products/:productId/images/:imageId')
+  @Header('Cache-Control', 'no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async publishedImage(@Param('productId') productId: string, @Param('imageId') imageId: string) {
+    this.requireLocalUpload();
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    let asset;
+    try { asset = await new PublicProducts(pool).getPublishedImage(productId, imageId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid image target') throw new BadRequestException();
+      throw error;
+    }
+    if (!asset) throw new NotFoundException();
+    try { return new StreamableFile(await this.localUploadStore().read(asset.objectKey), { type: 'image/webp' }); }
+    catch { throw new ServiceUnavailableException({ status: 'published_image_unavailable' }); }
+  }
+
   @Get('seller/products')
   async listOwnedProducts(@Req() request: RequestHeaders) {
     const actor = await this.seller(request);
     return this.drafts().listOwned(actor);
+  }
+
+  @Get('seller/sale-stop-requests')
+  async ownSaleStopRequests(@Req() request: RequestHeaders) {
+    return this.saleStops().listOwn(await this.seller(request));
+  }
+
+  @Post('seller/products/:productId/sale-stop-requests')
+  async requestSaleStop(@Req() request: RequestHeaders, @Param('productId') productId: string, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    const reason = body && typeof body === 'object' ? (body as Record<string, unknown>).reason : undefined;
+    try { return await this.saleStops().request(actor, productId, reason as string); }
+    catch (error) {
+      if (error instanceof Error && ['Invalid stop target', 'Stop reason required'].includes(error.message))
+        throw new BadRequestException({ status: 'invalid_stop_request', reason: error.message });
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      if (error instanceof Error && ['Published product required', 'Sale already stopped', 'Pending stop request exists'].includes(error.message))
+        throw new ConflictException({ status: 'stop_request_conflict', reason: error.message });
+      throw error;
+    }
+  }
+
+  @Get('seller/products/:productId/revisions/:revisionId')
+  async getEditableProductDraft(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string) {
+    const actor = await this.seller(request);
+    try { return await this.drafts().getEditable(actor, productId, revisionId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Draft required') throw new ConflictException();
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
   }
 
   @Post('seller/products')
@@ -174,6 +235,57 @@ export class CatalogController {
       if (error instanceof Error && ['Invalid product', 'Invalid option', 'Option required', 'Minor category required'].includes(error.message)) {
         throw new BadRequestException({ status: 'invalid_draft', reason: error.message });
       }
+      throw error;
+    }
+  }
+
+  @Post('seller/products/:productId/revisions')
+  async createProductRevision(@Req() request: RequestHeaders, @Param('productId') productId: string) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    this.requireLocalUpload();
+    try { return await this.drafts().createRevision(actor, productId, this.localUploadStore()); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Active revision already exists') {
+        throw new ConflictException({ status: 'revision_conflict', reason: error.message });
+      }
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
+  @Patch('seller/products/:productId/revisions/:revisionId')
+  async updateProductDraft(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    try { return await this.drafts().update(actor, productId, revisionId, body as DraftInput); }
+    catch (error) {
+      if (error instanceof Error && [
+        'Invalid proposal target', 'Invalid product', 'Invalid option', 'Option required',
+        'Minor category required', 'Stocked option cannot be removed',
+      ].includes(error.message)) throw new BadRequestException({ status: 'invalid_draft', reason: error.message });
+      if (error instanceof Error && ['Draft required', 'Published category cannot change'].includes(error.message)) {
+        throw new ConflictException({ status: 'draft_conflict', reason: error.message });
+      }
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
+  @Delete('seller/products/:productId/revisions/:revisionId')
+  async deleteProductDraft(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    try { return await this.drafts().deleteDraft(actor, productId, revisionId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
+      if (error instanceof Error && ['Draft required', 'Protected draft data'].includes(error.message)) {
+        throw new ConflictException({ status: 'draft_conflict', reason: error.message });
+      }
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
       throw error;
     }
   }
@@ -229,6 +341,62 @@ export class CatalogController {
     try { return await this.drafts().listImages(actor, productId, revisionId); }
     catch (error) {
       if (error instanceof Error && error.message === 'Invalid image target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
+  @Get('seller/products/:productId/revisions/:revisionId/images/:imageId/preview')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async previewSellerImage(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string,
+    @Param('imageId') imageId: string) {
+    this.requireLocalUpload();
+    const actor = await this.seller(request);
+    try {
+      const bytes = await this.drafts().readImage(actor, productId, revisionId, imageId, this.localUploadStore());
+      return new StreamableFile(bytes, { type: 'image/webp' });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid image target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw new ServiceUnavailableException({ status: 'private_image_unavailable' });
+    }
+  }
+
+  @Patch('seller/products/:productId/revisions/:revisionId/images/order')
+  async reorderProductImages(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    const images = body && typeof body === 'object' ? (body as Record<string, unknown>).images : undefined;
+    try {
+      return await this.drafts().reorderImages(actor, productId, revisionId,
+        images as { id: string; purpose: 'thumbnail' | 'detail' }[]);
+    } catch (error) {
+      if (error instanceof Error && [
+        'Invalid image order', 'One thumbnail required', 'Image set mismatch', 'Draft required',
+      ].includes(error.message)) throw new BadRequestException({ status: 'invalid_image_order', reason: error.message });
+      if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
+      throw error;
+    }
+  }
+
+  @Delete('seller/products/:productId/revisions/:revisionId/images/:imageId')
+  async removeProductImage(@Req() request: RequestHeaders,
+    @Param('productId') productId: string, @Param('revisionId') revisionId: string,
+    @Param('imageId') imageId: string) {
+    this.requireLocalUpload();
+    requireOrigin(request);
+    const actor = await this.seller(request);
+    const store = this.localUploadStore();
+    try { return await this.drafts().removeImage(actor, productId, revisionId, imageId, store); }
+    catch (error) {
+      if (error instanceof Error && ['Invalid image target', 'Draft required'].includes(error.message)) {
+        throw new BadRequestException({ status: 'invalid_image_remove', reason: error.message });
+      }
+      if (error instanceof Error && error.message === 'Image not found') throw new NotFoundException();
       if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
       throw error;
     }
@@ -290,6 +458,68 @@ export class CatalogController {
     return this.reviews().listPending(actor);
   }
 
+  @Get('admin/sale-stop-requests')
+  async pendingSaleStopRequests(@Req() request: RequestHeaders) {
+    return this.saleStops().listPending(await this.admin(request));
+  }
+
+  @Post('admin/sale-stop-requests/:requestId/approve')
+  async approveSaleStop(@Req() request: RequestHeaders, @Param('requestId') requestId: string) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    try { return await this.saleStops().approve(actor, requestId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid stop request') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Pending stop request required')
+        throw new ConflictException({ status: 'not_pending' });
+      throw error;
+    }
+  }
+
+  @Post('admin/sale-stop-requests/:requestId/reject')
+  async rejectSaleStop(@Req() request: RequestHeaders, @Param('requestId') requestId: string, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    const reason = body && typeof body === 'object' ? (body as Record<string, unknown>).reason : undefined;
+    try { return await this.saleStops().reject(actor, requestId, reason as string); }
+    catch (error) {
+      if (error instanceof Error && ['Invalid stop request', 'Review reason required'].includes(error.message))
+        throw new BadRequestException({ status: 'invalid_review', reason: error.message });
+      if (error instanceof Error && error.message === 'Pending stop request required')
+        throw new ConflictException({ status: 'not_pending' });
+      throw error;
+    }
+  }
+
+  @Get('admin/proposals/:revisionId/images')
+  async pendingProposalImages(@Req() request: RequestHeaders, @Param('revisionId') revisionId: string) {
+    const actor = await this.admin(request);
+    try { return await this.reviews().listImages(actor, revisionId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Pending proposal required') throw new NotFoundException();
+      throw error;
+    }
+  }
+
+  @Get('admin/proposals/:revisionId/images/:imageId/preview')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async previewPendingImage(@Req() request: RequestHeaders,
+    @Param('revisionId') revisionId: string, @Param('imageId') imageId: string) {
+    this.requireLocalUpload();
+    const actor = await this.admin(request);
+    try {
+      const bytes = await this.reviews().readImage(actor, revisionId, imageId, this.localUploadStore());
+      return new StreamableFile(bytes, { type: 'image/webp' });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid image target') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Pending image not found') throw new NotFoundException();
+      throw new ServiceUnavailableException({ status: 'private_image_unavailable' });
+    }
+  }
+
   @Post('admin/proposals/:revisionId/reject')
   async rejectProposal(@Req() request: RequestHeaders, @Param('revisionId') revisionId: string,
     @Body() body: unknown) {
@@ -303,6 +533,28 @@ export class CatalogController {
       }
       if (error instanceof Error && error.message === 'Pending proposal required') {
         throw new ConflictException({ status: 'not_pending' });
+      }
+      throw error;
+    }
+  }
+
+  @Post('admin/proposals/:revisionId/approve')
+  async approveProposal(@Req() request: RequestHeaders, @Param('revisionId') revisionId: string) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    this.requireLocalUpload();
+    try {
+      return await this.reviews().approve(actor, revisionId, this.localUploadStore(),
+        (bytes) => scanImageWithClamd(bytes, { host: '127.0.0.1',
+          port: Number(process.env.CLAMD_PORT ?? 3310), timeoutMs: 15000 }));
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
+      if (error instanceof Error && ['Pending proposal required', 'One thumbnail required',
+        'Invalid image', 'Image set changed', 'Option required', 'Image scan rejected'].includes(error.message)) {
+        throw new ConflictException({ status: 'approval_rejected', reason: error.message });
+      }
+      if (error instanceof Error && ['Image scan unavailable', 'Invalid object key'].includes(error.message)) {
+        throw new ServiceUnavailableException({ status: 'image_scan_unavailable' });
       }
       throw error;
     }

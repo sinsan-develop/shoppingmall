@@ -4,6 +4,7 @@ import { DatabaseService } from './db/service.js';
 import { AuthController } from './auth/controller.js';
 import { CustomerController } from './customer/controller.js';
 import { CatalogController } from './catalog/controller.js';
+import { ShippingController } from './shipping/controller.js';
 
-@Module({ controllers: [HealthController, AuthController, CustomerController, CatalogController], providers: [DatabaseService] })
+@Module({ controllers: [HealthController, AuthController, CustomerController, CatalogController, ShippingController], providers: [DatabaseService] })
 export class AppModule {}

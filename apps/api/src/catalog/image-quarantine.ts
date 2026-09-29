@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, unlink } from 'node:fs/promises';
+import { access, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import { basename, isAbsolute, join, parse, resolve } from 'node:path';
 import { sanitizeImage } from './image-sanitizer.js';
 
@@ -99,4 +99,18 @@ export class ImageQuarantine {
   async read(objectKey: string) { return readFile(this.pathFor(objectKey)); }
 
   async remove(objectKey: string) { await unlink(this.pathFor(objectKey)); }
+
+  /** Move out of the live private namespace before DB mutation; retain a reversible copy until commit. */
+  async stageRemoval(objectKey: string) {
+    const source = this.pathFor(objectKey);
+    const trash = join(this.root, 'trash', basename(source));
+    await mkdir(join(this.root, 'trash'), { recursive: true, mode: 0o700 });
+    try { await access(trash); throw new Error('Image cleanup recovery required'); }
+    catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error; }
+    await rename(source, trash);
+    return {
+      restore: async () => rename(trash, source),
+      purge: async () => unlink(trash),
+    };
+  }
 }

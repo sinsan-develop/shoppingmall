@@ -27,6 +27,15 @@ test('staged image keys are server-generated, private and never user paths', asy
     await assert.rejects(store.remove('../outside.png'), /Invalid object key/);
     await store.remove(first.objectKey);
     await assert.rejects(readFile(diskPath), { code: 'ENOENT' });
+    const restored = await store.put(png, 'image/png');
+    const staged = await store.stageRemoval(restored.objectKey);
+    await assert.rejects(store.read(restored.objectKey), { code: 'ENOENT' });
+    await staged.restore();
+    assert.ok((await store.read(restored.objectKey)).length > 0);
+    const purged = await store.stageRemoval(restored.objectKey);
+    await purged.purge();
+    await assert.rejects(store.read(restored.objectKey), { code: 'ENOENT' });
+    await assert.rejects(store.stageRemoval('../outside.png'), /Invalid object key/);
   } finally {
     if (resolve(root).startsWith(resolve(tmpdir()) + (process.platform === 'win32' ? '\\' : '/')) &&
         root.includes('shoppingmall-upload-test-')) await rm(root, { recursive: true, force: true });
