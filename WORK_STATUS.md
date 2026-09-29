@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-30 S2.4 찜·재입고 신청 상세 구현 계획
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@6edcbcb9e9061f9df6a19bb671dbf2ed6e518def`. 신산님의 `계속하자`를 앞선 서면 설계 검토 후 다음 단계 진행으로 받아들여 `docs/superpowers/plans/2026-09-30-customer-favorites-restock.md`를 작성했다. 새 브랜치·제품 코드·DB·시험 자원은 이번 문서 작업에서 변경하지 않았다.
+- 계획: 고객 찜/옵션별 신청 관계와 격리 migration, 고객 전용 API, Flat v2 화면, 로컬·WSL exact SHA/실DB·브라우저/정리의 RED→GREEN 및 checkpoint를 Task 1~5로 나눴다. 실제 알림 전달과 `notified` 전이는 S5.3/UAT 미검증으로 남긴다. 서면 계획 검토와 실행 방식 확인 후 구현한다.
+- 자체 검토: 설계 요구사항과 권한·동시 중복·상품 개정·판매중지·화면 오류·QA FK 정리·복구 항목을 계획 작업에 연결했다. WSL DB RED/GREEN은 Git commit/push→exact SHA pull 순서로만 실행하도록 보정했다. 현재 제품 기능/DB/브라우저 PASS 판정은 없다.
+
 ## 진행 중 — 2026-09-29 S2.4 찜·재입고 신청 서면 설계
 
 - 담당/결정: 어울 단일 writer, `codex/flat-v2-prototypes`. 신산님이 재입고 신청은 상품 내 **옵션별**, 알림은 **한 번 전달 후 종료**로 답했고, 상품 찜은 상품 단위의 계정 저장 방향을 검토 후 `그래 진행하자`고 했다. 이는 설계서 작성 진행 승인으로 기록하며 아직 작성된 서면 설계·실행 계획·제품 구현의 최종 검증과 혼동하지 않는다.
