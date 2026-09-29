@@ -50,6 +50,13 @@
       "when": 1790620433616,
       "tag": "0006_s2_product_sale_stop",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790710456822,
+      "tag": "0007_s2_customer_favorites_restock",
+      "breakpoints": true
     }
   ]
 }

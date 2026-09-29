@@ -7,6 +7,7 @@
 - QA 자원 사전 계획: WSL 지정 checkout `/home/daon/deploy/shopping`, 기존 `local-postgres`에만 격리 DB `shoppingmall_s24_fav_0930` 생성(현재 이름/소유 확인 후), 기존 Node24 이미지의 자동제거 시험 컨테이너 `shoppingmall-s24-fav-0930`, 고유 가상 계정·상품/옵션 UUID를 사용한다. 격리 DB는 0000→0006 RED 및 0007 GREEN 검증 동안만, 컨테이너는 명령 실행 동안만 둔다. 종료 때 정확한 QA DB/컨테이너와 해당 fixture 행만 정리하고 잔류 0을 확인한다. 지정 개발 DB `shoppingmall`은 dry-run·격리 PASS 전 변경하지 않으며 실계정·실발송·Oracle은 제외한다.
 - 현재 제품 코드/DB 변경·마이그레이션 적용/WSL 검증: 아직 없음. 다음은 Task 1 테스트 작성→exact SHA WSL RED이다.
 - 진행/오류: Task 1의 실DB 관계 계약 시험 2건을 제품 코드보다 먼저 작성했다. WSL 지정 checkout은 `0068c8378caf0fa12c33c677dc31a83493173b8f` clean이며 `local-postgres` 실행 중이다. `shoppingmall_s24_fav_0930`은 DB 목록에 없고 동명 시험 컨테이너도 없다. 읽기 전용 DB명 SQL의 PowerShell→SSH 인용 오류 1회 후 `psql -lqt` 목록으로 확인했다. 계획 브리프 스크립트 내부의 Windows 경로 실행 오류 2회 후 동일 패키지 브리프 스크립트를 직접 호출해 회복했다. 같은 근본 원인 3회 반복 없음. 실제 DB RED/GREEN은 아직 수행 전이다.
+- Task 1 RED 증거: 테스트 전용 commit `2d0fde64ef34936c16fca30a4d16ff22bad9346a`를 SSH 원격과 WSL 지정 checkout에서 같은 SHA로 확인했다. 격리 DB `shoppingmall_s24_fav_0930`에 기존 migration 0000~0006만 적용(7건); 목표 시험 2건 모두 새 테이블 부재 `42P01`로 예상 실패, skip 0. 공유 개발 `shoppingmall`은 기존 migration 7건 그대로이며 신규 SQL은 적용하지 않았다. 전용 Node24 컨테이너는 `--rm`으로 종료됐다. 이후 Drizzle generator가 새 `0007` SQL/스냅샷/저널을 생성했고 API typecheck exit 0; 실DB GREEN은 새 exact SHA에서 재검증 예정. 격리 DB는 GREEN까지 유지하고 정확한 이름으로 정리한다.
 
 ## 진행 중 — 2026-09-30 S2.4 찜·재입고 신청 상세 구현 계획
 

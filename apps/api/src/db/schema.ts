@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, foreignKey, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { boolean, check, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { PostalRange, ShippingPolicy } from '../shipping/policy.js';
 
 export const identityKind = pgEnum('identity_kind', ['email', 'phone', 'kakao', 'apple']);
@@ -268,6 +268,31 @@ export const customerAddresses = pgTable('customer_addresses', {
   index('customer_addresses_account_idx').on(table.accountId),
   uniqueIndex('customer_addresses_one_default_uq').on(table.accountId)
     .where(sql`${table.isDefault} = true AND ${table.deletedAt} IS NULL`),
+]);
+
+export const customerFavorites = pgTable('customer_favorites', {
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.accountId, table.productId] }),
+  index('customer_favorites_product_idx').on(table.productId)]);
+
+export const restockSubscriptions = pgTable('restock_subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  optionName: text('option_name').notNull(),
+  status: text('status').notNull().default('active'),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  notifiedAt: timestamp('notified_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('restock_subscriptions_active_uq').on(table.accountId, table.productId, table.optionName)
+    .where(sql`${table.status} = 'active'`),
+  index('restock_subscriptions_account_idx').on(table.accountId),
+  index('restock_subscriptions_product_idx').on(table.productId),
+  check('restock_subscriptions_status_ck', sql`${table.status} IN ('active','cancelled','notified')`),
+  check('restock_subscriptions_option_name_ck', sql`length(trim(${table.optionName})) > 0`),
 ]);
 
 export const notificationPreferences = pgTable('notification_preferences', {
