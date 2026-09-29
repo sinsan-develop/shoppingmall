@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-30 S2.4 찜·재입고 신청 구현 시작
+
+- 담당/기준: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@4d00fbee08ec39193994f8b7938b2249ef188c0a` clean 격리 worktree. 신산님의 `계속하자`에 따라 승인된 찜·재입고 상세 계획을 직접 구현한다. 새 브랜치/다른 checkout은 만들지 않는다.
+- 시작 검증: Windows 로컬 `pnpm test` 182건/149 pass/33 DB·환경 skip/0 fail, 별도 PR 본문 8 pass/0 fail. 로컬 skip을 실DB PASS로 간주하지 않는다. 우선 Task 1의 새 관계와 migration을 RED→GREEN으로 진행한다.
+- QA 자원 사전 계획: WSL 지정 checkout `/home/daon/deploy/shopping`, 기존 `local-postgres`에만 격리 DB `shoppingmall_s24_fav_0930` 생성(현재 이름/소유 확인 후), 기존 Node24 이미지의 자동제거 시험 컨테이너 `shoppingmall-s24-fav-0930`, 고유 가상 계정·상품/옵션 UUID를 사용한다. 격리 DB는 0000→0006 RED 및 0007 GREEN 검증 동안만, 컨테이너는 명령 실행 동안만 둔다. 종료 때 정확한 QA DB/컨테이너와 해당 fixture 행만 정리하고 잔류 0을 확인한다. 지정 개발 DB `shoppingmall`은 dry-run·격리 PASS 전 변경하지 않으며 실계정·실발송·Oracle은 제외한다.
+- 현재 제품 코드/DB 변경·마이그레이션 적용/WSL 검증: 아직 없음. 다음은 Task 1 테스트 작성→exact SHA WSL RED이다.
+- 진행/오류: Task 1의 실DB 관계 계약 시험 2건을 제품 코드보다 먼저 작성했다. WSL 지정 checkout은 `0068c8378caf0fa12c33c677dc31a83493173b8f` clean이며 `local-postgres` 실행 중이다. `shoppingmall_s24_fav_0930`은 DB 목록에 없고 동명 시험 컨테이너도 없다. 읽기 전용 DB명 SQL의 PowerShell→SSH 인용 오류 1회 후 `psql -lqt` 목록으로 확인했다. 계획 브리프 스크립트 내부의 Windows 경로 실행 오류 2회 후 동일 패키지 브리프 스크립트를 직접 호출해 회복했다. 같은 근본 원인 3회 반복 없음. 실제 DB RED/GREEN은 아직 수행 전이다.
+
 ## 진행 중 — 2026-09-30 S2.4 찜·재입고 신청 상세 구현 계획
 
 - 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@6edcbcb9e9061f9df6a19bb671dbf2ed6e518def`. 신산님의 `계속하자`를 앞선 서면 설계 검토 후 다음 단계 진행으로 받아들여 `docs/superpowers/plans/2026-09-30-customer-favorites-restock.md`를 작성했다. 새 브랜치·제품 코드·DB·시험 자원은 이번 문서 작업에서 변경하지 않았다.
