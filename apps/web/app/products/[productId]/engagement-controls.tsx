@@ -23,6 +23,12 @@ export function createEngagementLoadGate() {
   };
 }
 
+export function engagementMutationFailureMessage(saved: boolean) {
+  return saved
+    ? '변경은 저장됐지만 결과를 확인하지 못했습니다. 페이지를 새로고침해 확인해 주세요'
+    : '저장하지 못했습니다. 다시 시도해 주세요';
+}
+
 export function EngagementControlsView({ product, access, favorite, activeRestock, busy, message,
   onFavorite, onRestock, onCancel }: {
   product: Product; access: Access; favorite: boolean; activeRestock: Restock[]; busy: string; message: string;
@@ -50,6 +56,15 @@ export function EngagementControlsView({ product, access, favorite, activeRestoc
           </button>
         </div>;
       }) : null}
+      {activeRestock.filter((item) => item.productId === product.productId && item.status === 'active' &&
+        (product.saleStopped || !product.options.some((option) => option.name === item.optionName &&
+          option.sellableQuantity === 0))).map((item) => <div className="engagement-option" key={item.id}>
+        <span>{item.optionName} 재입고 신청 중</span>
+        <button type="button" className="secondary-button" disabled={Boolean(busy)}
+          aria-label={`${item.optionName} 재입고 신청 취소`} onClick={() => onCancel(item.id)}>
+          재입고 신청 취소
+        </button>
+      </div>)}
     </> : null}
     {message ? <p role={message.includes('못했') || message.includes('오류') ? 'alert' : 'status'}>{message}</p> : null}
   </section>;
@@ -100,12 +115,14 @@ export function EngagementControls({ product }: { product: Product }) {
     setMessage('');
     const signal = lifetime.current.signal;
     const request = gate.current.begin(product.productId);
+    let saved = false;
     try {
       const result = await fetch(`${apiOrigin}${path}`, {
         method, credentials: 'include', signal,
         ...(body ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}),
       });
       if (!result.ok) throw new Error('Save failed');
+      saved = true;
       const [favorites, restock] = await Promise.all([
         fetch(`${apiOrigin}/customer/favorites`, { credentials: 'include', signal }),
         fetch(`${apiOrigin}/customer/restock-subscriptions`, { credentials: 'include', signal }),
@@ -120,7 +137,9 @@ export function EngagementControls({ product }: { product: Product }) {
         setMessage('변경 내용을 저장했습니다');
       }
     } catch {
-      if (!signal.aborted && gate.current.isCurrent(request, product.productId)) setMessage('저장하지 못했습니다. 다시 시도해 주세요');
+      if (!signal.aborted && gate.current.isCurrent(request, product.productId)) {
+        setMessage(engagementMutationFailureMessage(saved));
+      }
     } finally {
       operation.current = false;
       if (!signal.aborted && gate.current.isCurrent(request, product.productId)) setBusy('');

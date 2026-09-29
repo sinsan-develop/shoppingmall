@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-30 S2.4 코드 리뷰 보완·홈 편집 계약 확인
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes`. 읽기 전용 코드 리뷰에서 중요 2건(판매중지 승인↔재입고 신청 경합, 일반 QA 계정 reset의 새 관계 FK 누락), 경미 2건(저장 후 재조회 실패 문구, 판매 상태 변경 시 상세 취소 동선)을 확인했다. Critical 없음. S2.4 전체 완료·PR/병합·인수 판정은 아니다.
+- RED: 시험 전용 `3c8a35c`를 SSH 별칭으로 push→지정 WSL checkout 동일 SHA에서 실DB 두 회귀시험이 각각 예상 실패(신청 성공으로 경합 확인, 계정 삭제 FK `23503`). 시험 fixture의 정확한 ID 정리 후 제품 코드의 상품 행 `FOR SHARE`를 기존 판매중지 승인 `FOR UPDATE`보다 먼저 획득하도록 맞추고, QA 계정 reset에서 해당 계정의 찜·신청 자식 행만 삭제했다. 스키마·공개 API·실계정은 변경하지 않았다.
+- 중요 결함 GREEN: 수정 `cb5b518936b33c0a5624fe01565c71a8cf7e0bf4`의 로컬/SSH 원격/WSL 동일 SHA에서 WSL 개발 `shoppingmall` DB 전체 시험 **194건/187 pass/7 환경 skip/0 fail**. 사후 WSL checkout clean, accounts/products/favorites/restock/audit `0/0/0/0/0`, 전용 S2.4 컨테이너 0. 로컬 같은 시점 194건/155 pass/39 DB·환경 skip/0 fail와 PR 본문 8 pass, typecheck 0.
+- 경미 보완: 상세 화면에서 변경 요청 성공 뒤 목록 재조회만 실패하면 `저장 실패` 대신 저장 완료·결과 확인 실패를 구분하고 새로고침 안내를 표시한다. 현재 품절 버튼 밖의 활성 신청도 판매중지/재입고/옵션 변경 후 상세에서 취소할 수 있게 한다. RED 시험은 새 helper 미구현 export로 실패, 수정 후 화면 목표 8 pass. 로컬 전체 **196건/157 pass/39 DB·환경 skip/0 fail**, PR 본문 8 pass, typecheck·lint 0. 첫 Windows production build는 제한된 실행의 `.next/trace` EPERM으로 중단됐으나 동일 소스 권한 실행 재시도에서 API/Web build 0; 제품 빌드 결함으로 판정하지 않는다. 경미 보완의 WSL 동일 SHA 시험은 다음 checkpoint에서 수행한다.
+- 다음: 경미 보완 commit/push→WSL 동일 SHA 목표 화면·실DB 회귀와 clean/QA 잔류 확인, 코드 재검토. 홈 메뉴·기획전·관리자 편집 추천은 범위상 필요하지만 관리 저장 방식·권한/이력/링크 계약은 서면 초안이 미확정이다. 신산님께 관리자 직접 편집/공개 대 판매자 제안 포함 중 한 선택을 비차단 질문으로 요청했고, 답 전에는 새 홈 관리 schema/API를 만들지 않는다. 실제 200% 확대·외부 알림·Oracle·사용자 인수는 미검증으로 유지한다.
+
 ## 진행 중 — 2026-09-30 S2.4 찜·재입고 신청 구현 시작
 
 - 담당/기준: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@4d00fbee08ec39193994f8b7938b2249ef188c0a` clean 격리 worktree. 신산님의 `계속하자`에 따라 승인된 찜·재입고 상세 계획을 직접 구현한다. 새 브랜치/다른 checkout은 만들지 않는다.

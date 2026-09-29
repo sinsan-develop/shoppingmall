@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { EngagementControlsView, createEngagementLoadGate } from '../app/products/[productId]/engagement-controls.tsx';
+import { EngagementControlsView, createEngagementLoadGate, engagementMutationFailureMessage } from '../app/products/[productId]/engagement-controls.tsx';
 import { EngagementListsView } from '../app/account/customer/engagement-lists.tsx';
 import CustomerProfilePage from '../app/account/customer/page.tsx';
 
@@ -46,6 +46,18 @@ test('pending and errors never look like completed saves, and buttons have speci
   assert.doesNotMatch(failed, /찜에 저장했습니다/);
   const requested = view({ activeRestock: [{ id: 'r1', productId: 'p1', optionName: '500g', status: 'active' }] });
   assert.match(requested, /500g 재입고 신청 취소/);
+});
+
+test('a saved change with failed re-read is not reported as a failed save', () => {
+  assert.match(engagementMutationFailureMessage(true), /저장됐지만.*확인하지 못했습니다/);
+  assert.match(engagementMutationFailureMessage(false), /저장하지 못했습니다/);
+  assert.match(view({ message: engagementMutationFailureMessage(true) }), /role="alert"/);
+});
+
+test('an existing restock request stays cancellable after stock or sale status changes', () => {
+  const active = [{ id: 'r1', productId: 'p1', optionName: '1kg', status: 'active' }];
+  assert.match(view({ activeRestock: active }), /1kg 재입고 신청 취소/);
+  assert.match(view({ activeRestock: active, product: { ...product, saleStopped: true } }), /1kg 재입고 신청 취소/);
 });
 
 test('own engagement list distinguishes missing option, empty state and cancellation', () => {
