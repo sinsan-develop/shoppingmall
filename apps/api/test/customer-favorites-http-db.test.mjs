@@ -82,9 +82,9 @@ test('customer HTTP favorites are account-scoped, idempotent, origin-checked and
     const counts = await pool.query(
       `SELECT (SELECT count(*)::int FROM customer_favorites WHERE account_id=$1 AND product_id=$2) AS favorites,
               (SELECT count(*)::int FROM audit_events WHERE actor_account_id=$1
-                AND target_type='product' AND target_id=$2 AND action='customer.favorite_add') AS adds,
+                AND target_type='product' AND target_id=$2::text AND action='customer.favorite_add') AS adds,
               (SELECT count(*)::int FROM audit_events WHERE actor_account_id=$1
-                AND target_type='product' AND target_id=$2 AND action='customer.favorite_remove') AS removes`,
+                AND target_type='product' AND target_id=$2::text AND action='customer.favorite_remove') AS removes`,
       [customerAccountId, productId],
     );
     assert.deepEqual(counts.rows[0], { favorites: 1, adds: 2, removes: 1 });
