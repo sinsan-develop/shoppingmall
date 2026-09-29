@@ -93,11 +93,13 @@ test('seller stop requests wait for operator; rejection preserves sale and appro
     })).status, 201);
     await assert.rejects(stops.approve(admin, first.requestId), /Pending stop request required/);
     assert.equal((await publicProducts.get(productId)).options[0].sellableQuantity, 5);
-    const secondResponse = await fetch(stopUrl, { method: 'POST', headers: {
-      origin, cookie: sellerCookie, 'content-type': 'application/json',
-    }, body: JSON.stringify({ reason: '재요청' }) });
-    assert.equal(secondResponse.status, 201);
-    const second = await secondResponse.json();
+    const concurrentRequests = await Promise.all(Array.from({ length: 2 }, () => fetch(stopUrl, {
+      method: 'POST', headers: { origin, cookie: sellerCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: '재요청' }),
+    })));
+    assert.deepEqual(concurrentRequests.map((response) => response.status).sort(), [201, 409]);
+    const second = await concurrentRequests.find((response) => response.status === 201).json();
+    assert.equal((await stops.listPending(admin)).length, 1);
     assert.equal((await fetch(`${base}/catalog/admin/sale-stop-requests/${second.requestId}/approve`, {
       method: 'POST', headers: { origin, cookie: adminCookie },
     })).status, 201);

@@ -1,9 +1,16 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-29 S2.2 판매중지 중복 요청 경합 회귀
+
+- 담당/목적: 어울 단일 writer. 현재 승인된 판매중지 API·schema를 유지한 채 가상 판매자 계정의 동일 상품 재요청 HTTP 2건이 동시에 도착하면 하나만 접수되고 다른 하나는 409이며 추가 이력/감사 기록이 생기지 않는지 검증한다. 기존 `sale-stop-db.test.mjs`의 고유 UUID·`finally` 정리만 사용한다.
+- 절차/자원: 로컬 시험은 DB 없을 때 해당 항목 skip이라고 분리 기록하고, 안전 commit/push→지정 WSL checkout 동일 SHA→기존 `local-postgres/shoppingmall` 개발 DB와 자동 제거 Node24 전용 `shoppingmall-s22-stop-race-d7a1` 컨테이너에서 목표 시험을 실행한다. 사전/사후 fixture 행·컨테이너·checkout 청결을 확인한다. 실상품·운영/Oracle·외부 계정은 건드리지 않는다.
+- 완료 조건/미검증: 201 한 건과 409 한 건, 승인은 해당 한 건에만 가능, 공개 차단·이력 수 기존 계약 그대로, 목표 시험 0 skip. 재고 최종 1개 주문 경합은 S3 기능 이후의 별개 시험이다. 실패하면 원인 분석 후 같은 Stage 범위에서 최소 수정하고 실행 증거를 기록한다.
+
 ## 진행 중 — 2026-09-29 S2.2 이미지 악성파일 실제 데몬 시험
 
 - 담당/범위: 어울 단일 writer. WSL 지정 checkout `030fcaf792c6c00dcb5e92bc2975bcf1410b3bba` clean, 기존 로컬 이미지 `clamav/clamav-debian:1.4.3`과 포함된 오프라인 시그니처 DB를 확인했다. 전용 `clamd-local.conf`로 `127.0.0.1:3310`에서만 임시 `shoppingmall-s22-clamd-d7a1` 데몬을 구동했다. 다른 서비스·DB·운영 데이터·외부 다운로드는 변경하지 않았다.
 - 검증/정리: healthy와 루프백 listener를 확인한 뒤 자동 제거 Node24 시험 컨테이너에서 `CLAMD_INTEGRATION=1` 대상 시험 **1 pass·0 skip·0 fail**. 재인코딩된 정상 WebP 허용 및 무해한 EICAR 시험 문자열 거부가 실제 데몬 응답으로 확인됐다. 전용 데몬 stop/`--rm` 후 해당 이름의 컨테이너 0·3310 listener 없음. 시그니처 DB가 7일 이상 오래됐다는 경고가 있어 최신 위협 탐지 성능·운영 스캐너 준비를 증명하지 않는다. 실행 오류 0, 같은 원인 반복 0.
+- 상품 승인 통합: 후속 `d91e1c07d9b1292559e5f6716eaac6580cfffed5` WSL clean checkout에서 전용 `shoppingmall-s22-approve-clamd-d7a1`을 같은 루프백 설정으로 healthy 구동하고, `CLAMD_INTEGRATION=1`·실 `shoppingmall` 개발 DB를 연결한 기존 `product-approve-db.test.mjs`를 실행했다. **1 pass·0 skip·0 fail**: 관리자 승인 HTTP가 실제 스캐너를 거친 비공개 시험 WebP만 공개하고 판매자 권한 거부·승인 전 공개 차단·공개 이미지 조회·수정안 경계를 검사했다. 시험 종료 후 전용 데몬/시험 컨테이너 0, 3310 listener 없음, DB 계정/판매자/분류/상품/개정/옵션/공개/이미지/판매중지/감사 각 0, WSL checkout clean. 이 결과도 외부 객체 저장소·최신 시그니처/운영 환경의 증거는 아니다.
 - 남은 범위: 이미지 엔드투엔드·실상품 자료, S2.2 전체 통합과 S2.3 이후 Stage, Oracle·사용자 인수는 미완료다.
 
 ## 진행 중 — 2026-09-29 S2.2 판매중지 실제 화면·시험 자원 정리
