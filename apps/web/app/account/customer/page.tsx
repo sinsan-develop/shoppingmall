@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { DeletionRequestControls } from './deletion-request-controls';
+import { EngagementLists } from './engagement-lists';
 
 type Address = {
   id: string; label: string; recipientName: string; phone: string;
@@ -125,6 +126,7 @@ export default function CustomerProfilePage() {
       {state === 'unavailable' ? <p role="alert">고객 정보를 불러올 수 없습니다</p> : null}
       {state === 'ready' ? (
         <div className="profile-grid">
+          <EngagementLists />
           <section className="account-card profile-card" aria-labelledby="address-title">
             <h2 id="address-title">배송지</h2>
             {addresses.length === 0 ? <p>저장된 배송지가 없습니다</p> : (

@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PublicImage } from '../../account/private-image';
+import { EngagementControls } from './engagement-controls';
 
 type Option = { id: string; name: string; priceWon: number; sellableQuantity: number };
 type ProductImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number };
@@ -43,6 +44,7 @@ export function ProductDetailView({ product, loading = false, error }: ViewProps
                   `판매 가능 ${option.sellableQuantity}개` : '품절'}</span>
               </li>)}
             </ul>
+            <EngagementControls key={product.productId} product={product} />
             <p className="section-note">장바구니와 주문 기능은 구축 중입니다</p>
           </div>
         </div>
@@ -74,5 +76,6 @@ export default function ProductDetailPage() {
       } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [productId]);
-  return <ProductDetailView product={product} loading={loading} error={error} />;
+  return <ProductDetailView product={product?.productId === productId ? product : undefined}
+    loading={loading} error={error} />;
 }

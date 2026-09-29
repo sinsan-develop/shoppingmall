@@ -108,6 +108,12 @@ p{line-height:1.7}
 .draft-option-row>div{display:grid;gap:8px}
 .secondary-button{min-height:44px;padding:9px 16px;border:1px solid #a47d3b;border-radius:6px;background:#fffaf1;color:#55462b;font:inherit;cursor:pointer}
 .secondary-button:disabled{opacity:.55;cursor:not-allowed}
+.engagement-controls{display:grid;gap:12px;margin-top:20px;padding:18px;border:1px solid var(--line,#e9d2bb);border-radius:12px;background:var(--surface-card,#fffaf1)}
+.engagement-option{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.engagement-list-grid{display:grid;grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+.engagement-list{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+.engagement-list li{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid var(--line,#e9d2bb);overflow-wrap:anywhere}
+@media(max-width:760px){.engagement-list-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.catalog-admin-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.draft-option-row{grid-template-columns:1fr 1fr}.draft-option-row .secondary-button{grid-column:1/-1}}
 .draft-product-item{padding-block:14px;border-bottom:1px solid #e9d2bb}
