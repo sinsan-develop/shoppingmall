@@ -84,6 +84,7 @@ async function resetPublicProduct(client: PoolClient, runId: string) {
     [names.sellerA, product.minor],
   );
   for (const row of target.rows) {
+    await client.query('DELETE FROM customer_favorites WHERE product_id=$1', [row.id]);
     await client.query('DELETE FROM product_sale_stop_requests WHERE product_id=$1', [row.id]);
     await client.query('DELETE FROM product_publications WHERE product_id=$1', [row.id]);
     await client.query(`DELETE FROM stock_change_requests WHERE option_id IN
