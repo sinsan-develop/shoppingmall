@@ -147,6 +147,15 @@ export class CustomerEngagement {
     requireProductId(productId);
     if (typeof optionId !== 'string' || !uuid.test(optionId)) throw new Error('Invalid option');
     return transaction(this.pool, async (client) => {
+      // Sale-stop decisions take the product lock first. Read stop status only after
+      // that lock so a concurrent approval cannot be hidden by a stale check.
+      const product = await client.query('SELECT id FROM products WHERE id=$1 FOR SHARE', [productId]);
+      if (!product.rowCount) throw new Error('Product unavailable');
+      const stopped = await client.query(
+        `SELECT 1 FROM product_sale_stop_requests
+         WHERE product_id=$1 AND status='approved' LIMIT 1`, [productId],
+      );
+      if (stopped.rowCount) throw new Error('Product stopped');
       const option = await client.query<{ name: string }>(
         `SELECT o.name FROM product_publications pub
          JOIN product_revisions r ON r.id=pub.revision_id AND r.product_id=pub.product_id AND r.status='approved'
@@ -155,11 +164,6 @@ export class CustomerEngagement {
         [productId, optionId],
       );
       if (!option.rows[0]) throw new Error('Option unavailable');
-      const stopped = await client.query(
-        `SELECT 1 FROM product_sale_stop_requests
-         WHERE product_id=$1 AND status='approved' LIMIT 1`, [productId],
-      );
-      if (stopped.rowCount) throw new Error('Product stopped');
       const stock = await client.query<{ sellable_quantity: number }>(
         'SELECT sellable_quantity FROM inventory_levels WHERE option_id=$1 FOR SHARE', [optionId],
       );
