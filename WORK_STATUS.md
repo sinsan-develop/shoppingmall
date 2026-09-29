@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-09-30 S2.4 홈 전시 서면 설계 승인·구현 계획 검토
+
+- 담당/기준: 어울 단일 writer, 기존 `codex/flat-v2-prototypes` worktree. 신산님이 홈 전시 설계 검토 요청에 `계속하자`고 답한 것을 `docs/superpowers/specs/2026-09-30-home-merchandising-design.md`의 서면 승인으로 기록하고 `docs/superpowers/plans/2026-09-30-home-merchandising.md`에 구현 순서와 RED→GREEN/WSL exact-SHA/브라우저 gate를 작성했다. 변경 파일은 이 두 문서와 `WORK_STATUS.md`뿐이다.
+- 범위/승인 경계: 승인된 추가 메뉴·기획전·공통 추천의 저장/공개·복구/API/화면 계약을 Task 1~7에 매핑했다. 문서 계획 검토 이후에만 제품 코드·0008 migration·실DB/QA 자원 작업을 시작한다. 기존 `main`, 다른 worktree, 개발 DB, 외부 서비스는 이번 문서 작업에서 변경하지 않았다.
+- 검증/오류/미검증: 현재 Git 상태·기존 app/module/catalog·migration 0007/저널·웹 홈/관리자 패턴·시험 구조와 계획을 대조했다. 계획 7개 Task의 파일·RED/GREEN·실DB/화면/복구 경계, 설계/WORK_PLAN 상대 링크 존재, 구 설계 대기 문구 제거, `git diff --check` 오류 0을 자체 확인했다. 원인 오류 0회. 제품 test/typecheck/lint/build 및 WSL/브라우저 시험은 이번 문서 전용 단계에서 실행하지 않았으므로 새 기능 PASS가 아니다. 실제 200% 확대·전시 기능·Stage/UAT는 미검증이다.
+- 다음: 문서 자체 검토와 안전 checkpoint 후 신산님께 구현 계획 검토를 요청한다. 승인되면 동일 worktree에서 Task 1 RED부터 진행한다.
+
 ## 진행 중 — 2026-09-30 S2.4 홈 전시 서면 설계 검토
 
 - 담당/기준: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@9172dc563a7cd371b33a40ca21c99380137384d8` clean. 신산님이 관리자 편집본/공개본 분리와 기획전별 선택 상품 화면 방향을 대화에서 승인해 `docs/superpowers/specs/2026-09-30-home-merchandising-design.md` 서면 검토본을 작성했다. 기존 2026-09-26 홈 초안과 S2.4 계획·현재 코드의 검색/분류/판매 가능 조회를 대조했다.

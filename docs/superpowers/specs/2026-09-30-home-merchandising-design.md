@@ -1,6 +1,6 @@
 # 어울몰 홈 전시·기획전 편집 설계
 
-- 상태: **신산님 서면 검토 대기**. 2026-09-30 대화에서 관리자 편집본/공개본 분리와 기획전별 선택 상품 화면의 방향을 승인받아 구체화했다. 이 문서 승인 전 제품 코드·공개 API·DB schema/migration 변경 권한으로 해석하지 않는다.
+- 상태: **2026-09-30 서면 설계 승인**. 신산님이 이 문서 검토 요청에 `계속하자`고 답한 것을 승인으로 기록한다. 세부 구현 순서와 검증 절차는 별도 구현 계획에 따른다.
 - 범위: [S2.4 작업계획](../../WORK_PLAN.md)의 홈 메뉴·기획전 카드·모두에게 같은 공통 추천 편집/공개. 기존 [홈 탐색 초안](2026-09-26-home-discovery-expansion-design.md)의 다섯 영역 중 검색·카테고리·상품 상세는 현재 구현을 유지한다.
 - 기준: [제품 설계](../../design/DESIGN.md), [범위 보완안](../../design/DELIVERY_SCOPE_ADDENDUM.md), [현 작업 상태](../../../WORK_STATUS.md). 어울몰 브랜드·Flat v2·전국 산지 허용·고객/판매자/관리자 분리는 변하지 않는다.
 
@@ -35,13 +35,13 @@
 - 저장·공개·이전 공개본으로 복귀는 행위자 계정, 활성 역할, 시각, 이전/새 공개본 ID를 감사 이력에 남긴다. 두 관리자가 같은 편집본을 열었다면 버전 불일치 저장을 거부하고 새 내용을 다시 불러오게 해 덮어쓰기를 막는다.
 - 이 S2.4에서는 관리자가 직접 작성한다. 판매자의 행사 제안→관리자 승인 기능은 별도 계약 없이는 만들지 않는다. 상품 자체의 판매자 제안·관리자 승인은 기존 절차를 그대로 따른다.
 
-## 5. 저장·API 계약 제안 — 서면 승인 후 별도 schema/API 승인 대상
+## 5. 저장·API 계약 — 승인된 서면 설계 범위
 
 - `home_content_draft`: 단일 편집본의 버전 번호, JSON 구성, 수정자·시각. JSON은 타입과 크기를 서버에서 검증한다. 최초 편집본은 추가 메뉴/기획전/추천이 모두 빈 구성으로 시작한다.
 - `home_content_publications`: 공개할 때 복제한 불변 구성, 공개자·시각, 고유 공개 ID. 이전본은 삭제하지 않는다.
 - `home_content_current`: 단일 현재 공개 ID. 공개·복귀는 트랜잭션에서 이 포인터만 교체한다. 감사 기록은 같은 트랜잭션에 쓴다. migration은 기존 상품·주문·계정 자료를 변경하거나 삭제하지 않는다.
 - 구성의 참조는 임의 URL 문자열이 아니라 `home | catalog | category(id) | seller(id) | event(id) | product(id)`의 내부 대상 종류와 ID로 저장한다. 이벤트 ID는 공개본 사이에서도 유지되는 UUID다. 기획전·추천 상품 ID는 안정적인 `products.id`를 가리키며 가격·옵션/이미지는 현재 승인된 공개 개정에서 가져온다. 추가 메뉴가 `event(id)`를 가리키면 그 ID는 같은 공개본에 있어야 하고, 기간 종료·상품 없음으로 기획전이 비활성화되면 메뉴도 숨긴다. 카테고리/판매자 메뉴는 현재 공개 판매 상품이 하나도 없을 때 숨긴다.
-- 공개 조회 `GET /home/content`는 `{ menu, events, recommendations }`를, `GET /home/events/:id`는 유효한 `{ id, title, description, products }`를 반환한다. 관리자 전용 `GET /home/admin/draft`는 `{ version, payload }`를, `PUT /home/admin/draft`는 동일 구조를 입력받아 버전이 일치할 때만 새 버전으로 저장한다. `GET /home/admin/preview`는 편집본과 제외 사유를, `POST /home/admin/publish`는 `{ version }`을 입력받아 공개 ID를, `GET /home/admin/history`는 공개 이력을, `POST /home/admin/restore/:publicationId`는 지정 이전본의 복구 결과를 반환한다. 없는/종료된 기획전은 제품 목록을 꾸며내지 않고 안내 상태로 응답한다. 이 API·데이터 계약 자체가 신산님 별도 승인 대상이며 승인 전 구현하지 않는다.
+- 공개 조회 `GET /home/content`는 `{ menu, events, recommendations }`를, `GET /home/events/:id`는 유효한 `{ id, title, description, products }`를 반환한다. 관리자 전용 `GET /home/admin/draft`는 `{ version, payload }`를, `PUT /home/admin/draft`는 동일 구조를 입력받아 버전이 일치할 때만 새 버전으로 저장한다. `GET /home/admin/preview`는 편집본과 제외 사유를, `POST /home/admin/publish`는 `{ version }`을 입력받아 공개 ID를, `GET /home/admin/history`는 공개 이력을, `POST /home/admin/restore/:publicationId`는 지정 이전본의 복구 결과를 반환한다. 없는/종료된 기획전은 제품 목록을 꾸며내지 않고 안내 상태로 응답한다.
 - 서버는 공개 시 메뉴 연결 대상의 존재, 이벤트 ID 중복, 상품 ID 중복, 상품 공개/판매 가능 상태, 기간의 `종료 > 시작`, 제목·설명 길이, 목록 수 상한을 검증한다. 추가 메뉴 이름은 1~30자, 기획전 제목은 1~80자·설명은 최대 240자다. 상한은 추가 메뉴 12개, 동시 공개 기획전 12개, 기획전당 상품 50개, 추천 상품 24개다. 시간은 DB `timestamptz`로 저장하고 관리자 입력은 한국 표준시로 안내하며 시작 포함·종료 미포함이다.
 - 요청 시에는 공개본을 읽고 현재 상품 공개/판매 가능 상태와 기간을 **재검사**한다. 따라서 이미 공개한 구성도 뒤늦은 품절·판매중지·개정/이미지 변경으로 깨진 고객 링크를 노출하지 않는다. 즉시 차단 조건과 충돌하지 않도록 공개 조회 응답에 장기 캐시를 두지 않는다. 공개 조회는 인증이 필요 없지만 편집본·이력·미리보기는 관리자 전용이다.
 
