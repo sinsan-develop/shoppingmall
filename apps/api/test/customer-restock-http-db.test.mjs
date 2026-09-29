@@ -6,6 +6,7 @@ import { createApp } from '../src/app.ts';
 import { AuthRepository } from '../src/auth/repository.ts';
 import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaPublicFixture } from '../scripts/qa-public-fixture.ts';
+import { CustomerEngagement } from '../src/customer/engagement.ts';
 
 const origin = 'http://127.0.0.1:9091';
 const password = 'test-only-password-12345';
@@ -175,5 +176,50 @@ test('restock HTTP binds one active request to a published sold-out option name 
     }
     await pool.end();
     if (resetError) throw resetError;
+  }
+});
+
+test('restock request waits for product stop decision and rejects a newly stopped product', {
+  skip: !process.env.DATABASE_URL,
+}, async () => {
+  const runId = randomBytes(4).toString('hex');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  let productId;
+  let decision;
+  try {
+    ({ productId } = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL, password));
+    const names = qaNames(runId);
+    const accountId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [names.emails[0]])).rows[0].account_id;
+    const sellerId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [names.emails[1]])).rows[0].account_id;
+    const adminId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [names.emails[4]])).rows[0].account_id;
+    const optionId = (await pool.query(
+      `SELECT o.id FROM product_publications pub JOIN product_options o ON o.revision_id=pub.revision_id
+       WHERE pub.product_id=$1 AND o.name='500g'`, [productId],
+    )).rows[0].id;
+    await pool.query('UPDATE inventory_levels SET on_hand_quantity=0,sellable_quantity=0 WHERE option_id=$1', [optionId]);
+    decision = await pool.connect();
+    await decision.query('BEGIN');
+    await decision.query('SELECT id FROM products WHERE id=$1 FOR UPDATE', [productId]);
+    await decision.query(
+      `INSERT INTO product_sale_stop_requests(product_id,status,reason,requested_by_account_id,decided_by_account_id,decided_at)
+       VALUES ($1,'approved','가상 중지',$2,$3,now())`, [productId, sellerId, adminId],
+    );
+    const pending = new CustomerEngagement(pool).addRestockSubscription(
+      { accountId, role: 'customer' }, productId, optionId);
+    assert.equal(await Promise.race([pending.then(() => 'completed', () => 'rejected'),
+      new Promise((resolve) => setTimeout(() => resolve('waiting'), 150))]), 'waiting');
+    await decision.query('COMMIT');
+    decision.release();
+    decision = null;
+    await assert.rejects(pending, /Product stopped/);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM restock_subscriptions WHERE product_id=$1',
+      [productId])).rows[0].n, 0);
+  } finally {
+    if (decision) { await decision.query('ROLLBACK'); decision.release(); }
+    if (productId) await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
+    await pool.end();
   }
 });
