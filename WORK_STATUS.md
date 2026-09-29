@@ -7,6 +7,8 @@
 - 중요 결함 GREEN: 수정 `cb5b518936b33c0a5624fe01565c71a8cf7e0bf4`의 로컬/SSH 원격/WSL 동일 SHA에서 WSL 개발 `shoppingmall` DB 전체 시험 **194건/187 pass/7 환경 skip/0 fail**. 사후 WSL checkout clean, accounts/products/favorites/restock/audit `0/0/0/0/0`, 전용 S2.4 컨테이너 0. 로컬 같은 시점 194건/155 pass/39 DB·환경 skip/0 fail와 PR 본문 8 pass, typecheck 0.
 - 경미 보완: 상세 화면에서 변경 요청 성공 뒤 목록 재조회만 실패하면 `저장 실패` 대신 저장 완료·결과 확인 실패를 구분하고 새로고침 안내를 표시한다. 현재 품절 버튼 밖의 활성 신청도 판매중지/재입고/옵션 변경 후 상세에서 취소할 수 있게 한다. RED 시험은 새 helper 미구현 export로 실패, 수정 후 화면 목표 8 pass. 로컬 전체 **196건/157 pass/39 DB·환경 skip/0 fail**, PR 본문 8 pass, typecheck·lint 0. 첫 Windows production build는 제한된 실행의 `.next/trace` EPERM으로 중단됐으나 동일 소스 권한 실행 재시도에서 API/Web build 0; 제품 빌드 결함으로 판정하지 않는다. 경미 보완의 WSL 동일 SHA 시험은 다음 checkpoint에서 수행한다.
 - 다음: 경미 보완 commit/push→WSL 동일 SHA 목표 화면·실DB 회귀와 clean/QA 잔류 확인, 코드 재검토. 홈 메뉴·기획전·관리자 편집 추천은 범위상 필요하지만 관리 저장 방식·권한/이력/링크 계약은 서면 초안이 미확정이다. 신산님께 관리자 직접 편집/공개 대 판매자 제안 포함 중 한 선택을 비차단 질문으로 요청했고, 답 전에는 새 홈 관리 schema/API를 만들지 않는다. 실제 200% 확대·외부 알림·Oracle·사용자 인수는 미검증으로 유지한다.
+- 경미 보완 목표 확인: `3ebda4d36744c4f23f907133f57a42f63db32938` 로컬/SSH 원격/WSL 일치. WSL 실DB 재입고·QA reset 및 웹 목표 **13 pass/0 skip/0 fail**, WSL Next production build 0. 로컬 전체 196건/157 pass/39 환경 skip/0 fail, PR 본문 8 pass, typecheck/lint/build 0. WSL 시험 후 지정 DB accounts/products/favorites/restock/audit `0/0/0/0/0`, S2.4 임시 컨테이너 0, checkout clean. 이 시점에는 최신 SHA의 전체 WSL 회귀를 아직 실행하지 않았고, 그 결과는 다음 항목에 별도로 기록한다.
+- 최종 코드 SHA 전체 회귀/재검토: `3ebda4d`에서 WSL 개발 DB 전체 **196건/189 pass/7 환경 skip/0 fail**, Node24 일회성 컨테이너 자동 제거. 첫 읽기 전용 리뷰 담당자가 수정 diff를 다시 보고 기존 중요 2·경미 2건 보완 및 새 Critical/Important 미발견을 판정했다. 리뷰는 시험 재실행이 아니며 실제 확대·외부 발송/인수 증거는 아니다.
 
 ## 진행 중 — 2026-09-30 S2.4 찜·재입고 신청 구현 시작
 
