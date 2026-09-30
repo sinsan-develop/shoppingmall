@@ -152,6 +152,24 @@ test('admin previews, publishes and restores immutable home snapshots with audit
     assert.ok(audit.rows.every((row) => row.active_role === 'admin'));
     assert.deepEqual(audit.rows.find((row) => row.action === 'home.restored').details,
       { previousPublicationId: secondId, publicationId: firstId });
+    const unavailableId = randomUUID();
+    const invalidPayload = { ...firstPayload, events: [{ ...event,
+      productIds: [unavailableId], heroProductId: unavailableId }] };
+    const invalidSaved = await save(secondVersion, invalidPayload);
+    assert.equal(invalidSaved.status, 200);
+    const invalidVersion = (await invalidSaved.json()).version;
+    const excludedPreview = await fetch(`${base}/home/admin/preview`, { headers: { cookie } });
+    assert.equal(excludedPreview.status, 200);
+    assert.ok((await excludedPreview.json()).excluded.some((item) => item.id === eventId));
+    assert.equal((await publish(invalidVersion)).status, 400);
+    assert.equal((await pool.query('SELECT publication_id FROM home_content_current WHERE id=1')).rows[0].publication_id,
+      firstId);
+    const [racingA, racingB] = await Promise.all([
+      save(invalidVersion, firstPayload), save(invalidVersion, { menu: [], events: [], recommendations: [] }),
+    ]);
+    assert.deepEqual([racingA.status, racingB.status].sort(), [200, 409]);
+    assert.equal((await pool.query('SELECT version FROM home_content_draft WHERE id=1')).rows[0].version,
+      invalidVersion + 1);
   } finally {
     if (app) await app.close();
     if (initialDraft && adminAccountId) {
