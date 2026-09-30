@@ -47,6 +47,8 @@ export function AdminHomeView({ draft, categories, sellers, products, history, p
   dirty = false, heroImages = {}, onChange, onSave, onPreview, onPublish, onRestore, onSearch, onReload }: Props) {
   const { menu, events, recommendations } = draft.payload;
   const productName = (id: string) => products.find((item) => item.productId === id)?.title ?? id;
+  const isExcluded = (kind: string, id: string) =>
+    preview?.excluded.some((entry) => entry.kind === kind && entry.id === id) ?? false;
   const changeMenu = (index: number, patch: Partial<Menu>) =>
     onChange({ ...draft.payload, menu: menu.map((item, position) => position === index ? { ...item, ...patch } : item) });
   const changeEvent = (index: number, patch: Partial<Event>) =>
@@ -196,15 +198,16 @@ export function AdminHomeView({ draft, categories, sellers, products, history, p
           onClick={onReload}>서버 내용 다시 불러오기</button> : null}
       </div>
       {preview ? <div aria-label="미리보기 결과"><h3>미리보기 결과</h3>
-        <p>메뉴 {preview.payload.menu.length}개 · 기획전 {preview.payload.events.length}개 · 추천 {preview.payload.recommendations.length}개</p>
+        <p>지금 고객에게 표시: 메뉴 {preview.payload.menu.filter((item) => !isExcluded('menu', item.id)).length}개 · 기획전 {preview.payload.events.filter((item) => !isExcluded('event', item.id)).length}개 · 추천 {preview.payload.recommendations.filter((id) => !isExcluded('recommendation', id)).length}개</p>
+        <p>시작 전·종료 후 기획전과 숨김 메뉴도 편집본에는 남아 있습니다. 공개는 가능하지만 해당 기간에는 고객에게 표시되지 않습니다.</p>
         <h4>추가 메뉴</h4><ul>{preview.payload.menu.map((item) => <li key={item.id}>
-          {item.label}{preview.excluded.some((entry) => entry.kind === 'menu' && entry.id === item.id) ? ' · 제외' : ''}
+          {item.label}{isExcluded('menu', item.id) ? ' · 고객 화면 비노출' : ''}
         </li>)}</ul>
         <h4>기획전</h4><ul>{preview.payload.events.map((item) => <li key={item.id}>
-          {item.title}{preview.excluded.some((entry) => entry.kind === 'event' && entry.id === item.id) ? ' · 제외' : ''}
+          {item.title}{isExcluded('event', item.id) ? ' · 고객 화면 비노출' : ''}
         </li>)}</ul>
         <h4>추천 상품</h4><ol>{preview.payload.recommendations.map((id) => <li key={id}>
-          {productName(id)}{preview.excluded.some((entry) => entry.kind === 'recommendation' && entry.id === id) ? ' · 제외' : ''}
+          {productName(id)}{isExcluded('recommendation', id) ? ' · 고객 화면 비노출' : ''}
         </li>)}</ol>
         {preview.excluded.length ? <ul>{preview.excluded.map((item) =>
           <li key={`${item.kind}-${item.id}`}>{item.kind} {item.id}: {item.reason}</li>)}</ul> :

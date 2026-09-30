@@ -43,6 +43,25 @@ test('preview names configured content and explains excluded targets before publ
   assert.match(html, /no_sellable_products/);
 });
 
+test('preview counts only what customers can see now and explains scheduled or hidden items', () => {
+  const event = { id: 'future-event', title: '다음 기획전', description: '', displayOrder: 0,
+    startAt: '2026-10-02T01:00:00.000Z', endAt: '2026-10-03T01:00:00.000Z',
+    productIds: ['product-1'], heroProductId: 'product-1', heroImageId: null };
+  const payload = { menu: [{ id: 'hidden-menu', label: '숨긴 메뉴', displayOrder: 0, visible: false,
+    target: { type: 'event', id: 'future-event' } }], events: [event], recommendations: ['product-1'] };
+  const html = renderToStaticMarkup(createElement(AdminHomeView, {
+    draft: { version: 2, payload }, categories: [], sellers: [], products: [
+      { productId: 'product-1', title: '햇고추', sellerName: '진주농가' }],
+    history: [], preview: { payload, excluded: [
+      { kind: 'event', id: 'future-event', reason: 'not_started' },
+      { kind: 'menu', id: 'hidden-menu', reason: 'hidden' },
+    ] }, busy: false, onChange: () => {}, onSave: () => {}, onPreview: () => {}, onPublish: () => {}, onRestore: () => {},
+  }));
+  assert.match(html, /지금 고객에게 표시: 메뉴 0개 · 기획전 0개 · 추천 1개/);
+  assert.match(html, /다음 기획전 · 고객 화면 비노출/);
+  assert.match(html, /숨긴 메뉴 · 고객 화면 비노출/);
+});
+
 test('home editor IDs use secure random bytes without requiring randomUUID on HTTP QA', () => {
   const id = newHomeId((bytes) => bytes.fill(0));
   assert.match(id, /^00000000-0000-4000-8000-000000000000$/);

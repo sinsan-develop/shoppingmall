@@ -7,13 +7,19 @@ import { parseHomePayload } from './validation.js';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Queryable = Pick<Pool, 'query'>;
 
-async function excludedTargets(db: Queryable, payload: HomePayload) {
+async function excludedTargets(db: Queryable, payload: HomePayload, previewAt?: Date) {
   const catalog = new PublicProducts(db as Pool);
   const excluded: { kind: string; id: string; reason: string }[] = [];
   const activeEvents = new Set<string>();
+  const instant = previewAt?.getTime();
   for (const event of payload.events) {
     const products = await catalog.getSellableByIds(event.productIds);
     if (products.length === 0) excluded.push({ kind: 'event', id: event.id, reason: 'no_sellable_products' });
+    else if (instant !== undefined && instant < Date.parse(event.startAt)) {
+      excluded.push({ kind: 'event', id: event.id, reason: 'not_started' });
+    } else if (instant !== undefined && instant >= Date.parse(event.endAt)) {
+      excluded.push({ kind: 'event', id: event.id, reason: 'ended' });
+    }
     else activeEvents.add(event.id);
   }
   const validRecommendations = await catalog.getSellableByIds(payload.recommendations);
@@ -22,13 +28,18 @@ async function excludedTargets(db: Queryable, payload: HomePayload) {
     if (!recommendationIds.has(productId)) excluded.push({ kind: 'recommendation', id: productId, reason: 'not_sellable' });
   }
   for (const item of payload.menu) {
+    if (instant !== undefined && !item.visible) {
+      excluded.push({ kind: 'menu', id: item.id, reason: 'hidden' });
+      continue;
+    }
     const link = item.target;
     let valid = true;
     if (link.type === 'event') valid = activeEvents.has(link.id);
     if (link.type === 'product') valid = (await catalog.getSellableByIds([link.id])).length > 0;
     if (link.type === 'category') valid = (await catalog.list({ categoryId: link.id })).length > 0;
     if (link.type === 'seller') valid = (await catalog.list({ sellerId: link.id })).length > 0;
-    if (!valid) excluded.push({ kind: 'menu', id: item.id, reason: 'invalid_target' });
+    if (!valid) excluded.push({ kind: 'menu', id: item.id,
+      reason: instant !== undefined && link.type === 'event' ? 'inactive_event' : 'invalid_target' });
   }
   return excluded;
 }
@@ -71,7 +82,7 @@ export class HomeRepository {
 
   async preview() {
     const draft = await this.getDraft();
-    return { payload: draft.payload, excluded: await excludedTargets(this.pool, draft.payload) };
+    return { payload: draft.payload, excluded: await excludedTargets(this.pool, draft.payload, new Date()) };
   }
 
   async publish(actor: AccessContext, version: number) {
