@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Inject,
-  Put, Req, ServiceUnavailableException, UnauthorizedException,
+  NotFoundException, Param, Post, Put, Req, ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
@@ -50,6 +50,47 @@ export class HomeAdminController {
       if (error instanceof Error && error.message === 'Home draft version conflict') {
         throw new ConflictException({ status: 'home_draft_version_conflict' });
       }
+      throw error;
+    }
+  }
+
+  @Get('preview')
+  async preview(@Req() request: RequestHeaders) {
+    await this.admin(request);
+    return new HomeRepository(this.pool()).preview();
+  }
+
+  @Post('publish')
+  async publish(@Req() request: RequestHeaders, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    const version = body && typeof body === 'object' && !Array.isArray(body)
+      ? (body as Record<string, unknown>).version : undefined;
+    if (!Number.isInteger(version) || (version as number) < 1) throw new BadRequestException();
+    try { return await new HomeRepository(this.pool()).publish(actor, version as number); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Home draft version conflict') throw new ConflictException();
+      if (error instanceof Error && ['Invalid home publication targets', 'Invalid payload'].includes(error.message)) {
+        throw new BadRequestException({ status: 'invalid_home_publication', reason: error.message });
+      }
+      throw error;
+    }
+  }
+
+  @Get('history')
+  async history(@Req() request: RequestHeaders) {
+    await this.admin(request);
+    return new HomeRepository(this.pool()).history();
+  }
+
+  @Post('restore/:publicationId')
+  async restore(@Req() request: RequestHeaders, @Param('publicationId') publicationId: string) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    try { return await new HomeRepository(this.pool()).restore(actor, publicationId); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Invalid home publication id') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Home publication not found') throw new NotFoundException();
       throw error;
     }
   }

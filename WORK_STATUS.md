@@ -17,6 +17,7 @@
 - Task 3 첫 RED 준비: `apps/api/test/home-admin-http-db.test.mjs`를 제품 API 구현 전 작성했다. 고객/판매자/비인증 차단, 관리자 편집본 조회, Origin/버전 충돌, 저장만으로 공개 포인터 불변, 감사 이력과 정확한 QA 복원을 검사한다. 현재 제품 관리자 `/home/admin/draft`는 아직 미등록이므로 WSL 실DB에서 예상 404 RED를 확인할 예정. 나머지 미리보기·공개·복구/경쟁 시험과 기능은 이후 같은 Task 3 안에서 진행한다.
 - Task 3 첫 RED/구현 중간: 시험 전용 `b030cdb9e2001d9b44396d9fa38e633aa843de15` 로컬/SSH 원격/WSL 일치. 개발 DB의 초기 singleton version 1·빈 내용·수정자 NULL 확인 뒤 WSL HTTP 시험 1 fail/0 skip은 새 `/home/admin/draft` 미등록 404 대 기대 401의 예상 RED. 시험 fixture는 `finally`에서 reset. `apps/api/src/home/repository.ts`의 조건부 version 증가+감사 동시 transaction, `home/controller.ts`의 서버 세션/활성 admin/Origin/입력 검증, `app.module.ts` 라우트 등록을 최소 구현했다. 로컬 typecheck/lint 통과, DB 시험 로컬 1 skip은 GREEN 아님. 동일 SHA WSL 재시험 후 QA 잔류를 확인한다.
 - Task 3 편집본 첫 GREEN/다음 RED: 구현 `d9a43aef7fbd628e0dbb831173fb0e8fda40fc0c`의 WSL HTTP 목표 1 pass/0 skip/0 fail. 같은 시험 파일에 가상 공개 상품 1건을 사용한 미리보기→첫 공개→다음 공개→이전본 복구/불변 스냅샷/감사 시험을 제품 구현 전에 추가했다. `finally`에서 시작 당시 singleton 편집본·현재 포인터를 복원하고 해당 QA 관리자 공개본만 삭제한 뒤 기존 public fixture reset을 수행하도록 지정했다. 해당 시험은 새 API 미구현의 예상 RED를 확인한 후 구현한다. 이 checkpoint는 Task 3 전체 완료가 아니다.
+- Task 3 공개·복구 RED/구현 중간: 시험 전용 `4e46ff235412038f6f37a913a5ff2a62ab3e1f63` WSL 동일 SHA에서 기존 편집 시험 1 pass, 신규 workflow 1 fail/0 skip은 미등록 `/home/admin/preview`의 404 대 기대 200 예상 RED. `HomeRepository`에 현재 판매 가능 대상 검증, 행 잠금/transaction 안 공개 스냅샷·포인터·감사, 불변 공개 이력 조회, 이전 공개본 복구/감사를 구현하고 관리자 전용 route에 연결했다. 로컬 typecheck/lint 통과. 실DB GREEN·동시성/부정 입력 세부 검증과 QA 잔류 확인 전이므로 Task 3 완료가 아니다.
 
 ## 진행 중 — 2026-09-30 S2.4 홈 전시 서면 설계 승인·구현 계획 검토
 
