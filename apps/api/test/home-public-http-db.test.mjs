@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
 import { createApp } from '../src/app.ts';
+import { PublicHome } from '../src/home/public.ts';
 import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaPublicFixture } from '../scripts/qa-public-fixture.ts';
 
@@ -31,13 +32,20 @@ test('public home reads only the published snapshot and live sellable products',
       WHERE s.display_name=$1 ORDER BY p.id`, [names.sellerA])).rows.map((row) => row.id);
     assert.equal(ids.length, 2);
     const [firstId, secondId] = [ids.find((id) => id !== fixture.productId), fixture.productId];
+    const sellerId = (await pool.query('SELECT id FROM sellers WHERE display_name=$1', [names.sellerA])).rows[0].id;
+    const firstRevisionId = (await pool.query(
+      'SELECT revision_id FROM product_publications WHERE product_id=$1', [firstId])).rows[0].revision_id;
+    const originalImageId = (await pool.query(
+      `INSERT INTO product_images(revision_id,object_key,purpose,mime_type,size_bytes,display_order)
+       VALUES ($1,$2,'thumbnail','image/webp',100,0) RETURNING id`,
+      [firstRevisionId, `qa/${runId}/home-original.webp`])).rows[0].id;
     const eventId = randomUUID();
     const laterId = randomUUID();
     const expiredId = randomUUID();
     const now = Date.now();
     const active = { id: eventId, title: '제철 모음', description: '현재 상품', displayOrder: 2,
       startAt: new Date(now - 3600000).toISOString(), endAt: new Date(now + 3600000).toISOString(),
-      productIds: [secondId, firstId], heroProductId: secondId, heroImageId: null };
+      productIds: [firstId, secondId], heroProductId: firstId, heroImageId: originalImageId };
     const later = { ...active, id: laterId, title: '다음 기획전', displayOrder: 0,
       startAt: new Date(now + 3600000).toISOString(), endAt: new Date(now + 7200000).toISOString() };
     const expired = { ...active, id: expiredId, title: '지난 기획전', displayOrder: 1,
@@ -47,6 +55,8 @@ test('public home reads only the published snapshot and live sellable products',
       { id: randomUUID(), label: '다음 기획전', displayOrder: 0, visible: true, target: { type: 'event', id: laterId } },
       { id: randomUUID(), label: '가려진 메뉴', displayOrder: 1, visible: false, target: { type: 'catalog' } },
       { id: randomUUID(), label: '상품', displayOrder: 3, visible: true, target: { type: 'product', id: firstId } },
+      { id: randomUUID(), label: '분류', displayOrder: 4, visible: true, target: { type: 'category', id: fixture.majorId } },
+      { id: randomUUID(), label: '판매자', displayOrder: 5, visible: true, target: { type: 'seller', id: sellerId } },
     ];
     const payload = { menu, events: [later, active, expired], recommendations: [secondId, firstId] };
     await pool.query('UPDATE home_content_draft SET payload=$1,updated_by_account_id=$2 WHERE id=1',
@@ -67,21 +77,41 @@ test('public home reads only the published snapshot and live sellable products',
     const home = await read('/home/content');
     assert.equal(home.status, 200);
     assert.match(home.cache, /no-store/);
-    assert.deepEqual(home.body.menu.map((item) => item.label), ['제철 모음', '상품']);
+    assert.deepEqual(home.body.menu.map((item) => item.label), ['제철 모음', '상품', '분류', '판매자']);
     assert.deepEqual(home.body.events.map((item) => item.id), [eventId]);
+    assert.equal(home.body.events[0].heroImageId, originalImageId);
+    assert.deepEqual((await new PublicHome(pool).content(new Date(active.startAt))).events.map((item) => item.id),
+      [eventId]);
+    assert.ok(!(await new PublicHome(pool).content(new Date(active.endAt))).events.some((item) => item.id === eventId));
     assert.deepEqual(home.body.recommendations.map((item) => item.productId), [secondId, firstId]);
     assert.equal((await read(`/home/events/${laterId}`)).body.status, 'unavailable');
     assert.equal((await read(`/home/events/${expiredId}`)).body.status, 'unavailable');
     assert.equal((await read(`/home/events/${randomUUID()}`)).body.status, 'unavailable');
     const detail = await read(`/home/events/${eventId}`);
     assert.equal(detail.status, 200);
-    assert.deepEqual(detail.body.products.map((item) => item.productId), [secondId, firstId]);
+    assert.deepEqual(detail.body.products.map((item) => item.productId), [firstId, secondId]);
+    await pool.query('UPDATE product_options SET price_won=29000 WHERE revision_id=$1', [firstRevisionId]);
+    assert.equal((await read('/home/content')).body.recommendations[1].minPriceWon, 29000);
+    await pool.query('DELETE FROM product_images WHERE id=$1', [originalImageId]);
+    assert.equal((await read('/home/content')).body.events[0].heroImageId, null);
+    const replacementImageId = (await pool.query(
+      `INSERT INTO product_images(revision_id,object_key,purpose,mime_type,size_bytes,display_order)
+       VALUES ($1,$2,'thumbnail','image/webp',100,0) RETURNING id`,
+      [firstRevisionId, `qa/${runId}/home-replacement.webp`])).rows[0].id;
+    assert.equal((await read('/home/content')).body.events[0].heroImageId, replacementImageId);
     const optionId = (await pool.query(`SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id
       WHERE r.product_id=$1`, [secondId])).rows[0].id;
     await pool.query('UPDATE inventory_levels SET sellable_quantity=0 WHERE option_id=$1', [optionId]);
     const afterOneSoldOut = await read('/home/content');
     assert.deepEqual(afterOneSoldOut.body.recommendations.map((item) => item.productId), [firstId]);
     assert.deepEqual((await read(`/home/events/${eventId}`)).body.products.map((item) => item.productId), [firstId]);
+    const sellerAccountId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [names.emails[1]])).rows[0].account_id;
+    await pool.query(`INSERT INTO product_sale_stop_requests(product_id,status,reason,requested_by_account_id,
+      decided_by_account_id,decided_at) VALUES ($1,'approved','QA stop',$2,$3,now())`,
+    [firstId, sellerAccountId, actorId]);
+    assert.deepEqual((await read('/home/content')).body.events, []);
+    assert.equal((await read(`/home/events/${eventId}`)).body.status, 'unavailable');
     await pool.query(`UPDATE inventory_levels SET sellable_quantity=0 WHERE option_id IN
       (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)`,
       [firstId]);
