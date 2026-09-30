@@ -114,8 +114,17 @@ test('admin previews, publishes and restores immutable home snapshots with audit
       startAt: new Date(Date.now() - 3600000).toISOString(),
       endAt: new Date(Date.now() + 86400000).toISOString(),
       productIds: [productId], heroProductId: productId, heroImageId: null };
-    const firstPayload = { menu: [{ id: randomUUID(), label: '기획전', displayOrder: 0, visible: true,
-      target: { type: 'event', id: eventId } }], events: [event], recommendations: [productId] };
+    const futureId = randomUUID();
+    const future = { ...event, id: futureId, title: '다음 기획전', displayOrder: 1,
+      startAt: new Date(Date.now() + 3600000).toISOString(),
+      endAt: new Date(Date.now() + 7200000).toISOString() };
+    const futureMenuId = randomUUID();
+    const hiddenMenuId = randomUUID();
+    const firstPayload = { menu: [
+      { id: randomUUID(), label: '기획전', displayOrder: 0, visible: true, target: { type: 'event', id: eventId } },
+      { id: futureMenuId, label: '다음', displayOrder: 1, visible: true, target: { type: 'event', id: futureId } },
+      { id: hiddenMenuId, label: '숨김', displayOrder: 2, visible: false, target: { type: 'catalog' } },
+    ], events: [event, future], recommendations: [productId] };
     const save = (version, payload) => fetch(`${base}/home/admin/draft`, { method: 'PUT', headers,
       body: JSON.stringify({ version, payload }),
     });
@@ -124,7 +133,14 @@ test('admin previews, publishes and restores immutable home snapshots with audit
     const firstVersion = (await firstSave.json()).version;
     const preview = await fetch(`${base}/home/admin/preview`, { headers: { cookie } });
     assert.equal(preview.status, 200);
-    assert.equal((await preview.json()).payload.events[0].id, eventId);
+    const previewBody = await preview.json();
+    assert.equal(previewBody.payload.events[0].id, eventId);
+    assert.ok(previewBody.excluded.some((item) => item.kind === 'event' && item.id === futureId
+      && item.reason === 'not_started'));
+    assert.ok(previewBody.excluded.some((item) => item.kind === 'menu' && item.id === futureMenuId
+      && item.reason === 'inactive_event'));
+    assert.ok(previewBody.excluded.some((item) => item.kind === 'menu' && item.id === hiddenMenuId
+      && item.reason === 'hidden'));
     const publish = (version) => fetch(`${base}/home/admin/publish`, { method: 'POST', headers,
       body: JSON.stringify({ version }),
     });
