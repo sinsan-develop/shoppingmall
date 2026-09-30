@@ -34,11 +34,11 @@
 
 **Files:** `apps/api/src/db/schema.ts`, `apps/api/migrations/0008_s2_home_content.sql`, `apps/api/migrations/meta/_journal.json`, 신규 `apps/api/migrations/meta/0008_snapshot.json`, `apps/api/test/home-schema-db.test.mjs`, `WORK_STATUS.md`.
 
-- [ ] 기존 0007 뒤 순서와 실제 migration 생성/실행 방식을 확인하고 시험용 격리 DB·컨테이너 이름, 소유, cleanup을 `WORK_STATUS.md`에 먼저 기록한다. 기존 DB dry-run 및 행 수를 읽기 전용 확인한다.
-- [ ] RED: 편집본 단일 행, JSON 객체/양의 버전, 수정자 FK, 불변 공개본 ID/게시자 FK, 단일 현재 포인터 FK와 초기 빈 구성, 기존 계정/상품 행 무변경을 검사하는 DB 시험을 먼저 작성한다. `node --import tsx --test apps/api/test/home-schema-db.test.mjs`의 예상 실패를 기록한다.
-- [ ] `home_content_draft`, `home_content_publications`, `home_content_current`의 Drizzle 정의와 0008 SQL/스냅샷을 일치시킨다. 초기 공개본이 없는 경우 public API는 빈 구성으로 응답하며 임의 임시 publication을 만들지 않는다. `audit_events`는 기존 테이블 재사용.
-- [ ] 격리 DB에 0000~0008 적용→시험 GREEN, 이전 코드가 새 테이블을 무시하고 기동하는지 확인, 새 schema 없이도 기존 행이 보존되는지 확인한다. 공유 개발 DB 적용 전 dry-run SQL과 영향/복구 경계를 재확인한다. `pnpm typecheck`도 실행한다.
-- [ ] 안전 commit 후 `git push`(SSH alias)→WSL `git pull --ff-only`·SHA 일치에서 실DB migration 시험을 수행하고 정확한 격리 DB/컨테이너만 정리한다. 승인된 공유 개발 DB 적용 시 0008만 적용·이력/행 수를 재확인하고 `WORK_STATUS.md`에 남긴다.
+- [x] 기존 0007 뒤 순서와 실제 migration 생성/실행 방식을 확인하고 시험용 격리 DB·컨테이너 이름, 소유, cleanup을 `WORK_STATUS.md`에 먼저 기록한다. 기존 DB dry-run 및 행 수를 읽기 전용 확인한다.
+- [x] RED: 편집본 단일 행, JSON 객체/양의 버전, 수정자 FK, 불변 공개본 ID/게시자 FK, 단일 현재 포인터 FK와 초기 빈 구성, 기존 계정/상품 행 무변경을 검사하는 DB 시험을 먼저 작성한다. `node --import tsx --test apps/api/test/home-schema-db.test.mjs`의 예상 실패를 기록한다.
+- [x] `home_content_draft`, `home_content_publications`, `home_content_current`의 Drizzle 정의와 0008 SQL/스냅샷을 일치시킨다. 초기 공개본이 없을 때 현재 포인터는 NULL이고 임의 임시 publication을 만들지 않는다. public API의 빈 구성 응답은 Task 4에서 검증한다. `audit_events`는 기존 테이블 재사용.
+- [x] 격리 DB에 0000~0008 적용→시험 GREEN, 이전 코드가 새 테이블을 무시하고 기동하는지 확인, 새 schema 없이도 기존 행이 보존되는지 확인한다. 공유 개발 DB 적용 전 dry-run SQL과 영향/복구 경계를 재확인한다. `pnpm typecheck`도 실행한다.
+- [x] 안전 commit 후 `git push`(SSH alias)→WSL `git pull --ff-only`·SHA 일치에서 실DB migration 시험을 수행하고 정확한 격리 DB/컨테이너만 정리한다. 승인된 공유 개발 DB 적용 시 0008만 적용·이력/행 수를 재확인하고 `WORK_STATUS.md`에 남긴다.
 
 ## Task 2 — 구성 타입·검증과 판매 가능 상품 조회
 
