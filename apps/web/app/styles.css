@@ -134,3 +134,20 @@ p{line-height:1.7}
 .draft-image-list{display:grid;gap:10px;padding-left:22px}
 .draft-image-list li{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}
 .draft-image-list select{max-width:100%}
+.home-admin-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.home-admin-layout>.section-note{grid-column:1/-1}
+.home-admin-layout>.account-card{max-width:none;width:100%;margin:0;min-width:0}
+.home-admin-layout label{display:block;margin-top:12px;font-size:14px;font-weight:700}
+.home-admin-layout input:not([type=checkbox]),.home-admin-layout select,.home-admin-layout textarea{width:100%;min-width:0;min-height:44px;padding:10px;border:1px solid #a18556;border-radius:6px;background:#fffaf1;color:#302a20;font:inherit}
+.home-admin-layout input:focus-visible,.home-admin-layout select:focus-visible,.home-admin-layout textarea:focus-visible{outline:3px solid #9c2b22;outline-offset:2px}
+.home-admin-layout .check-row{display:flex;align-items:center;gap:8px}
+.home-admin-item{min-width:0;margin:20px 0;padding:16px;border:1px solid #e9d2bb;border-radius:10px}
+.home-admin-item legend{padding-inline:8px;font-weight:700}
+.home-admin-dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.home-admin-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.home-admin-actions .primary-button{margin:0;padding-inline:18px}
+.home-admin-products{display:grid;gap:10px;padding-left:24px;overflow-wrap:anywhere}
+.home-admin-products li{padding-block:8px;border-bottom:1px solid #e9d2bb}
+.home-admin-products button{margin:3px}
+@media(max-width:900px){.home-admin-layout{grid-template-columns:1fr}}
+@media(max-width:600px){.home-admin-dates{grid-template-columns:1fr}}
