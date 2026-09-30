@@ -175,7 +175,7 @@ test('admin previews, publishes and restores immutable home snapshots with audit
       { previousPublicationId: secondId, publicationId: firstId });
     const unavailableId = randomUUID();
     const invalidPayload = { ...firstPayload, events: [{ ...event,
-      productIds: [unavailableId], heroProductId: unavailableId }] };
+      productIds: [unavailableId], heroProductId: unavailableId }, future] };
     const invalidSaved = await save(secondVersion, invalidPayload);
     assert.equal(invalidSaved.status, 200);
     const invalidVersion = (await invalidSaved.json()).version;
