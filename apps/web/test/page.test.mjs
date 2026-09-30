@@ -21,7 +21,7 @@ test('customer home exposes the approved five areas without fake purchasable pro
   assert.doesNotMatch(html, /장바구니 담기|결제하기|개인별 추천/);
 });
 
-test('home catalog links administrator categories and only supplied public products', () => {
+test('home catalog links administrator categories and seller discovery without impersonating curation', () => {
   assert.equal(typeof Home.HomeCatalogView, 'function');
   const html = renderToStaticMarkup(createElement(Home.HomeCatalogView, {
     categories: [
@@ -36,9 +36,8 @@ test('home catalog links administrator categories and only supplied public produ
   assert.match(html, /href="\/products\?categoryId=major-1"[^>]*>과일<\/a>/);
   assert.match(html, /href="\/products\?categoryId=major-2"[^>]*>채소<\/a>/);
   assert.doesNotMatch(html, /href="\/products\?categoryId=minor-1"/);
-  assert.match(html, /href="\/products\/published-1"/);
   assert.match(html, /href="\/products\?sellerId=seller-1"[^>]*>진주농가<\/a>/);
-  assert.match(html, /23,000원/);
+  assert.doesNotMatch(html, /추천 상품|23,000원/);
   assert.doesNotMatch(html, /개인별 추천|objectKey|quarantine\//);
 });
 
@@ -48,10 +47,10 @@ test('home catalog distinguishes empty public data from connection failure', () 
     categories: [], products: [], loading: false,
   }));
   assert.match(empty, /등록된 카테고리가 없습니다/);
-  assert.match(empty, /상품 준비 중/);
+  assert.match(empty, /소개할 판매자가 없습니다/);
   const failed = renderToStaticMarkup(createElement(Home.HomeCatalogView, {
     categories: [], products: [], loading: false, error: '연결 실패',
   }));
   assert.match(failed, /연결 실패/);
-  assert.doesNotMatch(failed, /상품 준비 중/);
+  assert.doesNotMatch(failed, /소개할 판매자가 없습니다/);
 });

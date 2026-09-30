@@ -42,6 +42,13 @@ p{line-height:1.7}
 .section-note{font-size:14px;color:#675b48}
 .feature-card{min-height:155px;padding:28px;background:#e7d2a6;border:1px solid #dcc28c;border-radius:8px}
 .feature-card p{font-family:"Gowun Batang",serif;font-size:22px;margin:16px 0 0}
+.event-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.event-card{display:grid;gap:10px;min-width:0;min-height:230px;color:#302a20;text-decoration:none}
+.event-card strong{font-family:"Gowun Batang",serif;font-size:22px}
+.event-card:hover{background:#f2e6c8}.event-card:focus-visible{outline:3px solid #9c2b22;outline-offset:2px}
+.event-card img,.event-card .ms-ph{width:100%;height:145px;object-fit:cover}
+.home-product-photo{display:block;width:100%;height:150px;object-fit:cover}
+.event-detail .home-products{margin-block:28px}
 .card-kicker{font-size:13px;color:#624a24}
 .category-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .seller-story-links{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
@@ -68,8 +75,9 @@ p{line-height:1.7}
 @media(max-width:760px){.detail-layout{grid-template-columns:1fr}.detail-photo-placeholder{min-height:250px}}
 @media(max-width:900px){.hero-inner{grid-template-columns:1fr}.hero-art{min-height:190px}}
 @media(max-width:760px){.search-filters{grid-template-columns:1fr 1fr}.search-filters label{grid-row:auto}.search-filters input,.search-filters select,.search-filters button{grid-row:auto}.search-results{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.event-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.search-filters{grid-template-columns:minmax(0,1fr)}.search-filters button{width:100%}}
-@media(max-width:500px){.search-results{grid-template-columns:1fr}}
+@media(max-width:500px){.search-results,.event-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.shell{padding-inline:18px}.header-inner{min-height:74px;gap:12px}.brand{font-size:24px}.brand-mark{width:32px;height:32px;font-size:18px}.brand-words small{display:none}.search-preview{font-size:0;padding-inline:12px}.search-preview>span:first-child{font-size:24px}.search-hint{font-size:12px}.hero{padding:30px 24px;min-height:250px}.hero-art{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:minmax(110px,1fr);gap:8px;min-height:110px}.hero-art .ms-ph:first-child{grid-row:auto}.ms-ph{padding:8px;font-size:13px}.category-row{grid-template-columns:repeat(2,1fr)}.site-menu{gap:18px}}
 @media(max-width:600px){.seller-story-links{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){.search-preview input{font-size:16px}}

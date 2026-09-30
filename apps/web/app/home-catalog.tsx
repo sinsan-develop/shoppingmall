@@ -27,21 +27,6 @@ export function HomeCatalogView({ categories, products, loading, error }: HomeCa
                   href={`/products?categoryId=${encodeURIComponent(category.id)}`}>{category.name}</a>)}
             </div>}
       </section>
-      <section className="home-section" aria-labelledby="recommendations-title">
-        <div className="section-heading"><p className="eyebrow">CURATED FOR EVERYONE</p><h2 id="recommendations-title">추천 상품</h2></div>
-        <p className="section-note">현재 판매 가능한 최신 공개 상품을 소개합니다</p>
-        {loading ? <p role="status">상품을 불러오는 중</p> : error ? <p role="alert">{error}</p> :
-          products.length === 0 ? <p className="product-empty">상품 준비 중</p> :
-            <div className="search-results home-products">
-              {products.slice(0, 4).map((product) =>
-                <article className="search-product" key={product.productId}>
-                  <p className="eyebrow">{product.originLabel}</p>
-                  <h3><a className="product-link" href={`/products/${encodeURIComponent(product.productId)}`}>{product.title}</a></h3>
-                  <p>{product.sellerName}</p>
-                  <p className="product-price">{product.minPriceWon.toLocaleString('ko-KR')}원부터</p>
-                </article>)}
-            </div>}
-      </section>
       <section className="home-section" aria-labelledby="seller-story-title">
         <div className="section-heading"><p className="eyebrow">OUR SELLERS</p><h2 id="seller-story-title">판매자 이야기</h2></div>
         <p className="section-note">농가와 어울몰 판매자의 상품을 같은 기준으로 소개합니다</p>

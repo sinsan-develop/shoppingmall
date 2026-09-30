@@ -60,7 +60,7 @@
 - [x] RED HTTP 실DB 시험: 고객/판매자 접근·판매자 역할로 전환한 관리자·교차 Origin·버전 경합, 저장만 하고 public 불변, 유효하지 않은 메뉴/기획전 참조와 최소 1개 판매 가능 상품, 공개/복구 포인터와 행위자·역할·이전/새 ID 감사 기록을 검사한다. 별도 QA 계정/상품 정리 경로까지 시험한다.
 - [x] 서비스에 transaction과 편집본 row/version 조건부 갱신을 구현한다. 공개는 서버 재검증 후 스냅샷 삽입·포인터 교체·감사 기록을 한 transaction으로 수행한다. 복구도 포인터/감사를 같은 transaction으로 수행하며 이미 제거된 상품은 이후 공개 조회에서 걸러진다.
 - [x] controller에서 기존 `AuthRepository`/`readToken`/`requireOrigin` 패턴을 적용하고 `AppModule`에 등록한다. 응답에 DB 비밀/편집본을 섞지 않는다.
-- [ ] 목표 실DB GREEN, 동시 요청 반복 시험과 전체 API 회귀, typecheck/lint. WSL 동일 SHA 및 QA cleanup, `WORK_STATUS.md`, commit.
+- [x] 목표 실DB GREEN, 동시 요청 반복 시험과 전체 API 회귀, typecheck/lint. WSL 동일 SHA 및 QA cleanup, `WORK_STATUS.md`, commit.
 
 ## Task 4 — 공개 홈·기획전 API 및 런타임 재검사
 
@@ -68,17 +68,17 @@
 
 **Contract:** `GET /home/content` → `{menu,events,recommendations}`; `GET /home/events/:id` → `{id,title,description,products}` 또는 종류가 명확한 안내 상태. 인증 불필요. 고정 메뉴는 프런트에서 보장하고 API는 편집된 추가 메뉴만 반환한다. 기간은 KST 관리자 입력을 UTC instant로 저장/비교하고 시작 포함·종료 미포함이다.
 
-- [ ] RED: 미공개 편집본 비노출, 공개된 카드/추천/기획전 상품 선택 순서, 현재 재고·가격, 시작 전·종료 시각·종료 후, 공개 뒤 모두 품절, 판매중지, 개정/이미지 교체, 무효 메뉴 category/seller/event/product 제거, 추측한 미공개 이벤트 ID를 검사한다.
-- [ ] 공개 스냅샷과 현재 판매 가능 상품을 합성한다. 한 공개 응답의 projection에서 시간 기준을 한 번만 잡고 menu/event/recommendation을 일관되게 필터링한다. 장기 HTTP cache를 설정하지 않는다.
-- [ ] 목표 시험 GREEN, 카탈로그 조회 회귀·typecheck/lint·WSL 동일 SHA 실DB 시험. fixture·포트·컨테이너 잔류와 audit 수를 확인하고 commit.
+- [x] RED: 미공개 편집본 비노출, 공개된 카드/추천/기획전 상품 선택 순서, 현재 재고·가격, 시작 전·종료 시각·종료 후, 공개 뒤 모두 품절, 판매중지, 개정/이미지 교체, 무효 메뉴 category/seller/event/product 제거, 추측한 미공개 이벤트 ID를 검사한다.
+- [x] 공개 스냅샷과 현재 판매 가능 상품을 합성한다. 한 공개 응답의 projection에서 시간 기준을 한 번만 잡고 menu/event/recommendation을 일관되게 필터링한다. 장기 HTTP cache를 설정하지 않는다.
+- [x] 목표 시험 GREEN, 카탈로그 조회 회귀·typecheck/lint·WSL 동일 SHA 실DB 시험. fixture·포트·컨테이너 잔류와 audit 수를 확인하고 commit.
 
 ## Task 5 — Flat v2 고객 홈·기획전 화면
 
 **Files:** `apps/web/app/page.tsx`, `apps/web/app/home-catalog.tsx`, 신규 `apps/web/app/home-merchandising.tsx`, 신규 `apps/web/app/events/[id]/page.tsx`, `apps/web/app/styles.css`, 신규 `apps/web/test/home-merchandising.test.mjs`, 기존 `apps/web/test/page.test.mjs`.
 
-- [ ] RED 렌더/상태 시험: 고정 홈·제철 메뉴, 관리자 추가 메뉴 순서, 선택 상품만 노출되는 카드/기획전, 이벤트→상품 상세 링크, 추천 0건, 이미지 fallback, API 실패 시 고정 메뉴·검색/분류 유지, 종료 URL 안내를 작성한다.
-- [ ] 고객 컴포넌트가 public API만 읽게 구현한다. `home-catalog.tsx`의 최신 공개 4건을 관리자 공통 추천으로 교체하되 카테고리·판매자 탐색이 추천 0건/홈 API 장애 때문에 사라지지 않게 별도 로드 상태를 둔다. 현 검색 form/상품 detail 경로를 유지한다.
-- [ ] Flat v2 색·타이포·focus/hover·반응형 카드와 텍스트 이미지 fallback을 적용한다. 특정 상품의 행사 문구를 임의 할인·배송 보장처럼 표시하지 않는다.
+- [x] RED 렌더/상태 시험: 고정 홈·제철 메뉴, 관리자 추가 메뉴 순서, 선택 상품만 노출되는 카드/기획전, 이벤트→상품 상세 링크, 추천 0건, 이미지 fallback, API 실패 시 고정 메뉴·검색/분류 유지, 종료 URL 안내를 작성한다.
+- [x] 고객 컴포넌트가 public API만 읽게 구현한다. `home-catalog.tsx`의 최신 공개 4건을 관리자 공통 추천으로 교체하되 카테고리·판매자 탐색이 추천 0건/홈 API 장애 때문에 사라지지 않게 별도 로드 상태를 둔다. 현 검색 form/상품 detail 경로를 유지한다.
+- [x] Flat v2 색·타이포·focus/hover·반응형 카드와 텍스트 이미지 fallback을 적용한다. 특정 상품의 행사 문구를 임의 할인·배송 보장처럼 표시하지 않는다.
 - [ ] 목표 시험 GREEN, `pnpm typecheck`, `pnpm lint`, `pnpm build`, 홈/상품 관련 회귀. 같은 SHA의 WSL 빌드·실브라우저 1920×1080/1440×900/430×844, Tab/Enter, 빈/오류/품절을 기록한다. 확대 200%는 실제 브라우저 배율 증거가 없으면 미검증. commit.
 
 ## Task 6 — Flat v2 관리자 편집 화면
