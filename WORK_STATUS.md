@@ -5,6 +5,7 @@
 - 신산님이 실제 브라우저 200% 확대 검증의 인수테스트 이월에 직접 `그래`라고 승인했다. 기존 in-app/Chrome 자동 확대 시도는 배율 값이 바뀌지 않았고, Chrome 파일 URL 자동 접근은 브라우저 보안 정책으로 거부돼 우회하지 않았다. 430px viewport를 확대 증거로 대체하지 않으며 현재 판정은 **UNVERIFIED**다.
 - 승인된 변경은 검증 **시점**만 UAT-03으로 옮기는 것이며 접근성 합격·UAT 합격·나머지 Stage gate 면제가 아니다. `docs/WORK_PLAN.md`의 S2.4/S8.1, 홈 전시 세부 계획, 별도 초안 `docs/DEPLOYMENT_UAT_PLAN.md`의 UAT-03에 명시한다. 후속 인수에서는 실제 200% 배율 값, 화면 넘침·겹침, 키보드/버튼 조작을 확인하고 불합격이면 branch 수정→로컬/WSL 재검증→인수 재시험한다.
 - 다음: S2.4의 확대 외 남은 정식 WSL 통합·E2E, 전체 브랜치 리뷰, PR 필수 검증을 현재 `codex/flat-v2-prototypes`에서 대조한다. 사용자 인수·Oracle·실공급자 연동은 아직 수행하거나 승인된 것으로 간주하지 않는다. `main` 직접 수정·새 branch/worktree 생성 없음.
+- S2.4 반복 가능 통합 QA 사전 자원 계획: 승인된 작업 branch의 exact SHA를 지정 WSL checkout으로 Git pull한 뒤, 기존 정식 개발 DB `local-postgres/shoppingmall`을 사용한다. 고정 가상 실행 ID `f0241001`(8자리 hex)의 기존 `qa-public-fixture.ts seed`로 5개 역할 계정·3판매자·공개 시험 상품 2개를 생성한다. 담당 어울, 수명 S2.4 관리자 편집→미리보기→공개→고객 기획전/상세·판매자 권한 거부·품절 동작 통합 재현 동안이며 실계정·실결제·실발송은 쓰지 않는다. WSL Node24 전용 컨테이너 이름은 `shoppingmall-s24-integration-api`, `shoppingmall-s24-integration-proxy`, `shoppingmall-s24-integration-web`; 기존 `local-postgres`의 네트워크를 API가 공유하고 새 DB·볼륨·네트워크는 만들지 않는다. 호스트 9091/9092와 이름/DB baseline을 사전 확인한 뒤 시작한다. 시험 후 QA 공개 포인터·초안/발행본이 정확한 시험 관리자·ID와 맞을 때만 원상 복구, 같은 `QA_RUN_ID` fixture reset, 전용 컨테이너 3개 종료·자동 제거, DB/포트/checkout 잔류 0을 확인한다. 조건이 다르면 광범위 정리하지 않고 중단·보고한다. 이 증거는 독립 일회성 자체 회귀와 별도로 기록한다.
 
 ## 진행 중 — 2026-10-01 S2.4 홈 전시 실제 브라우저·회귀 checkpoint
 
