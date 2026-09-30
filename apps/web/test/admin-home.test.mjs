@@ -95,3 +95,18 @@ test('saved draft response distinguishes confirmed payload, recovered read and f
   assert.equal(await confirmSavedDraft({ json: async () => { throw new Error('broken response'); } },
     async () => { throw new Error('offline'); }, () => { throw new Error('accept should not run'); }), 'unverified');
 });
+
+test('saving disables in-flight menu and event edits so the response cannot erase newer input', () => {
+  const html = renderToStaticMarkup(createElement(AdminHomeView, {
+    draft: { version: 1, payload: {
+      menu: [{ id: 'menu-1', label: '제철', displayOrder: 0, visible: true, target: { type: 'catalog' } }],
+      events: [{ id: 'event-1', title: '기획전', description: '', displayOrder: 0,
+        startAt: '2026-10-01T00:00:00.000Z', endAt: '2026-10-02T00:00:00.000Z',
+        productIds: [], heroProductId: '', heroImageId: null }], recommendations: [],
+    } },
+    categories: [], sellers: [], products: [], history: [], preview: null, busy: true,
+    onChange: () => {}, onSave: () => {}, onPreview: () => {}, onPublish: () => {}, onRestore: () => {},
+  }));
+  assert.match(html, /<fieldset[^>]*disabled=""[^>]*><legend>메뉴 1<\/legend>/);
+  assert.match(html, /<fieldset[^>]*disabled=""[^>]*><legend>기획전 1<\/legend>/);
+});

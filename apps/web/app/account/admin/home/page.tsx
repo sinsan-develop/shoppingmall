@@ -74,7 +74,7 @@ export function AdminHomeView({ draft, categories, sellers, products, history, p
     <p className="section-note">편집본 버전 {draft.version} · 저장은 현재 공개본을 바꾸지 않습니다</p>
     <section className="account-card profile-card" aria-labelledby="home-menu-heading">
       <h2 id="home-menu-heading">추가 메뉴</h2><p>홈과 제철 농산물은 항상 표시됩니다. 여기서는 추가 메뉴만 관리합니다.</p>
-      {menu.map((item, index) => <fieldset className="home-admin-item" key={item.id}>
+      {menu.map((item, index) => <fieldset className="home-admin-item" key={item.id} disabled={busy}>
         <legend>메뉴 {index + 1}</legend>
         <label htmlFor={`menu-label-${item.id}`}>이름</label>
         <input id={`menu-label-${item.id}`} value={item.label} maxLength={30}
@@ -104,7 +104,7 @@ export function AdminHomeView({ draft, categories, sellers, products, history, p
       <label htmlFor="home-product-search">상품 찾기</label>
       <input id="home-product-search" type="search" maxLength={80} placeholder="상품명 또는 판매자"
         onChange={(e) => onSearch?.(e.currentTarget.value)} />
-      {events.map((event, index) => <fieldset className="home-admin-item" key={event.id}>
+      {events.map((event, index) => <fieldset className="home-admin-item" key={event.id} disabled={busy}>
         <legend>기획전 {index + 1}</legend>
         <label htmlFor={`event-title-${event.id}`}>제목</label>
         <input id={`event-title-${event.id}`} value={event.title} maxLength={80}
