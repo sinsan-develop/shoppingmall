@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-01 S2.4 200% 확대 인수 단계 이월 결정
+
+- 신산님이 실제 브라우저 200% 확대 검증의 인수테스트 이월에 직접 `그래`라고 승인했다. 기존 in-app/Chrome 자동 확대 시도는 배율 값이 바뀌지 않았고, Chrome 파일 URL 자동 접근은 브라우저 보안 정책으로 거부돼 우회하지 않았다. 430px viewport를 확대 증거로 대체하지 않으며 현재 판정은 **UNVERIFIED**다.
+- 승인된 변경은 검증 **시점**만 UAT-03으로 옮기는 것이며 접근성 합격·UAT 합격·나머지 Stage gate 면제가 아니다. `docs/WORK_PLAN.md`의 S2.4/S8.1, 홈 전시 세부 계획, 별도 초안 `docs/DEPLOYMENT_UAT_PLAN.md`의 UAT-03에 명시한다. 후속 인수에서는 실제 200% 배율 값, 화면 넘침·겹침, 키보드/버튼 조작을 확인하고 불합격이면 branch 수정→로컬/WSL 재검증→인수 재시험한다.
+- 다음: S2.4의 확대 외 남은 정식 WSL 통합·E2E, 전체 브랜치 리뷰, PR 필수 검증을 현재 `codex/flat-v2-prototypes`에서 대조한다. 사용자 인수·Oracle·실공급자 연동은 아직 수행하거나 승인된 것으로 간주하지 않는다. `main` 직접 수정·새 branch/worktree 생성 없음.
+
 ## 진행 중 — 2026-10-01 S2.4 홈 전시 실제 브라우저·회귀 checkpoint
 
 - 담당/기준: 어울 단일 writer, 기존 `codex/flat-v2-prototypes` 격리 worktree. 시험 정리 도구까지 안전 commit/push한 로컬·원격·WSL HEAD는 `1c040facdaca22a9a0b2d90a93ccb2833c1453ee`, Git dirty 0. `main`·다른 프로젝트 자료·Oracle은 변경하지 않았다.
