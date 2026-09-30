@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { newHomeId } from './ids';
 
 type Product = { productId: string; title: string; sellerName: string };
 type Category = { id: string; name: string; parentId: string | null };
@@ -51,11 +52,11 @@ export function AdminHomeView({ draft, categories, sellers, products, history, p
   const changeEvent = (index: number, patch: Partial<Event>) =>
     onChange({ ...draft.payload, events: events.map((item, position) => position === index ? { ...item, ...patch } : item) });
   const addMenu = () => onChange({ ...draft.payload, menu: [...menu,
-    { id: crypto.randomUUID(), label: '', displayOrder: menu.length, visible: true, target: { type: 'catalog' } }] });
+    { id: newHomeId(), label: '', displayOrder: menu.length, visible: true, target: { type: 'catalog' } }] });
   const addEvent = () => {
     const start = new Date();
     const end = new Date(start.getTime() + 86400000);
-    onChange({ ...draft.payload, events: [...events, { id: crypto.randomUUID(), title: '', description: '',
+    onChange({ ...draft.payload, events: [...events, { id: newHomeId(), title: '', description: '',
       displayOrder: events.length, startAt: start.toISOString(), endAt: end.toISOString(),
       productIds: [], heroProductId: '', heroImageId: null }] });
   };

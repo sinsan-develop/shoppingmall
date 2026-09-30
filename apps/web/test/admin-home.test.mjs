@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AdminHomeView } from '../app/account/admin/home/page.tsx';
+import { newHomeId } from '../app/account/admin/home/ids.ts';
 
 test('operator home editor separates draft, preview, publication and restore', () => {
   const html = renderToStaticMarkup(createElement(AdminHomeView, {
@@ -40,4 +41,9 @@ test('preview names configured content and explains excluded targets before publ
   }));
   assert.match(html, /미리보기 결과.*제철 기획.*제철 모음.*햇고추/s);
   assert.match(html, /no_sellable_products/);
+});
+
+test('home editor IDs use secure random bytes without requiring randomUUID on HTTP QA', () => {
+  const id = newHomeId((bytes) => bytes.fill(0));
+  assert.match(id, /^00000000-0000-4000-8000-000000000000$/);
 });
