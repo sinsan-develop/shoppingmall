@@ -1,0 +1,56 @@
+import {
+  BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Inject,
+  Put, Req, ServiceUnavailableException, UnauthorizedException,
+} from '@nestjs/common';
+import { readToken, requireOrigin } from '../auth/controller.js';
+import { AuthRepository } from '../auth/repository.js';
+import { DatabaseService } from '../db/service.js';
+import { HomeRepository } from './repository.js';
+import { parseHomePayload } from './validation.js';
+
+type RequestHeaders = { headers: { cookie?: string; origin?: string } };
+
+@Controller('home/admin')
+export class HomeAdminController {
+  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  private pool() {
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    return pool;
+  }
+
+  private async admin(request: RequestHeaders) {
+    const token = readToken(request.headers.cookie);
+    if (!token) throw new UnauthorizedException();
+    const actor = await new AuthRepository(this.pool()).getSession(token);
+    if (!actor) throw new UnauthorizedException();
+    if (actor.role !== 'admin') throw new ForbiddenException();
+    return actor;
+  }
+
+  @Get('draft')
+  async getDraft(@Req() request: RequestHeaders) {
+    await this.admin(request);
+    return new HomeRepository(this.pool()).getDraft();
+  }
+
+  @Put('draft')
+  async saveDraft(@Req() request: RequestHeaders, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.admin(request);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new BadRequestException();
+    const input = body as Record<string, unknown>;
+    if (!Number.isInteger(input.version) || (input.version as number) < 1) throw new BadRequestException();
+    let payload;
+    try { payload = parseHomePayload(input.payload); }
+    catch { throw new BadRequestException({ status: 'invalid_home_payload' }); }
+    try { return await new HomeRepository(this.pool()).saveDraft(actor, input.version as number, payload); }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Home draft version conflict') {
+        throw new ConflictException({ status: 'home_draft_version_conflict' });
+      }
+      throw error;
+    }
+  }
+}
