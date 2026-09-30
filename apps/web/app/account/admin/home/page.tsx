@@ -16,7 +16,7 @@ type Preview = { payload: Payload; excluded: { kind: string; id: string; reason:
 type History = { id: string; publishedByAccountId: string; publishedAt: string };
 type Props = { draft: Draft; categories: Category[]; sellers: Seller[]; products: Product[];
   history: History[]; preview: Preview | null; busy: boolean; dirty?: boolean;
-  heroImages?: Record<string, { id: string }[]>;
+  heroImages?: Record<string, { id: string; purpose: string }[]>;
   onChange: (payload: Payload) => void; onSave: () => void; onPreview: () => void;
   onPublish: () => void; onRestore: (id: string) => void;
   onSearch?: (query: string) => void; onReload?: () => void };
@@ -150,7 +150,7 @@ export function AdminHomeView({ draft, categories, sellers, products, history, p
         <select id={`event-image-${event.id}`} value={event.heroImageId ?? ''}
           onChange={(e) => changeEvent(index, { heroImageId: e.currentTarget.value || null })}>
           <option value="">현재 공개 대표 사진 자동 선택</option>
-          {(heroImages[event.heroProductId] ?? []).map((image, position) =>
+          {(heroImages[event.heroProductId] ?? []).filter((image) => image.purpose === 'thumbnail').map((image, position) =>
             <option key={image.id} value={image.id}>사진 {position + 1}</option>)}
         </select>
         <div className="home-admin-actions"><button type="button" className="secondary-button" disabled={busy || index === 0}
@@ -232,7 +232,7 @@ export default function AdminHomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [history, setHistory] = useState<History[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [heroImages, setHeroImages] = useState<Record<string, { id: string }[]>>({});
+  const [heroImages, setHeroImages] = useState<Record<string, { id: string; purpose: string }[]>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -274,7 +274,7 @@ export default function AdminHomePage() {
     Promise.all(ids.map(async (id) => {
       const response = await fetch(`${apiOrigin}/catalog/products/${encodeURIComponent(id)}`,
         { signal: controller.signal, cache: 'no-store' });
-      return [id, response.ok ? ((await response.json()) as { images?: { id: string }[] }).images ?? [] : []] as const;
+      return [id, response.ok ? ((await response.json()) as { images?: { id: string; purpose: string }[] }).images ?? [] : []] as const;
     })).then((rows) => { if (!controller.signal.aborted) setHeroImages(Object.fromEntries(rows)); })
       .catch(() => { if (!controller.signal.aborted) setHeroImages({}); });
     return () => controller.abort();

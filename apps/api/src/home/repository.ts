@@ -15,6 +15,10 @@ async function excludedTargets(db: Queryable, payload: HomePayload, previewAt?: 
   for (const event of payload.events) {
     const products = await catalog.getSellableByIds(event.productIds);
     if (products.length === 0) excluded.push({ kind: 'event', id: event.id, reason: 'no_sellable_products' });
+    else if (event.heroImageId && !products.find((product) => product.productId === event.heroProductId)
+      ?.images.some((image) => image.id === event.heroImageId && image.purpose === 'thumbnail')) {
+      excluded.push({ kind: 'event', id: event.id, reason: 'invalid_hero_image' });
+    }
     else if (instant !== undefined && instant < Date.parse(event.startAt)) {
       excluded.push({ kind: 'event', id: event.id, reason: 'not_started' });
     } else if (instant !== undefined && instant >= Date.parse(event.endAt)) {

@@ -66,3 +66,18 @@ test('home editor IDs use secure random bytes without requiring randomUUID on HT
   const id = newHomeId((bytes) => bytes.fill(0));
   assert.match(id, /^00000000-0000-4000-8000-000000000000$/);
 });
+
+test('hero photo choices include thumbnails but never detail photos', () => {
+  const event = { id: 'event-1', title: '제철', description: '', displayOrder: 0,
+    startAt: '2026-10-01T01:00:00.000Z', endAt: '2026-10-02T01:00:00.000Z',
+    productIds: ['product-1'], heroProductId: 'product-1', heroImageId: null };
+  const html = renderToStaticMarkup(createElement(AdminHomeView, {
+    draft: { version: 2, payload: { menu: [], events: [event], recommendations: [] } },
+    categories: [], sellers: [], products: [{ productId: 'product-1', title: '햇고추', sellerName: '진주농가' }],
+    heroImages: { 'product-1': [{ id: 'thumb-1', purpose: 'thumbnail' }, { id: 'detail-1', purpose: 'detail' }] },
+    history: [], preview: null, busy: false,
+    onChange: () => {}, onSave: () => {}, onPreview: () => {}, onPublish: () => {}, onRestore: () => {},
+  }));
+  assert.match(html, /<option value="thumb-1">사진 1<\/option>/);
+  assert.doesNotMatch(html, /<option value="detail-1">/);
+});

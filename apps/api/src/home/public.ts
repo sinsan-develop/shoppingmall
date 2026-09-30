@@ -13,7 +13,7 @@ function sorted<T extends { displayOrder: number }>(items: T[]): T[] {
 
 function selectHero(event: HomeEvent, products: SellableProduct[]) {
   const heroProduct = products.find((product) => product.productId === event.heroProductId) ?? products[0];
-  const images = heroProduct.images;
+  const images = heroProduct.images.filter((image) => image.purpose === 'thumbnail');
   const heroImageId = images.some((image) => image.id === event.heroImageId)
     ? event.heroImageId : (images[0]?.id ?? null);
   return { heroProduct, heroImageId };
