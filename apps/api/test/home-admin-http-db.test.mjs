@@ -40,10 +40,17 @@ test('only an admin session may save a versioned home draft without publishing i
     const customer = await cookieFor(names.emails[0], 'customer');
     const seller = await cookieFor(names.emails[1], 'seller');
     const admin = await cookieFor(names.emails[4], 'admin');
+    const adminAccountId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [names.emails[4]])).rows[0].account_id;
+    const sellerId = (await pool.query('SELECT id FROM sellers WHERE display_name=$1', [names.sellerA])).rows[0].id;
+    await pool.query('INSERT INTO account_roles(account_id,role,seller_id) VALUES ($1,$2,$3)',
+      [adminAccountId, 'seller', sellerId]);
+    const adminAsSeller = await cookieFor(names.emails[4], 'seller');
     const path = `${base}/home/admin/draft`;
     assert.equal((await fetch(path)).status, 401);
     assert.equal((await fetch(path, { headers: { cookie: customer } })).status, 403);
     assert.equal((await fetch(path, { headers: { cookie: seller } })).status, 403);
+    assert.equal((await fetch(path, { headers: { cookie: adminAsSeller } })).status, 403);
     const before = await fetch(path, { headers: { cookie: admin } });
     assert.equal(before.status, 200);
     assert.deepEqual(await before.json(), { version: initial.version, payload: initial.payload });
@@ -58,10 +65,8 @@ test('only an admin session may save a versioned home draft without publishing i
     assert.equal((await put()).status, 409);
     assert.equal((await pool.query('SELECT publication_id FROM home_content_current WHERE id=1')).rows[0].publication_id,
       pointerBefore);
-    const actor = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
-      [names.emails[4]])).rows[0].account_id;
     const audit = await pool.query(
-      "SELECT action,active_role FROM audit_events WHERE actor_account_id=$1 AND action='home.draft_saved'", [actor]);
+      "SELECT action,active_role FROM audit_events WHERE actor_account_id=$1 AND action='home.draft_saved'", [adminAccountId]);
     assert.deepEqual(audit.rows, [{ action: 'home.draft_saved', active_role: 'admin' }]);
   } finally {
     if (app) await app.close();

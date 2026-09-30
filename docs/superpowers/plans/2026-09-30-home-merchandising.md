@@ -57,9 +57,9 @@
 
 **Contract:** `/home/admin/draft` GET/PUT `{version,payload}`, `/home/admin/preview` GET `{payload,excluded}`, `/home/admin/publish` POST `{version}` → `{publicationId}`, `/home/admin/history` GET, `/home/admin/restore/:publicationId` POST. 저장 성공 시 version 증가. 오래된 버전은 409, 잘못된 payload/대상은 400, 비인증 401·잘못된 활성 역할/Origin 403. 복구는 과거 publication을 수정하지 않고 현재 포인터만 변경한다.
 
-- [ ] RED HTTP 실DB 시험: 고객/판매자 접근·판매자 역할로 전환한 관리자·교차 Origin·버전 경합, 저장만 하고 public 불변, 유효하지 않은 메뉴/기획전 참조와 최소 1개 판매 가능 상품, 공개/복구 포인터와 행위자·역할·이전/새 ID 감사 기록을 검사한다. 별도 QA 계정/상품 정리 경로까지 시험한다.
-- [ ] 서비스에 transaction과 편집본 row/version 조건부 갱신을 구현한다. 공개는 서버 재검증 후 스냅샷 삽입·포인터 교체·감사 기록을 한 transaction으로 수행한다. 복구도 포인터/감사를 같은 transaction으로 수행하며 이미 제거된 상품은 이후 공개 조회에서 걸러진다.
-- [ ] controller에서 기존 `AuthRepository`/`readToken`/`requireOrigin` 패턴을 적용하고 `AppModule`에 등록한다. 응답에 DB 비밀/편집본을 섞지 않는다.
+- [x] RED HTTP 실DB 시험: 고객/판매자 접근·판매자 역할로 전환한 관리자·교차 Origin·버전 경합, 저장만 하고 public 불변, 유효하지 않은 메뉴/기획전 참조와 최소 1개 판매 가능 상품, 공개/복구 포인터와 행위자·역할·이전/새 ID 감사 기록을 검사한다. 별도 QA 계정/상품 정리 경로까지 시험한다.
+- [x] 서비스에 transaction과 편집본 row/version 조건부 갱신을 구현한다. 공개는 서버 재검증 후 스냅샷 삽입·포인터 교체·감사 기록을 한 transaction으로 수행한다. 복구도 포인터/감사를 같은 transaction으로 수행하며 이미 제거된 상품은 이후 공개 조회에서 걸러진다.
+- [x] controller에서 기존 `AuthRepository`/`readToken`/`requireOrigin` 패턴을 적용하고 `AppModule`에 등록한다. 응답에 DB 비밀/편집본을 섞지 않는다.
 - [ ] 목표 실DB GREEN, 동시 요청 반복 시험과 전체 API 회귀, typecheck/lint. WSL 동일 SHA 및 QA cleanup, `WORK_STATUS.md`, commit.
 
 ## Task 4 — 공개 홈·기획전 API 및 런타임 재검사
