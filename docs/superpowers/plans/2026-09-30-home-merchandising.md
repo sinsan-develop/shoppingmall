@@ -46,10 +46,10 @@
 
 **Contract:** `parseHomePayload(value: unknown): HomePayload`는 내부 대상의 discriminated union과 목록 상한/중복/문자열/기간을 검증해 잘못된 입력을 거부한다. `PublicProducts.getSellableByIds(ids: string[])`는 요청 순서의 현재 승인·판매 가능 상품과 유효 썸네일을 반환한다. 배치 조회로 한 번에 최대 기획전/추천 상한을 다루고 N+1·첫 페이지 절단을 피한다.
 
-- [ ] RED: 외부 URL·잘못된 UUID·중복 이벤트/상품·빈 이름·12/50/24 상한·종료≤시작·문자열을 벗어난 JSON·이벤트 ID 없는 메뉴를 거부하는 순수 시험을 작성한다. `node --import tsx --test apps/api/test/home-validation.test.mjs` 예상 실패.
-- [ ] RED: 25번째 이상 선택 상품, 품절 옵션만 있는 상품, 승인 개정 변경, 판매중지, 현재 가격/재고, 이미지 제거 대체를 격리/개발 실DB fixture로 검증한다. `node --import tsx --test apps/api/test/home-eligibility-db.test.mjs` 예상 실패를 정확히 분리한다.
-- [ ] 타입/검증 함수를 구현하고 카탈로그와 홈이 공유하는 판매 가능 SQL predicate 또는 서비스 메서드를 만든다. 기존 `list()`의 결과/정렬/검색을 바꾸지 않는 회귀 시험을 추가한다.
-- [ ] 두 목표 시험 GREEN 및 카탈로그 관련 회귀, typecheck/lint 확인. 실DB는 동일 SHA WSL에서 실행 후 fixture 잔류 0 확인, 오류·미검증 기록 및 commit.
+- [x] RED: 외부 URL·잘못된 UUID·중복 이벤트/상품·빈 이름·12/50/24 상한·종료≤시작·문자열을 벗어난 JSON·이벤트 ID 없는 메뉴를 거부하는 순수 시험을 작성한다. `node --import tsx --test apps/api/test/home-validation.test.mjs` 예상 실패.
+- [x] RED: 25번째 이상 선택 상품, 품절 옵션만 있는 상품, 승인 개정 변경, 판매중지, 현재 가격/재고, 이미지 제거 대체를 격리/개발 실DB fixture로 검증한다. `node --import tsx --test apps/api/test/home-eligibility-db.test.mjs` 예상 실패를 정확히 분리한다.
+- [x] 타입/검증 함수를 구현하고 카탈로그와 홈이 공유하는 판매 가능 SQL predicate 또는 서비스 메서드를 만든다. 기존 `list()`의 결과/정렬/검색을 바꾸지 않는 회귀 시험을 추가한다.
+- [x] 두 목표 시험 GREEN 및 카탈로그 관련 회귀, typecheck/lint 확인. 실DB는 동일 SHA WSL에서 실행 후 fixture 잔류 0 확인, 오류·미검증 기록 및 commit.
 
 ## Task 3 — 관리자 편집·공개·복구 API
 
