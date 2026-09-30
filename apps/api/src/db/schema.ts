@@ -252,6 +252,34 @@ export const auditEvents = pgTable('audit_events', {
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index('audit_events_occurred_idx').on(table.occurredAt)]);
 
+type HomeContentPayload = { menu: unknown[]; events: unknown[]; recommendations: unknown[] };
+const emptyHomeContent: HomeContentPayload = { menu: [], events: [], recommendations: [] };
+
+export const homeContentDraft = pgTable('home_content_draft', {
+  id: integer('id').primaryKey().default(1),
+  version: integer('version').notNull().default(1),
+  payload: jsonb('payload').$type<HomeContentPayload>().notNull().default(emptyHomeContent),
+  updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  check('home_draft_one_row_ck', sql`${table.id} = 1`),
+  check('home_draft_version_ck', sql`${table.version} > 0`),
+  check('home_draft_payload_ck', sql`jsonb_typeof(${table.payload}) = 'object'`),
+]);
+
+export const homeContentPublications = pgTable('home_content_publications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  payload: jsonb('payload').$type<HomeContentPayload>().notNull(),
+  publishedByAccountId: uuid('published_by_account_id').notNull().references(() => accounts.id),
+  publishedAt: timestamp('published_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [check('home_publication_payload_ck', sql`jsonb_typeof(${table.payload}) = 'object'`)]);
+
+export const homeContentCurrent = pgTable('home_content_current', {
+  id: integer('id').primaryKey().default(1),
+  publicationId: uuid('publication_id').references(() => homeContentPublications.id),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [check('home_current_one_row_ck', sql`${table.id} = 1`)]);
+
 export const customerAddresses = pgTable('customer_addresses', {
   id: uuid('id').primaryKey().defaultRandom(),
   accountId: uuid('account_id').notNull().references(() => accounts.id),
