@@ -191,6 +191,22 @@ test('admin previews, publishes and restores immutable home snapshots with audit
     assert.deepEqual([racingA.status, racingB.status].sort(), [200, 409]);
     assert.equal((await pool.query('SELECT version FROM home_content_draft WHERE id=1')).rows[0].version,
       invalidVersion + 1);
+    const revisionId = (await pool.query(
+      'SELECT revision_id FROM product_publications WHERE product_id=$1', [productId],
+    )).rows[0].revision_id;
+    const detailImageId = (await pool.query(
+      `INSERT INTO product_images(revision_id,object_key,purpose,mime_type,size_bytes,display_order)
+       VALUES ($1,$2,'detail','image/webp',100,0) RETURNING id`,
+      [revisionId, `qa/${runId}/home-detail.webp`],
+    )).rows[0].id;
+    const detailPayload = { ...firstPayload, events: [{ ...event, heroImageId: detailImageId }, future] };
+    const detailSaved = await save(invalidVersion + 1, detailPayload);
+    assert.equal(detailSaved.status, 200);
+    const detailVersion = (await detailSaved.json()).version;
+    const detailPreview = await fetch(`${base}/home/admin/preview`, { headers: { cookie } });
+    assert.ok((await detailPreview.json()).excluded.some((item) => item.kind === 'event'
+      && item.id === eventId && item.reason === 'invalid_hero_image'));
+    assert.equal((await publish(detailVersion)).status, 400);
   } finally {
     if (app) await app.close();
     if (initialDraft && adminAccountId) {
