@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-01 S2.4 홈 전시 구현 Task 1 착수
+
+- 담당/기준: 어울 단일 writer, `codex/flat-v2-prototypes@0c4a9966a3b16dfa92e1d77f9ef46d0a3e05e3f6` clean 격리 worktree. 신산님의 `계속하자`를 직전 제시한 홈 전시 구현 계획 검토 승인과 Task 1 착수 지시로 기록한다. `main`·새 branch/worktree는 변경하지 않는다.
+- 기준선: 로컬 `pnpm test` 196건/157 pass/39 DB·환경 skip/0 fail, PR 본문 8 pass. 이는 새 홈 기능 증거가 아니다. WSL 지정 checkout은 아직 `3bf8338` clean, `local-postgres` 실행 중, 개발 `shoppingmall` DB 존재. WSL 상태 확인의 PowerShell SSH 인용 오류 1회는 원격 명령 실행 전 실패했고, 간단한 읽기 전용 명령으로 보정했다.
+- Task 1 QA 자원 사전 계획: WSL `local-postgres`의 새 격리 DB `shoppingmall_s24_home_1001`(동명 부재를 최종 재확인 후 생성), 소유 어울 Task 1, 수명 0000~0008 migration RED/GREEN와 복구 검증 동안. 시험은 지정 checkout을 안전 commit/push→Git pull한 동일 SHA의 기존 Node24 이미지 일회성 컨테이너 `shoppingmall-s24-home-1001`에서만 실행한다. 기존 `shoppingmall`과 다른 DB/컨테이너/서비스는 보존한다. 종료 시 정확한 격리 DB와 이 컨테이너만 제거하고 목록/행 잔류를 확인한다. 비밀값은 기록하지 않는다.
+- Task 1 시험 준비/미검증: 공유 개발 DB 읽기 전용 조회에서 Drizzle 이력 8건, accounts/products/audit 0/0/0. `apps/api/test/home-schema-db.test.mjs`에 초기 빈 편집본·단일 행·버전/JSON/FK와 불변 공개본/현재 포인터의 DB 행위 시험 2건을 먼저 작성했다. 로컬 실행은 0 pass/2 DB skip이므로 RED 증거가 아니다. 안전한 시험 전용 commit/push→지정 WSL checkout 동일 SHA에서 실제 개발 DB에 대해 미구현 관계 실패를 관찰한다. 격리 DB/컨테이너는 아직 생성하지 않았고 공유 개발 DB schema 변경도 없다. 홈 저장/API/화면·WSL GREEN·브라우저/UAT 미검증.
+
 ## 진행 중 — 2026-09-30 S2.4 홈 전시 서면 설계 승인·구현 계획 검토
 
 - 담당/기준: 어울 단일 writer, 기존 `codex/flat-v2-prototypes` worktree. 신산님이 홈 전시 설계 검토 요청에 `계속하자`고 답한 것을 `docs/superpowers/specs/2026-09-30-home-merchandising-design.md`의 서면 승인으로 기록하고 `docs/superpowers/plans/2026-09-30-home-merchandising.md`에 구현 순서와 RED→GREEN/WSL exact-SHA/브라우저 gate를 작성했다. 변경 파일은 이 두 문서와 `WORK_STATUS.md`뿐이다.
