@@ -92,6 +92,11 @@ test('public home reads only the published snapshot and live sellable products',
     assert.deepEqual(detail.body.products.map((item) => item.productId), [firstId, secondId]);
     await pool.query('UPDATE product_options SET price_won=29000 WHERE revision_id=$1', [firstRevisionId]);
     assert.equal((await read('/home/content')).body.recommendations[1].minPriceWon, 29000);
+    await pool.query(
+      `INSERT INTO product_images(revision_id,object_key,purpose,mime_type,size_bytes,display_order)
+       VALUES ($1,$2,'detail','image/webp',100,0)`,
+      [firstRevisionId, `qa/${runId}/home-detail.webp`],
+    );
     await pool.query('DELETE FROM product_images WHERE id=$1', [originalImageId]);
     assert.equal((await read('/home/content')).body.events[0].heroImageId, null);
     const replacementImageId = (await pool.query(
