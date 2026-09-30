@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { newHomeId } from './ids';
+import { confirmSavedDraft } from './save-response';
 
 type Product = { productId: string; title: string; sellerName: string };
 type Category = { id: string; name: string; parentId: string | null };
@@ -301,8 +302,15 @@ export default function AdminHomePage() {
       if (response.status === 409) { setMessage('다른 관리자가 먼저 수정했습니다. 서버 내용을 다시 불러와 주세요'); return; }
       if (!response.ok) { setMessage(kind === 'publish' ?
         '공개하지 못했습니다. 미리보기의 제외 대상과 상품 상태를 확인해 주세요' : '요청을 처리하지 못했습니다'); return; }
-      if (kind === 'save') { const saved = await response.json() as Draft; setDraft(saved);
-        setSavedPayload(saved.payload); setMessage('편집본을 저장했습니다. 고객 화면은 그대로입니다'); return; }
+      if (kind === 'save') {
+        const confirmation = await confirmSavedDraft<Draft>(response, () => reload(), (saved) => {
+          setDraft(saved); setSavedPayload(saved.payload);
+        });
+        setMessage(confirmation === 'response' ? '편집본을 저장했습니다. 고객 화면은 그대로입니다' :
+          confirmation === 'reloaded' ? '편집본을 저장하고 서버 내용을 다시 확인했습니다. 고객 화면은 그대로입니다' :
+          '편집본은 저장됐지만 서버 내용 재조회에 실패했습니다. 다시 불러와 확인해 주세요');
+        return;
+      }
       try { await reload(); await get('/home/content');
         setMessage(kind === 'publish' ? '공개하고 고객 화면을 다시 확인했습니다' : '이전 공개본으로 복구했습니다'); }
       catch { setMessage('요청은 처리됐지만 공개 내용 재조회에 실패했습니다. 서버 내용을 다시 확인해 주세요'); }

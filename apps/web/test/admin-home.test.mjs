@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AdminHomeView } from '../app/account/admin/home/page.tsx';
 import { newHomeId } from '../app/account/admin/home/ids.ts';
+import { confirmSavedDraft } from '../app/account/admin/home/save-response.ts';
 
 test('operator home editor separates draft, preview, publication and restore', () => {
   const html = renderToStaticMarkup(createElement(AdminHomeView, {
@@ -80,4 +81,17 @@ test('hero photo choices include thumbnails but never detail photos', () => {
   }));
   assert.match(html, /<option value="thumb-1">사진 1<\/option>/);
   assert.doesNotMatch(html, /<option value="detail-1">/);
+});
+
+test('saved draft response distinguishes confirmed payload, recovered read and failed readback', async () => {
+  const received = [];
+  const draft = { version: 2, payload: { menu: [], events: [], recommendations: [] } };
+  assert.equal(await confirmSavedDraft({ json: async () => draft }, async () => {
+    throw new Error('reload should not run');
+  }, (value) => received.push(value)), 'response');
+  assert.deepEqual(received, [draft]);
+  assert.equal(await confirmSavedDraft({ json: async () => { throw new Error('broken response'); } },
+    async () => {}, () => { throw new Error('accept should not run'); }), 'reloaded');
+  assert.equal(await confirmSavedDraft({ json: async () => { throw new Error('broken response'); } },
+    async () => { throw new Error('offline'); }, () => { throw new Error('accept should not run'); }), 'unverified');
 });
