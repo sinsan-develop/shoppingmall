@@ -1,14 +1,34 @@
 import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Inject,
-  NotFoundException, Param, Post, Put, Req, ServiceUnavailableException, UnauthorizedException,
+  Header, NotFoundException, Param, Post, Put, Req, ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
 import { HomeRepository } from './repository.js';
+import { PublicHome } from './public.js';
 import { parseHomePayload } from './validation.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string } };
+
+@Controller('home')
+export class HomePublicController {
+  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  private home() {
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    return new PublicHome(pool);
+  }
+
+  @Get('content')
+  @Header('Cache-Control', 'no-store')
+  content() { return this.home().content(); }
+
+  @Get('events/:id')
+  @Header('Cache-Control', 'no-store')
+  event(@Param('id') id: string) { return this.home().event(id); }
+}
 
 @Controller('home/admin')
 export class HomeAdminController {
