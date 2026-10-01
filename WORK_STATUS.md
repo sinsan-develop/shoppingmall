@@ -1,12 +1,19 @@
 # 어울몰 작업현황
 
-## 진행 중 — 2026-10-02 PR #9 정식 WSL 전체 회귀 보강
+## 완료 기록 — 2026-10-02 PR #9 자동 병합·merged-main 검증
+
+- 담당/기준: 어울 단일 writer. `codex/pr-create-only@47a504178188b50245b433b6c6a24fa3e16da167`의 생성 전용 PR #9를 기존 SSH 요청 태그 자동 병합 경로로 완료했다. 원격 `main@2cd28dabff3099970f082e7de4abc6288df1277c`의 커밋 메시지 `Review codex/pr-create-only (#9)`와 문서 3개 변경, 요청 태그·원격 작업 브랜치 제거를 Git ref로 확인했다. GitHub 계정·PAT·로컬 `gh auth`, 직접 main push는 사용하지 않았다.
+- 검증: PR head의 로컬 시험 230건 중 176 pass·54 DB/환경 skip·0 fail, 본문 시험 8 pass, typecheck/lint/build exit 0. 지정 WSL `5389e7b`의 Node 24·`local-postgres/shoppingmall` 전체 순차 시험 230건 중 223 pass·7 환경 skip·0 fail. 병합 `main@2cd28da`를 WSL 정식 checkout으로 확인하고 별도 일회용 `shoppingmall-pr9-merged-smoke-1002`에서 전체 순차 시험 **230건 중 223 pass·7 환경 skip·0 fail, exit 0**을 재실행했다. Linux gate·본문·diff 검사 exit 0, 사후 accounts/products/customer_cart_items/audit_events `0/0/0/0`, 두 전용 시험 컨테이너 잔류 0. Skip을 PASS로 합산하지 않는다.
+- 정리/보존: Windows 루트 main은 원격과 같은 SHA이며 `.github` 추적 파일 diff 0, 루트 미추적 `legacy-onedrive/`는 보존했다. 완료된 Windows `codex/pr-create-only`와 WSL `codex/pr-create-only`·`codex/flat-v2-prototypes` 로컬 브랜치, 삭제된 원격 브랜치의 WSL 추적 ref를 정상 정리했다. linked worktree는 ignored `.superpowers/`와 의존성 자료를 보존하기 위해 삭제하지 않았다. PR #9 정리 직후에는 `main@2cd28da`와 같았고, 이후 이 worktree에서 완료 기록 전용 `codex/pr9-completion-record` 브랜치를 만들었다. 새 브랜치는 문서만 수정한다.
+- 미검증/다음: GitHub Checks 화면·branch protection 상태는 계정 없는 SSH로 독립 조회할 수 없었다. PR ref·병합 커밋·실제 WSL 결과가 제품 UAT나 Oracle 배포 증거는 아니다. 다음 S3.1의 15분 예약 설계는 **신산님 검토 초안**이므로 공개 API·예약 테이블·migration 구현 전에 문서 승인과 별도 계약/DB 승인 경계를 확인한다.
+
+## 과거 경과 — 2026-10-02 PR #9 정식 WSL 전체 회귀 보강
 
 - 담당/범위: 어울 단일 writer. PR #9 후속 문서 브랜치 `codex/pr-create-only`의 필수 검증을 보강한다. 계획 수립 당시 원격 `main@2bad168`, PR head `233b040`, 로컬/WSL checkout clean을 읽기 전용 확인했다. 이후 PR head는 매 요청 때 원격 ref로 다시 확인한다. GitHub 계정·PAT·로컬 `gh auth`는 사용하지 않는다.
 - 사전 자원 계획: 지정 `WSL-server:/home/daon/deploy/shopping`과 `local-postgres/shoppingmall`만 사용한다. 시험 전 해당 DB 계정 0행 확인. Node 24 기존 image의 일회용 컨테이너 이름은 `shoppingmall-pr9-regression-1002`, 네트워크는 `container:local-postgres`, 소스는 지정 checkout read-only mount, 수명은 전체 순차 시험 실행 동안이며 `--rm`으로 종료 즉시 제거한다. 시험이 만드는 고유 QA 계정·상품은 기존 시험 `finally` 정리로 삭제하고, 사후 DB 행 수·컨테이너·checkout 잔류를 확인한다. 실계정·실결제·포트 개방·Oracle·다른 DB는 사용하지 않는다.
 - 현재 검증: 로컬 `233b040`에서 `pnpm test` 230건 중 176 pass·54 환경 skip·0 fail 및 PR 본문 시험 8 pass, typecheck/lint/build exit 0. 상태 기록 커밋 `5389e7b35379a66727fc592098fbbdf90b45a1d6`을 SSH push→지정 WSL checkout fast-forward/clean한 뒤 읽기 전용 소스 mount·`local-postgres/shoppingmall` 연결의 Node 24 일회용 컨테이너에서 루트 전체 순차 시험 **230건 중 223 pass·7 환경 skip·0 fail, exit 0**. Linux gate `bash -n`, PR 본문 validator, `git diff --check` exit 0. 시험 전후 지정 DB accounts/products/customer_cart_items/audit_events `0/0/0/0`, 전용 컨테이너 `--rm` 후 잔류 0, checkout clean. 7 skip은 통과로 계산하지 않는다. GitHub Checks·branch protection 상태는 계정 없는 SSH ref만으로 조회되지 않아 미검증이다. `pr-request/**` 병합 태그는 보내지 않았다.
 
-## 진행 중 — 2026-10-02 PR #8 병합 후 생성 전용 경로 실제 검증
+## 과거 경과 — 2026-10-02 PR #8 병합 후 생성 전용 경로 실제 검증
 
 - 담당/판정: 어울 단일 writer. 작업 중 외부에서 PR #8이 `main@2bad168a03b95a9ce9a43cafc76b54318a038dbe`로 병합된 것을 읽기 전용 fetch로 확인했다. 어울은 요청 태그를 보내거나 그 PR을 병합하지 않았다. 원격 `main`에는 `auto-pr-create.yml`과 LF gate가 있으며 루트 `D:\Project\shoppingmall2`의 `main`을 동일 SHA로 fast-forward해 추적 `.github` diff 0을 확인했다. 루트 미추적 `legacy-onedrive/`는 보존한다.
 - 후속 범위: 기존 `codex/pr-create-only`와 지정 worktree를 유지해 원격 `main`을 병합했고, `254a182`에서 작업을 이어간다. 앞선 WSL 검증 기록을 원격/로컬에 일치시키고 PR 본문·환경 문서의 오래된 bootstrap 문구를 고친다. 기존 자동화·제품 코드·DB는 수정하지 않는다.

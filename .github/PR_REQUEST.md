@@ -1,29 +1,27 @@
 ## 목적
 
-이미 `main`에 병합된 PR 생성 전용 경로를 실제 시험할 수 있도록 후속 검증 문서를 현재 상태에 맞춘다.
+PR #9 자동 병합과 병합 `main`의 정식 WSL 회귀·자원 정리 결과를 작업현황 정본에 남긴다.
 
 ## 변경 요약
 
-- 개발환경 문서의 최초 도입 전용 bootstrap 안내를 PR #8 병합 후 상태에 맞게 고친다.
-- 작업현황에 원격 `main`의 정확한 SHA와 첫 실제 생성 시험의 경계를 남긴다. 워크플로·gate·제품 코드는 이번 후속 PR에서 수정하지 않는다.
+- `WORK_STATUS.md` 맨 위에 PR #9 병합 SHA, 로컬·WSL 정확한 검증 수치, 임시 자원·브랜치 정리와 남은 승인 경계를 기록한다.
+- 과거 PR #9/PR #8의 진행 중 제목을 과거 경과로 표시한다. 자동화·제품 코드·설계는 변경하지 않는다.
 
 ## 영향
 
-- 이번 후속 변경은 문서만 다룬다. 제품 화면·API·DB·실사용 자료와 두 워크플로는 변경하지 않는다.
-- 원격 `main@2bad168a03b95a9ce9a43cafc76b54318a038dbe`에는 PR #8을 통해 생성 전용 워크플로와 LF gate가 이미 병합되었다. `pr-request/**`는 자동 병합 경로라 이번 시험에 사용하지 않는다.
+- 이번 변경은 완료 기록 문서만 다룬다. 제품 화면·API·DB schema·자료·기존 두 워크플로는 변경하지 않는다.
+- `main@2cd28dabff3099970f082e7de4abc6288df1277c`에 PR #9가 이미 병합됐으며 이번 기록 PR은 그 제품 동작을 변경하지 않는다.
 
 ## 검증
 
-- 앞선 PR #8의 코드 변경은 로컬 제품/시안 시험 230건 중 176 pass·54 환경 skip·0 fail, PR 본문 검사 8 pass, typecheck/lint/build exit 0, 지정 WSL 동일 SHA의 Linux gate 구문·YAML·본문 검사 exit 0으로 확인했다. 54 skip은 통과로 세지 않는다.
-- 후속 문서 커밋 `5389e7b35379a66727fc592098fbbdf90b45a1d6`을 지정 WSL checkout에서 동일 SHA로 확인하고 Node 24·`local-postgres/shoppingmall`의 전체 순차 시험 230건 중 223 pass·7 환경 skip·0 fail, Linux gate·본문·diff 검사 exit 0을 확인했다. QA DB 행과 일회용 컨테이너 잔류 0을 확인했다. 상태 결과만 기록하는 뒤따른 문서 커밋은 제품 코드를 변경하지 않는다.
-- 생성 전용 요청 태그로 GitHub `refs/pull/9/head`가 요청한 `e044b67878fe73e207aed2a2a63ea19ccfcf7f6e`를 가리키고 요청 태그가 원격에서 제거된 것을 SSH로 확인했다. PR 본문 갱신·열린 상태·CI 결과는 계정 없는 API에서 확인되지 않았다.
+- PR #9 head의 로컬 시험 230건 중 176 pass·54 DB/환경 skip·0 fail, 본문 시험 8 pass, typecheck/lint/build exit 0. WSL `5389e7b`와 병합 `main@2cd28da`의 전체 순차 시험은 각각 230건 중 223 pass·7 환경 skip·0 fail이었다. 사후 지정 DB 네 관계와 두 전용 컨테이너 잔류 0을 확인했다.
+- 이번 완료 기록 문서 변경은 PR 본문 validator와 `git diff --check`로 검사했다. 위 로컬·WSL 전체 시험 수치는 각각 명시된 PR #9 head와 병합 `main`에만 귀속하며, 이번 문서 커밋의 제품 실DB 시험 통과로 확대하지 않는다.
 
 ## 미검증
 
-- GitHub `refs/pull/9/head`와 태그 정리는 확인했다. 그러나 PR의 열린 상태·본문 갱신·원격 CI·branch protection·Actions 화면 결과는 계정 없는 공개 API가 404를 반환해 미검증이다. `GITHUB_TOKEN` 생성 PR의 `pull_request` CI는 승인 대기일 수 있어 브랜치 push CI와 PR 체크를 별도로 확인한다.
-- 이번 후속 변경은 제품 기능 구현이나 Oracle staging·사용자 인수 완료 증거가 아니다. WSL DB 연결 전체 회귀 결과는 위 검증 항목에 별도로 기록했다.
+- GitHub Checks 화면·branch protection 상태는 계정 없는 SSH로 독립 조회하지 못했다. 로컬·WSL 시험 통과와 PR 병합은 Oracle staging·사용자 인수 완료 증거가 아니다.
+- S3.1 예약 설계 초안의 공개 API·새 테이블·migration·공유 DB 변경은 이 문서 PR의 승인 범위 밖이다.
 
 ## 롤백
 
-- 이번 후속 문서에 문제가 발견되면 문서만 후속 PR에서 되돌린다. 이미 `main`에 들어간 자동화·gate와 제품 코드·DB는 보존한다.
-- 실패한 요청 태그는 실제 원격 ref를 확인한 뒤 정확한 이름만 정리한다. 브랜치·다른 태그·기존 PR을 일괄 삭제하지 않는다.
+- 이 완료 기록에 오류가 있으면 해당 문서만 후속 PR에서 정정한다. 이미 병합된 자동화·제품 코드·DB는 보존한다.
