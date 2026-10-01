@@ -45,6 +45,7 @@ export function ProductCartControls({ option, stopped = false }: { option: Optio
       if (response.status === 409) throw new Error('상품 상태나 재고가 바뀌었습니다. 다시 확인해 주세요');
       if (!response.ok) throw new Error('장바구니에 담지 못했습니다');
       setMessage('장바구니에 담았습니다');
+      window.location.assign('/cart');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '장바구니에 담지 못했습니다');
     } finally { setBusy(false); }
