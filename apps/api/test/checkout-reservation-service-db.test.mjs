@@ -86,14 +86,35 @@ test('checkout reservations serialize the last unit, preserve keys and expire on
     const replacement = await service.start(winnerAccount, randomUUID());
     assert.equal(replacement.status, 'ACTIVE');
     assert.equal((await service.release(winnerAccount, replacement.id)).status, 'RELEASED');
+    const batchKey = randomUUID();
+    const batchHold = await service.start(loserAccount, batchKey);
+    await pool.query(`UPDATE checkout_reservations SET created_at=clock_timestamp()-interval '16 minutes',
+      expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, [batchHold.id]);
+    assert.equal((await publicProducts.get(ids.product)).options[0].sellableQuantity, 1);
+    const batchResults = await Promise.all([service.expireDue(10), service.expireDue(10)]);
+    assert.equal(batchResults.reduce((sum, count) => sum + count, 0), 1);
+    assert.equal((await new CheckoutReservations(pool).get(loserAccount, batchHold.id)).status, 'EXPIRED');
+    assert.equal((await service.start(loserAccount, batchKey)).status, 'EXPIRED');
+    await pool.query('UPDATE inventory_levels SET sellable_quantity=0 WHERE option_id=$1', [ids.option]);
+    await assert.rejects(service.start(winnerAccount, randomUUID()), /Insufficient stock/);
+    await pool.query('UPDATE inventory_levels SET sellable_quantity=1 WHERE option_id=$1', [ids.option]);
+    ids.saleStop = (await pool.query(
+      `INSERT INTO product_sale_stop_requests(product_id,status,reason,requested_by_account_id,
+       decided_by_account_id,decided_at) VALUES ($1,'approved','QA 판매중지',$2,$2,now()) RETURNING id`,
+      [ids.product, ids.accountA],
+    )).rows[0].id;
+    await assert.rejects(service.start(winnerAccount, randomUUID()), /Unavailable cart selection/);
+    await pool.query('DELETE FROM product_sale_stop_requests WHERE id=$1', [ids.saleStop]);
+    ids.saleStop = null;
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM checkout_reservations WHERE account_id=ANY($1::uuid[])',
-      [[ids.accountA, ids.accountB]])).rows[0].count, 3);
+      [[ids.accountA, ids.accountB]])).rows[0].count, 4);
   } finally {
     for (const accountId of [ids.accountA, ids.accountB]) {
       if (!accountId) continue;
       await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
       await pool.query('DELETE FROM customer_cart_items WHERE account_id=$1', [accountId]);
     }
+    if (ids.saleStop) await pool.query('DELETE FROM product_sale_stop_requests WHERE id=$1', [ids.saleStop]);
     if (ids.accountA || ids.accountB) {
       await pool.query(`DELETE FROM checkout_reservation_lines WHERE reservation_id IN
         (SELECT id FROM checkout_reservations WHERE account_id=ANY($1::uuid[]))`,
