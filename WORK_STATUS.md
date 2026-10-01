@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-02 SSH 요청 태그의 PR 생성 전용 경로
+
+- 담당/기준: 어울 단일 writer. 루트 `D:\Project\shoppingmall2`의 `main`을 지정 SSH `origin/main@02c231b23a87340d28091f6c61e5abe6d65bc99d`로 fast-forward해 `.github` 추적 파일 6개가 일치함을 확인했다. 기존 루트 미추적 `.github` 2개는 `legacy-onedrive/old-root-github-2026-10-02`에 보존했다. 이 보존 폴더는 여전히 Git 미추적이다.
+- 브랜치: 완료된 `codex/flat-v2-prototypes@ca46e2066825b651d62f6fbf3fa309fc7a38df3a`가 `main`에 포함되고 worktree 추적 변경 0임을 확인했다. 같은 worktree를 detached `main`으로 전환한 뒤 해당 로컬·원격 완료 브랜치만 정상 삭제했고, 기존 무시 파일을 보존하며 최신 `main`에서 `codex/pr-create-only`를 생성했다. 새 worktree를 만들지 않았다.
+- 범위/변경: `.github/workflows/auto-pr-create.yml`을 추가해 `pr-create/**` 태그의 정확한 현재 main·작업 브랜치 HEAD·PR 본문 검사 후 PR을 만들거나 갱신하고 열린 PR의 HEAD를 확인하게 한다. 기존 `.github/workflows/auto-pr-merge.yml`과 `pr-request/**` 즉시 병합 경로는 수정하지 않는다. `.github/PR_REQUEST.md`와 `docs/DEVELOPMENT_ENVIRONMENT.md`에 새 경로·기존 경로·승인 경계를 기록했다. 제품 코드·DB·Secret·배포는 변경하지 않았다.
+- 검증: 변경 전·후 각각 로컬 `pnpm test` 제품/시안 230건 중 176 pass·54 DB/환경 skip·0 fail 및 PR 본문 8 pass. 변경 후 `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0. 두 workflow YAML 구조의 tag 분리/생성 전용·기존 병합 경로를 검사했고 15개 Bash run 단계에 `bash -n` 통과. 문서 패치의 동일 파일 delete+add 시도 1회가 도구에서 거절되어 파일 불변을 확인하고 좁은 update patch로 완료했다. 동일 원인 재발 0.
+- 독립 읽기 전용 리뷰: 생성 전용 분리·기존 병합 불변은 확인했다. 최초 PR은 새 경로가 `main`에 없으므로 bootstrap 수단이 미확정이라는 Critical 1건, 생성 중 브랜치 이동과 Actions 생성 권한/CI 확인 부족 Important 2건을 제기했다. 브랜치 이동은 기존 PR 본문 갱신 전 HEAD 검사와 생성 후 원격 `main`·작업 HEAD·열린 PR HEAD 재검사, 실패 시 열린 PR 보존·수동 대조 절차로 보강했다. Actions 권한·`GITHUB_TOKEN` PR CI 승인 대기 가능성과 bootstrap 승인 경계는 문서에 명시했으며 실제 원격 확인 전에는 해소 완료로 표시하지 않는다.
+- 미검증/다음: 새 workflow의 실제 GitHub Actions 실행·PR 생성/갱신·태그 삭제, 원격 CI 및 branch protection, WSL exact SHA와 merged-main smoke는 아직 미검증이다. PR 본문 검사·diff 검토·안전 commit/push 후, 현재 원격의 `pr-request/**`가 PR 생성과 병합을 함께 시도한다는 bootstrap 경계를 재확인하고 허용 범위 안에서만 요청 태그를 보낸다. 이번 중간 기록은 Stage 병합이나 사용자 인수 완료를 뜻하지 않는다.
+
 ## 설계 검토 중 — 2026-10-02 S3.1 주문 직전 15분 예약
 
 - 담당/기준: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@c0621839ca720e0c2fd4391017b31d9b4982e8d9` clean에서 시작. 신산님의 연속 `계속하자/계속하나`를 기존 예약 15분·판매자 0 입력 시 새 판매 즉시 차단/기존 보유 유지·예약 종료 후 0 반영이라는 **업무 방향 승인**으로 해석한다. 새 예약 관계·공개 API·migration·공유 DB 변경의 별도 승인으로 확대하지 않는다.
