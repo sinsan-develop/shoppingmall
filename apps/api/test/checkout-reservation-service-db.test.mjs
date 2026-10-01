@@ -57,6 +57,13 @@ test('checkout reservations serialize the last unit, preserve keys and expire on
     const hold = races[winnerIndex].value;
     assert.equal(hold.status, 'ACTIVE');
     assert.deepEqual(hold.lines, [{ optionId: ids.option, quantity: 1 }]);
+    const { PublicProducts } = await import('../src/catalog/public-products.ts');
+    const { CheckoutCatalog } = await import('../src/checkout/catalog-selection.ts');
+    const publicProducts = new PublicProducts(pool);
+    const catalog = new CheckoutCatalog(pool);
+    assert.equal((await publicProducts.get(ids.product)).options[0].sellableQuantity, 0);
+    assert.equal((await publicProducts.list()).some((item) => item.productId === ids.product), false);
+    await assert.rejects(catalog.resolve([{ optionId: ids.option, quantity: 1 }]), /Insufficient stock/);
     assert.equal((await service.start(winnerAccount, winnerKey)).id, hold.id);
     assert.equal((await service.start(winnerAccount, winnerKey)).expiresAt.getTime(), hold.expiresAt.getTime());
     await assert.rejects(service.start(winnerAccount, randomUUID()), /Active reservation exists/);
@@ -66,6 +73,7 @@ test('checkout reservations serialize the last unit, preserve keys and expire on
     assert.equal((await service.release(winnerAccount, hold.id)).status, 'RELEASED');
     assert.equal((await service.release(winnerAccount, hold.id)).status, 'RELEASED');
     assert.equal((await service.start(winnerAccount, winnerKey)).status, 'RELEASED');
+    assert.equal((await publicProducts.get(ids.product)).options[0].sellableQuantity, 1);
 
     const retry = await service.start(loserAccount, randomUUID());
     assert.equal(retry.status, 'ACTIVE');
