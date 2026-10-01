@@ -15,7 +15,7 @@ PR #9 자동 병합과 병합 `main`의 정식 WSL 회귀·자원 정리 결과�
 ## 검증
 
 - PR #9 head의 로컬 시험 230건 중 176 pass·54 DB/환경 skip·0 fail, 본문 시험 8 pass, typecheck/lint/build exit 0. WSL `5389e7b`와 병합 `main@2cd28da`의 전체 순차 시험은 각각 230건 중 223 pass·7 환경 skip·0 fail이었다. 사후 지정 DB 네 관계와 두 전용 컨테이너 잔류 0을 확인했다.
-- 이번 문서 변경은 PR 본문 validator와 `git diff --check`로 검사하고 정확한 HEAD의 Windows/WSL checkout을 대조한다. 해당 결과는 작업현황에 기록한다.
+- 이번 완료 기록 문서 변경은 PR 본문 validator와 `git diff --check`로 검사했다. 위 로컬·WSL 전체 시험 수치는 각각 명시된 PR #9 head와 병합 `main`에만 귀속하며, 이번 문서 커밋의 제품 실DB 시험 통과로 확대하지 않는다.
 
 ## 미검증
 
