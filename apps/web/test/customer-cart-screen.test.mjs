@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -17,6 +18,11 @@ test('product detail cart controls accept a direct quantity and show unit price 
     option: { id: 'o2', name: '1kg', priceWon: 40000, sellableQuantity: 0 },
     quantity: 1, busy: false, onQuantityChange: () => {}, onAdd: () => {},
   })), /품절/);
+});
+
+test('successful cart save takes the customer to the editable cart', () => {
+  const source = readFileSync(new URL('../app/products/[productId]/cart-controls.tsx', import.meta.url), 'utf8');
+  assert.match(source, /window\.location\.assign\('\/cart'\)/);
 });
 
 test('cart view shows editable quantity, remove, server shipment totals and unavailable item', () => {

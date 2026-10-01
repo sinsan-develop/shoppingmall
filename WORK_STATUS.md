@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-02 S3.1 공유 DB 0009 적용·장바구니 화면 회귀
+
+- 판정/권한: 직전의 지정 `WSL-server/local-postgres/shoppingmall` 0009 적용 승인 요청에 대한 신산님의 새 직접 답변 `계속하자`를 해당 단일 적용 승인으로 해석했다. 다른 DB·migration·운영 환경 승인은 포함하지 않는다. 적용 직전 로컬/WSL `3af91151ffb651ffb9fdf9a8e270c30eefb94616` clean 일치, 공유 DB `shoppingmall|Drizzle 9|accounts 0|products 0`, 읽기 전용 preview `0009_s3_customer_cart`만 대기(4문장, SHA-256 `85db48a68ed370022aeb50f6e8dc9efb7fbf4bf03b882d98ca416d6f11d1d3ed`) 확인.
+- 적용/검증: 지정 checkout의 Node24 일회용 컨테이너에서 `migrate.ts` 성공. 사후 `shoppingmall|Drizzle 10|accounts 0|products 0|customer_cart_items 0`, dry-run 대기 0. 해당 fixture/서비스/HTTP 시험 4 pass/0 skip/0 fail, WSL 동일 SHA 공유 DB 전체 순차 API 시험 108건/101 pass/7 환경 skip/0 fail. 사후 accounts/products/customer_cart_items/account_identities `0/0/0/0`, 이름이 지정된 `shoppingmall-s31-*` 시험 컨테이너 잔류 0. 해당 7 skip은 통과로 표시하지 않는다.
+- 화면 보정: 계획에 명시된 상품 담기 성공 후 `/cart` 이동이 기존 링크 표시만으로 미충족임을 발견했다. 화면 계약 시험 1건 예상 RED(새 이동 부재) 후 라우터 이동을 시도했으나 기존 SSR 상품 상세 시험이 Next 라우터 컨텍스트 없음으로 실패 1회. 오류 원인은 렌더 단계 `useRouter` 호출임을 확인하고 기존 로그인 화면의 브라우저 `window.location.assign('/cart')` 패턴으로 최소 교체했다. 화면/상품 상세 목표 15 pass/0 fail, 로컬 전체 230건/176 pass/54 DB·환경 skip/0 fail, PR 본문 8 pass, typecheck/lint/build exit 0. 54 skip은 DB PASS로 취급하지 않는다.
+- 담당/다음: 어울 단일 writer, 기존 `codex/flat-v2-prototypes`만 사용. 이번 수정 파일은 `apps/web/app/products/[productId]/cart-controls.tsx`, `apps/web/test/customer-cart-screen.test.mjs`, 이 현황 파일이다. 실제 브라우저의 로그인→담기→수량 변경→제거→견적·품절·키보드·모바일 폭은 아직 **UNVERIFIED**이며, WSL 동일 새 SHA 회귀/브라우저 QA·자료 정리 뒤 다음 S3.1 예약 계약으로 진행한다. PR/병합·UAT 완료는 주장하지 않는다.
+
 ## 진행 중 — 2026-10-02 S3.1 계정 장바구니 설계·실행
 
 - 현재 checkpoint: `codex/flat-v2-prototypes` 단일 writer의 S3.1 장바구니 저장·API·웹 UI를 진행 중이다. 격리 WSL DB `shoppingmall_s31_cart_service_1002`에 0000~0009를 적용해 실DB 서비스 시험 1 pass/0 skip(계정 A/B·반복 최종 수량·재고/판매중지/상품 개정 재검증·100개 및 동시 경합), HTTP 시험 1 pass/0 skip(고객 세션·역할·Origin·타 계정 분리·견적·제거)을 확인했다. HTTP 시험 첫 실행은 QA 정리 순서 오류 1회였고 원인은 판매자 로그인 감사/세션 FK를 판매자 삭제보다 늦게 지우는 테스트 코드였다. 격리 DB만 초기화하고 정리 순서를 수정한 뒤 신규 route 부재 404 예상 RED→구현 GREEN을 확인했다. 공유 DB는 이 과정에서 읽기 전용으로 유지했다.
