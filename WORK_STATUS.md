@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-02 PR #8 병합 후 생성 전용 경로 실제 검증
+
+- 담당/판정: 어울 단일 writer. 작업 중 외부에서 PR #8이 `main@2bad168a03b95a9ce9a43cafc76b54318a038dbe`로 병합된 것을 읽기 전용 fetch로 확인했다. 어울은 요청 태그를 보내거나 그 PR을 병합하지 않았다. 원격 `main`에는 `auto-pr-create.yml`과 LF gate가 있으며 루트 `D:\Project\shoppingmall2`의 `main`을 동일 SHA로 fast-forward해 추적 `.github` diff 0을 확인했다. 루트 미추적 `legacy-onedrive/`는 보존한다.
+- 후속 범위: 기존 `codex/pr-create-only`와 지정 worktree를 유지해 원격 `main`을 병합했고, `254a182`에서 작업을 이어간다. 앞선 WSL 검증 기록을 원격/로컬에 일치시키고 PR 본문·환경 문서의 오래된 bootstrap 문구를 고친다. 기존 자동화·제품 코드·DB는 수정하지 않는다.
+- 다음: 정확한 HEAD에서 로컬 검사와 지정 WSL 동일 SHA 검사 후 `pr-create/**`만 요청하여 실제 열린 PR·HEAD·CI를 확인한다. `pr-request/**` 자동 병합 태그는 사용하지 않는다. 생성 결과를 관찰하기 전까지 GitHub Actions 실행·PR 상태·원격 CI는 미검증이다.
+- 후속 문서 로컬 검증: PR 본문 validator exit 0, 본문 시험 8 pass/0 fail, 제품/시안 시험 230건 중 176 pass·54 DB/환경 skip·0 fail, typecheck/lint/build exit 0. 54 skip을 실DB 통과로 계산하지 않는다. 정확한 후속 커밋의 WSL·원격 Actions 결과는 아직 확인 전이다.
+
 ## 진행 중 — 2026-10-02 SSH 요청 태그의 PR 생성 전용 경로
 
 - 담당/기준: 어울 단일 writer. 루트 `D:\Project\shoppingmall2`의 `main`을 지정 SSH `origin/main@02c231b23a87340d28091f6c61e5abe6d65bc99d`로 fast-forward해 `.github` 추적 파일 6개가 일치함을 확인했다. 기존 루트 미추적 `.github` 2개는 `legacy-onedrive/old-root-github-2026-10-02`에 보존했다. 이 보존 폴더는 여전히 Git 미추적이다.
