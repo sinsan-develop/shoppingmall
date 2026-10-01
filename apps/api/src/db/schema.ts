@@ -305,6 +305,18 @@ export const customerFavorites = pgTable('customer_favorites', {
 }, (table) => [primaryKey({ columns: [table.accountId, table.productId] }),
   index('customer_favorites_product_idx').on(table.productId)]);
 
+export const customerCartItems = pgTable('customer_cart_items', {
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  optionId: uuid('option_id').notNull().references(() => productOptions.id),
+  quantity: integer('quantity').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  primaryKey({ columns: [table.accountId, table.optionId] }),
+  index('customer_cart_items_option_idx').on(table.optionId),
+  check('customer_cart_items_quantity_ck', sql`${table.quantity} BETWEEN 1 AND 1000000`),
+]);
+
 export const restockSubscriptions = pgTable('restock_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   accountId: uuid('account_id').notNull().references(() => accounts.id),
