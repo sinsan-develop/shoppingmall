@@ -69,6 +69,7 @@ async function reset(client: PoolClient, runId: string) {
   );
   const accountIds = accountResult.rows.map((row) => row.id);
   if (accountIds.length) {
+    await client.query('DELETE FROM customer_cart_items WHERE account_id = ANY($1::uuid[])', [accountIds]);
     await client.query('DELETE FROM restock_subscriptions WHERE account_id = ANY($1::uuid[])', [accountIds]);
     await client.query('DELETE FROM customer_favorites WHERE account_id = ANY($1::uuid[])', [accountIds]);
     await client.query('DELETE FROM customer_addresses WHERE account_id = ANY($1::uuid[])', [accountIds]);

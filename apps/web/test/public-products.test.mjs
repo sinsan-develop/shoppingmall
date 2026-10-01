@@ -118,7 +118,9 @@ test('approved product detail shows option price and sold-out status without pri
   for (const phrase of ['햇고추', '어울 농가', '경남 진주', '판매자 직접 발송', '500g', '23,000원', '1kg', '품절']) {
     assert.match(html, new RegExp(phrase));
   }
-  assert.doesNotMatch(html, /objectKey|quarantine\/|장바구니에 담기/);
+  assert.doesNotMatch(html, /objectKey|quarantine\//);
+  assert.match(html, /장바구니에 담기/);
+  assert.match(html, /주문·결제는 준비 중/);
 });
 
 test('approved sale stop is explained as a stop rather than ordinary sold-out stock', () => {
