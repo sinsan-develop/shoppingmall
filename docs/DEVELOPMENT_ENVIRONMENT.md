@@ -1,5 +1,14 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-10-02 SSH 별칭 기반 PR 요청 경로
+
+- `D:\Project\shoppingmall2`의 `main`과 원격 `main`은 작업 전 같은 커밋인지 확인한다. 작업 코드는 격리 브랜치에서 검증하고 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git`로 push한다. GitHub 계정·PAT·`gh auth`를 로컬에서 사용하지 않는다.
+- 이 변경이 `main`에 병합된 뒤, PR **생성만** 요청할 때는 현재 원격 `main` 커밋에 `pr-create/<작업 브랜치의 40자리 HEAD SHA>/codex/<브랜치 이름>` 태그를 만들어 SSH `origin`에 push한다. `.github/workflows/auto-pr-create.yml`은 원격 브랜치 HEAD·현재 `main` 기준·PR 본문 6개 항목을 검사해 PR을 생성하거나 본문을 갱신하고, 열린 PR이 정확한 HEAD를 가리키는지 확인한 뒤 요청 태그를 지운다. 이 경로는 병합하지 않는다.
+- 기존 `pr-request/**` 태그와 `.github/workflows/auto-pr-merge.yml`은 **PR 생성과 즉시 병합 시도** 경로로 그대로 남는다. 기존 `main`의 trusted gate Git blob은 CRLF로 저장돼 Linux Bash에서 구문 오류가 확인됐으며, 이 브랜치의 LF 수정이 병합되면 기존 자동 병합 경로도 실행 가능해진다. 신산님 인수 대상에는 사용하지 않고, 필수 검증·리뷰·별도 승인 경계를 충족한 병합 가능 Stage에만 적용한다. `pr-create/**`와 혼동해 보내지 않는다.
+- PR 생성 자동화의 로컬 검사 통과는 GitHub Actions 실행 성공이나 branch protection·CI·WSL·Oracle 인수 증거가 아니다. GitHub 저장소 설정에서 Actions의 PR 생성 허용 여부는 최초 사용 전에 확인해야 한다. `GITHUB_TOKEN`으로 만든 PR의 `pull_request` CI가 승인 대기 상태일 수 있으므로, 작업 브랜치 `push` CI와 PR 필수 체크를 정확한 HEAD에서 별도로 확인한다.
+- 생성 전후에 브랜치 또는 `main`이 이동하면 워크플로는 실패하고 요청 태그와 이미 열린 PR이 남을 수 있다. 실패한 PR의 실제 HEAD·본문·체크를 확인한 뒤 새 정확한 SHA로 재요청하며, 기존 PR이나 다른 ref를 자동 삭제하지 않는다. 첫 실제 요청 결과와 정확한 PR URL·HEAD·미검증 범위를 `WORK_STATUS.md`에 기록한다.
+- 이 생성 전용 워크플로는 `main` 병합 전에는 동작하지 않는다. 최초 도입 PR은 현재 `main`의 gate 자체가 Linux 구문 오류로 실패하며, LF 수정 이후에는 기존 `pr-request/**`가 즉시 병합까지 시도한다. 별도의 일회성 PR/병합 경로 결정과 필수 게이트 확인 전에는 bootstrap 태그를 보내거나 직접 `main`에 push하지 않는다.
+
 ## 2026-09-30 S2.4 찜·옵션별 재입고 신청 재현 경계
 
 - 로컬 변경 검증은 작업 worktree 루트의 `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`. DB 없는 Windows의 고객 관계/HTTP 시험 skip은 실DB PASS가 아니다.
