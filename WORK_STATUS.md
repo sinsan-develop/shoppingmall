@@ -2,9 +2,9 @@
 
 ## 진행 중 — 2026-10-02 PR #9 정식 WSL 전체 회귀 보강
 
-- 담당/범위: 어울 단일 writer. PR #9 후속 문서 브랜치 `codex/pr-create-only@233b0403fb976897e7b26cd601074db949f17a6c`의 필수 검증을 보강한다. 현재 원격 `main@2bad168`, PR head `233b040`, 로컬/WSL checkout clean을 읽기 전용 확인했다. GitHub 계정·PAT·로컬 `gh auth`는 사용하지 않는다.
+- 담당/범위: 어울 단일 writer. PR #9 후속 문서 브랜치 `codex/pr-create-only`의 필수 검증을 보강한다. 계획 수립 당시 원격 `main@2bad168`, PR head `233b040`, 로컬/WSL checkout clean을 읽기 전용 확인했다. 이후 PR head는 매 요청 때 원격 ref로 다시 확인한다. GitHub 계정·PAT·로컬 `gh auth`는 사용하지 않는다.
 - 사전 자원 계획: 지정 `WSL-server:/home/daon/deploy/shopping`과 `local-postgres/shoppingmall`만 사용한다. 시험 전 해당 DB 계정 0행 확인. Node 24 기존 image의 일회용 컨테이너 이름은 `shoppingmall-pr9-regression-1002`, 네트워크는 `container:local-postgres`, 소스는 지정 checkout read-only mount, 수명은 전체 순차 시험 실행 동안이며 `--rm`으로 종료 즉시 제거한다. 시험이 만드는 고유 QA 계정·상품은 기존 시험 `finally` 정리로 삭제하고, 사후 DB 행 수·컨테이너·checkout 잔류를 확인한다. 실계정·실결제·포트 개방·Oracle·다른 DB는 사용하지 않는다.
-- 현재 검증: 로컬 정확한 기존 HEAD에서 `pnpm test` 230건 중 176 pass·54 환경 skip·0 fail 및 PR 본문 시험 8 pass, typecheck/lint/build exit 0을 새로 확인했다. 신규 상태 기록 커밋 이후 WSL 전체 회귀와 GitHub Checks는 아직 미검증이며, `pr-request/**` 병합 태그는 보내지 않았다.
+- 현재 검증: 로컬 `233b040`에서 `pnpm test` 230건 중 176 pass·54 환경 skip·0 fail 및 PR 본문 시험 8 pass, typecheck/lint/build exit 0. 상태 기록 커밋 `5389e7b35379a66727fc592098fbbdf90b45a1d6`을 SSH push→지정 WSL checkout fast-forward/clean한 뒤 읽기 전용 소스 mount·`local-postgres/shoppingmall` 연결의 Node 24 일회용 컨테이너에서 루트 전체 순차 시험 **230건 중 223 pass·7 환경 skip·0 fail, exit 0**. Linux gate `bash -n`, PR 본문 validator, `git diff --check` exit 0. 시험 전후 지정 DB accounts/products/customer_cart_items/audit_events `0/0/0/0`, 전용 컨테이너 `--rm` 후 잔류 0, checkout clean. 7 skip은 통과로 계산하지 않는다. GitHub Checks·branch protection 상태는 계정 없는 SSH ref만으로 조회되지 않아 미검증이다. `pr-request/**` 병합 태그는 보내지 않았다.
 
 ## 진행 중 — 2026-10-02 PR #8 병합 후 생성 전용 경로 실제 검증
 
@@ -14,7 +14,7 @@
 - 후속 문서 로컬 검증: PR 본문 validator exit 0, 본문 시험 8 pass/0 fail, 제품/시안 시험 230건 중 176 pass·54 DB/환경 skip·0 fail, typecheck/lint/build exit 0. 54 skip을 실DB 통과로 계산하지 않는다. 정확한 후속 커밋의 WSL·원격 Actions 결과는 아직 확인 전이다.
 - WSL/실제 생성 요청: 문서 커밋 `e044b67878fe73e207aed2a2a63ea19ccfcf7f6e`를 SSH push하고 지정 WSL checkout에서 동일 SHA fast-forward/clean, Linux gate `bash -n`, 양쪽 workflow YAML 파싱, PR 본문 validator, `git diff --check` exit 0. 현재 `main@2bad168a03b95a9ce9a43cafc76b54318a038dbe`에만 `pr-create/e044b67878fe73e207aed2a2a63ea19ccfcf7f6e/codex/pr-create-only` 태그를 push했다. SSH 원격은 `refs/pull/9/head=e044b67`을 노출하고 요청 태그는 이미 제거했다. 이는 생성·정리 증거이나 PR 열린 상태·본문·Actions/CI 결과까지 증명하지 않는다. 계정 없는 공개 GitHub API는 404, 웹 도구는 cache miss였으며 계정·PAT·로컬 gh auth를 사용하지 않았다. `pr-request/**` 태그·직접 main push는 없었다.
 
-## 진행 중 — 2026-10-02 SSH 요청 태그의 PR 생성 전용 경로
+## 과거 경과 — 2026-10-02 SSH 요청 태그의 PR 생성 전용 경로
 
 - 담당/기준: 어울 단일 writer. 루트 `D:\Project\shoppingmall2`의 `main`을 지정 SSH `origin/main@02c231b23a87340d28091f6c61e5abe6d65bc99d`로 fast-forward해 `.github` 추적 파일 6개가 일치함을 확인했다. 기존 루트 미추적 `.github` 2개는 `legacy-onedrive/old-root-github-2026-10-02`에 보존했다. 이 보존 폴더는 여전히 Git 미추적이다.
 - 브랜치: 완료된 `codex/flat-v2-prototypes@ca46e2066825b651d62f6fbf3fa309fc7a38df3a`가 `main`에 포함되고 worktree 추적 변경 0임을 확인했다. 같은 worktree를 detached `main`으로 전환한 뒤 해당 로컬·원격 완료 브랜치만 정상 삭제했고, 기존 무시 파일을 보존하며 최신 `main`에서 `codex/pr-create-only`를 생성했다. 새 worktree를 만들지 않았다.
