@@ -37,7 +37,7 @@ export function ProductCartControls({ option, stopped = false }: { option: Optio
     try {
       const response = await fetch(`${apiOrigin}/customer/cart/items/${encodeURIComponent(option.id)}`, {
         method: 'PUT', credentials: 'include',
-        headers: { origin: window.location.origin, 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ quantity }),
       });
       if (response.status === 401) throw new Error('로그인 후 장바구니를 이용해 주세요');

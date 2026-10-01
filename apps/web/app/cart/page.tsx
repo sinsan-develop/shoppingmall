@@ -105,7 +105,7 @@ export default function CartPage() {
     try {
       const response = await fetch(`${apiOrigin}/customer/cart/items/${encodeURIComponent(optionId)}`, {
         method, credentials: 'include',
-        headers: { origin: window.location.origin, ...(method === 'PUT' ? { 'content-type': 'application/json' } : {}) },
+        ...(method === 'PUT' ? { headers: { 'content-type': 'application/json' } } : {}),
         ...(method === 'PUT' ? { body: JSON.stringify({ quantity }) } : {}),
       });
       if (response.status === 409) throw new Error('상품 상태나 재고가 바뀌었습니다. 항목을 확인해 주세요');
