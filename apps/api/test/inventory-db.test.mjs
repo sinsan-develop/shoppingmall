@@ -62,6 +62,7 @@ test('seller can close stock immediately but only an operator releases an increa
     assert.deepEqual(ownedOptions.filter((item) => item.optionId === optionId), [{
       optionId, productId, title: '시험 고추', optionName: '500g', onHand: 4,
       sellable: 0, pendingRequestId: reopen.requestId,
+      activeReservationQuantity: 0, deferredZeroPending: false,
     }]);
     assert.equal((await inventory.listOwned(other)).some((item) => item.optionId === optionId), false);
     await assert.rejects(inventory.listPending(seller), /Forbidden/);
