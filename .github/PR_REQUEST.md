@@ -17,7 +17,7 @@ SSH 별칭만으로 PR을 열되, PR 생성 요청이 곧 자동 병합으로 �
 
 - 변경 전·후 로컬 `pnpm test`가 각각 제품/시안 시험 230건 중 176 pass·54 환경 skip·0 fail, PR 본문 검사 8 pass였다. 변경 후 `pnpm typecheck`, `pnpm lint`, `pnpm build`가 exit 0이었다. 54개 skip은 통과로 합산하지 않는다.
 - 두 워크플로를 YAML로 읽어 `pr-create/**`와 `pr-request/**` 트리거가 분리되고 생성 전용 단계에 `gh pr merge`가 없으며 기존 병합 단계는 남아 있음을 확인했다. 두 워크플로의 Bash 실행 단계 15개에 `bash -n`을 적용해 구문 통과를 확인했다.
-- WSL checkout의 기존 gate Git blob은 CRLF 20개로 Linux `bash -n`에서 구문 오류 RED였다. 정규화한 작업 브랜치 인덱스 blob은 CR 0개·LF 20개이고 Git Bash `bash -n`이 통과하며 공백 무시 diff에서 내용 변경은 없다. WSL에서 새 커밋의 gate GREEN은 push 후 재검증한다.
+- WSL checkout의 기존 gate Git blob은 CRLF 20개로 Linux `bash -n`에서 구문 오류 RED였다. 정규화한 브랜치 blob은 CR 0개·LF 20개이고 공백 무시 diff에서 내용 변경은 없다. 지정 WSL checkout이 SSH Git으로 `099cfab3744ad68a7a1158612066afec2c08b906`을 pull한 뒤 파일과 Git blob 모두 Linux `bash -n` GREEN, 신규·기존 workflow YAML 파싱과 PR 본문 검사 exit 0, `git diff --check origin/main...HEAD` exit 0 및 checkout clean을 확인했다.
 
 ## 미검증
 
