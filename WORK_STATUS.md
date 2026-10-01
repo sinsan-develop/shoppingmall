@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-02 S3.1 계정 장바구니 설계·실행
+
+- 담당/기준: 어울 단일 writer. 시작 HEAD `df76d47e3fcbd9a37b66f9e4a6c71c5824aa8482` clean, 기존 `codex/flat-v2-prototypes` 격리 worktree. 신산님은 서버 저장·주문 직전 15분 예약 권장안에 `그래 진행하자`로 응답했다. 기존 `docs/WORK_PLAN.md` S3.1 범위 안의 첫 단위로 장바구니 저장/재견적을 수행하고, 재고 예약 상세 구현은 별도 후속 단위로 구분한다.
+- 설계/계획: `docs/superpowers/specs/2026-10-02-account-cart-design.md`와 `docs/superpowers/plans/2026-10-02-account-cart.md`를 작성했다. 사용자 지시에 따라 실행 방식을 기존처럼 main agent 직접 구현으로 유지한다. `Ruling:` S3.1의 실제 schema/API 상세는 계획이 열어 둔 구현 계약으로 간주하되 공유 DB 적용 전에는 독립 RED→격리 GREEN→읽기 전용 dry-run/QA 자료 보존을 확인한다 — 잘못 해석하면 공개 계약 재수정·보정 migration이 필요하므로 증거를 남긴다. 기존 디자인·작업계획의 출고/결제 계약은 바꾸지 않는다.
+- Task 1 예정 QA 자원: WSL `local-postgres` 안에 오직 격리 DB `shoppingmall_s31_cart_1002`(기존 0000~0008→0009 비교)와 `shoppingmall_s31_cart_full_1002`(0000~0009 초기 적용 확인)를 시험 중 생성한다. Node24 자동제거 컨테이너 `shoppingmall-s31-cart-1002`를 사용하고, 시험 후 정확한 두 DB/컨테이너와 고유 QA fixture 행을 제거·잔류 0 확인한다. 공유 `shoppingmall`은 격리 GREEN과 기존 데이터 건수/대기 migration 확인 전에는 쓰지 않는다. 실제 계정/Secret/Oracle/타 프로젝트 DB는 건드리지 않는다.
+- 현재 변경: 설계·계획·현황 문서뿐, 제품 코드·DB 변경 없음. 다음은 Task 1 관계 시험 작성·실DB RED.
+
 ## 진행 중 — 2026-10-02 S3.1 장바구니·예약 데이터 계약 확인
 
 - 담당/기준: 어울 단일 writer. 기존 `codex/flat-v2-prototypes@3dd6622270bc7a0e83cdb7603be017eb2ef41637` 로컬·SSH 원격·WSL 지정 checkout이 일치하고 로컬/WSL checkout clean. 새 branch/worktree나 병합은 없음. WSL `local-postgres` 실행 상태를 읽기 전용으로 확인했다.
