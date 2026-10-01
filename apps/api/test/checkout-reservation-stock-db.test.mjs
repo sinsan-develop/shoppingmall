@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
+import { createApp } from '../src/app.ts';
+import { AuthRepository } from '../src/auth/repository.ts';
 
 test('seller zero closes new sales but preserves active holds until the last release', {
   skip: !process.env.DATABASE_URL,
@@ -9,15 +11,19 @@ test('seller zero closes new sales but preserves active holds until the last rel
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
   const ids = {};
   const name = `qa-${randomUUID().slice(0, 8)}-stock-hold`;
+  let app;
   try {
     ids.customerA = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
     ids.customerB = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
     ids.customerC = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
-    ids.sellerAccount = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    ids.sellerAccount = await new AuthRepository(pool).createCustomerAccount(
+      `qa+${randomUUID()}@example.invalid`, 'test-only-password-12345');
     ids.sellerCategory = (await pool.query('INSERT INTO seller_categories(name) VALUES ($1) RETURNING id',
       [name])).rows[0].id;
     ids.seller = (await pool.query('INSERT INTO sellers(category_id,display_name) VALUES ($1,$2) RETURNING id',
       [ids.sellerCategory, name])).rows[0].id;
+    await pool.query('INSERT INTO account_roles(account_id,role,seller_id) VALUES ($1,$2,$3)',
+      [ids.sellerAccount, 'seller', ids.seller]);
     ids.category = (await pool.query('INSERT INTO product_categories(name) VALUES ($1) RETURNING id',
       [name])).rows[0].id;
     ids.product = (await pool.query('INSERT INTO products(seller_id,category_id) VALUES ($1,$2) RETURNING id',
@@ -50,6 +56,23 @@ test('seller zero closes new sales but preserves active holds until the last rel
     const heldB = await reservations.start(ids.customerB, randomUUID());
     await assert.rejects(inventory.setStock(other, ids.option, 0), /Forbidden/);
     await assert.rejects(inventory.setStock(seller, ids.option, 2), /Active reservation stock conflict/);
+    app = await createApp();
+    await app.listen(0, '127.0.0.1');
+    const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+    const origin = 'http://127.0.0.1:9091';
+    const login = await fetch(`${base}/auth/login`, { method: 'POST',
+      headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ email: (await pool.query(
+        `SELECT identifier FROM account_identities WHERE account_id=$1 AND kind='email'`,
+        [ids.sellerAccount])).rows[0].identifier, password: 'test-only-password-12345', role: 'seller' }),
+    });
+    assert.equal(login.status, 201);
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const conflict = await fetch(`${base}/catalog/seller/options/${ids.option}/stock`, { method: 'POST',
+      headers: { origin, cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ quantity: 2 }),
+    });
+    assert.equal(conflict.status, 409);
     assert.deepEqual((await pool.query(
       'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1',
       [ids.option])).rows[0], { on_hand_quantity: 3, sellable_quantity: 3 });
@@ -82,6 +105,7 @@ test('seller zero closes new sales but preserves active holds until the last rel
       `SELECT status FROM inventory_deferred_stock_targets WHERE id=$1`, [pending.rows[0].id])).rows[0].status,
     'applied');
   } finally {
+    if (app) await app.close();
     if (ids.option) await pool.query('DELETE FROM inventory_deferred_stock_targets WHERE option_id=$1', [ids.option]);
     if (ids.option) await pool.query('DELETE FROM stock_change_requests WHERE option_id=$1', [ids.option]);
     for (const accountId of [ids.customerA, ids.customerB, ids.customerC, ids.sellerAccount]) {
@@ -104,6 +128,9 @@ test('seller zero closes new sales but preserves active holds until the last rel
     if (ids.seller) await pool.query('DELETE FROM sellers WHERE id=$1', [ids.seller]);
     if (ids.sellerCategory) await pool.query('DELETE FROM seller_categories WHERE id=$1', [ids.sellerCategory]);
     for (const accountId of [ids.customerA, ids.customerB, ids.customerC, ids.sellerAccount]) {
+      if (accountId) await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [accountId]);
+      if (accountId) await pool.query('DELETE FROM account_roles WHERE account_id=$1', [accountId]);
+      if (accountId) await pool.query('DELETE FROM account_identities WHERE account_id=$1', [accountId]);
       if (accountId) await pool.query('DELETE FROM accounts WHERE id=$1', [accountId]);
     }
     await pool.end();
