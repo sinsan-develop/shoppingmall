@@ -44,7 +44,9 @@ test('checkout reservations serialize the last unit, preserve keys and expire on
     const races = await Promise.allSettled([
       service.start(ids.accountA, keyA), service.start(ids.accountB, keyB),
     ]);
-    assert.deepEqual(races.map((result) => result.status).sort(), ['fulfilled', 'rejected']);
+    assert.deepEqual(races.map((result) => result.status).sort(), ['fulfilled', 'rejected'],
+      races.map((result) => result.status === 'rejected' ?
+        `${result.reason?.code ?? 'error'}: ${result.reason?.message}` : 'fulfilled').join('; '));
     const winnerIndex = races.findIndex((result) => result.status === 'fulfilled');
     const winnerAccount = winnerIndex === 0 ? ids.accountA : ids.accountB;
     const loserAccount = winnerIndex === 0 ? ids.accountB : ids.accountA;
