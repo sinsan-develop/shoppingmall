@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 구현 착수 — 2026-10-02 S3.1 15분 예약 Task 1
+
+- 담당/권한: 어울 단일 writer, 기존 `codex/s31-checkout-reservation-plan@325d3b4d544e2478ee97df354027d25862e4327b`. 신산님은 상세 계획과 새 공개 API 4개·예약 관계 3개·`0010` migration의 **구현/격리 시험 범위**를 승인했다. 공유 `WSL-server/local-postgres/shoppingmall` 실제 적용·Oracle·외부 결제는 승인 범위 밖이다.
+- 기준 검증: Windows `pnpm test` 230건 중 176 pass·54 DB/환경 skip·0 fail, PR 본문 시험 8 pass·0 fail. Node 24.18.0, pnpm 11.25.0. 작업 worktree 추적 변경 0에서 시작했고 DB 실검증으로 오인하지 않는다.
+- 사전 QA 자원 계획: Task 1은 `WSL-server`의 정확한 `local-postgres` 안에 **고유 격리 DB `shoppingmall_s31_reservation_1002`**와, 필요한 경우 이름 `shoppingmall-s31-reservation-test-1002`의 Node 24 일회용 컨테이너만 사용한다. 목적은 0000~0009 RED와 0010 전·후 schema 시험이며 수명은 Task 1 격리 검증 동안이다. `shoppingmall` 공유 DB·기존 계정·상품·주문은 읽기 전용으로 보존한다. 사용 후 정확한 격리 DB/컨테이너만 제거하고 부재·QA 행 잔류 0을 확인한다. 비밀값은 기록하지 않는다.
+- 도구 오류/조치: 제공 `sdd-workspace`는 제한 Windows 셸의 D: 쓰기 거부로 디렉터리 생성에 실패했고, escalation 셸은 C: 플러그인 경로가 없는 WSL Linux여서 실행 실패했다. 반복 실패 프로세스는 PID를 확인해 해당 Bash만 종료했다. 제품/DB 파일 변경·QA 자원 생성은 없었다. 같은 원인의 추가 재시도 없이 무시 경로 장부와 이 파일에 직접 진척을 기록한다.
+- 다음: schema 시험 RED→0010 schema/migration GREEN을 격리 DB에서 확인한다. 변경 전후 원격 branch exact SHA와 정리 상태를 기록한다.
+
 ## 계획 승인·계약 승인 대기 — 2026-10-02 S3.1 주문 직전 15분 예약
 
 - 최신 결정: 신산님은 작성·push된 `docs/superpowers/plans/2026-10-02-checkout-reservation.md`의 검토·승인 질문에 `계속하자`고 답했다. 이를 계획 승인으로 기록한다. 계획에 명시된 새 공개 API·예약 관계 및 `0010` migration **구현 범위 승인**은 별도 경계이며, 공유 `WSL-server/local-postgres/shoppingmall` 실제 적용은 SQL·기존 행·복구 영향 확인 후 별도 결정이다. 이번 확인에서는 제품 코드·DB·서비스를 변경하지 않았다.
