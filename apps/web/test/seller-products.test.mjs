@@ -11,6 +11,18 @@ test('seller product page shows no private product before role check', () => {
   assert.doesNotMatch(html, /qa\+|시험 고추/);
 });
 
+test('seller sees new sales closed separately from three existing holds and deferred zero', () => {
+  const html = renderToStaticMarkup(createElement(SellerProductView, {
+    categories: [], products: [], busy: false, onCreate: () => {}, onSetStock: () => {},
+    stock: [{ optionId: 'option', productId: 'product', title: '고추', optionName: '500g',
+      onHand: 3, sellable: 0, pendingRequestId: null,
+      activeReservationQuantity: 3, deferredZeroPending: true }],
+  }));
+  assert.match(html, /새 판매 중단/);
+  assert.match(html, /기존 예약 3개/);
+  assert.match(html, /예약 종료 후 보유 0 적용/);
+});
+
 test('seller can enter a minor category, shipping mode and multiple priced options as a draft', () => {
   const html = renderToStaticMarkup(createElement(SellerProductView, {
     categories: [{ id: 'major', parentId: null, name: '채소' },

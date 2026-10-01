@@ -86,6 +86,9 @@ test('seller zero closes new sales but preserves active holds until the last rel
     );
     assert.equal(pending.rowCount, 1);
     assert.equal(pending.rows[0].target_on_hand, 0);
+    const sellerStock = (await inventory.listOwned(seller)).find((item) => item.optionId === ids.option);
+    assert.equal(sellerStock.activeReservationQuantity, 3);
+    assert.equal(sellerStock.deferredZeroPending, true);
     await assert.rejects(reservations.start(ids.customerC, randomUUID()), /Insufficient stock/);
     assert.equal((await reservations.get(ids.customerA, heldA.id)).status, 'ACTIVE');
     assert.equal((await reservations.get(ids.customerB, heldB.id)).status, 'ACTIVE');
@@ -104,6 +107,9 @@ test('seller zero closes new sales but preserves active holds until the last rel
     assert.equal((await pool.query(
       `SELECT status FROM inventory_deferred_stock_targets WHERE id=$1`, [pending.rows[0].id])).rows[0].status,
     'applied');
+    const finishedStock = (await inventory.listOwned(seller)).find((item) => item.optionId === ids.option);
+    assert.equal(finishedStock.activeReservationQuantity, 0);
+    assert.equal(finishedStock.deferredZeroPending, false);
   } finally {
     if (app) await app.close();
     if (ids.option) await pool.query('DELETE FROM inventory_deferred_stock_targets WHERE option_id=$1', [ids.option]);
