@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-01 S3.1 현재 판매정책을 반영한 내부 견적
+
+- 담당/기준: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@95675f567ec017a531246f4cfc02798626eb8f54` clean. 신산님의 `계속하자`에 따라 승인된 S3.1의 다음 내부 단위를 진행한다. 새 브랜치·worktree는 만들지 않는다.
+- 발송정책 해석: 어울몰 모아 발송은 판매자가 여러 명이어도 한 발송 묶음에 운영자 공통 정책을 적용한다. 판매자 직접 발송 묶음은 그 판매자의 승인된 유효 정책을 적용한다. 각각의 무료배송 기준은 할인 전 발송 묶음 상품금액으로 판정한다. 이는 앞서 제시한 권장안에 대한 신산님의 계속 진행 답변을 반영한 것이며, 공개 주문/정책 계약이나 DB를 변경하지 않는다.
+- 변경 예정: 기존 공개 상품·재고를 읽는 `CheckoutCatalog`와 승인된 `ShippingPolicies`, 순수 묶음 계산 `quoteShipments`를 연결하는 내부 read-only 견적 서비스 및 실DB 회귀 시험. 고객 전달 가격·판매자·정책 값은 사용하지 않는다. 장바구니/예약/주문 저장이나 할인·결제는 이번 단위 밖이며 S3.1 후속으로 남는다.
+- QA 자원: 지정 WSL `local-postgres/shoppingmall`의 고유 8자리 `QA_RUN_ID` 가상 계정 5·판매자 3·상품 5(기존 `qa-catalog-fixture.ts`)를 시험 중 잠시 사용한다. 기존 `node:24-bookworm-slim` 자동 제거 컨테이너 `shoppingmall-s31-quote-1001`만 사용하며, 시험 `finally`에서 해당 fixture/reset을 수행하고 계정·판매자·상품·정책 및 컨테이너 잔류 0을 확인한다. 포트·실계정·Oracle·외부 Provider는 사용하지 않는다.
+- 현재 검증: 첫 단위 `CheckoutCatalog.resolve`의 SHA `95675f5` 로컬/WSL 검증은 위 과거 항목에 기록됨. 새 실DB 시험을 제품 코드보다 먼저 작성했고 로컬 `ERR_MODULE_NOT_FOUND` 1 fail/0 skip으로 예상 RED를 확인했다. 최소 `CheckoutQuote` 구현 후 로컬 typecheck/lint exit 0, 모듈 적재 시험 1 환경 skip/0 pass이며 실DB GREEN은 아직 아니다. 판매자 정책은 직접 SQL 삽입하지 않고 기존 요청→운영자 승인 서비스를 사용하며 fixture reset이 정책·요청·감사를 정리한다.
+- 로컬 전체 회귀/빌드: `pnpm test` 221건/172 pass/49 DB·환경 skip/0 fail, PR 본문 8 pass, `pnpm build` API/Next exit 0. 49 skip을 실DB 통과로 세지 않는다. 이 시점에는 WSL 실DB 목표/전체 시험과 checkout/QA 잔류 검증이 남아 있다.
+- 다음: QA 시험을 먼저 작성해 RED 확인 → 최소 서비스 구현 → 로컬·WSL 동일 SHA 목표/전체 회귀 → 자료 정리. 별도 공개 API/DB schema 변경이 필요해지면 해당 경계를 별도 보고한다.
+
 ## 진행 중 — 2026-10-01 S2.4 200% 확대 인수 단계 이월 결정
 
 - S2.4 최신 동일 SHA 통합 QA: `fe922e157725c0c806913a145397e157127b64c3`에서 로컬 전체 219건/172 pass/47 환경 skip/0 fail, PR 본문 8 pass, typecheck/lint/build exit 0. SSH 원격·WSL 지정 checkout 동일 SHA에서 순차 실DB 전체 219건/212 pass/7 환경 skip/0 fail, API/Next 생산 빌드 exit 0. 7개 환경 skip은 실DB PASS로 세지 않는다. 리뷰 Important 2건의 busy 편집 잠금과 전체 등록 판매자 조회를 RED→GREEN 13개 목표 화면 시험으로 보정했다. 독립 리뷰 범위는 S2.4이며 전체 브랜치 리뷰는 별도 남는다.
