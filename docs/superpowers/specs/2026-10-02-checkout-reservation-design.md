@@ -1,6 +1,6 @@
 # S3.1 주문 직전 15분 재고 예약 설계
 
-상태: **신산님 검토 초안**. 예약 구현·공개 API·DB migration·공유 개발 DB 적용을 승인한 문서가 아니다. 기준은 기존 `docs/design/DESIGN.md` R02~R05, `docs/WORK_PLAN.md` S3, `2026-10-02-account-cart-design.md`, 작업 브랜치 `codex/flat-v2-prototypes@c0621839ca720e0c2fd4391017b31d9b4982e8d9`이다.
+상태: **설계 방향 승인**. 신산님은 작성된 초안의 승인 질문에 `계속하자`고 답해 구현계획 작성을 진행하도록 했다. 이 승인은 새 공개 API·데이터 계약·DB migration 구현, 공유 개발 DB 적용 또는 Oracle 배포 승인이 아니다. 기준은 기존 `docs/design/DESIGN.md` R02~R05, `docs/WORK_PLAN.md` S3, `2026-10-02-account-cart-design.md`다.
 
 ## 목적·결정과 비범위
 

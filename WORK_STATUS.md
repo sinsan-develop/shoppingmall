@@ -1,11 +1,18 @@
 # 어울몰 작업현황
 
+## 계획 검토 중 — 2026-10-02 S3.1 주문 직전 15분 예약
+
+- 담당/기준: 어울 단일 writer. 신산님의 설계 초안 승인 질문에 대한 `계속하자`를 **작성된 예약 설계 방향 승인·상세 구현계획 작성 지시**로 해석했다. `D:\Project\shoppingmall2`의 원격 `main@d8696a87d9864f976567be0a5cf94258db2d12d3`와 로컬이 일치함을 지정 `github-sinsan-develop` SSH alias로 읽기 전용 확인하고, 기존 clean 격리 worktree에서 `codex/s31-checkout-reservation-plan`을 만들었다. 루트 미추적 `legacy-onedrive/`와 worktree ignored 자료는 보존했다.
+- 변경 범위: 기존 설계의 승인 상태 문구와 `docs/superpowers/plans/2026-10-02-checkout-reservation.md` 구현계획만 작성. 예약 표·API·상품/재고/웹 제품 코드는 수정하지 않았고 DB·WSL·Oracle·Secret·QA 자원은 변경/생성하지 않았다. 기존 파일·마이그레이션 0009·카트/재고/상품 승인 경로를 읽기 전용 대조했다.
+- 검토/미검증: 계획에는 migration 격리 시험, 동시 고객 마지막 재고, 멱등/만료, 판매자 0, 상품 개정/판매중지, 권한·IDOR, 브라우저, shared DB 별도 승인 게이트를 분리했다. 계획 문서 자체의 사용자 검토와 새 공개 API/schema 구현 범위의 별도 승인은 아직 받지 않았다. 제품 시험·실DB 적용·원격 CI는 이번 계획 작성의 검증 결과가 아니다. 오류: 제한 셸의 SSH alias 조회 실패 1회, 승인된 실행에서 동일 명령 정상 조회; 설정·인증 변경 없음.
+- 다음: 계획 자체 검토와 공개 API/schema 범위의 정확한 결정 요청. 승인 전에는 제품 구현과 공유 DB 변경을 하지 않는다. 승인 뒤에도 공유 `local-postgres/shoppingmall` 적용 직전에는 SQL·기존 행·복구 영향의 별도 승인 확인이 필요하다.
+
 ## 완료 기록 — 2026-10-02 PR #9 자동 병합·merged-main 검증
 
 - 담당/기준: 어울 단일 writer. `codex/pr-create-only@47a504178188b50245b433b6c6a24fa3e16da167`의 생성 전용 PR #9를 기존 SSH 요청 태그 자동 병합 경로로 완료했다. 원격 `main@2cd28dabff3099970f082e7de4abc6288df1277c`의 커밋 메시지 `Review codex/pr-create-only (#9)`와 문서 3개 변경, 요청 태그·원격 작업 브랜치 제거를 Git ref로 확인했다. GitHub 계정·PAT·로컬 `gh auth`, 직접 main push는 사용하지 않았다.
 - 검증: PR head의 로컬 시험 230건 중 176 pass·54 DB/환경 skip·0 fail, 본문 시험 8 pass, typecheck/lint/build exit 0. 지정 WSL `5389e7b`의 Node 24·`local-postgres/shoppingmall` 전체 순차 시험 230건 중 223 pass·7 환경 skip·0 fail. 병합 `main@2cd28da`를 WSL 정식 checkout으로 확인하고 별도 일회용 `shoppingmall-pr9-merged-smoke-1002`에서 전체 순차 시험 **230건 중 223 pass·7 환경 skip·0 fail, exit 0**을 재실행했다. Linux gate·본문·diff 검사 exit 0, 사후 accounts/products/customer_cart_items/audit_events `0/0/0/0`, 두 전용 시험 컨테이너 잔류 0. Skip을 PASS로 합산하지 않는다.
 - 정리/보존: Windows 루트 main은 원격과 같은 SHA이며 `.github` 추적 파일 diff 0, 루트 미추적 `legacy-onedrive/`는 보존했다. 완료된 Windows `codex/pr-create-only`와 WSL `codex/pr-create-only`·`codex/flat-v2-prototypes` 로컬 브랜치, 삭제된 원격 브랜치의 WSL 추적 ref를 정상 정리했다. linked worktree는 ignored `.superpowers/`와 의존성 자료를 보존하기 위해 삭제하지 않았다. PR #9 정리 직후에는 `main@2cd28da`와 같았고, 이후 이 worktree에서 완료 기록 전용 `codex/pr9-completion-record` 브랜치를 만들었다. 새 브랜치는 문서만 수정한다.
-- 미검증/다음: GitHub Checks 화면·branch protection 상태는 계정 없는 SSH로 독립 조회할 수 없었다. PR ref·병합 커밋·실제 WSL 결과가 제품 UAT나 Oracle 배포 증거는 아니다. 다음 S3.1의 15분 예약 설계는 **신산님 검토 초안**이므로 공개 API·예약 테이블·migration 구현 전에 문서 승인과 별도 계약/DB 승인 경계를 확인한다.
+- 당시 미검증/다음: GitHub Checks 화면·branch protection 상태는 계정 없는 SSH로 독립 조회할 수 없었다. PR ref·병합 커밋·실제 WSL 결과가 제품 UAT나 Oracle 배포 증거는 아니다. 이 완료 기록 당시 S3.1의 15분 예약 설계는 **신산님 검토 초안**이었다. 이후 설계 방향 답변과 계획 상태는 최상단 기록을 따른다.
 
 ## 과거 경과 — 2026-10-02 PR #9 정식 WSL 전체 회귀 보강
 
@@ -33,7 +40,7 @@
 - WSL 정규화 GREEN: 두 번째 안전 커밋 `099cfab3744ad68a7a1158612066afec2c08b906`을 SSH `origin/codex/pr-create-only`에 push해 SHA 일치를 확인하고 지정 WSL checkout에서 `git pull --ff-only`로 같은 SHA에 도달했다. WSL 파일과 Git blob의 Linux `bash -n .github/pr-broker-gate.sh`/파이프 검사 exit 0, 신규·기존 YAML 파싱 exit 0, PR 본문 검사 exit 0, `git diff --check origin/main...HEAD` exit 0, checkout clean. 로컬 같은 변경의 전체 230건 중 176 pass·54 환경 skip·0 fail, 본문 8 pass, typecheck/lint/build exit 0. GitHub Actions 실제 실행·원격 PR/CI는 여전히 미검증이다.
 - 미검증/다음: 새 workflow의 실제 GitHub Actions 실행·PR 생성/갱신·태그 삭제, 원격 CI 및 branch protection, merged-main smoke는 아직 미검증이다. WSL 증거를 안전한 문서 commit/push로 보존한 뒤, 현재 원격 main은 새 경로가 없고 기존 경로도 gate CRLF로 실패한다는 사실과 최초 도입의 대안·영향을 신산님께 보고한다. 별도 결정 전에는 요청 태그나 직접 main push를 하지 않는다. 이번 중간 기록은 Stage 병합이나 사용자 인수 완료를 뜻하지 않는다.
 
-## 설계 검토 중 — 2026-10-02 S3.1 주문 직전 15분 예약
+## 과거 설계 검토 — 2026-10-02 S3.1 주문 직전 15분 예약
 
 - 담당/기준: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@c0621839ca720e0c2fd4391017b31d9b4982e8d9` clean에서 시작. 신산님의 연속 `계속하자/계속하나`를 기존 예약 15분·판매자 0 입력 시 새 판매 즉시 차단/기존 보유 유지·예약 종료 후 0 반영이라는 **업무 방향 승인**으로 해석한다. 새 예약 관계·공개 API·migration·공유 DB 변경의 별도 승인으로 확대하지 않는다.
 - 산출물: `docs/superpowers/specs/2026-10-02-checkout-reservation-design.md` 검토 초안. 기존 `inventory_levels`와 상품 개정/판매중지 경로를 대조하고 별도 예약 원장, 만료 DB 시각, 동시 수량 잠금, 판매자 0의 대기 목표, 고객·운영자 경로, 재견적/상품 변경/멱등/권한, 실DB·브라우저 시험과 복구를 제안했다. 제품 코드·DB·서버·QA 자원 변경은 없음. 오류 0, 실검증은 설계 대조와 정적 자체 검토뿐.
