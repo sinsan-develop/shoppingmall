@@ -7,6 +7,8 @@
 - 사전 QA 자원 계획: Task 1은 `WSL-server`의 정확한 `local-postgres` 안에 **고유 격리 DB `shoppingmall_s31_reservation_1002`**와, 필요한 경우 이름 `shoppingmall-s31-reservation-test-1002`의 Node 24 일회용 컨테이너만 사용한다. 목적은 0000~0009 RED와 0010 전·후 schema 시험이며 수명은 Task 1 격리 검증 동안이다. `shoppingmall` 공유 DB·기존 계정·상품·주문은 읽기 전용으로 보존한다. 사용 후 정확한 격리 DB/컨테이너만 제거하고 부재·QA 행 잔류 0을 확인한다. 비밀값은 기록하지 않는다.
 - 도구 오류/조치: 제공 `sdd-workspace`는 제한 Windows 셸의 D: 쓰기 거부로 디렉터리 생성에 실패했고, escalation 셸은 C: 플러그인 경로가 없는 WSL Linux여서 실행 실패했다. 반복 실패 프로세스는 PID를 확인해 해당 Bash만 종료했다. 제품/DB 파일 변경·QA 자원 생성은 없었다. 같은 원인의 추가 재시도 없이 무시 경로 장부와 이 파일에 직접 진척을 기록한다.
 - 다음: schema 시험 RED→0010 schema/migration GREEN을 격리 DB에서 확인한다. 변경 전후 원격 branch exact SHA와 정리 상태를 기록한다.
+- Task 1 RED/오류: 테스트 전용 `9a53dddb1acab00b473a18b3515d1e38d2c7b0d1`을 SSH push, WSL 지정 checkout에서 동일 SHA로 전환했다. 기존 fetch 설정이 두 과거 branch만 추적해 `--track` 전환 실패 1회 및 목표 변경의 staged 상태가 생겼으나, index tree와 목표 commit tree `723104576775f6d419d51d04d60c44627d780318` 일치·unstaged diff 0을 증명한 뒤 `--no-track`으로 clean 전환했다. SSH/credential 설정·기존 자료는 변경하지 않았다. 새 격리 DB에 0000~0009 적용 후 schema 시험 **1 fail/0 skip**: `checkout_reservations` 부재의 예상 RED. SQL 목록 조회의 셸 따옴표 오류 1회는 읽기 전용 명령만 실패했고 이름 필터 재조회로 격리 DB 부재를 확인한 뒤 생성했다. 실제 `0010`은 아직 적용하지 않았다.
+- 로컬 GREEN 준비: 새 관계/인덱스만 추가한 `apps/api/migrations/0010_s3_checkout_reservations.sql`, Drizzle schema/journal 작성. Windows `pnpm typecheck`, `pnpm lint` exit 0. 로컬 목표 시험은 DB 부재로 1 skip이며 GREEN 증거가 아니다. 다음은 안전 commit/push→WSL 동일 SHA의 격리 0010 적용·실DB 목표 시험이다.
 
 ## 계획 승인·계약 승인 대기 — 2026-10-02 S3.1 주문 직전 15분 예약
 

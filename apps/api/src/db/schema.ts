@@ -317,6 +317,59 @@ export const customerCartItems = pgTable('customer_cart_items', {
   check('customer_cart_items_quantity_ck', sql`${table.quantity} BETWEEN 1 AND 1000000`),
 ]);
 
+export const checkoutReservations = pgTable('checkout_reservations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  status: text('status').notNull().default('ACTIVE'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  endReason: text('end_reason'),
+}, (table) => [
+  uniqueIndex('checkout_reservations_account_key_uq').on(table.accountId, table.idempotencyKey),
+  uniqueIndex('checkout_reservations_account_active_uq').on(table.accountId)
+    .where(sql`${table.status} = 'ACTIVE'`),
+  index('checkout_reservations_due_idx').on(table.status, table.expiresAt),
+  check('checkout_reservations_status_ck',
+    sql`${table.status} IN ('ACTIVE','EXPIRED','RELEASED','CANCELLED','CONSUMED')`),
+  check('checkout_reservations_expires_ck', sql`${table.expiresAt} > ${table.createdAt}`),
+  check('checkout_reservations_ended_ck',
+    sql`(${table.status} = 'ACTIVE' AND ${table.endedAt} IS NULL)
+      OR (${table.status} <> 'ACTIVE' AND ${table.endedAt} IS NOT NULL)`),
+  check('checkout_reservations_reason_ck',
+    sql`${table.status} <> 'CANCELLED' OR length(trim(coalesce(${table.endReason},''))) BETWEEN 1 AND 500`),
+]);
+
+export const checkoutReservationLines = pgTable('checkout_reservation_lines', {
+  reservationId: uuid('reservation_id').notNull().references(() => checkoutReservations.id),
+  optionId: uuid('option_id').notNull().references(() => productOptions.id),
+  quantity: integer('quantity').notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.reservationId, table.optionId] }),
+  index('checkout_reservation_lines_option_idx').on(table.optionId),
+  check('checkout_reservation_lines_quantity_ck', sql`${table.quantity} BETWEEN 1 AND 1000000`),
+]);
+
+export const inventoryDeferredStockTargets = pgTable('inventory_deferred_stock_targets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  optionId: uuid('option_id').notNull().references(() => productOptions.id),
+  targetOnHand: integer('target_on_hand').notNull().default(0),
+  requestedByAccountId: uuid('requested_by_account_id').notNull().references(() => accounts.id),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  status: text('status').notNull().default('pending'),
+  appliedAt: timestamp('applied_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('inventory_deferred_stock_targets_pending_uq').on(table.optionId)
+    .where(sql`${table.status} = 'pending'`),
+  index('inventory_deferred_stock_targets_option_idx').on(table.optionId),
+  check('inventory_deferred_stock_targets_zero_ck', sql`${table.targetOnHand} = 0`),
+  check('inventory_deferred_stock_targets_status_ck',
+    sql`${table.status} IN ('pending','applied','superseded')`),
+  check('inventory_deferred_stock_targets_applied_ck',
+    sql`${table.status} <> 'applied' OR ${table.appliedAt} IS NOT NULL`),
+]);
+
 export const restockSubscriptions = pgTable('restock_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   accountId: uuid('account_id').notNull().references(() => accounts.id),

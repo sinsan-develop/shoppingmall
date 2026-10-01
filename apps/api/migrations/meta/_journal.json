@@ -71,6 +71,13 @@
       "when": 1790871928083,
       "tag": "0009_s3_customer_cart",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790895145725,
+      "tag": "0010_s3_checkout_reservations",
+      "breakpoints": true
     }
   ]
 }
