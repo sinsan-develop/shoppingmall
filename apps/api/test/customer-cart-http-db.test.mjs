@@ -101,14 +101,17 @@ test('customer cart HTTP uses active customer session and trusted Origin, never 
     if (ids.product) await pool.query('DELETE FROM products WHERE id=$1', [ids.product]);
     if (ids.minor) await pool.query('DELETE FROM product_categories WHERE id=$1', [ids.minor]);
     if (ids.major) await pool.query('DELETE FROM product_categories WHERE id=$1', [ids.major]);
+    for (const id of [ids.accountA, ids.accountB]) {
+      if (!id) continue;
+      await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [id]);
+      await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [id]);
+    }
     if (ids.accountA) await pool.query('DELETE FROM account_roles WHERE account_id=$1 AND role=$2',
       [ids.accountA, 'seller']);
     if (ids.seller) await pool.query('DELETE FROM sellers WHERE id=$1', [ids.seller]);
     if (ids.sellerCategory) await pool.query('DELETE FROM seller_categories WHERE id=$1', [ids.sellerCategory]);
     for (const id of [ids.accountA, ids.accountB]) {
       if (!id) continue;
-      await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [id]);
-      await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [id]);
       await pool.query('DELETE FROM account_roles WHERE account_id=$1', [id]);
       await pool.query('DELETE FROM account_identities WHERE account_id=$1', [id]);
       await pool.query('DELETE FROM accounts WHERE id=$1', [id]);
