@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-02 PR #9 정식 WSL 전체 회귀 보강
+
+- 담당/범위: 어울 단일 writer. PR #9 후속 문서 브랜치 `codex/pr-create-only@233b0403fb976897e7b26cd601074db949f17a6c`의 필수 검증을 보강한다. 현재 원격 `main@2bad168`, PR head `233b040`, 로컬/WSL checkout clean을 읽기 전용 확인했다. GitHub 계정·PAT·로컬 `gh auth`는 사용하지 않는다.
+- 사전 자원 계획: 지정 `WSL-server:/home/daon/deploy/shopping`과 `local-postgres/shoppingmall`만 사용한다. 시험 전 해당 DB 계정 0행 확인. Node 24 기존 image의 일회용 컨테이너 이름은 `shoppingmall-pr9-regression-1002`, 네트워크는 `container:local-postgres`, 소스는 지정 checkout read-only mount, 수명은 전체 순차 시험 실행 동안이며 `--rm`으로 종료 즉시 제거한다. 시험이 만드는 고유 QA 계정·상품은 기존 시험 `finally` 정리로 삭제하고, 사후 DB 행 수·컨테이너·checkout 잔류를 확인한다. 실계정·실결제·포트 개방·Oracle·다른 DB는 사용하지 않는다.
+- 현재 검증: 로컬 정확한 기존 HEAD에서 `pnpm test` 230건 중 176 pass·54 환경 skip·0 fail 및 PR 본문 시험 8 pass, typecheck/lint/build exit 0을 새로 확인했다. 신규 상태 기록 커밋 이후 WSL 전체 회귀와 GitHub Checks는 아직 미검증이며, `pr-request/**` 병합 태그는 보내지 않았다.
+
 ## 진행 중 — 2026-10-02 PR #8 병합 후 생성 전용 경로 실제 검증
 
 - 담당/판정: 어울 단일 writer. 작업 중 외부에서 PR #8이 `main@2bad168a03b95a9ce9a43cafc76b54318a038dbe`로 병합된 것을 읽기 전용 fetch로 확인했다. 어울은 요청 태그를 보내거나 그 PR을 병합하지 않았다. 원격 `main`에는 `auto-pr-create.yml`과 LF gate가 있으며 루트 `D:\Project\shoppingmall2`의 `main`을 동일 SHA로 fast-forward해 추적 `.github` diff 0을 확인했다. 루트 미추적 `legacy-onedrive/`는 보존한다.
