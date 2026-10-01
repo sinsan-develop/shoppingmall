@@ -125,14 +125,14 @@ test('seller zero closes new sales but preserves active holds until the last rel
     if (ids.revision) await pool.query('DELETE FROM product_revisions WHERE id=$1', [ids.revision]);
     if (ids.product) await pool.query('DELETE FROM products WHERE id=$1', [ids.product]);
     if (ids.category) await pool.query('DELETE FROM product_categories WHERE id=$1', [ids.category]);
-    if (ids.seller) await pool.query('DELETE FROM sellers WHERE id=$1', [ids.seller]);
-    if (ids.sellerCategory) await pool.query('DELETE FROM seller_categories WHERE id=$1', [ids.sellerCategory]);
     for (const accountId of [ids.customerA, ids.customerB, ids.customerC, ids.sellerAccount]) {
       if (accountId) await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [accountId]);
       if (accountId) await pool.query('DELETE FROM account_roles WHERE account_id=$1', [accountId]);
       if (accountId) await pool.query('DELETE FROM account_identities WHERE account_id=$1', [accountId]);
       if (accountId) await pool.query('DELETE FROM accounts WHERE id=$1', [accountId]);
     }
+    if (ids.seller) await pool.query('DELETE FROM sellers WHERE id=$1', [ids.seller]);
+    if (ids.sellerCategory) await pool.query('DELETE FROM seller_categories WHERE id=$1', [ids.sellerCategory]);
     await pool.end();
   }
 });
