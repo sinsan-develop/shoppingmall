@@ -102,7 +102,7 @@ test('cart keeps account quantities separate, retries as final values and rechec
     // The 100-item limit applies to distinct options, not to repeated PUT of one option.
     const extra = await pool.query(
       `INSERT INTO product_options(revision_id,name,price_won)
-       SELECT $1,'QA option ' || n,100 FROM generate_series(1,100) n
+       SELECT $1,'QA option ' || n,100 FROM generate_series(1,101) n
        RETURNING id`, [ids.revision],
     );
     extraOptions.push(...extra.rows.map((row) => row.id));
@@ -118,6 +118,18 @@ test('cart keeps account quantities separate, retries as final values and rechec
     await cart.remove(ids.accountA, ids.option);
     await cart.remove(ids.accountA, ids.option);
     assert.equal((await cart.list(ids.accountA)).length, 99);
+    const competing = await Promise.allSettled([
+      cart.set(ids.accountA, extraOptions[99], 1),
+      cart.set(ids.accountA, extraOptions[100], 1),
+    ]);
+    assert.deepEqual(competing.map((result) => result.status).sort(), ['fulfilled', 'rejected']);
+    assert.equal((await cart.list(ids.accountA)).length, 100);
+    const sameOption = await Promise.allSettled([
+      cart.set(ids.accountA, extraOptions[0], 1),
+      cart.set(ids.accountA, extraOptions[0], 1),
+    ]);
+    assert.deepEqual(sameOption.map((result) => result.status), ['fulfilled', 'fulfilled']);
+    assert.equal((await cart.list(ids.accountA)).find((item) => item.optionId === extraOptions[0]).quantity, 1);
     assert.deepEqual((await cart.list(ids.accountB)).map(({ quantity }) => quantity), [1]);
   } finally {
     if (ids.accountA || ids.accountB) await pool.query(
