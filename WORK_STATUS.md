@@ -1,6 +1,8 @@
 # 어울몰 작업현황
 
-## 계획 검토 중 — 2026-10-02 S3.1 주문 직전 15분 예약
+## 계획 승인·계약 승인 대기 — 2026-10-02 S3.1 주문 직전 15분 예약
+
+- 최신 결정: 신산님은 작성·push된 `docs/superpowers/plans/2026-10-02-checkout-reservation.md`의 검토·승인 질문에 `계속하자`고 답했다. 이를 계획 승인으로 기록한다. 계획에 명시된 새 공개 API·예약 관계 및 `0010` migration **구현 범위 승인**은 별도 경계이며, 공유 `WSL-server/local-postgres/shoppingmall` 실제 적용은 SQL·기존 행·복구 영향 확인 후 별도 결정이다. 이번 확인에서는 제품 코드·DB·서비스를 변경하지 않았다.
 
 - 담당/기준: 어울 단일 writer. 신산님의 설계 초안 승인 질문에 대한 `계속하자`를 **작성된 예약 설계 방향 승인·상세 구현계획 작성 지시**로 해석했다. `D:\Project\shoppingmall2`의 원격 `main@d8696a87d9864f976567be0a5cf94258db2d12d3`와 로컬이 일치함을 지정 `github-sinsan-develop` SSH alias로 읽기 전용 확인하고, 기존 clean 격리 worktree에서 `codex/s31-checkout-reservation-plan`을 만들었다. 루트 미추적 `legacy-onedrive/`와 worktree ignored 자료는 보존했다.
 - 변경 범위: 기존 설계의 승인 상태 문구와 `docs/superpowers/plans/2026-10-02-checkout-reservation.md` 구현계획만 작성. 예약 표·API·상품/재고/웹 제품 코드는 수정하지 않았고 DB·WSL·Oracle·Secret·QA 자원은 변경/생성하지 않았다. 기존 파일·마이그레이션 0009·카트/재고/상품 승인 경로를 읽기 전용 대조했다.
