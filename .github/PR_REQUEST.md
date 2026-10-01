@@ -17,14 +17,14 @@
 
 ## 검증
 
-- 코드 변경 기준 `fe922e157725c0c806913a145397e157127b64c3`: 로컬 전체 219건 중 172 pass·47 DB/환경 skip·0 fail, PR 본문 검사 8 pass, typecheck/lint/build exit 0. WSL 지정 checkout의 동일 SHA에서 정식 개발 DB 연결 순차 전체 219건 중 212 pass·7 환경 skip·0 fail, API/Next 생산 빌드 exit 0. skip은 PASS로 합산하지 않는다.
+- 코드 변경 기준 `0dc4bbd805a25df9ade71b95de5f729b4861283a`: 로컬 전체 219건 중 172 pass·47 DB/환경 skip·0 fail, PR 본문 검사 8 pass, typecheck/lint/build exit 0. WSL 지정 checkout의 동일 SHA에서 정식 개발 DB 연결 순차 전체 219건 중 212 pass·7 환경 skip·0 fail, API/Next 생산 빌드 exit 0. skip은 PASS로 합산하지 않는다. 독립 리뷰의 재고 보존 Important는 실DB RED→GREEN으로 수정했고, 웹 레이블 지적은 실제 `htmlFor`/`id` 일치로 오탐을 확인했다.
 - 실제 WSL HTTP 브라우저에서 QA 실행 `f0241001`의 관리자 편집→저장→미리보기→공개, 고객 홈의 추가 메뉴·기획전·추천 및 기획전 상세를 확인했다. 상품 없는 등록 판매자도 홈에서 찾을 수 있고 다른 판매자 상품이 섞이지 않음을 확인했다. 앞선 동일 기능 실행에서 역할별 관리자 차단·재고 5→0 품절·3개 화면 폭·키보드·API 장애 시 기본 탐색 유지도 각각 검증했으며 최신 실행에서 모두 재현한 것으로 표기하지 않는다.
-- 정확한 QA 공개본·초안·fixture만 되돌린 뒤 개발 DB 계정/판매자/상품/공개본 `0/0/0/0`, 초안 버전 1·현재 공개 포인터 NULL, QA 컨테이너와 9091/9092 listener 0, WSL checkout clean을 확인했다. 전체 브랜치 독립 코드 리뷰·원격 CI/PR·merged-main smoke는 이 초안 작성 시 아직 미완료다.
+- 정확한 QA 공개본·초안·fixture만 되돌린 뒤 개발 DB 계정/판매자/상품/공개본 `0/0/0/0`, 초안 버전 1·현재 공개 포인터 NULL, QA 컨테이너와 9091/9092 listener 0, WSL checkout clean을 확인했다. API·웹 변경을 나눠 독립 읽기 전용 리뷰하고 제기된 중요 경로를 재현 또는 반증했다. 원격 CI/PR·merged-main smoke는 아직 미완료다.
 
 ## 미검증
 
 - 실제 브라우저 200% 확대는 신산님 결정에 따라 UAT-03 필수 검증으로 이월했고 현재 **UNVERIFIED**다. 이월은 다른 접근성·Stage·출시 게이트의 통과가 아니다.
-- S1/S2 계획의 모든 체크 항목을 이 PR 초안만으로 완료 판정하지 않는다. 실제 악성 이미지·외부 공급자 환경, 전체 브랜치 보안/회귀 리뷰, GitHub 원격 CI와 PR 병합, merged-main 재시험, Oracle staging·사용자 인수는 별도 증거가 필요하다.
+- S1/S2 계획의 모든 체크 항목을 이 PR 초안만으로 완료 판정하지 않는다. 실제 악성 이미지·외부 공급자 환경, GitHub 원격 CI와 PR 병합, merged-main 재시험, Oracle staging·사용자 인수는 별도 증거가 필요하다.
 - S3~S8의 영속 장바구니·주문·통합 결제/환불·배송/클레임·정산·Android 앱·운영 관제와 PG/문자·메일·푸시 실연동은 미구현 또는 미검증이다. mock/로컬 PASS를 외부 서비스 PASS로 표현하지 않는다.
 
 ## 롤백
