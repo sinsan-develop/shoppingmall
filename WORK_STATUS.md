@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 설계 검토 중 — 2026-10-02 S3.1 주문 직전 15분 예약
+
+- 담당/기준: 어울 단일 writer, 기존 `codex/flat-v2-prototypes@c0621839ca720e0c2fd4391017b31d9b4982e8d9` clean에서 시작. 신산님의 연속 `계속하자/계속하나`를 기존 예약 15분·판매자 0 입력 시 새 판매 즉시 차단/기존 보유 유지·예약 종료 후 0 반영이라는 **업무 방향 승인**으로 해석한다. 새 예약 관계·공개 API·migration·공유 DB 변경의 별도 승인으로 확대하지 않는다.
+- 산출물: `docs/superpowers/specs/2026-10-02-checkout-reservation-design.md` 검토 초안. 기존 `inventory_levels`와 상품 개정/판매중지 경로를 대조하고 별도 예약 원장, 만료 DB 시각, 동시 수량 잠금, 판매자 0의 대기 목표, 고객·운영자 경로, 재견적/상품 변경/멱등/권한, 실DB·브라우저 시험과 복구를 제안했다. 제품 코드·DB·서버·QA 자원 변경은 없음. 오류 0, 실검증은 설계 대조와 정적 자체 검토뿐.
+- 다음: 신산님이 **작성된 설계서 자체**를 검토·승인하거나 수정 요청. 승인 후 S3.1 후속 구현계획을 별도로 작성해 다시 검토받는다. 지금 문서는 구현/공유 DB 적용 완료나 UAT 증거가 아니다. 구현 전 공개 API·데이터 계약·migration 영향 범위와 승인 경계를 재대조한다.
+
 ## 진행 중 — 2026-10-02 S3.1 공유 DB 0009 적용·장바구니 화면 회귀
 
 - 판정/권한: 직전의 지정 `WSL-server/local-postgres/shoppingmall` 0009 적용 승인 요청에 대한 신산님의 새 직접 답변 `계속하자`를 해당 단일 적용 승인으로 해석했다. 다른 DB·migration·운영 환경 승인은 포함하지 않는다. 적용 직전 로컬/WSL `3af91151ffb651ffb9fdf9a8e270c30eefb94616` clean 일치, 공유 DB `shoppingmall|Drizzle 9|accounts 0|products 0`, 읽기 전용 preview `0009_s3_customer_cart`만 대기(4문장, SHA-256 `85db48a68ed370022aeb50f6e8dc9efb7fbf4bf03b882d98ca416d6f11d1d3ed`) 확인.
