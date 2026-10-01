@@ -1,8 +1,9 @@
 import HomeCatalog from './home-catalog';
+import { HomeContentProvider, HomeEvents, HomeMenu, HomeRecommendations } from './home-merchandising';
 
 export default function Page() {
   return (
-    <>
+    <HomeContentProvider>
       <div className="promo-bar">전국 산지의 정성을, 한 상에</div>
       <header className="site-header">
         <div className="shell header-inner">
@@ -17,12 +18,7 @@ export default function Page() {
           </form>
           <a className="text-link" href="/login">로그인</a>
         </div>
-        <nav className="shell site-menu" aria-label="어울몰 메뉴">
-          <a href="/" aria-current="page">홈</a>
-          <a href="/products">제철 농산물</a>
-          <a href="/#events-title">기획전</a>
-          <a href="/#seller-story-title">판매자 이야기</a>
-        </nav>
+        <HomeMenu />
       </header>
       <main id="main-content" tabIndex={-1} className="shell">
         <section className="hero" aria-labelledby="home-title">
@@ -44,12 +40,10 @@ export default function Page() {
             </div>
           </div>
         </section>
-        <section className="home-section" aria-labelledby="events-title">
-          <div className="section-heading"><p className="eyebrow">SEASONAL STORIES</p><h2 id="events-title">기획전</h2></div>
-          <div className="feature-card"><span className="card-kicker">어울몰 소식</span><p>제철의 풍요를 전할 준비를 하고 있습니다</p></div>
-        </section>
+        <HomeEvents />
         <HomeCatalog />
+        <HomeRecommendations />
       </main>
-    </>
+    </HomeContentProvider>
   );
 }

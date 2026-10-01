@@ -1,5 +1,13 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-09-30 S2.4 찜·옵션별 재입고 신청 재현 경계
+
+- 로컬 변경 검증은 작업 worktree 루트의 `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`. DB 없는 Windows의 고객 관계/HTTP 시험 skip은 실DB PASS가 아니다.
+- 작업 브랜치를 승인된 `github-sinsan-develop` SSH 별칭으로 push한 뒤 지정 WSL checkout `/home/daon/deploy/shopping`을 `git pull --ff-only origin codex/flat-v2-prototypes`로 동일 SHA에 맞춘다. `local-postgres/shoppingmall`에는 격리 시험을 거친 0007 migration이 적용돼 있다.
+- WSL Node24 컨테이너에서 `node --import tsx --test apps/api/test/customer-engagement-schema-db.test.mjs apps/api/test/customer-favorites-http-db.test.mjs apps/api/test/customer-restock-http-db.test.mjs`로 관계·권한·동시성·옵션 개정 실DB 시험을 수행한다. `node --test-concurrency=1 --import tsx --test`는 전체 실DB 회귀다. `DATABASE_URL`은 실행 환경에서만 주입하고 로그·Git에 남기지 않는다.
+- 실제 브라우저 QA는 고유 8자리 `QA_RUN_ID`의 `qa-public-fixture.ts seed`로 가상 고객·상품을 잠시 만들고, 시험 종료 후 같은 ID의 `reset`으로 자식 신청·찜→상품→계정을 정리한다. 품절 신청 검증 시에는 먼저 해당 QA 상품·옵션만 존재하는지 확인하고 그 옵션의 `sellable_quantity`만 0으로 설정한다. API `apps/api`의 최신 `tsc -p tsconfig.build.json`, Web의 `NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:9092` 지정 Next 빌드를 실제 서버 시작 전에 수행한다. `/ready` 200만으로 신규 route 반영을 보증하지 않으므로 비로그인 `/customer/favorites`의 401도 확인한다.
+- S2.4에는 저장·조회·취소만 포함한다. 실제 문자·메일·푸시 발송과 `notified` 전이는 S5.3, Oracle·사용자 인수는 별도 검증이다. in-app/Chrome 자동화에서 확대 단축키가 배율을 변경하지 않았으므로 430px·640px 화면 확인을 실제 200% 확대 증거로 사용하지 않는다.
+
 ## 2026-09-28 현재 실행 명령표와 미구현 경계
 
 | 작업 | 현재 실제 명령·경로 | 확인 범위 |

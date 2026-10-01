@@ -72,6 +72,46 @@ export class PublicProducts {
     return { ...publication.rows[0], options: options.rows, images: images.rows };
   }
 
+  /** Read selected IDs directly, preserving curator order without list()'s 24-item page boundary. */
+  async getSellableByIds(productIds: string[]) {
+    if (!Array.isArray(productIds) || productIds.length > 600 ||
+        productIds.some((productId) => typeof productId !== 'string' || !uuid.test(productId))) {
+      throw new Error('Invalid product selection');
+    }
+    if (productIds.length === 0) return [];
+    const result = await this.pool.query<{
+      productId: string; revisionId: string; title: string; originLabel: string;
+      sellerId: string; sellerName: string; categoryId: string; categoryName: string;
+      minPriceWon: number; images: { id: string; purpose: string; displayOrder: number }[];
+    }>(
+      `SELECT p.id AS "productId",r.id AS "revisionId",r.title,r.origin_label AS "originLabel",
+              s.id AS "sellerId",s.display_name AS "sellerName",c.id AS "categoryId",c.name AS "categoryName",
+              price.amount AS "minPriceWon",coalesce(images.items,'[]'::json) AS images
+       FROM unnest($1::uuid[]) WITH ORDINALITY wanted(id,position)
+       JOIN products p ON p.id=wanted.id
+       JOIN product_publications pub ON pub.product_id=p.id
+       JOIN product_revisions r ON r.id=pub.revision_id AND r.product_id=p.id
+       JOIN sellers s ON s.id=p.seller_id
+       JOIN product_categories c ON c.id=p.category_id
+       JOIN LATERAL (
+         SELECT min(o.price_won)::int AS amount FROM product_options o
+         JOIN inventory_levels i ON i.option_id=o.id
+         WHERE o.revision_id=r.id AND i.sellable_quantity>0
+       ) price ON price.amount IS NOT NULL
+       LEFT JOIN LATERAL (
+         SELECT json_agg(json_build_object('id',i.id,'purpose',i.purpose,'displayOrder',i.display_order)
+           ORDER BY CASE WHEN i.purpose='thumbnail' THEN 0 ELSE 1 END,i.display_order,i.id) AS items
+         FROM product_images i WHERE i.revision_id=r.id AND i.mime_type='image/webp'
+       ) images ON true
+       WHERE r.status='approved' AND NOT EXISTS (
+         SELECT 1 FROM product_sale_stop_requests stop
+         WHERE stop.product_id=p.id AND stop.status='approved')
+       ORDER BY wanted.position`,
+      [productIds],
+    );
+    return result.rows;
+  }
+
   async list(input: PublicSearch = {}) {
     const { query = '', categoryId, sellerId, sort = 'latest', page = 1 } = input;
     if (typeof query !== 'string' || query.trim().length > 80 ||

@@ -106,6 +106,8 @@ async function resetCatalog(client: PoolClient, runId: string) {
   if (protectedRows.rows[0].revisions !== catalogQaSpecs.length || protectedRows.rows[0].images !== 0) {
     throw new Error('QA catalog has additional revisions or images requiring separate cleanup');
   }
+  await client.query(`DELETE FROM customer_cart_items WHERE option_id IN
+    (SELECT o.id FROM product_options o WHERE o.revision_id=ANY($1::uuid[]))`, [revisionIds]);
   await client.query('DELETE FROM product_publications WHERE product_id=ANY($1::uuid[])', [productIds]);
   await client.query(`DELETE FROM stock_change_requests WHERE option_id IN
     (SELECT id FROM product_options WHERE revision_id=ANY($1::uuid[]))`, [revisionIds]);

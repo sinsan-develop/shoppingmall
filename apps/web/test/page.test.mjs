@@ -21,7 +21,7 @@ test('customer home exposes the approved five areas without fake purchasable pro
   assert.doesNotMatch(html, /장바구니 담기|결제하기|개인별 추천/);
 });
 
-test('home catalog links administrator categories and only supplied public products', () => {
+test('home catalog links administrator categories and seller discovery without impersonating curation', () => {
   assert.equal(typeof Home.HomeCatalogView, 'function');
   const html = renderToStaticMarkup(createElement(Home.HomeCatalogView, {
     categories: [
@@ -29,29 +29,39 @@ test('home catalog links administrator categories and only supplied public produ
       { id: 'minor-1', parentId: 'major-1', name: '블루베리' },
       { id: 'major-2', parentId: null, name: '채소' },
     ],
-    products: [{ productId: 'published-1', title: '햇고추', sellerId: 'seller-1', sellerName: '진주농가',
-      originLabel: '경남 진주', minPriceWon: 23000 }],
+    sellers: [{ id: 'seller-1', displayName: '진주농가' }],
     loading: false,
   }));
   assert.match(html, /href="\/products\?categoryId=major-1"[^>]*>과일<\/a>/);
   assert.match(html, /href="\/products\?categoryId=major-2"[^>]*>채소<\/a>/);
   assert.doesNotMatch(html, /href="\/products\?categoryId=minor-1"/);
-  assert.match(html, /href="\/products\/published-1"/);
   assert.match(html, /href="\/products\?sellerId=seller-1"[^>]*>진주농가<\/a>/);
-  assert.match(html, /23,000원/);
+  assert.doesNotMatch(html, /추천 상품|23,000원/);
   assert.doesNotMatch(html, /개인별 추천|objectKey|quarantine\//);
 });
 
 test('home catalog distinguishes empty public data from connection failure', () => {
   assert.equal(typeof Home.HomeCatalogView, 'function');
   const empty = renderToStaticMarkup(createElement(Home.HomeCatalogView, {
-    categories: [], products: [], loading: false,
+    categories: [], sellers: [], loading: false,
   }));
   assert.match(empty, /등록된 카테고리가 없습니다/);
-  assert.match(empty, /상품 준비 중/);
+  assert.match(empty, /소개할 판매자가 없습니다/);
   const failed = renderToStaticMarkup(createElement(Home.HomeCatalogView, {
-    categories: [], products: [], loading: false, error: '연결 실패',
+    categories: [], sellers: [], loading: false, error: '연결 실패',
   }));
   assert.match(failed, /연결 실패/);
-  assert.doesNotMatch(failed, /상품 준비 중/);
+  assert.doesNotMatch(failed, /소개할 판매자가 없습니다/);
+});
+
+test('home seller links include an administrator-registered seller beyond the first product page', () => {
+  const products = Array.from({ length: 24 }, (_, index) => ({ productId: `p-${index}`, title: '상품',
+    sellerId: 'seller-a', sellerName: '농가 A', originLabel: '진주', minPriceWon: 1000 }));
+  const html = renderToStaticMarkup(createElement(Home.HomeCatalogView, {
+    categories: [], products, sellers: [
+      { id: 'seller-a', displayName: '농가 A' },
+      { id: 'seller-b', displayName: '농가 B' },
+    ], loading: false,
+  }));
+  assert.match(html, /href="\/products\?sellerId=seller-b"[^>]*>농가 B<\/a>/);
 });

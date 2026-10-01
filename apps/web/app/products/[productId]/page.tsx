@@ -3,6 +3,8 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PublicImage } from '../../account/private-image';
+import { EngagementControls } from './engagement-controls';
+import { ProductCartControls } from './cart-controls';
 
 type Option = { id: string; name: string; priceWon: number; sellableQuantity: number };
 type ProductImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number };
@@ -43,7 +45,12 @@ export function ProductDetailView({ product, loading = false, error }: ViewProps
                   `판매 가능 ${option.sellableQuantity}개` : '품절'}</span>
               </li>)}
             </ul>
-            <p className="section-note">장바구니와 주문 기능은 구축 중입니다</p>
+            <div className="detail-cart-controls" aria-label="장바구니에 담기">
+              {product.options.map((option) => <ProductCartControls key={option.id} option={option}
+                stopped={product.saleStopped} />)}
+            </div>
+            <EngagementControls key={product.productId} product={product} />
+            <p className="section-note">장바구니는 현재 가격·재고로 다시 확인합니다. 주문·결제는 준비 중입니다.</p>
           </div>
         </div>
         <section className="detail-description" aria-label="상품 설명"><h2>상품 설명</h2><p>{product.description}</p></section>
@@ -74,5 +81,6 @@ export default function ProductDetailPage() {
       } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [productId]);
-  return <ProductDetailView product={product} loading={loading} error={error} />;
+  return <ProductDetailView product={product?.productId === productId ? product : undefined}
+    loading={loading} error={error} />;
 }

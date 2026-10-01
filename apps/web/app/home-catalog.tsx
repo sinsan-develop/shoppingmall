@@ -3,17 +3,14 @@
 import { useEffect, useState } from 'react';
 
 type Category = { id: string; parentId: string | null; name: string };
-type Product = { productId: string; title: string; sellerId?: string; sellerName: string;
-  originLabel: string; minPriceWon: number };
-type HomeCatalogProps = { categories: Category[]; products: Product[]; loading: boolean; error?: string };
+type Seller = { id: string; displayName: string };
+type HomeCatalogProps = { categories: Category[]; sellers: Seller[]; loading: boolean; error?: string };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
-export function HomeCatalogView({ categories, products, loading, error }: HomeCatalogProps) {
+export function HomeCatalogView({ categories, sellers, loading, error }: HomeCatalogProps) {
   const majorCategories = categories.filter((category) => category.parentId === null);
-  const sellers = [...new Map(products.filter((product) => product.sellerId)
-    .map((product) => [product.sellerId, product.sellerName])).entries()];
   return (
     <>
       <section className="home-section" aria-labelledby="categories-title">
@@ -27,28 +24,13 @@ export function HomeCatalogView({ categories, products, loading, error }: HomeCa
                   href={`/products?categoryId=${encodeURIComponent(category.id)}`}>{category.name}</a>)}
             </div>}
       </section>
-      <section className="home-section" aria-labelledby="recommendations-title">
-        <div className="section-heading"><p className="eyebrow">CURATED FOR EVERYONE</p><h2 id="recommendations-title">추천 상품</h2></div>
-        <p className="section-note">현재 판매 가능한 최신 공개 상품을 소개합니다</p>
-        {loading ? <p role="status">상품을 불러오는 중</p> : error ? <p role="alert">{error}</p> :
-          products.length === 0 ? <p className="product-empty">상품 준비 중</p> :
-            <div className="search-results home-products">
-              {products.slice(0, 4).map((product) =>
-                <article className="search-product" key={product.productId}>
-                  <p className="eyebrow">{product.originLabel}</p>
-                  <h3><a className="product-link" href={`/products/${encodeURIComponent(product.productId)}`}>{product.title}</a></h3>
-                  <p>{product.sellerName}</p>
-                  <p className="product-price">{product.minPriceWon.toLocaleString('ko-KR')}원부터</p>
-                </article>)}
-            </div>}
-      </section>
       <section className="home-section" aria-labelledby="seller-story-title">
         <div className="section-heading"><p className="eyebrow">OUR SELLERS</p><h2 id="seller-story-title">판매자 이야기</h2></div>
         <p className="section-note">농가와 어울몰 판매자의 상품을 같은 기준으로 소개합니다</p>
         {loading ? <p role="status">판매자를 불러오는 중</p> : error ? <p role="alert">{error}</p> :
           sellers.length === 0 ? <p className="section-note">소개할 판매자가 없습니다</p> :
-            <div className="seller-story-links">{sellers.map(([id, name]) =>
-              <a className="category-link" key={id} href={`/products?sellerId=${encodeURIComponent(id!)}`}>{name}</a>)}</div>}
+            <div className="seller-story-links">{sellers.map(({ id, displayName }) =>
+              <a className="category-link" key={id} href={`/products?sellerId=${encodeURIComponent(id)}`}>{displayName}</a>)}</div>}
       </section>
     </>
   );
@@ -56,7 +38,7 @@ export function HomeCatalogView({ categories, products, loading, error }: HomeCa
 
 export default function HomeCatalog() {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [sellers, setSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
@@ -69,18 +51,18 @@ export default function HomeCatalog() {
     }
     Promise.all([
       fetch(`${apiOrigin}/catalog/categories`, { signal: controller.signal }),
-      fetch(`${apiOrigin}/catalog/products?sort=latest&page=1`, { signal: controller.signal }),
-    ]).then(async ([categoryResponse, productResponse]) => {
-      if (!categoryResponse.ok || !productResponse.ok) throw new Error('상품을 불러올 수 없습니다');
-      const [nextCategories, nextProducts] = await Promise.all([categoryResponse.json(), productResponse.json()]);
-      if (!Array.isArray(nextCategories) || !Array.isArray(nextProducts)) throw new Error('상품을 불러올 수 없습니다');
+      fetch(`${apiOrigin}/catalog/sellers`, { signal: controller.signal }),
+    ]).then(async ([categoryResponse, sellerResponse]) => {
+      if (!categoryResponse.ok || !sellerResponse.ok) throw new Error('상품을 불러올 수 없습니다');
+      const [nextCategories, nextSellers] = await Promise.all([categoryResponse.json(), sellerResponse.json()]);
+      if (!Array.isArray(nextCategories) || !Array.isArray(nextSellers)) throw new Error('상품을 불러올 수 없습니다');
       setCategories(nextCategories);
-      setProducts(nextProducts);
+      setSellers(nextSellers);
       setError(undefined);
     }).catch(() => { if (!controller.signal.aborted) setError('상품을 불러올 수 없습니다'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, []);
 
-  return <HomeCatalogView categories={categories} products={products} loading={loading} error={error} />;
+  return <HomeCatalogView categories={categories} sellers={sellers} loading={loading} error={error} />;
 }

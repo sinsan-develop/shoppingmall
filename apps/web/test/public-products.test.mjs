@@ -24,12 +24,12 @@ test('approved Flat v2 home hero leads to live catalog and story with labeled ph
   assert.match(html, /서비스 구축 중입니다/);
 });
 
-test('home menu links reach a real catalog or an existing home section', () => {
+test('home keeps fixed catalog navigation while unpublished additional links stay hidden', () => {
   const html = renderToStaticMarkup(createElement(HomePage));
   assert.match(html, /href="\/"[^>]*>홈<\/a>/);
   assert.match(html, /href="\/products"[^>]*>제철 농산물<\/a>/);
-  assert.match(html, /href="\/#events-title"[^>]*>기획전<\/a>/);
-  assert.match(html, /href="\/#seller-story-title"[^>]*>판매자 이야기<\/a>/);
+  assert.doesNotMatch(html, /href="\/#events-title"[^>]*>기획전<\/a>/);
+  assert.match(html, /id="events-title"/);
   const source = readFileSync(new URL('../app/home-catalog.tsx', import.meta.url), 'utf8');
   assert.match(source, /id="seller-story-title"/);
 });
@@ -118,7 +118,9 @@ test('approved product detail shows option price and sold-out status without pri
   for (const phrase of ['햇고추', '어울 농가', '경남 진주', '판매자 직접 발송', '500g', '23,000원', '1kg', '품절']) {
     assert.match(html, new RegExp(phrase));
   }
-  assert.doesNotMatch(html, /objectKey|quarantine\/|장바구니에 담기/);
+  assert.doesNotMatch(html, /objectKey|quarantine\//);
+  assert.match(html, /장바구니에 담기/);
+  assert.match(html, /주문·결제는 준비 중/);
 });
 
 test('approved sale stop is explained as a stop rather than ordinary sold-out stock', () => {

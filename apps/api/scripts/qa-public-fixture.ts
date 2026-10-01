@@ -84,6 +84,9 @@ async function resetPublicProduct(client: PoolClient, runId: string) {
     [names.sellerA, product.minor],
   );
   for (const row of target.rows) {
+    await client.query(`DELETE FROM customer_cart_items WHERE option_id IN
+      (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)`, [row.id]);
+    await client.query('DELETE FROM restock_subscriptions WHERE product_id=$1', [row.id]);
     await client.query('DELETE FROM customer_favorites WHERE product_id=$1', [row.id]);
     await client.query('DELETE FROM product_sale_stop_requests WHERE product_id=$1', [row.id]);
     await client.query('DELETE FROM product_publications WHERE product_id=$1', [row.id]);

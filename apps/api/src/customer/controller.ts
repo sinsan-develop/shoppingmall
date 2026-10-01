@@ -56,6 +56,45 @@ export class CustomerController {
     }
   }
 
+  @Get('restock-subscriptions')
+  async listRestockSubscriptions(@Req() request: RequestHeaders) {
+    const { actor, engagement } = await this.context(request);
+    return engagement.listRestockSubscriptions(actor);
+  }
+
+  @Post('restock-subscriptions')
+  async addRestockSubscription(@Req() request: RequestHeaders, @Body() body: unknown) {
+    requireOrigin(request);
+    const { actor, engagement } = await this.context(request);
+    if (!body || typeof body !== 'object' || typeof (body as Record<string, unknown>).productId !== 'string' ||
+        typeof (body as Record<string, unknown>).optionId !== 'string') throw new BadRequestException();
+    const { productId, optionId } = body as { productId: string; optionId: string };
+    try {
+      return await engagement.addRestockSubscription(actor, productId, optionId);
+    } catch (error) {
+      if (error instanceof Error && ['Invalid product', 'Invalid option'].includes(error.message)) throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Option unavailable') throw new NotFoundException();
+      if (error instanceof Error && ['Option available', 'Product stopped', 'Restock conflict'].includes(error.message)) {
+        throw new ConflictException();
+      }
+      throw error;
+    }
+  }
+
+  @Delete('restock-subscriptions/:subscriptionId')
+  async cancelRestockSubscription(@Req() request: RequestHeaders, @Param('subscriptionId') subscriptionId: string) {
+    requireOrigin(request);
+    const { actor, engagement } = await this.context(request);
+    try {
+      return await engagement.cancelRestockSubscription(actor, subscriptionId);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid subscription') throw new BadRequestException();
+      if (error instanceof Error && error.message === 'Subscription unavailable') throw new NotFoundException();
+      if (error instanceof Error && error.message === 'Subscription closed') throw new ConflictException();
+      throw error;
+    }
+  }
+
   @Get('addresses')
   async listAddresses(@Req() request: RequestHeaders) {
     const { actor, profile } = await this.context(request);
