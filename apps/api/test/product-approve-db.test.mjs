@@ -207,6 +207,17 @@ test('only an operator publishes a fully scanned pending product and its exact p
       assert.match(String(entry.reason), /Published option required/);
       assert.deepEqual(racedStock, { on_hand_quantity: 8, sellable_quantity: 6 });
     }
+    const removal = await drafts.createRevision(seller, productId, store);
+    await drafts.update(seller, productId, removal.revisionId, {
+      categoryId: minorId, title: '옵션 제거 제안', description: '재고 있는 500g 제거 시험', originLabel: '전국',
+      shippingMode: 'seller_direct', options: [{ name: '1kg', priceWon: 43000 }],
+    });
+    await drafts.submit(seller, productId, removal.revisionId);
+    await assert.rejects(reviews.approve(admin, removal.revisionId, store, async () => {}),
+      /Cannot remove option with stock/);
+    assert.equal((await publicProducts.get(productId)).revisionId, fourth.revisionId);
+    assert.deepEqual((await pool.query('SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1',
+      [raced.options[0].id])).rows[0], racedStock);
   } finally {
     if (app) await app.close();
     if (productId) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
