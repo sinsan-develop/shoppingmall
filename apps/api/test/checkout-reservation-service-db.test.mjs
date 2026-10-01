@@ -41,6 +41,9 @@ test('checkout reservations serialize the last unit, preserve keys and expire on
     const service = new CheckoutReservations(pool);
     const keyA = randomUUID();
     const keyB = randomUUID();
+    for (const value of [ids.accountA, ids.accountB, keyA, keyB]) {
+      assert.match(value, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    }
     const races = await Promise.allSettled([
       service.start(ids.accountA, keyA), service.start(ids.accountB, keyB),
     ]);
