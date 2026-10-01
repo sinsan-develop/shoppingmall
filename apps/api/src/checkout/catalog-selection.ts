@@ -32,7 +32,12 @@ export class CheckoutCatalog {
     }>(
       `SELECT o.id AS "optionId",p.id AS "productId",r.title,o.name AS "optionName",
               p.seller_id AS "sellerId",r.shipping_mode AS "shippingMode",
-              o.price_won AS "unitPriceWon",coalesce(i.sellable_quantity,0)::int AS "sellableQuantity"
+              o.price_won AS "unitPriceWon",
+              greatest(0,coalesce(i.sellable_quantity,0)-coalesce((
+                SELECT sum(l.quantity) FROM checkout_reservation_lines l
+                JOIN checkout_reservations h ON h.id=l.reservation_id
+                WHERE l.option_id=o.id AND h.status='ACTIVE' AND h.expires_at>clock_timestamp()
+              ),0))::int AS "sellableQuantity"
        FROM unnest($1::uuid[]) WITH ORDINALITY wanted(id,position)
        JOIN product_options o ON o.id=wanted.id
        JOIN product_revisions r ON r.id=o.revision_id AND r.status='approved'

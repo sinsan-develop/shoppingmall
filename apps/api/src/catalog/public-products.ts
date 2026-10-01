@@ -58,7 +58,11 @@ export class PublicProducts {
       id: string; name: string; priceWon: number; sellableQuantity: number;
     }>(
       `SELECT o.id,o.name,o.price_won AS "priceWon",
-              CASE WHEN $2::boolean THEN 0 ELSE coalesce(i.sellable_quantity,0)::int END AS "sellableQuantity"
+              CASE WHEN $2::boolean THEN 0 ELSE greatest(0,coalesce(i.sellable_quantity,0)-coalesce((
+                SELECT sum(l.quantity) FROM checkout_reservation_lines l
+                JOIN checkout_reservations h ON h.id=l.reservation_id
+                WHERE l.option_id=o.id AND h.status='ACTIVE' AND h.expires_at>clock_timestamp()
+              ),0))::int END AS "sellableQuantity"
        FROM product_options o LEFT JOIN inventory_levels i ON i.option_id=o.id
        WHERE o.revision_id=$1 ORDER BY o.display_order,o.id`,
       [publication.rows[0].revisionId, publication.rows[0].saleStopped],
@@ -96,7 +100,11 @@ export class PublicProducts {
        JOIN LATERAL (
          SELECT min(o.price_won)::int AS amount FROM product_options o
          JOIN inventory_levels i ON i.option_id=o.id
-         WHERE o.revision_id=r.id AND i.sellable_quantity>0
+         WHERE o.revision_id=r.id AND i.sellable_quantity>coalesce((
+           SELECT sum(l.quantity) FROM checkout_reservation_lines l
+           JOIN checkout_reservations h ON h.id=l.reservation_id
+           WHERE l.option_id=o.id AND h.status='ACTIVE' AND h.expires_at>clock_timestamp()
+         ),0)
        ) price ON price.amount IS NOT NULL
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object('id',i.id,'purpose',i.purpose,'displayOrder',i.display_order)
@@ -153,7 +161,11 @@ export class PublicProducts {
        JOIN LATERAL (
          SELECT min(o.price_won)::int AS amount FROM product_options o
          JOIN inventory_levels i ON i.option_id=o.id
-         WHERE o.revision_id=r.id AND i.sellable_quantity>0
+         WHERE o.revision_id=r.id AND i.sellable_quantity>coalesce((
+           SELECT sum(l.quantity) FROM checkout_reservation_lines l
+           JOIN checkout_reservations h ON h.id=l.reservation_id
+           WHERE l.option_id=o.id AND h.status='ACTIVE' AND h.expires_at>clock_timestamp()
+         ),0)
        ) price ON price.amount IS NOT NULL
        WHERE ${conditions.join(' AND ')}
        ORDER BY ${orderBy[sort as keyof typeof orderBy]}
