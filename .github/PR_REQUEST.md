@@ -16,10 +16,11 @@
 
 - 앞선 PR #8의 코드 변경은 로컬 제품/시안 시험 230건 중 176 pass·54 환경 skip·0 fail, PR 본문 검사 8 pass, typecheck/lint/build exit 0, 지정 WSL 동일 SHA의 Linux gate 구문·YAML·본문 검사 exit 0으로 확인했다. 54 skip은 통과로 세지 않는다.
 - 이번 후속 문서는 정확한 HEAD의 본문 검사와 diff 검사, 지정 WSL 동일 SHA 검증을 수행하고 결과를 작업현황에 남긴다.
+- 생성 전용 요청 태그로 GitHub `refs/pull/9/head`가 요청한 `e044b67878fe73e207aed2a2a63ea19ccfcf7f6e`를 가리키고 요청 태그가 원격에서 제거된 것을 SSH로 확인했다. PR 본문 갱신·열린 상태·CI 결과는 계정 없는 API에서 확인되지 않았다.
 
 ## 미검증
 
-- 새 워크플로의 실제 GitHub Actions 태그 실행과 PR 생성/본문 갱신, 원격 CI·branch protection·Actions PR 생성 권한은 실제 요청 결과를 확인하기 전까지 미검증이다. `GITHUB_TOKEN` 생성 PR의 `pull_request` CI는 승인 대기일 수 있어 브랜치 push CI와 PR 체크를 별도로 확인한다.
+- GitHub `refs/pull/9/head`와 태그 정리는 확인했다. 그러나 PR의 열린 상태·본문 갱신·원격 CI·branch protection·Actions 화면 결과는 계정 없는 공개 API가 404를 반환해 미검증이다. `GITHUB_TOKEN` 생성 PR의 `pull_request` CI는 승인 대기일 수 있어 브랜치 push CI와 PR 체크를 별도로 확인한다.
 - 이번 변경은 제품 기능이나 WSL DB·Oracle staging·사용자 인수의 통과 증거가 아니다.
 
 ## 롤백

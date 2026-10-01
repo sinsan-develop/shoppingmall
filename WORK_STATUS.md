@@ -6,6 +6,7 @@
 - 후속 범위: 기존 `codex/pr-create-only`와 지정 worktree를 유지해 원격 `main`을 병합했고, `254a182`에서 작업을 이어간다. 앞선 WSL 검증 기록을 원격/로컬에 일치시키고 PR 본문·환경 문서의 오래된 bootstrap 문구를 고친다. 기존 자동화·제품 코드·DB는 수정하지 않는다.
 - 다음: 정확한 HEAD에서 로컬 검사와 지정 WSL 동일 SHA 검사 후 `pr-create/**`만 요청하여 실제 열린 PR·HEAD·CI를 확인한다. `pr-request/**` 자동 병합 태그는 사용하지 않는다. 생성 결과를 관찰하기 전까지 GitHub Actions 실행·PR 상태·원격 CI는 미검증이다.
 - 후속 문서 로컬 검증: PR 본문 validator exit 0, 본문 시험 8 pass/0 fail, 제품/시안 시험 230건 중 176 pass·54 DB/환경 skip·0 fail, typecheck/lint/build exit 0. 54 skip을 실DB 통과로 계산하지 않는다. 정확한 후속 커밋의 WSL·원격 Actions 결과는 아직 확인 전이다.
+- WSL/실제 생성 요청: 문서 커밋 `e044b67878fe73e207aed2a2a63ea19ccfcf7f6e`를 SSH push하고 지정 WSL checkout에서 동일 SHA fast-forward/clean, Linux gate `bash -n`, 양쪽 workflow YAML 파싱, PR 본문 validator, `git diff --check` exit 0. 현재 `main@2bad168a03b95a9ce9a43cafc76b54318a038dbe`에만 `pr-create/e044b67878fe73e207aed2a2a63ea19ccfcf7f6e/codex/pr-create-only` 태그를 push했다. SSH 원격은 `refs/pull/9/head=e044b67`을 노출하고 요청 태그는 이미 제거했다. 이는 생성·정리 증거이나 PR 열린 상태·본문·Actions/CI 결과까지 증명하지 않는다. 계정 없는 공개 GitHub API는 404, 웹 도구는 cache miss였으며 계정·PAT·로컬 gh auth를 사용하지 않았다. `pr-request/**` 태그·직접 main push는 없었다.
 
 ## 진행 중 — 2026-10-02 SSH 요청 태그의 PR 생성 전용 경로
 
