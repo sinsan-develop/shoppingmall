@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-02 S3.1 예약 Task 3 판매자 재고 0
+
+- 담당/기준: 어울 단일 writer, `codex/s31-checkout-reservation-plan@75a53b030d9a04a942e249ba1290855646916d88` 로컬/원격/WSL clean. 기존 Task 2의 격리 DB 전체 회귀 17건은 기존 fixture의 `shoppingmall` DB 이름 제한으로 미충족이며 안전 guard를 변경하지 않는다. PMO의 독립 작업 계속 원칙에 따라 Task 3 RED/GREEN을 격리 진행하되 Task 2 전체 gate나 S3 완료로 승격하지 않는다.
+- 사전 QA 자원 계획: 지정 WSL `local-postgres`에 **`shoppingmall_s31_reservation_stock_1002`** 격리 DB를 Task 3 동안만 만들고 0000~0010 migration을 적용한다. Node 24 일회용 컨테이너 **`shoppingmall-s31-reservation-stock-1002`**는 `--rm` 사용. 이 DB에만 QA 판매자/고객/상품/예약을 만들어 재고 0 즉시 차단·보류 목표·종료 후 0·양수 감소 거부를 시험한다. 종료 시 QA 행 0과 정확한 DB/컨테이너 부재 확인. 공유 `shoppingmall` DB는 읽기 전용, Oracle/외부 결제/타 프로젝트 자원 미접촉.
+- 다음: 새 실DB 실패 시험을 먼저 작성·push하고 지정 WSL checkout exact SHA에서 예상 RED 확인.
+
 ## 구현 착수 — 2026-10-02 S3.1 15분 예약 Task 1
 
 - 담당/권한: 어울 단일 writer, 기존 `codex/s31-checkout-reservation-plan@325d3b4d544e2478ee97df354027d25862e4327b`. 신산님은 상세 계획과 새 공개 API 4개·예약 관계 3개·`0010` migration의 **구현/격리 시험 범위**를 승인했다. 공유 `WSL-server/local-postgres/shoppingmall` 실제 적용·Oracle·외부 결제는 승인 범위 밖이다.
