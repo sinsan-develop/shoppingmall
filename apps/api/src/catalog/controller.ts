@@ -413,6 +413,9 @@ export class CatalogController {
       if (error instanceof Error && ['Invalid stock', 'Invalid stock target'].includes(error.message)) {
         throw new BadRequestException({ status: 'invalid_stock', reason: error.message });
       }
+      if (error instanceof Error && error.message === 'Active reservation stock conflict') {
+        throw new ConflictException({ status: 'active_reservation_stock_conflict', reason: error.message });
+      }
       if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
       throw error;
     }
