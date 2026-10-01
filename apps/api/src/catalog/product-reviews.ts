@@ -68,11 +68,16 @@ export class ProductReviews {
         if (newStock.rowCount) throw new Error('Revision stock must start empty');
         for (const oldOption of oldOptions.rows) {
           const replacement = newOptions.rows.find((option) => option.name === oldOption.name);
-          if (!replacement) continue;
           const stock = await client.query<{ on_hand_quantity: number; sellable_quantity: number }>(
             'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1 FOR UPDATE',
             [oldOption.id],
           );
+          if (!replacement) {
+            if (stock.rows[0] && (stock.rows[0].on_hand_quantity > 0 || stock.rows[0].sellable_quantity > 0)) {
+              throw new Error('Cannot remove option with stock');
+            }
+            continue;
+          }
           if (stock.rows[0]) {
             await client.query(
               `INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity)

@@ -218,6 +218,13 @@ test('only an operator publishes a fully scanned pending product and its exact p
     assert.equal((await publicProducts.get(productId)).revisionId, fourth.revisionId);
     assert.deepEqual((await pool.query('SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1',
       [raced.options[0].id])).rows[0], racedStock);
+    await inventory.setStock(seller, raced.options[0].id, 0);
+    await reviews.approve(admin, removal.revisionId, store, async () => {});
+    const withoutStockedOption = await publicProducts.get(productId);
+    assert.equal(withoutStockedOption.revisionId, removal.revisionId);
+    assert.deepEqual(withoutStockedOption.options.map((option) => option.name), ['1kg']);
+    assert.deepEqual((await pool.query('SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1',
+      [raced.options[0].id])).rows[0], { on_hand_quantity: 0, sellable_quantity: 0 });
   } finally {
     if (app) await app.close();
     if (productId) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [productId]);
