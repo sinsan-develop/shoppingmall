@@ -12,16 +12,26 @@ export class InventoryService {
     const result = await this.pool.query<{
       optionId: string; productId: string; title: string; optionName: string;
       onHand: number; sellable: number; pendingRequestId: string | null;
+      activeReservationQuantity: number; deferredZeroPending: boolean;
     }>(
       `SELECT o.id AS "optionId",p.id AS "productId",r.title,o.name AS "optionName",
               coalesce(i.on_hand_quantity,0) AS "onHand",
               coalesce(i.sellable_quantity,0) AS sellable,
-              q.id AS "pendingRequestId"
+              q.id AS "pendingRequestId",
+              coalesce(held.quantity,0)::int AS "activeReservationQuantity",
+              deferred.id IS NOT NULL AS "deferredZeroPending"
        FROM product_options o JOIN product_revisions r ON r.id=o.revision_id
        JOIN products p ON p.id=r.product_id
        LEFT JOIN product_publications pub ON pub.product_id=p.id
        LEFT JOIN inventory_levels i ON i.option_id=o.id
        LEFT JOIN stock_change_requests q ON q.option_id=o.id AND q.status='pending'
+       LEFT JOIN LATERAL (
+         SELECT sum(l.quantity) AS quantity FROM checkout_reservation_lines l
+         JOIN checkout_reservations h ON h.id=l.reservation_id
+         WHERE l.option_id=o.id AND h.status='ACTIVE' AND h.expires_at>clock_timestamp()
+       ) held ON true
+       LEFT JOIN inventory_deferred_stock_targets deferred
+         ON deferred.option_id=o.id AND deferred.status='pending'
        WHERE p.seller_id=$1 AND r.status <> 'rejected'
          AND (pub.revision_id=r.id OR (pub.product_id IS NULL AND r.version=1))
        ORDER BY r.title,o.display_order,o.id LIMIT 200`, [actor.sellerId],

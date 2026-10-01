@@ -8,7 +8,8 @@ type Product = { productId: string; revisionId: string; title: string; status: s
 type SaleStopRequest = { id: string; productId: string; status: 'pending' | 'approved' | 'rejected';
   reason: string; requestedAt?: string; decisionReason?: string | null };
 type Stock = { optionId: string; productId: string; title: string; optionName: string;
-  onHand: number; sellable: number; pendingRequestId: string | null };
+  onHand: number; sellable: number; pendingRequestId: string | null;
+  activeReservationQuantity?: number; deferredZeroPending?: boolean };
 type Option = { name: string; priceWon: string };
 type DraftImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number;
   mimeType: string; sizeBytes: number };
@@ -311,12 +312,13 @@ export function SellerProductView({ categories, products, stock = [], busy, onCr
     </section>
     <section className="account-card profile-card" aria-labelledby="seller-stock-title">
       <h2 id="seller-stock-title">옵션별 재고</h2>
-      <p>수량 감소와 0개는 즉시 반영됩니다. 증가·재판매는 관리자 승인 전까지 구매 가능 수량에 반영되지 않습니다</p>
+      <p>0개 입력은 새 판매를 즉시 중단합니다. 기존 예약은 종료까지 보전하며, 증가·재판매는 관리자 승인 전까지 반영되지 않습니다</p>
       {stock.length === 0 ? <p>등록된 옵션이 없습니다</p> : <ul className="catalog-list">
         {stock.map((item) => <li key={item.optionId} className="draft-product-item">
           <strong>{item.title} · {item.optionName}</strong>
           <p>입력된 보유 {item.onHand}개 · 판매 가능 {item.sellable}개
             {item.pendingRequestId ? ' · 증가 승인 대기' : ''}</p>
+          {item.deferredZeroPending ? <p role="status">새 판매 중단 · 기존 예약 {item.activeReservationQuantity ?? 0}개 · 예약 종료 후 보유 0 적용</p> : null}
           <form className="account-form" onSubmit={(event) => {
             event.preventDefault();
             const quantity = Number(new FormData(event.currentTarget).get('quantity'));
@@ -385,6 +387,7 @@ export default function SellerProductsPage() {
         body: JSON.stringify(draft),
       });
       if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
+      if (response.status === 409) { setMessage('기존 예약 수량보다 적게 입력할 수 없습니다. 예약을 확인한 뒤 다시 입력해 주세요'); return; }
       if (!response.ok) { setMessage('초안을 저장하지 못했습니다. 입력값을 확인해 주세요'); return; }
       await reload();
       setMessage('초안을 저장했습니다. 아직 고객에게 공개되지 않습니다');
