@@ -14,7 +14,7 @@ function translateCartError(error: unknown): never {
     if (['Invalid cart selection', 'Invalid account', 'Cart option limit exceeded'].includes(error.message)) {
       throw new BadRequestException();
     }
-    if (['Unavailable cart selection', 'Insufficient stock', 'Empty cart'].includes(error.message)) {
+    if (['Unavailable cart selection', 'Insufficient stock', 'Empty cart', 'Active reservation exists'].includes(error.message)) {
       throw new ConflictException();
     }
     if (error.message === 'Missing account') throw new UnauthorizedException();

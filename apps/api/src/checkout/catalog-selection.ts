@@ -1,4 +1,4 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { CartSelection } from './cart-selection.js';
 import type { ShipmentLine } from './shipment-quote.js';
 
@@ -13,7 +13,7 @@ export type ResolvedCartLine = ShipmentLine & {
 
 /** A quote read only. Checkout submission must lock and revalidate these rows. */
 export class CheckoutCatalog {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool | PoolClient) {}
 
   async resolve(selections: readonly CartSelection[]): Promise<ResolvedCartLine[]> {
     if (!Array.isArray(selections) || selections.length > 100) throw new Error('Invalid cart selection');

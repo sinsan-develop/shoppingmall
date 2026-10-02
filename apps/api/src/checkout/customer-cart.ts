@@ -52,12 +52,16 @@ export class CustomerCart {
   async set(accountId: string, optionId: string, quantity: number): Promise<void> {
     if (!validId(accountId) || !validId(optionId) || !Number.isSafeInteger(quantity) ||
         quantity < 1 || quantity > maxQuantity) throw new Error('Invalid cart selection');
-    await new CheckoutCatalog(this.pool).resolve([{ optionId, quantity }]);
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const account = await client.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE', [accountId]);
       if (account.rowCount !== 1) throw new Error('Missing account');
+      const active = await client.query(
+        `SELECT 1 FROM checkout_reservations WHERE account_id=$1 AND status='ACTIVE'
+         AND expires_at>clock_timestamp() LIMIT 1`, [accountId]);
+      if (active.rowCount) throw new Error('Active reservation exists');
+      await new CheckoutCatalog(client).resolve([{ optionId, quantity }]);
       const count = await client.query<{ count: string; exists: boolean }>(
         `SELECT count(*)::text AS count,bool_or(option_id=$2) AS exists
          FROM customer_cart_items WHERE account_id=$1`,
@@ -83,8 +87,22 @@ export class CustomerCart {
 
   async remove(accountId: string, optionId: string): Promise<void> {
     if (!validId(accountId) || !validId(optionId)) throw new Error('Invalid cart selection');
-    await this.pool.query('DELETE FROM customer_cart_items WHERE account_id=$1 AND option_id=$2',
-      [accountId, optionId]);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const account = await client.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE', [accountId]);
+      if (account.rowCount !== 1) throw new Error('Missing account');
+      const active = await client.query(
+        `SELECT 1 FROM checkout_reservations WHERE account_id=$1 AND status='ACTIVE'
+         AND expires_at>clock_timestamp() LIMIT 1`, [accountId]);
+      if (active.rowCount) throw new Error('Active reservation exists');
+      await client.query('DELETE FROM customer_cart_items WHERE account_id=$1 AND option_id=$2',
+        [accountId, optionId]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
   }
 
   async quote(accountId: string) {
