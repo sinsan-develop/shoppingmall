@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.1 예약 Task 7 격리 전체 회귀
+
+- 담당 어울, 기존 단일 작업 브랜치 `codex/s31-checkout-reservation-plan` / D: 격리 worktree. 현 WSL·원격 SHA `72bbbb5a8c8c4c524e026504f741f7bab98b24e7`, Windows 작업 트리에서 제품 코드는 추가 수정하지 않았다. 지정 공유 `local-postgres/shoppingmall` 0010은 미적용이며 정식 WSL 통합·UAT는 미검증.
+- Task 6 실브라우저: 격리 DB `shoppingmall_s31_reservation_ui_1002`에서 구매자 예약 46,000원+배송 3,000원, 새로고침 복구·해제·품절 제거, 운영자 사유 취소의 구매자 표시, DB 시각 만료의 재견적, 판매자 재고 0 입력의 기존 예약 2개 보전/종료 후 0을 확인했다. 두 구매자 2개/4개 경쟁에서 첫 예약 중 두 번째 견적 거부, 첫 예약 만료 뒤 두 번째 예약 성공·92,000원 무료배송을 실제 화면에서 확인했다. 430/1440/1920px에서 가로 넘침 없음, 키보드 Enter 재견적 동작 확인. 실제 200% 확대는 계획대로 UAT-03 미검증. 결제·주문/UAT 완료 주장 아님.
+- Task 6 QA 정리: 고유 `QA_RUN_ID=3c2b7a91`의 가상 계정·상품·장바구니·예약·예약품목·대기목표·감사·세션 등 9범주 `0|0|0|0|0|0|0|0|0`. `shoppingmall-s31-reservation-ui-api-1002`/`-web-1002` 자동제거, 전용 DB 정확히 drop 후 목록 부재, 공유 `shoppingmall` 보존, Windows 9091/9092 listener 부재. 삭제 자료는 재생성 가능한 격리 QA뿐. 초기 host-network DB 인증 실패 1회는 local-postgres 네트워크 공유로 수정했고, 잘못 지정한 Git remote 이름 push 실패 1회는 `origin` URL이 승인 SSH alias임을 확인한 뒤 정상 push했다. 동일 원인 3회 연속 없음.
+- Task 7 로컬 4 gate: 현재 SHA `72bbbb5`의 `pnpm test` 241건/182 pass/59 DB·환경 skip/0 fail, PR 본문 8 pass, typecheck/lint/build exit 0. skip을 DB PASS로 간주하지 않는다.
+- Task 7 자체 QA 자원 계획: WSL 지정 checkout exact SHA에서 기존 로컬 이미지 `pgvector/pgvector:0.8.2-pg15`로 이름 `shoppingmall-s31-full-postgres-1003`인 **일회용** PostgreSQL 컨테이너를 만든다. DB 이름만 fixture 가드용 `shoppingmall`이며 지정 공유 `local-postgres`와 다른 컨테이너다. 외부 포트/영속 볼륨은 만들지 않고 별도 시험 암호를 사용한다. Node24 일회용 컨테이너 `shoppingmall-s31-full-node-1003`가 해당 컨테이너의 network namespace로 접속해 0000~0010 migration·전체 suite를 순차 실행한다. 완료/실패 시 QA 행·두 컨테이너를 확인하고 정확한 두 자원만 제거한다. 이는 자체 QA 회귀이며 공유 DB 0010 적용 승인이나 정식 WSL 통합·E2E 증거를 대체하지 않는다.
+- 다음: 격리 전체 회귀, 공유 DB 읽기 전용 0010 dry-run/checksum·기존 행 수, 독립 리뷰·PR 본문/환경 문서 보강. 이후 별도 승인 경계는 공유 `shoppingmall`의 0010 적용과 Oracle staging이다.
+
 ## 진행 중 — 2026-10-02 S3.1 예약 Task 6 Flat v2 화면
 
 - 담당 어울, 기존 `codex/s31-checkout-reservation-plan` 격리 worktree. Task 5 완료 후보까지 공용 DB 0010은 미적용이고 전체 WSL suite·UAT는 미검증.
