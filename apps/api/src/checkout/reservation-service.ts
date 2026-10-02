@@ -9,6 +9,7 @@ export type ReservationView = {
   id: string;
   status: ReservationStatus;
   expiresAt: Date;
+  endReason: string | null;
   lines: { optionId: string; quantity: number }[];
 };
 
@@ -17,6 +18,7 @@ type ReservationRow = {
   account_id: string;
   status: ReservationStatus;
   expires_at: Date;
+  end_reason: string | null;
 };
 
 /** A stock hold, not a payment, price lock or accepted order. */
@@ -48,7 +50,8 @@ export class CheckoutReservations {
       `SELECT option_id AS "optionId",quantity FROM checkout_reservation_lines
        WHERE reservation_id=$1 ORDER BY option_id`, [row.id],
     );
-    return { id: row.id, status: row.status, expiresAt: row.expires_at, lines: lines.rows };
+    return { id: row.id, status: row.status, expiresAt: row.expires_at,
+      endReason: row.end_reason, lines: lines.rows };
   }
 
   /** Every stock-affecting path takes product, option, then inventory locks in ascending ID order. */
@@ -71,7 +74,8 @@ export class CheckoutReservations {
   }
 
   private async terminate(client: PoolClient, row: ReservationRow,
-    status: 'EXPIRED' | 'RELEASED' | 'CANCELLED', reason?: string): Promise<ReservationRow> {
+    status: 'EXPIRED' | 'RELEASED' | 'CANCELLED', reason?: string,
+    actorAccountId = row.account_id, activeRole: 'customer' | 'admin' = 'customer'): Promise<ReservationRow> {
     if (row.status !== 'ACTIVE') return row;
     const lines = await client.query<{ option_id: string }>(
       'SELECT option_id FROM checkout_reservation_lines WHERE reservation_id=$1 ORDER BY option_id', [row.id],
@@ -99,8 +103,8 @@ export class CheckoutReservations {
     }
     await client.query(
       `INSERT INTO audit_events(actor_account_id,active_role,action,target_type,target_id,details)
-       VALUES ($1,'customer',$2,'checkout_reservation',$3,$4::jsonb)`,
-      [row.account_id, `checkout_reservation_${status.toLowerCase()}`, row.id,
+       VALUES ($1,$2,$3,'checkout_reservation',$4,$5::jsonb)`,
+      [actorAccountId, activeRole, `checkout_reservation_${status.toLowerCase()}`, row.id,
         JSON.stringify(reason ? { reason } : {})],
     );
     return updated.rows[0];
@@ -203,6 +207,31 @@ export class CheckoutReservations {
       const row = await this.expireIfDue(client, found.rows[0]);
       return this.view(client, row.status === 'ACTIVE' ?
         await this.terminate(client, row, 'RELEASED') : row);
+    });
+  }
+
+  /** Operator exception: the stock hold ends once, with the operator's reason and audit actor. */
+  async cancel(actorAccountId: string, id: string, reason: string): Promise<ReservationView | null> {
+    if (!uuid.test(actorAccountId) || !uuid.test(id)) throw new Error('Invalid reservation request');
+    if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 500) {
+      throw new Error('Cancel reason required');
+    }
+    return this.transaction(async (client) => {
+      await this.lockAccount(client, actorAccountId);
+      const found = await client.query<ReservationRow>(
+        'SELECT * FROM checkout_reservations WHERE id=$1', [id]);
+      if (!found.rowCount) return null;
+      const lines = await client.query<{ option_id: string }>(
+        'SELECT option_id FROM checkout_reservation_lines WHERE reservation_id=$1 ORDER BY option_id', [id]);
+      await this.lockOptions(client, lines.rows.map((line) => line.option_id));
+      const current = await client.query<ReservationRow>(
+        'SELECT * FROM checkout_reservations WHERE id=$1 FOR UPDATE', [id]);
+      if (current.rows[0].status !== 'ACTIVE') return this.view(client, current.rows[0]);
+      const valid = await client.query<{ valid: boolean }>(
+        'SELECT $1::timestamptz>clock_timestamp() AS valid', [current.rows[0].expires_at]);
+      if (!valid.rows[0].valid) throw new Error('Reservation unavailable');
+      return this.view(client, await this.terminate(
+        client, current.rows[0], 'CANCELLED', reason.trim(), actorAccountId, 'admin'));
     });
   }
 
