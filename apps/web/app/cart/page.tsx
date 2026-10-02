@@ -14,7 +14,7 @@ type ViewProps = { items: CartItem[]; quote?: Quote; edits: Record<string, numbe
   busy: string; message: string; loading: boolean; onEdit: (id: string, quantity: number) => void;
   onSave: (id: string) => void; onRemove: (id: string) => void;
   reservation?: Reservation; nowMs?: number; onReserve?: () => void; onRelease?: () => void;
-  onRecheck?: () => void };
+  onRecheck?: () => void; retryAvailable?: boolean };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -56,7 +56,7 @@ export function createRefreshGate() {
 }
 
 export function CartView({ items, quote, edits, busy, message, loading, onEdit, onSave, onRemove,
-  reservation, nowMs, onReserve, onRelease, onRecheck }: ViewProps) {
+  reservation, nowMs, onReserve, onRelease, onRecheck, retryAvailable }: ViewProps) {
   const active = reservation?.status === 'ACTIVE';
   const seconds = active ? Math.max(0, Math.ceil((Date.parse(reservation.expiresAt) -
     (nowMs ?? Date.now())) / 1000)) : 0;
@@ -110,8 +110,8 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
           </li>)}</ul>
           <p>상품 {won(shownQuote.goodsWon)} + 배송비 {won(shownQuote.shippingWon)} = <strong>총 {won(shownQuote.totalWon)}</strong></p>
         </section> : <p role="status">현재 상품·재고를 확인해야 금액을 안내할 수 있습니다</p>}
-        {!active && shownQuote && onReserve ? <button type="button" className="primary-button" disabled={!!busy}
-          onClick={onReserve}>결제 준비 · 15분 재고 예약</button> : null}
+        {!active && (shownQuote || retryAvailable) && onReserve ? <button type="button" className="primary-button" disabled={!!busy}
+          onClick={onReserve}>{retryAvailable ? '이전 예약 결과 다시 확인' : '결제 준비 · 15분 재고 예약'}</button> : null}
         <p className="section-note">결제 기능은 준비 중입니다. 이 금액은 주문·결제 확정 금액이 아닙니다.</p>
       </>}
   </main>;
@@ -125,6 +125,7 @@ export default function CartPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [reservation, setReservation] = useState<Reservation>();
+  const [retryAvailable, setRetryAvailable] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const refreshGate = useRef<ReturnType<typeof createRefreshGate> | null>(null);
   if (refreshGate.current === null) refreshGate.current = createRefreshGate();
@@ -140,6 +141,8 @@ export default function CartPage() {
     if (!isCurrent()) return;
     setItems(cartItems);
     setEdits(Object.fromEntries(cartItems.map((item) => [item.optionId, item.quantity])));
+    const hasRetryKey = !!window.sessionStorage.getItem(requestStorageKey);
+    setRetryAvailable(hasRetryKey);
     const savedId = window.sessionStorage.getItem(reservationStorageKey);
     if (savedId) {
       const heldResponse = await fetch(`${apiOrigin}/customer/checkout/reservations/${encodeURIComponent(savedId)}`,
@@ -155,9 +158,11 @@ export default function CartPage() {
         }
         window.sessionStorage.removeItem(reservationStorageKey);
         window.sessionStorage.removeItem(requestStorageKey);
+        setRetryAvailable(false);
       } else if (heldResponse.status === 404) {
         window.sessionStorage.removeItem(reservationStorageKey);
         window.sessionStorage.removeItem(requestStorageKey);
+        setRetryAvailable(false);
         setReservation(undefined);
       } else if (heldResponse.status === 401 || heldResponse.status === 403) {
         throw new Error('구매자 역할로 로그인한 뒤 예약을 확인해 주세요');
@@ -169,7 +174,8 @@ export default function CartPage() {
     if (!isCurrent()) return;
     if (quoted.status === 409) {
       setQuote(undefined);
-      setMessage('품절·판매중지 또는 상품 변경으로 재견적할 수 없습니다. 해당 항목을 확인해 주세요');
+      setMessage(hasRetryKey ? '이전 예약 결과를 다시 확인하거나 상품·재고 상태를 확인해 주세요' :
+        '품절·판매중지 또는 상품 변경으로 재견적할 수 없습니다. 해당 항목을 확인해 주세요');
     } else if (!quoted.ok) {
       setQuote(undefined);
       setMessage('현재 금액을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요');
@@ -207,15 +213,18 @@ export default function CartPage() {
     try {
       const result = await startReservationRequest(apiOrigin, window.sessionStorage);
       if (result.kind === 'conflict') {
+        setRetryAvailable(true);
         setMessage('재고·상품 상태 또는 다른 예약을 확인해 주세요. 같은 버튼으로 예약 결과를 다시 확인할 수 있습니다');
         return;
       }
       const held = result.reservation;
+      setRetryAvailable(false);
       setReservation(held);
       if (result.kind === 'active') {
         setNowMs(Date.now()); setQuote(held.quote);
       }
     } catch (error) {
+      setRetryAvailable(!!window.sessionStorage.getItem(requestStorageKey));
       setMessage(error instanceof Error ? error.message : '예약 결과를 확인하지 못했습니다');
     } finally { setBusy(''); }
   }
@@ -230,6 +239,7 @@ export default function CartPage() {
       if (!response.ok) throw new Error('예약을 해제하지 못했습니다. 서버 상태를 다시 확인해 주세요');
       window.sessionStorage.removeItem(reservationStorageKey);
       window.sessionStorage.removeItem(requestStorageKey);
+      setRetryAvailable(false);
       setReservation(await response.json() as Reservation);
       await refresh();
     } catch (error) {
@@ -266,7 +276,8 @@ export default function CartPage() {
   }
 
   return <CartView items={items} quote={quote} edits={edits} busy={busy} message={message} loading={loading}
-    reservation={reservation} nowMs={nowMs} onReserve={() => void reserve()} onRelease={() => void release()}
+    reservation={reservation} retryAvailable={retryAvailable} nowMs={nowMs}
+    onReserve={() => void reserve()} onRelease={() => void release()}
     onRecheck={() => { setReservation(undefined); void refresh().catch(() =>
       setMessage('상품과 금액을 다시 확인하지 못했습니다')); }}
     onEdit={(id, quantity) => setEdits((old) => ({ ...old, [id]: quantity }))}

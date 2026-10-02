@@ -71,8 +71,11 @@ try {
   await send('Runtime.enable');
   await navigate('/login');
   await waitFor("document.querySelector('#login-email') && document.querySelector('#login-password')", 'login form');
+  await waitFor("Object.keys(document.querySelector('form') ?? {}).some((key) => key.startsWith('__reactProps$'))", 'login hydration');
   assert.equal(await setInput('#login-email', email), true);
   assert.equal(await setInput('#login-password', password), true);
+  await waitFor(`document.querySelector('#login-email')?.value === ${JSON.stringify(email)} &&
+    document.querySelector('#login-password')?.value === ${JSON.stringify(password)}`, 'login fields');
   await evaluate("document.querySelector('form').requestSubmit(); true");
   try {
     await waitFor("location.pathname === '/account'", 'customer login');
@@ -129,16 +132,23 @@ try {
     assert.match(hidden.key, /^[0-9a-f-]{36}$/i);
     assert.equal(hidden.storedId, null);
     await navigate('/cart');
-    await waitFor("document.body.innerText.includes('15분 재고 예약')", 'cart reload after hidden success');
+    await waitFor("document.body.innerText.includes('이전 예약 결과 다시 확인')", 'cart reload after hidden success');
     assert.equal(await evaluate("sessionStorage.getItem('owool-checkout-reservation-key')"), hidden.key);
-    await evaluate("[...document.querySelectorAll('button')].find((button) => button.textContent.includes('15분 재고 예약')).click(); true");
+    await evaluate("[...document.querySelectorAll('button')].find((button) => button.textContent.includes('이전 예약 결과 다시 확인')).click(); true");
     await waitFor("document.body.innerText.includes('예약 번호') && sessionStorage.getItem('owool-checkout-reservation-id')", 'same-key reservation recovery');
-    const recovered = await evaluate(`({ id: sessionStorage.getItem('owool-checkout-reservation-id'),
-      key: sessionStorage.getItem('owool-checkout-reservation-key'),
-      expiresAt: document.querySelector('[aria-label="재고 예약 상태"] [role="status"]')?.textContent })`);
+    const recovered = await evaluate(`(async () => {
+      const id = sessionStorage.getItem('owool-checkout-reservation-id');
+      const response = await fetch('http://127.0.0.1:9092/customer/checkout/reservations/' + id,
+        { credentials: 'include' });
+      const view = await response.json();
+      return { id, key: sessionStorage.getItem('owool-checkout-reservation-key'),
+        expiresAt: view.expiresAt,
+        shown: !!document.querySelector('[aria-label="재고 예약 상태"] [role="status"]') };
+    })()`);
     assert.equal(recovered.id, hidden.id);
     assert.equal(recovered.key, hidden.key);
-    assert.ok(recovered.expiresAt?.includes(new Date(hidden.expiresAt).toLocaleString('ko-KR')));
+    assert.equal(recovered.expiresAt, hidden.expiresAt);
+    assert.equal(recovered.shown, true);
     await evaluate("[...document.querySelectorAll('button')].find((button) => button.textContent.includes('예약 해제')).click(); true");
     await waitFor("!sessionStorage.getItem('owool-checkout-reservation-id') && !sessionStorage.getItem('owool-checkout-reservation-key')", 'reservation release');
     console.info('browser: hidden committed POST, reload, same-key ID recovery, unchanged expiry and release PASS');

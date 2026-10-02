@@ -23,6 +23,14 @@ test('cart starts an explicit 15-minute stock hold without claiming payment', ()
   assert.doesNotMatch(html, /주문 완료/);
 });
 
+test('a reloaded cart can retry the saved key even when its own hold makes a fresh quote conflict', () => {
+  const html = renderToStaticMarkup(createElement(CartView, {
+    ...base, quote: undefined, retryAvailable: true,
+  }));
+  assert.match(html, /이전 예약 결과 다시 확인/);
+  assert.doesNotMatch(html, /결제 준비 · 15분 재고 예약/);
+});
+
 test('active hold shows server expiry and current quote while cart edits are disabled', () => {
   const reservation = { id: 'hold-1', status: 'ACTIVE', expiresAt: '2026-10-02T00:15:00Z',
     endReason: null, lines: [{ optionId: 'o1', quantity: 2 }], quote };
