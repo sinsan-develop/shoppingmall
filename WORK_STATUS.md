@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-02 S3.1 예약 Task 4 상품·카트·재견적
+
+- 담당 어울, 기존 `codex/s31-checkout-reservation-plan` 격리 worktree에서 계속. Task 1~3 checkpoint는 유지하며 Task 2 전체 WSL gate 미충족과 공용 DB 0010 미적용을 PASS로 간주하지 않는다.
+- QA 자원 계획: WSL `local-postgres`의 정확한 격리 DB `shoppingmall_s31_reservation_product_1002`와 `--rm` Node24 컨테이너 `shoppingmall-s31-reservation-product-1002`를 Task 4 RED/GREEN 실DB 검증 기간에만 사용한다. QA 계정·상품·예약은 해당 DB에서만 생성하고 사후 행 및 정확한 DB/컨테이너 부재를 확인한다. 공용 `shoppingmall`은 읽기 전용.
+- 다음: Task 4의 예약 중 카트 변경·현재 견적·상품 승인·판매중지 시험을 먼저 추가하고 예상 RED를 확인한다.
+
 ## 진행 중 — 2026-10-02 S3.1 예약 Task 3 판매자 재고 0
 
 - 담당/기준: 어울 단일 writer, `codex/s31-checkout-reservation-plan@75a53b030d9a04a942e249ba1290855646916d88` 로컬/원격/WSL clean. 기존 Task 2의 격리 DB 전체 회귀 17건은 기존 fixture의 `shoppingmall` DB 이름 제한으로 미충족이며 안전 guard를 변경하지 않는다. PMO의 독립 작업 계속 원칙에 따라 Task 3 RED/GREEN을 격리 진행하되 Task 2 전체 gate나 S3 완료로 승격하지 않는다.
