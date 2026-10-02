@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-02 S3.1 예약 Task 6 Flat v2 화면
+
+- 담당 어울, 기존 `codex/s31-checkout-reservation-plan` 격리 worktree. Task 5 완료 후보까지 공용 DB 0010은 미적용이고 전체 WSL suite·UAT는 미검증.
+- 화면 RED/GREEN: `checkout-reservation-screen.test.mjs` 3건은 시작 버튼·15분 안내·예약 중 편집 차단/종료 재견적 부재로 RED 3 fail/0 skip; 기존 장바구니 Flat v2 구조에 별도 서버 예약 상태와 표시용 초시계·해제 버튼을 연결해 3 pass. 운영자 사유 취소 UI는 export 부재 RED 1 fail 후 현재 4 pass. 판매자 화면의 예약 중 재고 0/기존 보유/보류 적용 표시는 앞 Task 3 구현을 유지했다. 현재 로컬 `pnpm test` 241/182 pass/59 DB·환경 skip/0 fail, PR 본문 8 pass, typecheck/lint/build exit 0. 실제 브라우저는 아직 미검증.
+- 실제 브라우저 QA 예정 자원: 지정 WSL `local-postgres`에 정확한 격리 DB `shoppingmall_s31_reservation_ui_1002`, `--rm` API/Web Node24 컨테이너 `shoppingmall-s31-reservation-ui-api-1002`/`shoppingmall-s31-reservation-ui-web-1002`, loopback 9092/9091 포트와 필요한 경우 Windows SSH 로컬 터널만 Task 6 시험 동안 사용한다. 가상 고객·판매자·관리자 각 1계정/상품/예약을 `QA_RUN_ID` 8자리로 식별해 만들고, 시험 전 DB·컨테이너·포트 점유를 확인한다. 종료 시 해당 QA 자료 0, 정확한 자원만 제거·부재 확인. 공용 `shoppingmall` DB·다른 프로젝트 자원은 보존한다.
+- 다음: 화면 변경 안전 commit/push→WSL exact SHA, 격리 DB fixture/실제 브라우저 430/1440/1920px·키보드·예약/만료/관리자 취소를 확인. 200% 확대는 별도 UAT-03 미검증으로 둔다.
+
 ## 진행 중 — 2026-10-02 S3.1 예약 Task 5 완료 후보 / 다음 Task 6
 
 - 담당 어울, 기존 `codex/s31-checkout-reservation-plan` 단일 writer. Task 4 구현 checkpoint는 `d3b9d8b26b8fc722934bbef1eff9cc9e76189060` 로컬/SSH 원격, WSL 지정 checkout은 Task 4 코드 `9e38d38` clean이며 다음 시험 전 fast-forward한다. Task 2 전체 gate·공용 DB 0010 미적용은 그대로 미충족.
