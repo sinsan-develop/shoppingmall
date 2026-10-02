@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.1 리뷰 후 최신 SHA 격리 전체 회귀
+
+- 담당 어울, 기존 단일 writer `codex/s31-checkout-reservation-plan@a96ef42985feb697b3729bec950f4a1e8b103d93`. 로컬·WSL 지정 checkout clean/동일 SHA를 확인했다. 공유 `local-postgres/shoppingmall`의 0010은 여전히 미적용이다. 이전 전체 실DB suite는 UI 리뷰 보정 전 `4bb5234` 증거이므로 현재 SHA의 PASS로 합치지 않는다.
+- 사전 QA 자원 계획: WSL 지정 checkout `/home/daon/deploy/shopping`의 기존 로컬 이미지와 설치된 의존성을 사용해 `shoppingmall-s31-final-postgres-1003`(일회용 PostgreSQL, 컨테이너 내부 DB명 `shoppingmall`)과 `shoppingmall-s31-final-node-1003`(일회용 Node 24)를 만든다. 외부 포트·영속 볼륨·공유 DB 변경 없이 0000~0010 적용과 전체 순차 실DB 시험만 수행한다. 시험 암호는 실행 환경에서만 생성·전달하고 로그/Git에 저장하지 않는다. 완료·실패 즉시 정확한 두 컨테이너를 제거하고 QA 계정·상품·예약 등 행 0, 컨테이너/볼륨 잔류 0, checkout clean을 확인한다. 이 시험은 자체 격리 QA이며 정식 WSL 통합/E2E가 아니다.
+- 첫 실행 결과: 0010까지 migration 11건, Node 실DB 전체 suite 자체는 243건/236 pass/7 조건부 skip/0 fail, 종료 상태 `QA_SUITE_EXIT=0`, QA 9범주 `0|0|0|0|0|0|0|0|0`. 그러나 PowerShell→SSH 파이프의 CRLF로 마지막 Bash `exit 0\r`이 실패해 래퍼 종료 코드 1. 제품 실패로 오인하지 않으며 깨끗한 LF 전달 방식으로 재실행한다. 종료 trap 뒤 지정 두 컨테이너·이름 일치 볼륨 0, WSL checkout clean/동일 SHA를 읽기 전용 재확인했다. 같은 원인 연속 오류 1회.
+- LF 재실행: 동일 WSL SHA `a96ef42985feb697b3729bec950f4a1e8b103d93`, 격리 DB migration 11건, `node --import tsx --test --test-concurrency=1 --test-reporter=spec` 243건/236 pass/7 조건부 skip/0 fail, **바깥 셸 종료 코드 0**. QA 9범주 `0|0|0|0|0|0|0|0|0`, 전용 두 컨테이너·이름 일치 볼륨 0, checkout clean. 읽기 전용 재확인에서 공유 `local-postgres/shoppingmall` migration 이력은 10건 그대로다. 실DB 회귀는 최신 코드의 자체 격리 QA PASS이나 정식 WSL 통합/E2E 또는 리뷰 Important 해소 PASS가 아니다.
+- 독립 리뷰의 남은 Important: POST 커밋 후 견적 실패 시 ID 미전달, 다른 탭/기기에서 현재 ACTIVE 예약 복구 불가. 기존 네 공개 API 범위 내 동작을 먼저 분석했다. 새 공개 활성 예약 조회 API는 비차단 별도 승인 질문의 답변 전에는 추가하지 않는다. 공유 DB 0010 적용 역시 별도 승인 질문의 답변 전에는 수행하지 않는다.
+- 다음: 최신 SHA 격리 전체 회귀와 자원 정리 증거 기록. 승인된 계약이 확정되면 남은 리뷰 항목을 RED→GREEN으로 수정하고 동일 SHA 정식 WSL 시험·재검토 후 PR 게이트를 판단한다.
+
 ## 진행 중 — 2026-10-03 S3.1 예약 Task 7 격리 전체 회귀
 
 - 담당 어울, 기존 단일 작업 브랜치 `codex/s31-checkout-reservation-plan` / D: 격리 worktree. 현 WSL·원격 SHA `72bbbb5a8c8c4c524e026504f741f7bab98b24e7`, Windows 작업 트리에서 제품 코드는 추가 수정하지 않았다. 지정 공유 `local-postgres/shoppingmall` 0010은 미적용이며 정식 WSL 통합·UAT는 미검증.

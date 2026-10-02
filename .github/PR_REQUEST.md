@@ -16,7 +16,7 @@ S3.1의 장바구니 다음 단계인 15분 재고 예약을 구현하고, 구�
 ## 검증
 
 - Windows 리뷰 보정 후 현재 브랜치의 `pnpm test`: 243건 중 184 pass·59 DB/환경 skip·0 fail. PR 본문 validator 8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0.
-- 지정 WSL checkout의 이전 checkpoint `4bb52349d5176d2e0c0ea4f9b5df73be90a05fae`를 별도 일회용 PostgreSQL 컨테이너(DB명 `shoppingmall`, 공유 DB와 별개)에 적용: migration 11건/예약 관계 3개, 순차 전체 시험 241건 중 234 pass·7 환경 조건부 skip·0 fail. 시험 뒤 QA 계정·상품·카트·예약·감사·세션 9범주 0, 컨테이너와 익명 볼륨 제거. 리뷰 보정 코드의 WSL 재실행은 남아 있다.
+- 지정 WSL checkout의 리뷰 보정 후 정확한 SHA `a96ef42985feb697b3729bec950f4a1e8b103d93`를 별도 일회용 PostgreSQL 컨테이너(DB명 `shoppingmall`, 공유 DB와 별개)에 적용: migration 11건/예약 관계 3개, 순차 전체 시험 243건 중 236 pass·7 환경 조건부 skip·0 fail, 셸 종료 코드 0. 시험 뒤 QA 계정·상품·카트·예약·감사·세션 9범주 0, 지정 컨테이너/볼륨 제거·WSL checkout clean. 이는 자체 격리 QA이며 정식 WSL 통합/E2E가 아니다.
 - 실제 브라우저에서 가상 구매자 2명 경쟁(2개 선점 중 4개 차단→만료 후 성공), 46,000원+배송 3,000원, 92,000원 무료배송, 새로고침 복구·운영자 사유 취소·판매자 재고 0·만료 후 재견적·품절 제거를 확인했다. 430/1440/1920px 넘침 없음과 키보드 재견적 실행을 확인했다. 전용 UI DB·계정·컨테이너·포트는 정리했다.
 - 공유 DB 읽기 전용 migration preview: 기존 10건, 대기 `0010` 1건·14문장, SHA-256 `2be18dda86fb4ed32df427628ace9f9359c714d117bd3429cfd7ff81dc42267c`; 공유 계정/상품/카트 `0/0/0`, 새 관계 없음. SQL 적용 0.
 
