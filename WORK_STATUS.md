@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-02 S3.1 예약 Task 5 HTTP·만료 배치
+
+- 담당 어울, 기존 `codex/s31-checkout-reservation-plan` 단일 writer. Task 4 구현 checkpoint는 `d3b9d8b26b8fc722934bbef1eff9cc9e76189060` 로컬/SSH 원격, WSL 지정 checkout은 Task 4 코드 `9e38d38` clean이며 다음 시험 전 fast-forward한다. Task 2 전체 gate·공용 DB 0010 미적용은 그대로 미충족.
+- QA 자원 계획: WSL `local-postgres`의 새 격리 DB `shoppingmall_s31_reservation_http_1002`, `--rm` Node24 컨테이너 `shoppingmall-s31-reservation-http-1002`를 Task 5 RED/GREEN 기간에만 사용한다. HTTP 시험의 가상 고객 2/판매자/관리자·상품·예약·감사만 이 DB에 생성한다. 종료 시 QA 행 0, 정확한 DB/컨테이너 부재를 확인하며 공용 `shoppingmall`은 읽기 전용으로 보존한다.
+- 다음: 기존 세션·Origin 계약으로 예약 HTTP 404 예상 RED부터 작성하고 관리자 사유 취소·DB 시각 만료 배치를 구현한다.
+
 ## 진행 중 — 2026-10-02 S3.1 예약 Task 4 완료 후보 / 다음 Task 5
 
 - 담당 어울, 기존 `codex/s31-checkout-reservation-plan` 격리 worktree에서 계속. Task 1~3 checkpoint는 유지하며 Task 2 전체 WSL gate 미충족과 공용 DB 0010 미적용을 PASS로 간주하지 않는다.
