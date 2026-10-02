@@ -22,6 +22,30 @@ const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 const reservationStorageKey = 'owool-checkout-reservation-id';
 const requestStorageKey = 'owool-checkout-reservation-key';
 
+type ReservationStartResult = { kind: 'conflict' } |
+  { kind: 'active' | 'ended'; reservation: Reservation };
+
+export async function startReservationRequest(apiBase: string,
+  storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>,
+  send: typeof fetch = fetch): Promise<ReservationStartResult> {
+  const key = storage.getItem(requestStorageKey) ?? crypto.randomUUID();
+  storage.setItem(requestStorageKey, key);
+  const response = await send(`${apiBase}/customer/checkout/reservations`, {
+    method: 'POST', credentials: 'include', headers: { 'idempotency-key': key },
+  });
+  if (response.status === 409) return { kind: 'conflict' };
+  if (response.status === 401 || response.status === 403) throw new Error('구매자 역할로 로그인해 주세요');
+  if (!response.ok) throw new Error('예약 결과를 확인하지 못했습니다. 같은 버튼을 다시 눌러 확인해 주세요');
+  const reservation = await response.json() as Reservation;
+  if (reservation.status === 'ACTIVE') {
+    storage.setItem(reservationStorageKey, reservation.id);
+    return { kind: 'active', reservation };
+  }
+  storage.removeItem(reservationStorageKey);
+  storage.removeItem(requestStorageKey);
+  return { kind: 'ended', reservation };
+}
+
 export function createRefreshGate() {
   let generation = 0;
   return {
@@ -179,28 +203,17 @@ export default function CartPage() {
   async function reserve() {
     if (!apiOrigin || busy || reservation?.status === 'ACTIVE') return;
     refreshGate.current?.invalidate();
-    const key = window.sessionStorage.getItem(requestStorageKey) ?? crypto.randomUUID();
-    window.sessionStorage.setItem(requestStorageKey, key);
     setBusy('reservation'); setMessage('');
     try {
-      const response = await fetch(`${apiOrigin}/customer/checkout/reservations`, {
-        method: 'POST', credentials: 'include', headers: { 'idempotency-key': key },
-      });
-      if (response.status === 409) {
-        window.sessionStorage.removeItem(requestStorageKey);
-        setMessage('재고·상품 상태 또는 다른 예약을 확인해 주세요. 현재 내역을 다시 불러와 주세요');
+      const result = await startReservationRequest(apiOrigin, window.sessionStorage);
+      if (result.kind === 'conflict') {
+        setMessage('재고·상품 상태 또는 다른 예약을 확인해 주세요. 같은 버튼으로 예약 결과를 다시 확인할 수 있습니다');
         return;
       }
-      if (response.status === 401 || response.status === 403) throw new Error('구매자 역할로 로그인해 주세요');
-      if (!response.ok) throw new Error('예약 결과를 확인하지 못했습니다. 같은 버튼을 다시 눌러 확인해 주세요');
-      const held = await response.json() as Reservation;
+      const held = result.reservation;
       setReservation(held);
-      if (held.status === 'ACTIVE') {
-        window.sessionStorage.setItem(reservationStorageKey, held.id);
+      if (result.kind === 'active') {
         setNowMs(Date.now()); setQuote(held.quote);
-      } else {
-        window.sessionStorage.removeItem(reservationStorageKey);
-        window.sessionStorage.removeItem(requestStorageKey);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '예약 결과를 확인하지 못했습니다');

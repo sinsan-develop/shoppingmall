@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.1 기존 멱등키 재시도 회복 보정
+
+- 담당 어울, 단일 writer `codex/s31-checkout-reservation-plan@e57dd81720f4a039bb4a0502e561c65492360a55`, 로컬/WSL checkout clean·동일 SHA, 공유 DB migration 10건을 읽기 전용 확인. 새 branch/공개 API/DB schema/공유 DB 쓰기 없음.
+- 근거: 승인된 예약 설계의 동일 `Idempotency-Key` 재시도는 원래 예약을 되찾고 15분을 연장하지 않아야 한다. 현재 고객 장바구니 화면의 POST 409 분기가 키를 지워, 예약 DB 커밋 뒤 재견적 충돌이 나면 같은 키로 회복할 기회를 잃는다. 이 범위는 기존 공개 API의 고객측 재시도 보정이며 타 탭·기기 복구 문제 자체는 해결하지 않는다.
+- 변경 예정: `apps/web/app/cart/page.tsx`, `apps/web/test/checkout-reservation-screen.test.mjs`, 이 작업현황. 외부 시스템/Secret/DB 영향 없음. 시험은 네트워크 경계만 가짜 응답으로 두고 실제 화면 요청 함수가 409 후 같은 키를 재사용하는지 RED→GREEN, 이후 로컬 전체 4 gate와 WSL exact SHA 격리 회귀를 수행한다. WSL QA 자원이 필요하면 생성 전 이름·수명·정리를 별도 기록한다.
+- 화면 RED/GREEN: 기존 409 키 삭제 동작을 겨냥한 새 시험에서 요청 함수 부재로 1 fail을 확인하고, 실제 예약 시작 버튼이 호출하는 함수로 키 보존·동일 키 재시도·성공 시 ID 저장을 모았다. 목표 7 pass/0 fail. 로컬 `pnpm test` 244건/185 pass/59 DB·환경 skip/0 fail과 PR 본문 validator 8 pass, `pnpm typecheck`·`pnpm lint` exit 0. 첫 `pnpm build`는 제한 샌드박스의 D: 기존 `dist` 쓰기 `EPERM` 1회였고, 정확한 D: 작업 폴더 빌드만 권한 상승 실행해 동일 명령 exit 0. 제품 빌드 오류로 오인하지 않는다. 같은 원인 연속 오류 1회.
+- WSL 자체 QA 예정 자원: 지정 checkout exact SHA에서 기존 로컬 `pgvector/pgvector:0.8.2-pg15`·`node:24-bookworm-slim` 이미지로 일회용 `shoppingmall-s31-key-postgres-1003`/`shoppingmall-s31-key-node-1003` 컨테이너를 만든다. 내부 fixture DB명만 `shoppingmall`, 외부 포트·영속 볼륨·공유 DB 쓰기 없음. 0000~0010 적용·전체 순차 실DB 회귀 후 QA 9범주 행 0, 정확한 두 컨테이너·볼륨 잔류 0과 WSL clean을 확인한다. 시험 암호는 실행 중에만 생성한다. 완료·실패 즉시 제거하고 정식 WSL 통합/E2E로 승격하지 않는다.
+- 다음: 기존 409 키 삭제를 재현하는 실패 시험부터 작성한다. 새 활성 예약 조회 API와 공유 0010 적용은 앞서 요청한 별도 승인 전 미실행.
+
 ## 진행 중 — 2026-10-03 S3.1 리뷰 후 최신 SHA 격리 전체 회귀
 
 - 담당 어울, 기존 단일 writer `codex/s31-checkout-reservation-plan@a96ef42985feb697b3729bec950f4a1e8b103d93`. 로컬·WSL 지정 checkout clean/동일 SHA를 확인했다. 공유 `local-postgres/shoppingmall`의 0010은 여전히 미적용이다. 이전 전체 실DB suite는 UI 리뷰 보정 전 `4bb5234` 증거이므로 현재 SHA의 PASS로 합치지 않는다.

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -73,4 +74,34 @@ test('late cart polling responses cannot replace a newer reservation state', () 
   assert.equal(gate.isCurrent(newerPoll), true);
   gate.invalidate();
   assert.equal(gate.isCurrent(newerPoll), false);
+});
+
+test('a 409 after reservation commit preserves the idempotency key for the same-key retry', async () => {
+  const { startReservationRequest } = await import('../app/cart/page.tsx');
+  assert.equal(typeof startReservationRequest, 'function');
+  const key = randomUUID();
+  const values = new Map([['owool-checkout-reservation-key', key]]);
+  const storage = {
+    getItem: (name) => values.get(name) ?? null,
+    setItem: (name, value) => values.set(name, value),
+    removeItem: (name) => values.delete(name),
+  };
+  const usedKeys = [];
+  const held = { id: randomUUID(), status: 'ACTIVE', expiresAt: '2026-10-03T12:15:00Z',
+    endReason: null, lines: [{ optionId: 'o1', quantity: 2 }], quote };
+  const send = async (_url, options) => {
+    usedKeys.push(options.headers['idempotency-key']);
+    return usedKeys.length === 1
+      ? Response.json({ status: 'reservation_conflict', reason: 'Reserved product changed' }, { status: 409 })
+      : Response.json(held, { status: 201 });
+  };
+
+  const first = await startReservationRequest('http://127.0.0.1:9092', storage, send);
+  assert.equal(first.kind, 'conflict');
+  assert.equal(values.get('owool-checkout-reservation-key'), key);
+  const second = await startReservationRequest('http://127.0.0.1:9092', storage, send);
+  assert.equal(second.kind, 'active');
+  assert.equal(second.reservation.id, held.id);
+  assert.deepEqual(usedKeys, [key, key]);
+  assert.equal(values.get('owool-checkout-reservation-id'), held.id);
 });
