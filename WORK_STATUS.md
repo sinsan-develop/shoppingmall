@@ -1,10 +1,13 @@
 # 어울몰 작업현황
 
-## 진행 중 — 2026-10-02 S3.1 예약 Task 5 HTTP·만료 배치
+## 진행 중 — 2026-10-02 S3.1 예약 Task 5 완료 후보 / 다음 Task 6
 
 - 담당 어울, 기존 `codex/s31-checkout-reservation-plan` 단일 writer. Task 4 구현 checkpoint는 `d3b9d8b26b8fc722934bbef1eff9cc9e76189060` 로컬/SSH 원격, WSL 지정 checkout은 Task 4 코드 `9e38d38` clean이며 다음 시험 전 fast-forward한다. Task 2 전체 gate·공용 DB 0010 미적용은 그대로 미충족.
 - QA 자원 계획: WSL `local-postgres`의 새 격리 DB `shoppingmall_s31_reservation_http_1002`, `--rm` Node24 컨테이너 `shoppingmall-s31-reservation-http-1002`를 Task 5 RED/GREEN 기간에만 사용한다. HTTP 시험의 가상 고객 2/판매자/관리자·상품·예약·감사만 이 DB에 생성한다. 종료 시 QA 행 0, 정확한 DB/컨테이너 부재를 확인하며 공용 `shoppingmall`은 읽기 전용으로 보존한다.
 - 다음: 기존 세션·Origin 계약으로 예약 HTTP 404 예상 RED부터 작성하고 관리자 사유 취소·DB 시각 만료 배치를 구현한다.
+- Task 5 RED/GREEN: `5c40dd3`에서 미등록 경로 404 대 비로그인 401 예상 RED 1 fail/0 skip. `b40c734`의 고객 본인 예약 시작·조회·해제/운영자 사유 취소, 역할·Origin·멱등키·IDOR HTTP 실DB 1 pass/0 skip. 배치 시험은 최초 만료 조작에서 DB `expires_at > created_at` 제약을 어겨 시험 구성 오류 1회; `2b5072e`에서 양 시각 동시 조정 후 미구현 `reservation-cleanup.ts` 부재 RED 1 fail/0 skip. `175fc12`에서 DB 시각·멱등 배치 및 단발 CLI GREEN, CLI 실행 후 0 출력. `43a995b`에서 예약 중 카트 PUT/DELETE 409와 DB 미설정 503을 보강했다. 같은 원인 3회 연속 오류 없음.
+- Task 5 검증/미검증: `43a995b` 동일 WSL SHA에서 HTTP·Task 4/기존 예약·상품·카트 실DB **8 pass/0 skip/0 fail**. 로컬 `pnpm test` **237 tests/178 pass/59 DB·환경 skip/0 fail**, PR 본문 8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0. 배치 정지 중 만료된 ACTIVE 행도 신규 판매 수량을 차감하지 않고, 2회 실행은 1건/0건으로 멱등 확인. 앱별 타이머/운영 스케줄 설치는 하지 않았고 `docs/DEVELOPMENT_ENVIRONMENT.md`에 1분 외부 스케줄 제안·실패 재시도/감시 경계만 기록. 공용 DB 0010/WSL 전체 suite·브라우저/UAT는 미검증.
+- QA 정리: 전용 격리 DB 사후 accounts/auth_sessions/sellers/products/reservations/deferred/audit `0/0/0/0/0/0/0`, 전용 `--rm` 컨테이너 0, 정확한 `shoppingmall_s31_reservation_http_1002` DB drop 후 목록 부재·공용 `shoppingmall` 보존. 삭제한 것은 재생성 가능한 이 격리 DB의 빈 시험 구조뿐이며 공유/운영 자료는 삭제하지 않았다. 다음은 Task 6 Flat v2 화면의 RED→GREEN과 실제 브라우저 검증.
 
 ## 진행 중 — 2026-10-02 S3.1 예약 Task 4 완료 후보 / 다음 Task 5
 
