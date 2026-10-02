@@ -12,7 +12,7 @@ const password = process.env.QA_FIXTURE_PASSWORD;
 if (action === 'seed' && (!password || password.length < 12)) throw new Error('QA password required');
 const pool = new Pool({ connectionString: databaseUrl });
 const prefix = `qa-${runId}-reservation-ui`;
-const emails = ['customer', 'seller', 'admin'].map((role) => `qa+${runId}-reservation-${role}@example.invalid`);
+const emails = ['customer', 'customer2', 'seller', 'admin'].map((role) => `qa+${runId}-reservation-${role}@example.invalid`);
 
 async function accountIds() {
   const result = await pool.query<{ account_id: string }>(
@@ -63,7 +63,7 @@ async function reset() {
 async function seed() {
   if ((await accountIds()).length) throw new Error('QA run already exists');
   const auth = new AuthRepository(pool);
-  const [customer, sellerAccount, admin] = await Promise.all(emails.map((email) =>
+  const [customer, secondCustomer, sellerAccount, admin] = await Promise.all(emails.map((email) =>
     auth.createCustomerAccount(email, password!)));
   const sellerCategory = (await pool.query(
     'INSERT INTO seller_categories(name) VALUES ($1) RETURNING id', [prefix])).rows[0].id;
@@ -88,6 +88,7 @@ async function seed() {
   await pool.query('INSERT INTO product_publications(product_id,revision_id,published_by_account_id) VALUES ($1,$2,$3)',
     [product, revision, admin]);
   await pool.query('INSERT INTO customer_cart_items(account_id,option_id,quantity) VALUES ($1,$2,2)', [customer, option]);
+  await pool.query('INSERT INTO customer_cart_items(account_id,option_id,quantity) VALUES ($1,$2,4)', [secondCustomer, option]);
   process.stdout.write(JSON.stringify({ runId, emails, product, option }) + '\n');
 }
 
