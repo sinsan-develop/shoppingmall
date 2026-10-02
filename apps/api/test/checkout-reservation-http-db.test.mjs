@@ -108,7 +108,8 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
     const next = await (await start(customer, randomUUID())).json();
     assert.equal(next.status, 'ACTIVE');
     await pool.query(
-      `UPDATE checkout_reservations SET expires_at=clock_timestamp()-interval '1 second'
+      `UPDATE checkout_reservations SET created_at=clock_timestamp()-interval '16 minutes',
+       expires_at=clock_timestamp()-interval '1 second'
        WHERE id=$1`, [next.id]);
     const { CheckoutCatalog } = await import('../src/checkout/catalog-selection.ts');
     assert.equal((await new CheckoutCatalog(pool).resolve([
