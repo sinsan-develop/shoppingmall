@@ -105,6 +105,20 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
     assert.equal((await (await fetch(item, { method: 'DELETE', headers: { cookie: customer, origin } })).json()).status,
       'CANCELLED');
     assert.equal((await fetch(`${url}/${randomUUID()}`, { headers: { cookie: customer } })).status, 404);
+    const next = await (await start(customer, randomUUID())).json();
+    assert.equal(next.status, 'ACTIVE');
+    await pool.query(
+      `UPDATE checkout_reservations SET expires_at=clock_timestamp()-interval '1 second'
+       WHERE id=$1`, [next.id]);
+    const { CheckoutCatalog } = await import('../src/checkout/catalog-selection.ts');
+    assert.equal((await new CheckoutCatalog(pool).resolve([
+      { optionId: ids.option, quantity: 1 },
+    ])).length, 1, 'an overdue ACTIVE row must not hold sellable stock while the worker is stopped');
+    const { expireReservationBatch } = await import('../src/checkout/reservation-cleanup.ts');
+    assert.equal(await expireReservationBatch(pool, 100), 1);
+    assert.equal(await expireReservationBatch(pool, 100), 0);
+    assert.equal((await (await fetch(`${url}/${next.id}`, { headers: { cookie: customer } })).json()).status,
+      'EXPIRED');
   } finally {
     if (app) await app.close();
     for (const id of ids.accounts) {
