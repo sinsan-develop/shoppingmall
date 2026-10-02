@@ -77,6 +77,11 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
     assert.equal(hold.status, 'ACTIVE');
     assert.deepEqual({ goodsWon: hold.quote.goodsWon, shippingWon: hold.quote.shippingWon },
       { goodsWon: 23000, shippingWon: 3000 });
+    const cartItem = `${base}/customer/cart/items/${ids.option}`;
+    assert.equal((await fetch(cartItem, { method: 'DELETE', headers: { cookie: customer, origin } })).status, 409);
+    assert.equal((await fetch(cartItem, { method: 'PUT', headers: {
+      cookie: customer, origin, 'content-type': 'application/json' }, body: JSON.stringify({ quantity: 1 }),
+    })).status, 409);
     assert.equal((await (await start(customer, key)).json()).id, hold.id);
     assert.equal((await start(customer, randomUUID())).status, 409);
     const item = `${url}/${hold.id}`;
@@ -143,5 +148,29 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
     if (ids.sellerCategory) await pool.query('DELETE FROM seller_categories WHERE id=$1', [ids.sellerCategory]);
     for (const id of ids.accounts) await pool.query('DELETE FROM accounts WHERE id=$1', [id]);
     await pool.end();
+  }
+});
+
+test('reservation endpoints report 503 when the database is not configured', async () => {
+  const previous = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  let app;
+  try {
+    app = await createApp();
+    await app.listen(0, '127.0.0.1');
+    const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+    const headers = { cookie: 'sm_session=test-only-invalid-session', origin: 'http://127.0.0.1:9091' };
+    assert.equal((await fetch(`${base}/customer/checkout/reservations/${randomUUID()}`,
+      { headers })).status, 503);
+    assert.equal((await fetch(`${base}/customer/checkout/reservations`, { method: 'POST',
+      headers: { ...headers, 'idempotency-key': randomUUID() } })).status, 503);
+    assert.equal((await fetch(`${base}/checkout/admin/reservations/${randomUUID()}/cancel`, {
+      method: 'POST', headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: 'QA 사유' }),
+    })).status, 503);
+  } finally {
+    if (app) await app.close();
+    if (previous === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previous;
   }
 });
