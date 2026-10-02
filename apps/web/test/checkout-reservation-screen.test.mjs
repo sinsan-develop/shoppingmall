@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CartView } from '../app/cart/page.tsx';
+import { CartView, createRefreshGate } from '../app/cart/page.tsx';
 import { AdminReservationCancelView } from '../app/account/admin/proposals/page.tsx';
+import { stockSaveFailureMessage } from '../app/account/seller/products/page.tsx';
 
 const item = { optionId: 'o1', productId: 'p1', title: '고추', optionName: '500g', quantity: 2,
   unitPriceWon: 23000, availability: 'available' };
@@ -57,4 +58,19 @@ test('operator has a reasoned reservation cancellation form without checkout pay
   assert.match(html, /required/);
   assert.match(html, /maxLength="500"/);
   assert.doesNotMatch(html, /결제 승인/);
+});
+
+test('seller stock conflict identifies held quantity instead of generic invalid input', () => {
+  assert.match(stockSaveFailureMessage(409), /기존 예약 수량/);
+  assert.match(stockSaveFailureMessage(400), /0 이상의 정수/);
+});
+
+test('late cart polling responses cannot replace a newer reservation state', () => {
+  const gate = createRefreshGate();
+  const firstPoll = gate.begin();
+  const newerPoll = gate.begin();
+  assert.equal(gate.isCurrent(firstPoll), false);
+  assert.equal(gate.isCurrent(newerPoll), true);
+  gate.invalidate();
+  assert.equal(gate.isCurrent(newerPoll), false);
 });

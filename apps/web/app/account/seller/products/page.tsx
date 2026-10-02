@@ -35,6 +35,12 @@ type ViewProps = { categories: Category[]; products: Product[]; stock: Stock[]; 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
+export function stockSaveFailureMessage(status: number): string {
+  return status === 409 ?
+    '기존 예약 수량보다 적게 입력할 수 없습니다. 예약을 확인한 뒤 다시 입력해 주세요' :
+    '재고 수량을 반영하지 못했습니다. 0 이상의 정수를 확인해 주세요';
+}
+
 function ProductDraftItem({ product, categories, busy, onCreateRevision, onLoadDraft, onUpdate, onDelete, onUpload,
   onLoadImages, onOrderImages, onRemoveImage, onSubmitProposal, saleStopRequest, onRequestSaleStop }: {
   product: Product; categories: Category[]; busy: boolean;
@@ -387,7 +393,6 @@ export default function SellerProductsPage() {
         body: JSON.stringify(draft),
       });
       if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
-      if (response.status === 409) { setMessage('기존 예약 수량보다 적게 입력할 수 없습니다. 예약을 확인한 뒤 다시 입력해 주세요'); return; }
       if (!response.ok) { setMessage('초안을 저장하지 못했습니다. 입력값을 확인해 주세요'); return; }
       await reload();
       setMessage('초안을 저장했습니다. 아직 고객에게 공개되지 않습니다');
@@ -540,7 +545,7 @@ export default function SellerProductsPage() {
         body: JSON.stringify({ quantity }),
       });
       if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
-      if (!response.ok) { setMessage('재고 수량을 반영하지 못했습니다. 0 이상의 정수를 확인해 주세요'); return; }
+      if (!response.ok) { setMessage(stockSaveFailureMessage(response.status)); return; }
       const result = await response.json() as { requestId: string | null };
       await reload();
       setMessage(result.requestId ? '재고 증가를 관리자에게 요청했습니다. 구매 가능 수량은 승인 전 그대로입니다' :

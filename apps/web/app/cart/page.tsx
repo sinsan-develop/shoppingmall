@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 type CartItem = { optionId: string; productId: string; title: string; optionName: string;
   quantity: number; unitPriceWon: number | null; availability: 'available' | 'unavailable' };
@@ -21,6 +21,15 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
 const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 const reservationStorageKey = 'owool-checkout-reservation-id';
 const requestStorageKey = 'owool-checkout-reservation-key';
+
+export function createRefreshGate() {
+  let generation = 0;
+  return {
+    begin: () => ++generation,
+    invalidate: () => { generation += 1; },
+    isCurrent: (candidate: number) => candidate === generation,
+  };
+}
 
 export function CartView({ items, quote, edits, busy, message, loading, onEdit, onSave, onRemove,
   reservation, nowMs, onReserve, onRelease, onRecheck }: ViewProps) {
@@ -93,27 +102,31 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [reservation, setReservation] = useState<Reservation>();
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const refreshGate = useRef<ReturnType<typeof createRefreshGate> | null>(null);
+  if (refreshGate.current === null) refreshGate.current = createRefreshGate();
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!apiOrigin) throw new Error('장바구니 연결을 준비 중입니다');
+    const generation = refreshGate.current!.begin();
+    const isCurrent = () => !signal?.aborted && refreshGate.current!.isCurrent(generation);
     const response = await fetch(`${apiOrigin}/customer/cart`, { credentials: 'include', signal, cache: 'no-store' });
     if (response.status === 401) throw new Error('로그인 후 장바구니를 이용해 주세요');
     if (response.status === 403) throw new Error('구매자 역할로 전환해 주세요');
     if (!response.ok) throw new Error('장바구니를 불러오지 못했습니다');
-    const current = await response.json() as CartItem[];
-    if (signal?.aborted) return;
-    setItems(current);
-    setEdits(Object.fromEntries(current.map((item) => [item.optionId, item.quantity])));
+    const cartItems = await response.json() as CartItem[];
+    if (!isCurrent()) return;
+    setItems(cartItems);
+    setEdits(Object.fromEntries(cartItems.map((item) => [item.optionId, item.quantity])));
     const savedId = window.sessionStorage.getItem(reservationStorageKey);
     if (savedId) {
       const heldResponse = await fetch(`${apiOrigin}/customer/checkout/reservations/${encodeURIComponent(savedId)}`,
         { credentials: 'include', signal, cache: 'no-store' });
-      if (signal?.aborted) return;
+      if (!isCurrent()) return;
       if (heldResponse.ok) {
         const held = await heldResponse.json() as Reservation;
-        if (signal?.aborted) return;
+        if (!isCurrent()) return;
         setReservation(held);
         if (held.status === 'ACTIVE') {
-          setQuote(held.quote); setMessage('');
+          setNowMs(Date.now()); setQuote(held.quote); setMessage('');
           return;
         }
         window.sessionStorage.removeItem(reservationStorageKey);
@@ -126,17 +139,21 @@ export default function CartPage() {
         throw new Error('구매자 역할로 로그인한 뒤 예약을 확인해 주세요');
       } else throw new Error('예약 상태를 불러오지 못했습니다');
     }
-    if (current.length === 0) { setQuote(undefined); setMessage(''); return; }
+    if (cartItems.length === 0) { setQuote(undefined); setMessage(''); return; }
     const quoted = await fetch(`${apiOrigin}/customer/cart/quote`,
       { credentials: 'include', signal, cache: 'no-store' });
-    if (signal?.aborted) return;
+    if (!isCurrent()) return;
     if (quoted.status === 409) {
       setQuote(undefined);
       setMessage('품절·판매중지 또는 상품 변경으로 재견적할 수 없습니다. 해당 항목을 확인해 주세요');
     } else if (!quoted.ok) {
       setQuote(undefined);
       setMessage('현재 금액을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요');
-    } else { setQuote(await quoted.json() as Quote); setMessage(''); }
+    } else {
+      const currentQuote = await quoted.json() as Quote;
+      if (!isCurrent()) return;
+      setQuote(currentQuote); setMessage('');
+    }
   }, []);
 
   useEffect(() => {
@@ -144,20 +161,24 @@ export default function CartPage() {
     refresh(controller.signal).catch((error: unknown) => {
       if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : '장바구니를 불러오지 못했습니다');
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
+    return () => { controller.abort(); refreshGate.current?.invalidate(); };
   }, [refresh]);
 
   useEffect(() => {
-    if (reservation?.status !== 'ACTIVE') return;
+    if (reservation?.status !== 'ACTIVE' || busy) return;
+    const controller = new AbortController();
     const display = window.setInterval(() => setNowMs(Date.now()), 1000);
     const verify = window.setInterval(() => {
-      void refresh().catch(() => setMessage('예약 상태를 다시 확인하지 못했습니다. 잠시 후 재시도해 주세요'));
+      void refresh(controller.signal).catch(() => {
+        if (!controller.signal.aborted) setMessage('예약 상태를 다시 확인하지 못했습니다. 잠시 후 재시도해 주세요');
+      });
     }, 5000);
-    return () => { window.clearInterval(display); window.clearInterval(verify); };
-  }, [reservation?.id, reservation?.status, refresh]);
+    return () => { controller.abort(); window.clearInterval(display); window.clearInterval(verify); };
+  }, [reservation?.id, reservation?.status, busy, refresh]);
 
   async function reserve() {
     if (!apiOrigin || busy || reservation?.status === 'ACTIVE') return;
+    refreshGate.current?.invalidate();
     const key = window.sessionStorage.getItem(requestStorageKey) ?? crypto.randomUUID();
     window.sessionStorage.setItem(requestStorageKey, key);
     setBusy('reservation'); setMessage('');
@@ -176,7 +197,7 @@ export default function CartPage() {
       setReservation(held);
       if (held.status === 'ACTIVE') {
         window.sessionStorage.setItem(reservationStorageKey, held.id);
-        setQuote(held.quote);
+        setNowMs(Date.now()); setQuote(held.quote);
       } else {
         window.sessionStorage.removeItem(reservationStorageKey);
         window.sessionStorage.removeItem(requestStorageKey);
@@ -188,6 +209,7 @@ export default function CartPage() {
 
   async function release() {
     if (!apiOrigin || busy || reservation?.status !== 'ACTIVE') return;
+    refreshGate.current?.invalidate();
     setBusy('reservation'); setMessage('');
     try {
       const response = await fetch(`${apiOrigin}/customer/checkout/reservations/${encodeURIComponent(reservation.id)}`,
