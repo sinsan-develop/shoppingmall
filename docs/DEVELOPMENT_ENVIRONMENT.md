@@ -33,6 +33,12 @@
 
 ## 2026-09-27 재현 명령·현재 경계
 
+### S3.1 예약 만료 배치 준비(공유 DB 미적용)
+
+- `apps/api/scripts/expire-reservations.ts`는 `DATABASE_URL` 대상의 유효기간 지난 활성 예약을 DB 시각으로 최대 100건씩 종료하고 처리 건수를 stdout에 출력한다. `apps/api`에서 `node --import tsx scripts/expire-reservations.ts 100`으로 1회 실행하며, `DATABASE_URL` 미설정·잘못된 1~1000건 한도·DB 오류는 비정상 종료한다. 자격정보는 문서나 실행 로그에 기록하지 않는다.
+- 운영 시 API 인스턴스별 타이머가 아니라 외부 스케줄러 1곳에서 1분 간격으로 실행하고 실패를 감시한다. 실패하면 원인을 확인하고 다음 주기에 재시도하며, 중복 실행은 계정/상품 잠금과 상태 전이의 멱등성으로 보호한다. 배치 중지 중에도 신규 판매 가능량은 `expires_at > clock_timestamp()`인 예약만 차감한다.
+- 공유 `local-postgres/shoppingmall`의 0010 migration 적용은 미승인 상태이므로 이 배치를 해당 DB에 등록·가동하지 않는다. 격리 DB에서만 시험하고, 실제 스케줄·로그 저장/알림 경로는 운영환경 결정 시 확정한다.
+
 - Windows 정본은 `D:\Project\shoppingmall2`의 격리 worktree이며 현재 제품 작업 브랜치는 `codex/flat-v2-prototypes`다. `main`에 직접 개발하지 않는다. 실제 작업 checkout에서 `pnpm install --frozen-lockfile`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`를 실행한다. 로컬 `pnpm test`의 DB 의존 skip은 WSL DB 검증을 대신하지 않는다.
 - 소스 전달은 GitHub 계정/토큰이 아니라 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git` SSH 별칭을 사용한다. 작업 브랜치를 push한 뒤 `ssh WSL-server`로 접속해 정확한 `/home/daon/deploy/shopping`에서 `git pull --ff-only origin codex/flat-v2-prototypes`, `git rev-parse HEAD`, `git status --short --branch`로 동일 커밋·clean 상태를 확인한다. 다른 WSL 서비스와 checkout을 덮거나 초기화하지 않는다.
 - WSL 호스트에는 시스템 `pnpm`이 없다. 검증된 Node 24 컨테이너로 저장소를 `/app`에 마운트해 `apps/web/node_modules/.bin/next build`(작업 디렉터리 `/app/apps/web`)와 `apps/api/node_modules/.bin/tsx scripts/qa-fixture.ts seed|reset`(작업 디렉터리 `/app/apps/api`)을 실행했다. QA fixture는 `QA_RUN_ID` 8자리와 `QA_FIXTURE_PASSWORD`(seed만), 정확한 개발 DB URL이 필요하며 생성 전 ID·수명·정리 대상과 기존 계정 수를 `WORK_STATUS.md`에 기록한다. 실제 자격정보는 Git/문서/대화에 쓰지 않는다.
