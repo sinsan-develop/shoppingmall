@@ -110,6 +110,27 @@ test('seller zero closes new sales but preserves active holds until the last rel
     const finishedStock = (await inventory.listOwned(seller)).find((item) => item.optionId === ids.option);
     assert.equal(finishedStock.activeReservationQuantity, 0);
     assert.equal(finishedStock.deferredZeroPending, false);
+
+    // The seller's zero entry and a new checkout must serialize without losing a winning hold.
+    await pool.query('UPDATE inventory_levels SET on_hand_quantity=1,sellable_quantity=1 WHERE option_id=$1',
+      [ids.option]);
+    const race = await Promise.allSettled([
+      reservations.start(ids.customerC, randomUUID()), inventory.setStock(seller, ids.option, 0),
+    ]);
+    assert.equal(race[1].status, 'fulfilled');
+    if (race[0].status === 'fulfilled') {
+      const during = (await pool.query(
+        'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1',
+        [ids.option])).rows[0];
+      assert.equal(during.on_hand_quantity, 1);
+      assert.equal(during.sellable_quantity, 0);
+      await reservations.release(ids.customerC, race[0].value.id);
+    } else {
+      assert.match(race[0].reason.message, /Insufficient stock/);
+    }
+    assert.deepEqual((await pool.query(
+      'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1',
+      [ids.option])).rows[0], { on_hand_quantity: 0, sellable_quantity: 0 });
   } finally {
     if (app) await app.close();
     if (ids.option) await pool.query('DELETE FROM inventory_deferred_stock_targets WHERE option_id=$1', [ids.option]);
