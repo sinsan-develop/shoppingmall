@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.1 최신 화면의 멱등키 실브라우저 회귀
+
+- 담당 어울, 단일 writer `codex/s31-checkout-reservation-plan@a73610c7085976449b02858042675470c3106ccf`. Windows/WSL 지정 checkout clean·동일 SHA, SSH 원격 alias 확인. 승인된 S3.1의 기존 POST/화면 동작만 검증하고 공개 API·schema·공유 DB·Secret 계약은 변경하지 않는다.
+- 변경 예상: `scripts/qa-cart-browser.mjs`에 선택적 예약 재시도 시나리오와 이 작업현황 기록. 실제 브라우저에서 첫 POST의 서버 201을 네트워크 경계에서만 409로 바꿔 전달하고, 새로고침 후 같은 멱등키로 기존 ID·만료시각을 되찾고 명시적 해제하는지 본다. 브라우저 조작은 자체 QA이며 사용자 인수·타 탭/기기 회복 PASS가 아니다.
+- 사전 QA 자원/정리: WSL 지정 checkout exact SHA, 고유 `QA_RUN_ID=a32f1003`; 기존 로컬 이미지로 일회용 `shoppingmall-s31-retry-ui-pg-1003`, `shoppingmall-s31-retry-ui-api-1003`, `shoppingmall-s31-retry-ui-web-1003` 컨테이너를 사용한다. DB는 컨테이너 내부의 정확한 `shoppingmall_s31_reservation_ui_1002`만 생성해 0000~0010 migration과 가상 구매자 2·판매자 1·관리자 1·상품 1 fixture를 넣는다. WSL loopback 9091/9092, Windows SSH loopback 터널 9091/9092, 별도 임시 Chrome profile/CDP만 시험 중 사용한다. 시작 전 이름·포트 점유를 확인하고 완료/실패 뒤 fixture reset과 QA 9범주 0, 정확한 컨테이너·포트·Chrome 임시 자원 0, WSL clean·공유 DB migration 10건 불변을 확인한다. 외부 포트/영속 볼륨/실계정/실결제 없음. 시험 암호는 실행 중 생성하고 로그/Git에 기록하지 않는다.
+- 시작 전 환경: WSL 호스트 Node 18에는 `pnpm`이 없지만 기존 `node:24-bookworm-slim` 이미지와 checkout 의존성/빌드 도구는 존재한다. 9091/9092 LISTEN과 `shoppingmall-s31-*` 잔류 컨테이너가 없고 다른 프로젝트 컨테이너는 건드리지 않는다. 같은 근본 원인 오류 0회. 실패하면 이 QA 자원만 정리하고 실제 실패 지점을 기록한다.
+
 ## 진행 중 — 2026-10-03 S3.1 기존 멱등키 재시도 회복 보정
 
 - 담당 어울, 단일 writer `codex/s31-checkout-reservation-plan@e57dd81720f4a039bb4a0502e561c65492360a55`, 로컬/WSL checkout clean·동일 SHA, 공유 DB migration 10건을 읽기 전용 확인. 새 branch/공개 API/DB schema/공유 DB 쓰기 없음.
