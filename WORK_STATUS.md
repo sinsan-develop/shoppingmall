@@ -1,10 +1,13 @@
 # 어울몰 작업현황
 
-## 진행 중 — 2026-10-02 S3.1 예약 Task 4 상품·카트·재견적
+## 진행 중 — 2026-10-02 S3.1 예약 Task 4 완료 후보 / 다음 Task 5
 
 - 담당 어울, 기존 `codex/s31-checkout-reservation-plan` 격리 worktree에서 계속. Task 1~3 checkpoint는 유지하며 Task 2 전체 WSL gate 미충족과 공용 DB 0010 미적용을 PASS로 간주하지 않는다.
 - QA 자원 계획: WSL `local-postgres`의 정확한 격리 DB `shoppingmall_s31_reservation_product_1002`와 `--rm` Node24 컨테이너 `shoppingmall-s31-reservation-product-1002`를 Task 4 RED/GREEN 실DB 검증 기간에만 사용한다. QA 계정·상품·예약은 해당 DB에서만 생성하고 사후 행 및 정확한 DB/컨테이너 부재를 확인한다. 공용 `shoppingmall`은 읽기 전용.
 - 다음: Task 4의 예약 중 카트 변경·현재 견적·상품 승인·판매중지 시험을 먼저 추가하고 예상 RED를 확인한다.
+- Task 4 RED/GREEN: `1675ed7`에서 예약 재견적 모듈 부재 1 fail/0 skip, `0434182`에서 카트 변경 차단·가격 재견적 1 pass. `9621a41`에서 활성 예약 중 개정 승인이 그대로 진행되는 예상 RED 1 fail/0 skip, `2645c48`에서 승인 보류 후 판매중지 취소 누락 RED 1 fail/0 skip, `dbe9bcd`에서 취소·감사 GREEN. 재견적 만료 판정에 JS 시각 사용 결함은 `86be25f`의 DB 시각 시험 1 fail/0 skip으로 확인하고 `c4465d1`에서 보정. 첫 개정 RED 시 기존 승인이 실제 실행되어 테스트 정리가 새 옵션 재고 FK에 막혔고, 전용 격리 DB의 QA 계정 1개만 확인한 뒤 정확한 DB를 재생성, 정리 순서를 고쳤다. 동일 근본 원인 반복 3회 없음.
+- Task 4 기능/검증: `9e38d3872ade78770fd6e99e14211661e3d17c6c`의 WSL 격리 실DB 목표·상품 승인·판매중지·카트·예약·재고 **8 pass/0 skip/0 fail**. 두 상품 묶음 예약에서 한 상품 판매중지 시 예약 전체 CANCELLED, 관리자 사유/감사, 다른 상품의 보류 재고 0 적용까지 확인. 로컬 `pnpm test` **235 tests/177 pass/58 DB·환경 skip/0 fail**, PR 본문 8 pass; `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0. 새 시험은 현재 가격 및 승인된 판매자 배송정책의 변경을 재견적에 반영하고 고객 PC 시각을 판정에 사용하지 않는지 검증한다.
+- QA 정리: 최신 격리 회귀 후 accounts/sellers/products/reservations/deferred/audit `0/0/0/0/0/0`, 전용 `--rm` 컨테이너 0. 정확한 `shoppingmall_s31_reservation_product_1002` DB만 drop하고 목록 부재·공용 `shoppingmall` 존재 확인. 이 DB의 가상 시험자료는 재생성 가능. 공용 DB 0010 적용 0, 실제 브라우저/전체 WSL suite/`checkout-quote-db`(기존 fixture DB명 제한)는 아직 PASS 아님. Task 2 전체 gate도 미충족. 다음은 Task 5 예약 HTTP·만료 작업 RED부터 시작.
 
 ## 진행 중 — 2026-10-02 S3.1 예약 Task 3 판매자 재고 0
 
