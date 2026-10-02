@@ -108,6 +108,7 @@ test('an active checkout hold blocks cart edits and quotes its own stock at curr
     if (ids.stop) await pool.query('DELETE FROM product_sale_stop_requests WHERE id=$1', [ids.stop]);
     if (ids.product) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [ids.product]);
     if (ids.image) await pool.query('DELETE FROM product_images WHERE id=$1', [ids.image]);
+    if (ids.pendingOption) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [ids.pendingOption]);
     if (ids.pendingOption) await pool.query('DELETE FROM product_options WHERE id=$1', [ids.pendingOption]);
     if (ids.pendingRevision) await pool.query('DELETE FROM product_revisions WHERE id=$1', [ids.pendingRevision]);
     if (ids.option) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [ids.option]);
