@@ -51,6 +51,24 @@ test('an active checkout hold blocks cart edits and quotes its own stock at curr
     { goodsWon: 23000, shippingWon: 3000 });
     await pool.query('UPDATE product_options SET price_won=25000 WHERE id=$1', [ids.option]);
     assert.equal((await quoteReservation(pool, ids.account, hold.id)).goodsWon, 25000);
+    ids.policyRequest = (await pool.query(
+      `INSERT INTO seller_shipping_policy_requests(seller_id,policy,status,requested_by_account_id,
+       decided_by_account_id,decided_at) VALUES ($1,$2::jsonb,'approved',$3,$3,now()) RETURNING id`,
+      [ids.seller, JSON.stringify({ feeWon: 4200, freeThresholdWon: 50000,
+        cutoffTime: null, blockedPostalRanges: [] }), ids.account],
+    )).rows[0].id;
+    await pool.query(
+      `INSERT INTO seller_shipping_policies(seller_id,policy,approved_request_id,approved_by_account_id)
+       SELECT seller_id,policy,id,$2 FROM seller_shipping_policy_requests WHERE id=$1`,
+      [ids.policyRequest, ids.account]);
+    assert.deepEqual({ goodsWon: (await quoteReservation(pool, ids.account, hold.id)).goodsWon,
+      shippingWon: (await quoteReservation(pool, ids.account, hold.id)).shippingWon },
+    { goodsWon: 25000, shippingWon: 4200 });
+    const actualNow = Date.now;
+    try {
+      Date.now = () => Date.parse('2100-01-01T00:00:00Z');
+      assert.equal((await quoteReservation(pool, ids.account, hold.id)).totalWon, 29200);
+    } finally { Date.now = actualNow; }
     await assert.rejects(quoteReservation(pool, randomUUID(), hold.id), /Reservation unavailable/);
     await holds.release(ids.account, hold.id);
     await assert.rejects(quoteReservation(pool, ids.account, hold.id), /Reservation unavailable/);
@@ -106,6 +124,9 @@ test('an active checkout hold blocks cart edits and quotes its own stock at curr
       await pool.query('DELETE FROM checkout_reservations WHERE account_id=$1', [ids.account]);
     }
     if (ids.stop) await pool.query('DELETE FROM product_sale_stop_requests WHERE id=$1', [ids.stop]);
+    if (ids.seller) await pool.query('DELETE FROM seller_shipping_policies WHERE seller_id=$1', [ids.seller]);
+    if (ids.policyRequest) await pool.query('DELETE FROM seller_shipping_policy_requests WHERE id=$1',
+      [ids.policyRequest]);
     if (ids.product) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [ids.product]);
     if (ids.image) await pool.query('DELETE FROM product_images WHERE id=$1', [ids.image]);
     if (ids.pendingOption) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [ids.pendingOption]);
