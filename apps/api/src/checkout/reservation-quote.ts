@@ -14,9 +14,10 @@ export async function quoteReservation(pool: Pool, accountId: string, id: string
     await client.query('BEGIN');
     const account = await client.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE', [accountId]);
     if (account.rowCount !== 1) throw new Error('Reservation unavailable');
-    const hold = await client.query<{ status: string; expires_at: Date }>(
-      'SELECT status,expires_at FROM checkout_reservations WHERE id=$1 AND account_id=$2', [id, accountId]);
-    if (hold.rows[0]?.status !== 'ACTIVE' || hold.rows[0].expires_at.getTime() <= Date.now()) {
+    const hold = await client.query<{ valid: boolean }>(
+      `SELECT status='ACTIVE' AND expires_at>clock_timestamp() AS valid
+       FROM checkout_reservations WHERE id=$1 AND account_id=$2`, [id, accountId]);
+    if (!hold.rows[0]?.valid) {
       throw new Error('Reservation unavailable');
     }
     const result = await client.query<ShipmentLine & { published: boolean; onHand: number }>(
