@@ -73,7 +73,27 @@ test('an active checkout hold blocks cart edits and quotes its own stock at curr
     await holds.release(ids.account, hold.id);
     await assert.rejects(quoteReservation(pool, ids.account, hold.id), /Reservation unavailable/);
     await cart.set(ids.account, ids.option, 1);
+    ids.otherProduct = (await pool.query(
+      'INSERT INTO products(seller_id,category_id) VALUES ($1,$2) RETURNING id',
+      [ids.seller, ids.category])).rows[0].id;
+    ids.otherRevision = (await pool.query(
+      `INSERT INTO product_revisions(product_id,version,title,description,origin_label,
+       shipping_mode,status,proposed_by_account_id,reviewed_by_account_id,reviewed_at)
+       VALUES ($1,1,$2,'QA 설명','QA 산지','seller_direct','approved',$3,$3,now()) RETURNING id`,
+      [ids.otherProduct, `${name}-other`, ids.account])).rows[0].id;
+    ids.otherOption = (await pool.query(
+      'INSERT INTO product_options(revision_id,name,price_won) VALUES ($1,$2,10000) RETURNING id',
+      [ids.otherRevision, '1kg'])).rows[0].id;
+    await pool.query('INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity) VALUES ($1,1,1)',
+      [ids.otherOption]);
+    await pool.query('INSERT INTO product_publications(product_id,revision_id,published_by_account_id) VALUES ($1,$2,$3)',
+      [ids.otherProduct, ids.otherRevision, ids.account]);
+    await cart.set(ids.account, ids.otherOption, 1);
     const second = await holds.start(ids.account, randomUUID());
+    assert.equal(second.lines.length, 2);
+    const { InventoryService } = await import('../src/inventory/service.ts');
+    await new InventoryService(pool).setStock(
+      { accountId: ids.account, role: 'seller', sellerId: ids.seller }, ids.otherOption, 0);
     ids.pendingRevision = (await pool.query(
       `INSERT INTO product_revisions(product_id,version,title,description,origin_label,
        shipping_mode,status,proposed_by_account_id)
@@ -113,8 +133,15 @@ test('an active checkout hold blocks cart edits and quotes its own stock at curr
       `SELECT count(*)::int AS n FROM audit_events WHERE actor_account_id=$1
        AND action='checkout_reservation_cancelled' AND target_id=$2`,
       [ids.account, second.id])).rows[0].n, 1);
+    assert.deepEqual((await pool.query(
+      'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1',
+      [ids.otherOption])).rows[0], { on_hand_quantity: 0, sellable_quantity: 0 });
+    assert.equal((await pool.query(
+      'SELECT status FROM inventory_deferred_stock_targets WHERE option_id=$1',
+      [ids.otherOption])).rows[0].status, 'applied');
     await assert.rejects(quoteReservation(pool, ids.account, second.id), /Reservation unavailable/);
     await cart.remove(ids.account, ids.option);
+    await cart.remove(ids.account, ids.otherOption);
     assert.deepEqual(await cart.list(ids.account), []);
   } finally {
     if (ids.account) {
@@ -128,14 +155,22 @@ test('an active checkout hold blocks cart edits and quotes its own stock at curr
     if (ids.policyRequest) await pool.query('DELETE FROM seller_shipping_policy_requests WHERE id=$1',
       [ids.policyRequest]);
     if (ids.product) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [ids.product]);
+    if (ids.otherProduct) await pool.query('DELETE FROM product_publications WHERE product_id=$1',
+      [ids.otherProduct]);
     if (ids.image) await pool.query('DELETE FROM product_images WHERE id=$1', [ids.image]);
     if (ids.pendingOption) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [ids.pendingOption]);
     if (ids.pendingOption) await pool.query('DELETE FROM product_options WHERE id=$1', [ids.pendingOption]);
     if (ids.pendingRevision) await pool.query('DELETE FROM product_revisions WHERE id=$1', [ids.pendingRevision]);
     if (ids.option) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [ids.option]);
+    if (ids.otherOption) await pool.query('DELETE FROM inventory_deferred_stock_targets WHERE option_id=$1',
+      [ids.otherOption]);
+    if (ids.otherOption) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [ids.otherOption]);
     if (ids.option) await pool.query('DELETE FROM product_options WHERE id=$1', [ids.option]);
+    if (ids.otherOption) await pool.query('DELETE FROM product_options WHERE id=$1', [ids.otherOption]);
     if (ids.revision) await pool.query('DELETE FROM product_revisions WHERE id=$1', [ids.revision]);
+    if (ids.otherRevision) await pool.query('DELETE FROM product_revisions WHERE id=$1', [ids.otherRevision]);
     if (ids.product) await pool.query('DELETE FROM products WHERE id=$1', [ids.product]);
+    if (ids.otherProduct) await pool.query('DELETE FROM products WHERE id=$1', [ids.otherProduct]);
     if (ids.category) await pool.query('DELETE FROM product_categories WHERE id=$1', [ids.category]);
     if (ids.seller) await pool.query('DELETE FROM sellers WHERE id=$1', [ids.seller]);
     if (ids.sellerCategory) await pool.query('DELETE FROM seller_categories WHERE id=$1', [ids.sellerCategory]);
