@@ -11,6 +11,7 @@
 - 공유 DB 읽기 전용 확인: `migrate-dry-run.ts`에서 적용 10건/대기 `0010_s3_checkout_reservations` 1건·14문장·SHA-256 `2be18dda86fb4ed32df427628ace9f9359c714d117bd3429cfd7ff81dc42267c`. 공유 계정/상품/카트 `0/0/0`, 예약 관계 부재, SQL 적용 0. 정확한 공유 DB 적용은 별도 승인 전 미실행이다.
 - 독립 코드 리뷰는 Critical 0/Important 3/Minor 1로 병합 부적합 판정. Important: POST 커밋 후 견적 경합에서 ID 미전달, 탭 종료 후 활성 예약 복구 불가, 판매자 재고 409 문구가 초안 생성에 잘못 위치. 마지막 항목은 화면 시험 예상 RED 1 fail 후 재고 저장 함수로 409 처리를 이동해 목표 5 pass GREEN. Minor인 5초 재조회 지연 응답 순서 경합도 예상 RED 1 fail 후 세대 번호·취소 신호를 적용해 화면 시험 6 pass GREEN, typecheck/lint exit 0. 새 공개 활성 예약 조회 API는 승인 질문을 비차단으로 보냈고, 답 전에는 계약을 추가하지 않는다. 같은 원인 오류 3회 연속 없음.
 - PR 설명 `.github/PR_REQUEST.md`를 이번 예약 단위의 목적·요약·영향·검증·미검증·rollback으로 교체했고 본문 validator 8 pass, `git diff --check` 이상 없음. `docs/DEVELOPMENT_ENVIRONMENT.md` 맨 위에 현재 브랜치·공유 DB 0010 미적용·격리 회귀와 정식 통합의 차이를 기록했다. 리뷰 후 화면 수정의 로컬 전체 `pnpm test` 243건/184 pass/59 DB·환경 skip/0 fail, typecheck/lint/build exit 0. 이전 `4bb5234` WSL 실DB 수치를 리뷰 후 변경의 PASS로 옮기지 않는다.
+- 리뷰 보정 안전 checkpoint `cb40bcda6234f210d7d1b5dde96270b0ae79056f`를 지정 SSH alias로 기존 branch push→WSL checkout에 fast-forward. WSL 화면/기존 장바구니 목표 10 pass/0 skip/0 fail, 전용 `shoppingmall-s31-review-ui-1003` 컨테이너 자동제거·잔류 0. 공유 DB 변경 없음. 현재 PR 생성·병합은 미실행이며 리뷰 Important 2건과 공유 DB 0010 승인 경계가 남는다.
 - 다음: 리뷰 지적의 계약 내 결함 수정·재검증, 현재 브랜치 PR 본문/환경 문서 정렬. 승인되면 계정 소유 활성 예약 조회를 추가하고 POST 견적 경합을 회복 가능하게 한다. 공유 `shoppingmall`의 0010 적용과 Oracle staging은 각각 별도 승인 경계다.
 
 ## 진행 중 — 2026-10-02 S3.1 예약 Task 6 Flat v2 화면
