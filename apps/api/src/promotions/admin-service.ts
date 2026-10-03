@@ -117,9 +117,21 @@ export class PromotionAdminService {
   async list() {
     const result = await this.pool.query(`SELECT c.id,c.title,c.kind,c.status,
       c.direct_issue_limit AS "directIssueLimit",c.total_use_limit AS "totalUseLimit",
-      c.per_account_use_limit AS "perAccountUseLimit",v.id AS "versionId",v.version
+      c.per_account_use_limit AS "perAccountUseLimit",c.stop_reason AS "stopReason",
+      c.stopped_at AS "stoppedAt",v.id AS "versionId",v.version,v.scope,
+      v.target_ids AS "targetIds",v.starts_at AS "startsAt",v.ends_at AS "endsAt",
+      v.minimum_eligible_goods_won AS "minimumEligibleGoodsWon",
+      v.amount_kind AS "amountKind",v.amount_value AS "amountValue",
+      v.max_discount_won AS "maxDiscountWon",
+      (SELECT count(*)::int FROM promotion_grants g
+        JOIN promotion_versions gv ON gv.id=g.version_id
+        WHERE gv.campaign_id=c.id AND g.source='direct') AS "directIssuedCount",
+      (SELECT count(*)::int FROM promotion_uses u WHERE u.campaign_id=c.id
+        AND u.status IN ('HELD','USED')) AS "activeUseCount"
       FROM promotion_campaigns c LEFT JOIN LATERAL
-        (SELECT id,version FROM promotion_versions WHERE campaign_id=c.id ORDER BY version DESC LIMIT 1) v ON true
+        (SELECT id,version,scope,target_ids,starts_at,ends_at,minimum_eligible_goods_won,
+          amount_kind,amount_value,max_discount_won FROM promotion_versions
+          WHERE campaign_id=c.id ORDER BY version DESC LIMIT 1) v ON true
       ORDER BY c.created_at DESC,c.id`);
     return result.rows;
   }

@@ -60,7 +60,13 @@ test('admin may create, version, issue and stop one campaign while role and Orig
     assert.ok(first.id && first.versionId);
     const listed = await fetch(path, { headers: { cookie: admin } });
     assert.equal(listed.status, 200);
-    assert.ok((await listed.json()).some((item) => item.id === first.id));
+    const listedCampaign = (await listed.json()).find((item) => item.id === first.id);
+    assert.ok(listedCampaign);
+    assert.equal(listedCampaign.amountValue, 3000);
+    assert.equal(listedCampaign.totalUseLimit, 2);
+    assert.equal(listedCampaign.directIssuedCount, 0);
+    assert.equal(listedCampaign.activeUseCount, 0);
+    assert.equal(listedCampaign.startsAt, campaign.startsAt);
 
     const issueKey = randomUUID();
     const grantsPath = `${path}/${first.id}/grants`;

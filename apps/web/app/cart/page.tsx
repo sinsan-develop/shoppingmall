@@ -1,12 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 type CartItem = { optionId: string; productId: string; title: string; optionName: string;
   quantity: number; unitPriceWon: number | null; availability: 'available' | 'unavailable' };
 type Shipment = { key: string; shippingMode: string; sellerId: string | null;
   goodsWon: number; shippingWon: number; totalWon: number; lines: { optionId: string }[] };
 type Quote = { shipments: Shipment[]; goodsWon: number; shippingWon: number; totalWon: number };
+type PromotionRule = { kind: 'goods_discount' | 'shipping_support'; amountKind: 'fixed' | 'percent';
+  amountValue: number; startAt: string; endAt: string };
+type Coupon = { grantId: string; campaignId: string; title: string; rule: PromotionRule };
+type AppliedQuote = Omit<Quote, 'shipments'> & { discountWon: number; supportWon: number; payableGoodsWon: number;
+  payableShippingWon: number; payableTotalWon: number; zeroSupportShipmentKeys: string[];
+  message?: string; shipments: (Shipment & { discountWon: number; supportWon: number;
+    payableGoodsWon: number; payableShippingWon: number; payableTotalWon: number })[] };
+type ShippingChoice = { grantId: string; code: string };
 type Reservation = { id: string; status: 'ACTIVE' | 'EXPIRED' | 'RELEASED' | 'CANCELLED' | 'CONSUMED';
   expiresAt: string; endReason: string | null; lines: { optionId: string; quantity: number }[];
   quote?: Quote };
@@ -14,7 +22,7 @@ type ViewProps = { items: CartItem[]; quote?: Quote; edits: Record<string, numbe
   busy: string; message: string; loading: boolean; onEdit: (id: string, quantity: number) => void;
   onSave: (id: string) => void; onRemove: (id: string) => void;
   reservation?: Reservation; nowMs?: number; onReserve?: () => void; onRelease?: () => void;
-  onRecheck?: () => void; retryAvailable?: boolean };
+  onRecheck?: () => void; retryAvailable?: boolean; children?: ReactNode };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -73,7 +81,7 @@ export function createRefreshGate() {
 }
 
 export function CartView({ items, quote, edits, busy, message, loading, onEdit, onSave, onRemove,
-  reservation, nowMs, onReserve, onRelease, onRecheck, retryAvailable }: ViewProps) {
+  reservation, nowMs, onReserve, onRelease, onRecheck, retryAvailable, children }: ViewProps) {
   const active = reservation?.status === 'ACTIVE';
   const seconds = active ? Math.max(0, Math.ceil((Date.parse(reservation.expiresAt) -
     (nowMs ?? Date.now())) / 1000)) : 0;
@@ -140,7 +148,65 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
           onClick={onReserve}>{retryAvailable ? '이전 예약 결과 다시 확인' : '결제 준비 · 15분 재고 예약'}</button> : null}
         <p className="section-note">결제 기능은 준비 중입니다. 이 금액은 주문·결제 확정 금액이 아닙니다.</p>
       </>}
+    {children}
   </main>;
+}
+
+export function PromotionCheckoutView({ base, coupons, goodsGrantId, goodsCode, shippingChoices,
+  quote, busy, onGoodsGrant, onGoodsCode, onShippingChoice, onPreview }: {
+  base: Quote; coupons: Coupon[]; goodsGrantId: string; goodsCode: string;
+  shippingChoices: Record<string, ShippingChoice>; quote?: AppliedQuote; busy: boolean;
+  onGoodsGrant: (id: string) => void; onGoodsCode: (code: string) => void;
+  onShippingChoice: (key: string, choice: ShippingChoice) => void; onPreview: () => void;
+}) {
+  const goodsCoupons = coupons.filter((coupon) => coupon.rule.kind === 'goods_discount');
+  const supportCoupons = coupons.filter((coupon) => coupon.rule.kind === 'shipping_support');
+  return <section className="cart-quote" aria-labelledby="promotion-quote-heading">
+    <h2 id="promotion-quote-heading">쿠폰 적용 견적</h2>
+    <p>쿠폰 선택과 코드를 함께 입력하지 않습니다. 가격·배송비와 혜택은 결제 전에 다시 확인합니다.</p>
+    <label htmlFor="promotion-goods-grant">상품 할인 쿠폰</label>
+    <select id="promotion-goods-grant" value={goodsGrantId} disabled={busy}
+      onChange={(event) => onGoodsGrant(event.currentTarget.value)}>
+      <option value="">선택하지 않음</option>
+      {goodsCoupons.map((coupon) => <option key={coupon.grantId} value={coupon.grantId}>{coupon.title}</option>)}
+    </select>
+    <label htmlFor="promotion-goods-code">상품 할인 코드</label>
+    <input id="promotion-goods-code" name="goodsCode" value={goodsCode} disabled={busy}
+      autoComplete="off" maxLength={40} onChange={(event) => onGoodsCode(event.currentTarget.value)} />
+    {base.shipments.map((shipment, index) => {
+      const choice = shippingChoices[shipment.key] ?? { grantId: '', code: '' };
+      const free = shipment.shippingWon === 0;
+      return <fieldset key={shipment.key} className="cart-quote">
+        <legend>발송 {index + 1} · 배송비 {won(shipment.shippingWon)}</legend>
+        <label htmlFor={`support-grant-${index}`}>배송비 지원 쿠폰</label>
+        <select id={`support-grant-${index}`} value={choice.grantId} disabled={busy || free}
+          onChange={(event) => onShippingChoice(shipment.key,
+            { grantId: event.currentTarget.value, code: '' })}>
+          <option value="">선택하지 않음</option>
+          {supportCoupons.map((coupon) => <option key={coupon.grantId} value={coupon.grantId}>
+            {coupon.title}</option>)}
+        </select>
+        <label htmlFor={`support-code-${index}`}>배송비 지원 코드</label>
+        <input id={`support-code-${index}`} value={choice.code} autoComplete="off" maxLength={40}
+          disabled={busy || free} onChange={(event) => onShippingChoice(shipment.key,
+            { grantId: '', code: event.currentTarget.value })} />
+        {free ? <p>무료배송 상품에는 배송비 지원이 적용되지 않습니다</p> : null}
+      </fieldset>;
+    })}
+    <button type="button" className="secondary-button" disabled={busy} onClick={onPreview}>
+      {busy ? '견적 확인 중' : '견적 다시 확인'}</button>
+    {quote ? <div aria-live="polite">
+      <h3>쿠폰 적용 예상 금액</h3>
+      <ul>{quote.shipments.map((shipment, index) => <li key={shipment.key}>
+        발송 {index + 1} · 상품 할인 {won(shipment.discountWon)} · 배송비 지원 {won(shipment.supportWon)} ·
+        예상 소계 {won(shipment.payableTotalWon)}
+      </li>)}</ul>
+      <p>상품 할인 {won(quote.discountWon)} · 배송비 지원 {won(quote.supportWon)}</p>
+      <p>예상 결제금액 <strong>{won(quote.payableTotalWon)}</strong></p>
+      {quote.message ? <p>{quote.message}</p> : null}
+      <p>이 금액은 견적이며 주문·결제 완료가 아닙니다.</p>
+    </div> : null}
+  </section>;
 }
 
 export default function CartPage() {
@@ -153,6 +219,13 @@ export default function CartPage() {
   const [reservation, setReservation] = useState<Reservation>();
   const [retryAvailable, setRetryAvailable] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [goodsGrantId, setGoodsGrantId] = useState('');
+  const [goodsCode, setGoodsCode] = useState('');
+  const [shippingChoices, setShippingChoices] = useState<Record<string, ShippingChoice>>({});
+  const [promotionQuote, setPromotionQuote] = useState<AppliedQuote>();
+  const [promotionBusy, setPromotionBusy] = useState(false);
+  const [promotionMessage, setPromotionMessage] = useState('');
   const refreshGate = useRef<ReturnType<typeof createRefreshGate> | null>(null);
   if (refreshGate.current === null) refreshGate.current = createRefreshGate();
   const refresh = useCallback(async (signal?: AbortSignal) => {
@@ -240,6 +313,51 @@ export default function CartPage() {
     return () => { controller.abort(); window.clearInterval(display); window.clearInterval(verify); };
   }, [reservation?.id, reservation?.status, busy, refresh]);
 
+  useEffect(() => {
+    if (!apiOrigin || reservation?.status !== 'ACTIVE') {
+      setCoupons([]); setPromotionQuote(undefined); return;
+    }
+    const controller = new AbortController();
+    setGoodsGrantId(''); setGoodsCode(''); setShippingChoices({}); setPromotionQuote(undefined);
+    fetch(`${apiOrigin}/customer/promotions/coupons`,
+      { credentials: 'include', signal: controller.signal, cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('쿠폰 목록을 불러오지 못했습니다. 코드 입력은 가능합니다');
+        if (!controller.signal.aborted) setCoupons(await response.json() as Coupon[]);
+      }).catch((error: unknown) => {
+        if (!controller.signal.aborted) setPromotionMessage(error instanceof Error ? error.message : '쿠폰 목록을 불러오지 못했습니다');
+      });
+    return () => controller.abort();
+  }, [reservation?.id, reservation?.status]);
+
+  const reservationQuoteKey = JSON.stringify(reservation?.quote ?? null);
+  useEffect(() => { setPromotionQuote(undefined); }, [reservation?.id, reservationQuoteKey]);
+
+  async function previewPromotions() {
+    if (!apiOrigin || !reservation || reservation.status !== 'ACTIVE' || promotionBusy) return;
+    setPromotionBusy(true); setPromotionMessage(''); setPromotionQuote(undefined);
+    try {
+      const shippingCoupons: ({ shipmentKey: string; grantId: string } |
+        { shipmentKey: string; code: string })[] = [];
+      for (const [shipmentKey, choice] of Object.entries(shippingChoices)) {
+        if (choice.grantId) shippingCoupons.push({ shipmentKey, grantId: choice.grantId });
+        else if (choice.code.trim()) shippingCoupons.push({ shipmentKey, code: choice.code.trim() });
+      }
+      const goodsCoupon = goodsGrantId ? { grantId: goodsGrantId } :
+        goodsCode.trim() ? { code: goodsCode.trim() } : undefined;
+      const response = await fetch(`${apiOrigin}/customer/checkout/reservations/${encodeURIComponent(reservation.id)}/promotions/quote`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...(goodsCoupon ? { goodsCoupon } : {}), shippingCoupons }),
+      });
+      if (response.status === 401 || response.status === 403) throw new Error('구매자 역할로 로그인해 주세요');
+      if (response.status === 404) throw new Error('사용할 수 없는 쿠폰입니다. 목록과 코드를 확인해 주세요');
+      if (response.status === 409) throw new Error('예약·상품·쿠폰 기간 또는 사용 한도가 바뀌었습니다. 다시 확인해 주세요');
+      if (!response.ok) throw new Error('쿠폰 견적을 확인하지 못했습니다');
+      setPromotionQuote(await response.json() as AppliedQuote);
+    } catch (error) { setPromotionMessage(error instanceof Error ? error.message : '쿠폰 견적을 확인하지 못했습니다'); }
+    finally { setPromotionBusy(false); }
+  }
+
   async function reserve() {
     if (!apiOrigin || busy || reservation?.status === 'ACTIVE') return;
     refreshGate.current?.invalidate();
@@ -315,5 +433,16 @@ export default function CartPage() {
     onRecheck={() => { setReservation(undefined); void refresh().catch(() =>
       setMessage('상품과 금액을 다시 확인하지 못했습니다')); }}
     onEdit={(id, quantity) => setEdits((old) => ({ ...old, [id]: quantity }))}
-    onSave={(id) => mutate(id, 'PUT')} onRemove={(id) => mutate(id, 'DELETE')} />;
+    onSave={(id) => mutate(id, 'PUT')} onRemove={(id) => mutate(id, 'DELETE')}>
+    {reservation?.status === 'ACTIVE' && reservation.quote ? <>
+      {promotionMessage ? <p role="alert">{promotionMessage}</p> : null}
+      <PromotionCheckoutView base={reservation.quote} coupons={coupons} goodsGrantId={goodsGrantId}
+        goodsCode={goodsCode} shippingChoices={shippingChoices} quote={promotionQuote}
+        busy={promotionBusy || !!busy}
+        onGoodsGrant={(id) => { setGoodsGrantId(id); if (id) setGoodsCode(''); setPromotionQuote(undefined); }}
+        onGoodsCode={(code) => { setGoodsCode(code); if (code) setGoodsGrantId(''); setPromotionQuote(undefined); }}
+        onShippingChoice={(key, choice) => { setShippingChoices((old) => ({ ...old, [key]: choice }));
+          setPromotionQuote(undefined); }} onPreview={() => void previewPromotions()} />
+    </> : null}
+  </CartView>;
 }
