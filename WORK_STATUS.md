@@ -30,6 +30,8 @@
 - 관리자 HTTP 실DB RED: `7afd353fef83f3caceee457298f48761dca7fd2b`을 지정 WSL checkout에 clean fast-forward하고 새 일회용 `shoppingmall-s32-admin-pg-1003`(DB `shoppingmall`, migration 12)를 만들었다. 목표 1건은 등록 전 경로 404로 예상 RED/0 skip, 사후 계정·세션·혜택·감사 각 0. 공유 DB는 변경하지 않았다.
 - 구현 전 계약 보정: 직접 발행 `Idempotency-Key`의 재시도 이력을 보존할 필드가 신규 `promotion_grants`에 없어 테스트 우선으로 같은 0011의 새 테이블 안에 UUID 키·유일 제약을 보강한다. 이는 승인된 직접 발행 멱등 계약의 필수 필드이며 새 테이블 수나 기존 테이블 구조를 늘리지 않는다. 기존 0011은 격리 DB에만 적용됐으므로 임시 컨테이너를 정확히 재생성해 보정 SQL을 처음부터 다시 시험한다. 공유 DB 적용 전 SQL hash가 바뀌면 read-only preview도 갱신한다.
 - 멱등키 보정 RED: `5f37aa67484ab84c73fcbe3a22ef548d355e60e8`을 WSL checkout에 clean fast-forward하고 현재 일회용 DB에서 schema 시험 1건을 실행해 `promotion_grants.idempotency_key` 부재(`42703`)의 예상 RED/skip 0을 확인했다. 기존 0011 SQL SHA는 이제 유효한 최신 제안이 아니며 수정 SHA-256 `75675CA05C8E55E3F0D8ECC7CBA5ADA64C304372ADBDE9D1BFACE5E82850C330`이다. 수정본은 아직 실DB GREEN 전; 공유 DB는 여전히 11개 migration·0011 미적용. 다음은 현재 정확한 임시 컨테이너를 제거·재생성하고 수정 0011부터 실DB 검증한다.
+- 멱등키 보정 GREEN: 구 0011 격리 컨테이너의 계정/캠페인/사용 0을 확인 후 정확히 제거했다. `6aefaa77e0546536098a19b0a5d0f48496acd981` exact SHA에서 새 컨테이너/빈 DB로 0000~수정 0011 전체 12 migration 재현, 새 schema·repository 2 pass/0 skip/0 fail. 공유 DB 읽기 전용 미리보기는 11개 적용·수정 0011 **31문장/동일 SHA-256** 1건 대기이며 SQL 적용 0.
+- 관리자 API 5경로의 service/controller와 Nest 등록을 로컬에 추가했다. 직접 발행은 캠페인 행 잠금·UUID 멱등키·계정 역할·발행 한도·감사 트랜잭션으로 처리하고, 기존 발행 grant 버전은 새 버전과 분리한다. 로컬 `pnpm typecheck` 종료 0. 아직 HTTP GREEN/전체 회귀·실브라우저는 검증 전이며 공유 DB는 변경하지 않았다. 다음: 정확한 커밋/push→WSL 동일 SHA에서 목표 HTTP 시험.
 
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
