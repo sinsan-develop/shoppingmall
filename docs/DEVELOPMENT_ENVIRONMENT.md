@@ -1,5 +1,11 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-10-03 최신 상태 — 공유 개발 DB 0010 적용 완료
+
+- 신산님 승인 후 WSL-server의 `local-postgres/shoppingmall`에 `0010_s3_checkout_reservations`를 적용했다. 현재 Drizzle 이력은 11건, 시험 계정·상품·장바구니·예약·예약품목·재고대기·감사·세션 등 9범주 자료는 0건이다. 아래 과거 `0010 미적용` 문구는 당시의 기록으로 현재 상태가 아니다.
+- 현재 작업 브랜치 `codex/s31-checkout-reservation-plan`의 `cf05ad7`에서 공유 개발 DB 루트 순차 시험은 248건/241 pass/7 환경 skip/0 fail. 로컬 시험은 248건/187 pass/61 DB·환경 skip/0 fail, PR 본문 시험 8 pass, typecheck/lint/build 성공. 브라우저 실제 공유 DB 시험·Oracle 배포·사용자 인수는 아직 미검증이다.
+- 격리 fixture 시험용 컨테이너와 공유 DB 회귀용 컨테이너는 종료·제거했고, 이번 적용 전 생성한 `/tmp/shoppingmall-s31-0010-pre-20261003.dump`도 정확한 해시·경로 확인 뒤 삭제했다. 이후 브라우저 시험을 새로 진행한다면 고유 QA ID의 자료를 시험 직후 reset하고 잔류 0을 재확인해야 한다. 승인된 migration/schema는 삭제하지 않는다.
+
 ## 2026-10-03 S3.1 예약 작업의 현재 경계
 
 - 최신 제품 SHA `cbdd439d8931376cac688b73ba8912a9bfc206fe`: 승인된 계정 소유 `GET /customer/checkout/reservations/active`와 장바구니의 저장 ID 없는 자동 조회를 추가했다. 로컬 246건/187 pass/59 DB·환경 skip/0 fail, typecheck/lint/build exit 0. WSL 격리 PostgreSQL에 0000~0010을 적용한 루트 순차 실DB 246건/239 pass/7 조건부 skip/0 fail, 신규 HTTP 목표 2 pass/0 fail. 일회용 QA 컨테이너·볼륨/자료 잔류 0, 지정 checkout clean·동일 SHA. 공유 DB는 여전히 migration 10건이며 0010 미적용; 실제 브라우저와 정식 공유 DB 통합/E2E·Oracle·사용자 인수는 이 SHA에서 아직 미검증이다.
