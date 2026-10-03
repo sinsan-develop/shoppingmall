@@ -15,7 +15,7 @@ test('admin may create, version, issue and stop one campaign while role and Orig
   const names = qaNames(runId);
   const title = `QA-${runId}-discount`;
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  let app; let seeded = false; let adminId;
+  let app; let seeded = false; let adminId; let extraBuyerId;
   try {
     await runQaFixture('seed', runId, process.env.DATABASE_URL, password);
     seeded = true;
@@ -71,6 +71,14 @@ test('admin may create, version, issue and stop one campaign while role and Orig
     const retry = await post(grantsPath, { accountId: customerId, reason: 'QA direct issue' }, admin, origin, issueKey);
     assert.equal(retry.status, 201);
     assert.equal((await retry.json()).id, grant.id);
+    extraBuyerId = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    await pool.query("INSERT INTO account_roles(account_id,role) VALUES ($1,'customer')", [extraBuyerId]);
+    assert.equal((await post(grantsPath, { accountId: extraBuyerId, reason: 'over direct limit' },
+      admin, origin, randomUUID())).status, 409);
+    const sellerAccountId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [names.emails[1]])).rows[0].account_id;
+    assert.equal((await post(grantsPath, { accountId: sellerAccountId, reason: 'seller issue' },
+      admin, origin, randomUUID())).status, 400);
     const oldVersion = (await pool.query('SELECT version_id FROM promotion_grants WHERE id=$1', [grant.id])).rows[0].version_id;
     assert.equal(oldVersion, first.versionId);
 
@@ -106,6 +114,10 @@ test('admin may create, version, issue and stop one campaign while role and Orig
         await pool.query('DELETE FROM promotion_campaigns WHERE id=ANY($1::uuid[])', [campaigns]);
       }
       if (adminId) await pool.query("DELETE FROM audit_events WHERE actor_account_id=$1 AND action LIKE 'promotion.%'", [adminId]);
+      if (extraBuyerId) {
+        await pool.query('DELETE FROM account_roles WHERE account_id=$1', [extraBuyerId]);
+        await pool.query('DELETE FROM accounts WHERE id=$1', [extraBuyerId]);
+      }
       await runQaFixture('reset', runId, process.env.DATABASE_URL);
     }
     await pool.end();
