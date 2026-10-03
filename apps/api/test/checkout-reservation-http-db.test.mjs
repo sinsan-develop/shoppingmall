@@ -77,7 +77,8 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
        VALUES ($1,$2::jsonb,$3,$4)`,
       [ids.seller, JSON.stringify({ feeWon: -1 }), ids.invalidPolicyRequest, ids.accounts[3]],
     );
-    assert.equal((await start(customer, randomUUID())).status, 500);
+    const failedKey = randomUUID();
+    assert.equal((await start(customer, failedKey)).status, 500);
     assert.equal((await pool.query(
       `SELECT count(*)::int AS count FROM checkout_reservations WHERE account_id=$1 AND status='ACTIVE'`,
       [ids.accounts[0]],
@@ -85,6 +86,13 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
     await pool.query('DELETE FROM seller_shipping_policies WHERE seller_id=$1', [ids.seller]);
     await pool.query('DELETE FROM seller_shipping_policy_requests WHERE id=$1', [ids.invalidPolicyRequest]);
     ids.invalidPolicyRequest = null;
+    const recovered = await start(customer, failedKey);
+    assert.equal(recovered.status, 201);
+    const recoveredHold = await recovered.json();
+    assert.equal(recoveredHold.quote.totalWon, 26000);
+    assert.equal((await fetch(`${url}/${recoveredHold.id}`, {
+      method: 'DELETE', headers: { cookie: customer, origin },
+    })).status, 200);
     assert.equal((await start('', key)).status, 401);
     assert.equal((await start(seller, key)).status, 403);
     assert.equal((await start(customer, key, 'https://untrusted.invalid')).status, 403);

@@ -52,10 +52,10 @@ export class CustomerReservationController {
   @Post()
   async start(@Req() request: RequestHeaders) {
     requireOrigin(request);
-    const { pool, accountId, reservations } = await context(this.database, request, 'customer');
+    const { accountId, reservations } = await context(this.database, request, 'customer');
     const key = request.headers['idempotency-key'];
     if (!key || !uuid.test(key)) throw new BadRequestException();
-    try { return await withQuote(pool, accountId, await reservations.start(accountId, key)); }
+    try { return await reservations.start(accountId, key, true); }
     catch (error) { translate(error); }
   }
 

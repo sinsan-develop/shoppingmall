@@ -1,4 +1,4 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { canAccess, type AccessContext } from '../access.js';
 import { resolveShippingPolicy, validateShippingPolicy, type PolicyLocks, type ShippingPolicy } from './policy.js';
 
@@ -6,10 +6,10 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Seller requests never mutate the currently approved policy until an operator records a decision. */
 export class ShippingPolicies {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool, private readonly reader: Pool | PoolClient = pool) {}
 
   async getGlobal() {
-    const result = await this.pool.query<{
+    const result = await this.reader.query<{
       feeWon: number; freeThresholdWon: number; cutoffTime: string | null;
       blockedPostalRanges: ShippingPolicy['blockedPostalRanges'];
       lockedFee: boolean; lockedThreshold: boolean; lockedCutoff: boolean; updatedAt: Date;
@@ -29,7 +29,7 @@ export class ShippingPolicies {
   async getEffective(sellerId: string) {
     if (!uuid.test(sellerId)) throw new Error('Invalid seller target');
     const global = await this.getGlobal();
-    const result = await this.pool.query<{ id: string; policy: ShippingPolicy | null; approvedAt: Date | null }>(
+    const result = await this.reader.query<{ id: string; policy: ShippingPolicy | null; approvedAt: Date | null }>(
       `SELECT s.id,sp.policy,sp.approved_at AS "approvedAt" FROM sellers s
        LEFT JOIN seller_shipping_policies sp ON sp.seller_id=s.id WHERE s.id=$1`, [sellerId],
     );

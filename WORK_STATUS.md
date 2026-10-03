@@ -5,7 +5,12 @@
 - 담당 어울. 기존 단일 writer `codex/s31-checkout-reservation-plan@19612b562f4b75854d4237e7fc79b90f53789427`의 clean 격리 worktree에서 진행한다. 새 공개 API·schema·공유 DB 쓰기·외부 서비스는 제외한다.
 - 근거: `POST /customer/checkout/reservations`는 `CheckoutReservations.start`가 예약을 먼저 COMMIT한 뒤 별도 `quoteReservation`을 호출한다. 판매자 배송정책 조회·견적이 실패하면 고객에게 예약 ID 없이 오류가 돌아가지만 활성 예약이 남는다.
 - 계획: 소유 QA 판매자에만 유효하지 않은 승인 정책을 넣어 HTTP 실패 후 예약 0을 단언하는 RED를 먼저 확인한다. 이후 기존 POST 성공 응답 계약은 유지하며 예약·현재 견적을 같은 DB 트랜잭션에서 완료하거나 함께 rollback하도록 고친다. 테스트 fixture의 정책과 계정·상품은 finally에서 정리한다. 로컬 4 gate와 exact SHA WSL 격리 DB 전체 회귀를 수행하고 정식 공유 DB 통합·타 탭/기기 회복은 별도 경계로 남긴다.
-- 오류 횟수: 0. 다음: 실패 시험 작성·RED 재현.
+- 실패 재현 시험만 `638c184`로 SSH 별칭 원격에 push. WSL 지정 checkout은 직전 `19612b5` clean이며 해당 커밋을 fast-forward pull한다.
+- RED 자체 QA 자원: WSL 기존 이미지 `pgvector/pgvector:0.8.2-pg15`, `node:24-bookworm-slim`의 일회용 `shoppingmall-s31-atomic-red-pg-1003`, `shoppingmall-s31-atomic-red-node-1003`. 내부 fixture DB명만 `shoppingmall`; 외부 포트·영속 볼륨·공유 `local-postgres` 쓰기 없음. 0000~0010 적용 후 목표 HTTP 실DB 시험만 실행하고 예측한 활성 예약 1개 결함을 확인한다. 완료·실패 즉시 정확한 두 컨테이너와 익명 볼륨을 제거하며 공유 migration 10건·WSL clean을 읽기 전용 재확인한다. 암호는 런타임에서만 생성, 로그·Git에 기록하지 않는다.
+- 오류 횟수: 0. 다음: WSL 격리 RED 재현.
+- RED 결과: WSL `638c184`에서 0000~0010 적용 후 목표 HTTP 실DB 시험 2건 중 1 fail/1 pass. 잘못된 QA 판매자 정책으로 POST 500, 이어 활성 예약 실제 1건(예상 0건)을 확인했다. 정확한 QA 컨테이너·이름 일치 볼륨 0, checkout clean. 래퍼 마지막 Bash 조건식이 줄 끝 처리 문제로 exit 1을 냈으나 목표 시험의 assertion 결과는 명확하며 제품 오류와 구분한다. 같은 근본 원인 반복 0회.
+- GREEN 코드: 배송정책 읽기와 예약 견적을 기존 예약 생성 트랜잭션의 동일 DB 연결에서 수행하도록 내부 서비스만 수정했다. 견적·정책 조회 실패는 새 예약·품목·감사 모두 rollback한다. 기존 POST 성공 JSON은 그대로, GET 재견적도 같은 연결에서 정책을 읽는다. 실패 뒤 동일 멱등키로 정상 재시도되는 시험을 추가했다.
+- 로컬 중간 검증: `pnpm typecheck` 통과; `pnpm test` 245건/186 pass/59 환경 skip/0 fail 및 PR validator 8 pass; `pnpm lint`는 미사용 `pool` 1건을 발견해 제거 후 통과. 첫 `pnpm build`는 D: sandbox의 기존 dist 쓰기 EPERM(제품 오류 아님), 동일 명령 권한 상승 재실행 exit 0. 최신 테스트 추가 후 WSL 격리 GREEN·로컬 재검증은 아직 미완료다.
 
 ## 진행 중 — 2026-10-03 S3.1 최신 화면의 멱등키 실브라우저 회귀
 

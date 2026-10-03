@@ -1,4 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
+import { quoteReservationInTransaction } from './reservation-quote.js';
+import type { ShipmentQuote } from './shipment-quote.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const maxOptions = 100;
@@ -118,15 +120,20 @@ export class CheckoutReservations {
     return due.rows[0].due ? this.terminate(client, row, 'EXPIRED') : row;
   }
 
-  async start(accountId: string, key: string): Promise<ReservationView> {
+  async start(accountId: string, key: string, includeQuote = false): Promise<ReservationView & { quote?: ShipmentQuote }> {
     if (!uuid.test(accountId) || !uuid.test(key)) throw new Error('Invalid reservation request');
     return this.transaction(async (client) => {
+      const result = async (row: ReservationRow) => {
+        const view = await this.view(client, row);
+        return includeQuote && view.status === 'ACTIVE' ?
+          { ...view, quote: await quoteReservationInTransaction(this.pool, client, accountId, view.id) } : view;
+      };
       await this.lockAccount(client, accountId);
       const prior = await client.query<ReservationRow>(
         'SELECT * FROM checkout_reservations WHERE account_id=$1 AND idempotency_key=$2',
         [accountId, key],
       );
-      if (prior.rowCount) return this.view(client, await this.expireIfDue(client, prior.rows[0]));
+      if (prior.rowCount) return result(await this.expireIfDue(client, prior.rows[0]));
       const active = await client.query<ReservationRow>(
         `SELECT * FROM checkout_reservations WHERE account_id=$1 AND status='ACTIVE'`, [accountId],
       );
@@ -181,7 +188,7 @@ export class CheckoutReservations {
          VALUES ($1,'customer','checkout_reservation_started','checkout_reservation',$2)`,
         [accountId, created.rows[0].id],
       );
-      return this.view(client, created.rows[0]);
+      return result(created.rows[0]);
     });
   }
 
