@@ -156,6 +156,7 @@ try {
   const mobile = await evaluate('({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth })');
   assert.equal(mobile.width, 390);
   assert.ok(mobile.scrollWidth <= 390, `mobile horizontal overflow: ${mobile.scrollWidth}`);
+  await waitFor("document.querySelector('input[id^=cart-edit-]') && !document.querySelector('input[id^=cart-edit-]').disabled", 'cart edit enabled after reservation release');
   await evaluate("document.querySelector('input[id^=cart-edit-]').focus(); true");
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
