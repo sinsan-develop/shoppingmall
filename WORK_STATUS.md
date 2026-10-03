@@ -38,6 +38,12 @@
 - Task 3 완료 판정: 최신 시험 전용 SHA `cf073a27dad61592f715a8257a52169559c47993`에서 관리자 목표 HTTP 1 pass/0 skip(생성·목록·버전·중지·직접발행/멱등·코드 충돌·발행 한도·역할/Origin·대상 ID·감사 포함), 로컬 루트 270건/205 pass/65 DB·환경 skip/0 fail·PR 검사 8 pass·typecheck/lint/build 종료 0. 지정 WSL 격리 DB 전체 순차 270건/263 pass/7 환경 skip/0 fail. 사후 계정·상품·예약·프로모션 5관계·감사·세션 10범주 각 0, 임시 Node 0. label `s32-admin-20261003`·mount 0·공개 포트 없음 확인 후 정확한 `shoppingmall-s32-admin-pg-1003` 컨테이너와 tmpfs DB를 제거해 부재 확인. 임시 데이터 별도 복구본 없음, 사용자 데이터 없음. 최종 SHA는 다음 상태 기록 커밋 후 다시 확인한다.
 - 미검증: 공유 DB 0011 적용, 고객 쿠폰 목록/코드 견적, 사용 점유·경쟁, 화면·실브라우저, 주문/PG/Oracle/UAT. 다음은 Task 4 고객 API를 새 격리 DB에서 RED→GREEN으로 진행한다. 같은 근본 원인 3회 연속 없음.
 
+## 진행 중 — 2026-10-03 S3.2 Task 4 고객 쿠폰·미확정 견적
+
+- 담당 어울 단일 writer, 기존 clean `codex/s31-checkout-reservation-plan@4eea851c07428e98e0473aad00345c4449783852`. 관리자 Task 3 원격 보존·격리 회귀는 위에 기록했다. 새 고객 공개 경로 2개만 우선 구현하고, 기존 무혜택 예약 API/금액·장바구니 동작은 보존한다.
+- 이번 격리 시험 자원 계획: WSL의 새 일회용 컨테이너 `shoppingmall-s32-customer-pg-1003`(label `s32-customer-20261003`), 내부 DB `shoppingmall`, tmpfs·무볼륨·호스트 공개 포트 없음. 승인된 0000~0011을 새로 적용한 뒤 `QA_RUN_ID` 가상 구매자·판매자·운영자 5계정/공개 상품 1개/옵션·재고/예약·직접 grant·공용 코드·감사만 시험한다. 정확한 시험 ID별 혜택 사용·grant·코드·버전·캠페인·예약/카트·상품/계정/세션·감사를 순서대로 정리하고 주요 잔류 0을 확인한 뒤 이 컨테이너만 제거한다. 기존 공유 `local-postgres/shoppingmall`과 백업은 변경하지 않는다.
+- 단계: 목록 선택/코드 입력의 동일 견적, 남의 grant 차단, 기간·중지·무료배송 0원·무기록 견적·역할/Origin을 테스트 우선으로 진행. 아직 Task 4 파일·QA 자원 없음, 오류 0. 미검증 Task 4 전체.
+
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
 - 신산님이 `docs/design/S3_PROMOTION_CONTRACT_DRAFT.md`에 대해 “설계서 대로 진행하자”라고 직접 지시했다. 상세 설계 승인으로 기록하고, 신규 공개 API·영속 schema/migration·공유 개발 DB 적용은 설계서 7절의 별도 경계로 유지한다.
