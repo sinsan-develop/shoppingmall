@@ -2,6 +2,7 @@
 
 ## 2026-10-03 최신 상태 — 공유 개발 DB 0010 적용 완료
 
+- S3.2 내부 계산 커밋 `3b51f6ae1665d6e4ff32d7bc04b1f33a5913fa0b`에서 로컬 257건/195 pass/62 DB·환경 skip/0 fail, WSL exact SHA 공유 DB 전체 순차 257건/250 pass/7 환경 skip/0 fail. 시험 후 QA 9범주·일회용 Node 컨테이너 0, migration 11·WSL clean. 할인/배송비 지원은 아직 내부 순수 계산뿐이며 실제 프로모션·고객 결제금액/API/DB 계약은 미구현이다.
 - WSL 지정 checkout exact SHA `c4fc056435aa546c8cb9c40df697758084a139c2`에서 공유 DB 전체 순차 시험 **250건/243 pass/7 환경 skip/0 fail**, exit 0. 사후 QA 9범주 모두 0, migration 11, 시험용 Node 컨테이너 0, checkout clean; 새 DB/볼륨/포트/백업 없음. 로컬 250건/188 pass/62 DB·환경 skip/0 fail, PR 본문 8 pass, typecheck/lint/build 성공. 실제 영속 주문/통합 결제·Oracle/UAT는 이 결과에 포함되지 않는다.
 - 리뷰 보정 제품 SHA `feb5dc7`의 다판매자 상품명 구분·시험 정리 보강 후 QA ID `b83f1005`를 실제 Chrome에서 재검증했다. 첫 실패는 고유 QA 접두어를 빠뜨린 테스트 기대값 때문이었고 이를 고쳐 3발송 묶음의 상품명·상품금액·배송비·소계 및 장바구니 5개 제거가 PASS였다. 같은 ID reset 뒤 공유 DB 9범주 0, migration 11건, 지정 컨테이너/볼륨/암호 파일·Windows 터널/Chrome 프로필 0, WSL checkout clean. 영속 주문/통합 결제/Oracle/UAT는 검증되지 않았다.
 
