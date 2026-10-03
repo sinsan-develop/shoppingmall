@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.2 독립 금액 배분 계산 선행
+
+- 담당 어울 단일 writer, 기존 격리 worktree `D:\Project\shoppingmall2\.worktrees\flat-v2-prototypes`, branch `codex/s31-checkout-reservation-plan@e7efbfc7b818ca04f4f09cd08d638e3c096e66d6`, clean. PMO 공통 지침은 읽었으나 이 저장소 root에는 `AGENTS.md`가 없어 신산님 제공 전역 지침·PMO 지침·승인된 DESIGN/WORK_PLAN을 따른다. S3.1 실DB 전체 250건/243 pass/7 환경 skip/0 fail과 임시 자원 0은 직전 증거이며 이번 새 기능의 검증으로 재사용하지 않는다.
+- 계획 범위: 이미 확정된 R05의 통합 할인액을 할인 대상 상품의 **할인 전 금액** 비율로 발송 묶음에 원화 정수 배분하는 내부 순수 계산만 RED→GREEN으로 추가한다. 실제 쿠폰 발행·대상 SKU/판매자/기간·예산/사용 횟수, 배송비 지원·주문 저장·공개 API/DB schema는 구현하거나 활성화하지 않는다. 사용자에게 보이는 견적 금액은 기존대로 유지한다. 외부 계정·DB·컨테이너·포트·임시 QA 자료 생성 없음. 오류 시 새 순수 계산 변경만 이전 커밋으로 되돌릴 수 있고 기존 데이터에는 영향 없음.
+- Ruling: 동일한 원 단위 잔여액은 비율 소수부가 큰 발송 묶음에 우선, 동률이면 안정적인 묶음 key 사전순으로 배분한다 — PRD는 결정적 조정을 요구하지만 동률 순서는 명시하지 않았고 장바구니 입력 순서에 따라 금액이 바뀌지 않아야 하기 때문이다 — 실제 주문 계약에서 다른 우선순위를 승인하면 배분 기대값과 주문 snapshot을 조정해야 한다. 이 계산은 아직 운영 금액 계약 승인이나 S3.2 완료를 의미하지 않는다.
+- RED→GREEN 및 로컬 검증: 신규 `shipment-quote.test.mjs` 4건은 내부 배분 함수 부재로 예상 RED(기존 5 pass/신규 4 fail), 함수 추가 뒤 경계 1건까지 10/10 pass. 할인 대상 발송 묶음만 비례 배분, 1원 동률 key 순서, 52,000원에서 5,000원 할인 후에도 무료배송, 부적합 금액·중복 묶음 거부, 안전 정수 상한을 확인했다. 루트 `pnpm test` **255건/193 pass/62 DB·환경 skip/0 fail** 및 PR 본문 8 pass, typecheck/lint/build exit 0. 현재 이 함수는 기존 견적·공개 API에 연결되지 않아 실제 고객 결제 금액은 변하지 않는다.
+- WSL 재현 자원 계획: 안전 커밋을 SSH alias 작업 브랜치에 push해 지정 `/home/daon/deploy/shopping`을 exact SHA로 fast-forward한다. 기존 공유 `local-postgres/shoppingmall`의 사전 QA 9범주 0과 migration 11건을 읽기 전용 확인한 뒤 일회용 Node24 컨테이너 `shoppingmall-s32-allocation-node-1003`만 `--rm --network container:local-postgres`로 연결해 루트 순차 회귀를 실행한다. 새 DB·볼륨·포트·백업·Secret 파일 없음. 실행 후 시험 자체의 fixture reset, QA 9범주 0, 정확한 컨테이너 0, WSL checkout clean·동일 SHA를 확인한다. 외부 서비스·운영 혜택은 사용하지 않는다.
+
 ## 진행 중 — 2026-10-03 S3.1 리뷰 보정·시험 자원 정리
 
 - 최종 WSL 공유 DB 회귀: SSH alias 원격→지정 WSL checkout `c4fc056435aa546c8cb9c40df697758084a139c2` fast-forward·clean 확인 뒤, 계획한 `shoppingmall-s31-review-full-node-1003` Node24 일회용 컨테이너로 루트 순차 시험 **250건/243 pass/7 환경 skip/0 fail**, 바깥 명령 exit 0. 사후 migration 11건, QA 9범주 `0|0|0|0|0|0|0|0|0`, 정확한 시험 컨테이너 0, WSL checkout clean·동일 SHA. 새 DB·볼륨·포트·백업 없음. Windows 9091/9092/9229 listener 0. 7 skip은 통과로 간주하지 않는다. 영속 주문 3건·한 결제·Oracle/UAT는 미구현 또는 미검증이므로 S3.1/S3 완료·PR 병합 보류.

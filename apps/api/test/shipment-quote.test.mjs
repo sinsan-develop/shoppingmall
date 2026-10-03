@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as shipmentQuote from '../src/checkout/shipment-quote.ts';
 import { groupShipmentLines, quoteShipments, shippingFeeWon } from '../src/checkout/shipment-quote.ts';
 import { defaultShippingPolicy } from '../src/shipping/policy.ts';
 
@@ -90,4 +91,86 @@ test('a server quote totals each seller shipment with its effective policy, not 
       unitPriceWon: Number.MAX_SAFE_INTEGER },
     { optionId: 'two', sellerId: 'b', shippingMode: 'seller_direct', quantity: 1, unitPriceWon: 1 },
   ], () => defaultShippingPolicy), /Invalid shipment amount/);
+});
+
+test('integrated discount allocates only eligible pre-discount goods and preserves the won total', () => {
+  const allocate = shipmentQuote.allocateShipmentDiscountWon;
+  assert.equal(typeof allocate, 'function');
+  assert.deepEqual(allocate([
+    { key: 'seller_direct:a', eligibleGoodsWon: 20000 },
+    { key: 'owool_fulfillment', eligibleGoodsWon: 0 },
+    { key: 'seller_direct:b', eligibleGoodsWon: 30000 },
+  ], 5000), [
+    { key: 'seller_direct:a', discountWon: 2000 },
+    { key: 'owool_fulfillment', discountWon: 0 },
+    { key: 'seller_direct:b', discountWon: 3000 },
+  ]);
+  assert.deepEqual(allocate([
+    { key: 'a', eligibleGoodsWon: 100 },
+    { key: 'b', eligibleGoodsWon: 200 },
+    { key: 'c', eligibleGoodsWon: 300 },
+  ], 100).map((part) => part.discountWon), [17, 33, 50]);
+});
+
+test('one-won remainder is stable by shipment key rather than cart line order', () => {
+  const allocate = shipmentQuote.allocateShipmentDiscountWon;
+  assert.equal(typeof allocate, 'function');
+  assert.deepEqual(allocate([
+    { key: 'seller_direct:b', eligibleGoodsWon: 100 },
+    { key: 'seller_direct:a', eligibleGoodsWon: 100 },
+  ], 1), [
+    { key: 'seller_direct:b', discountWon: 0 },
+    { key: 'seller_direct:a', discountWon: 1 },
+  ]);
+  assert.deepEqual(allocate([
+    { key: 'seller_direct:a', eligibleGoodsWon: 100 },
+    { key: 'seller_direct:b', eligibleGoodsWon: 100 },
+  ], 1), [
+    { key: 'seller_direct:a', discountWon: 1 },
+    { key: 'seller_direct:b', discountWon: 0 },
+  ]);
+});
+
+test('52,000 won shipment stays free-shipping after a 5,000 won goods discount', () => {
+  const allocate = shipmentQuote.allocateShipmentDiscountWon;
+  assert.equal(typeof allocate, 'function');
+  const quote = quoteShipments([
+    { optionId: 'discounted', sellerId: 'seller-a', shippingMode: 'seller_direct',
+      quantity: 1, unitPriceWon: 52000 },
+  ], () => defaultShippingPolicy);
+  const [allocation] = allocate([
+    { key: quote.shipments[0].key, eligibleGoodsWon: quote.shipments[0].preDiscountGoodsWon },
+  ], 5000);
+  assert.equal(quote.shipments[0].shippingWon, 0);
+  assert.equal(quote.totalWon - allocation.discountWon, 47000);
+});
+
+test('discount allocation rejects duplicate groups, invalid money and discounts beyond eligible goods', () => {
+  const allocate = shipmentQuote.allocateShipmentDiscountWon;
+  assert.equal(typeof allocate, 'function');
+  const group = { key: 'seller_direct:a', eligibleGoodsWon: 100 };
+  for (const bad of [
+    () => allocate([], 1),
+    () => allocate([group, group], 1),
+    () => allocate([{ ...group, eligibleGoodsWon: -1 }], 0),
+    () => allocate([{ ...group, eligibleGoodsWon: 1.5 }], 1),
+    () => allocate([{ ...group, key: '' }], 1),
+    () => allocate([group], -1),
+    () => allocate([group], 1.5),
+    () => allocate([group], 101),
+    () => allocate([{ ...group, eligibleGoodsWon: Number.MAX_SAFE_INTEGER },
+      { key: 'seller_direct:b', eligibleGoodsWon: 1 }], 1),
+    () => allocate([{ ...group, eligibleGoodsWon: 0 }], 1),
+  ]) assert.throws(bad, /Invalid discount allocation/);
+  assert.deepEqual(allocate([], 0), []);
+});
+
+test('discount allocation uses exact integer arithmetic near the safe-money limit', () => {
+  assert.deepEqual(shipmentQuote.allocateShipmentDiscountWon([
+    { key: 'seller_direct:a', eligibleGoodsWon: Number.MAX_SAFE_INTEGER - 1 },
+    { key: 'seller_direct:b', eligibleGoodsWon: 1 },
+  ], Number.MAX_SAFE_INTEGER), [
+    { key: 'seller_direct:a', discountWon: Number.MAX_SAFE_INTEGER - 1 },
+    { key: 'seller_direct:b', discountWon: 1 },
+  ]);
 });

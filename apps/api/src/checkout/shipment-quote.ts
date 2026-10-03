@@ -24,6 +24,45 @@ export type ShipmentQuote = {
   totalWon: number;
 };
 
+export type DiscountEligibleGroup = { key: string; eligibleGoodsWon: number };
+export type ShipmentDiscount = { key: string; discountWon: number };
+
+/** Internal arithmetic only: the caller selects eligible current-price goods; no coupon is issued here. */
+export function allocateShipmentDiscountWon(groups: readonly DiscountEligibleGroup[],
+  discountWon: number): ShipmentDiscount[] {
+  if (!Array.isArray(groups) || !Number.isSafeInteger(discountWon) || discountWon < 0) {
+    throw new Error('Invalid discount allocation');
+  }
+  const seen = new Set<string>();
+  let eligibleTotalWon = 0;
+  for (const group of groups) {
+    if (!group || typeof group.key !== 'string' || !group.key.trim() || seen.has(group.key) ||
+        !Number.isSafeInteger(group.eligibleGoodsWon) || group.eligibleGoodsWon < 0) {
+      throw new Error('Invalid discount allocation');
+    }
+    seen.add(group.key);
+    eligibleTotalWon += group.eligibleGoodsWon;
+    if (!Number.isSafeInteger(eligibleTotalWon)) throw new Error('Invalid discount allocation');
+  }
+  if (discountWon > eligibleTotalWon) throw new Error('Invalid discount allocation');
+  if (discountWon === 0) return groups.map(({ key }) => ({ key, discountWon: 0 }));
+  const denominator = BigInt(eligibleTotalWon);
+  const allocation = groups.map(({ key, eligibleGoodsWon }) => {
+    const numerator = BigInt(discountWon) * BigInt(eligibleGoodsWon);
+    return { key, discountWon: Number(numerator / denominator), remainder: numerator % denominator };
+  });
+  let remaining = discountWon - allocation.reduce((sum, part) => sum + part.discountWon, 0);
+  const priority = [...allocation].sort((a, b) => a.remainder === b.remainder
+    ? (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
+    : a.remainder > b.remainder ? -1 : 1);
+  for (const part of priority) {
+    if (remaining === 0) break;
+    part.discountWon += 1;
+    remaining -= 1;
+  }
+  return allocation.map(({ key, discountWon: amount }) => ({ key, discountWon: amount }));
+}
+
 /** Grouping is independent of the eventual order and reservation persistence. */
 export function groupShipmentLines(input: readonly ShipmentLine[]): ShipmentGroup[] {
   if (!Array.isArray(input)) throw new Error('Invalid shipment line');
