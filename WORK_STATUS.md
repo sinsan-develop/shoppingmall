@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
+
+- 신산님이 `docs/design/S3_PROMOTION_CONTRACT_DRAFT.md`에 대해 “설계서 대로 진행하자”라고 직접 지시했다. 상세 설계 승인으로 기록하고, 신규 공개 API·영속 schema/migration·공유 개발 DB 적용은 설계서 7절의 별도 경계로 유지한다.
+- 담당 어울 단일 writer, 기존 `codex/s31-checkout-reservation-plan@5a4b35670fd71e5b5ddefb723c52f3e748c65b33` clean 기준. 변경 대상은 승인 상태 문구, `docs/superpowers/plans/2026-10-03-s3-promotions.md`, 이 작업현황이다. 제품 코드·DB·서버·QA 자원 변경 없음, 계획 작성 시 시험 실행 없음. 오류 0.
+- 자체 검토: 설계 1~7절을 Task 1~6·후속 S3.3/S4 경계와 대조했고, Review Focus 5개가 소유 Task의 시험에 연결됐다. 목록/코드 선택 타입은 공용 코드의 미발행 grant를 견적에서 쓰지 않도록 보정했다. 계획의 새 공개 경로 7개와 신규 테이블 5개·0011 migration은 모두 **제안**이며 현재 승인된 실행 계약이 아니다. 문서 후행 공백·미해결 placeholder는 0, 제품 시험/WSL/DB 검증은 이 문서 작업에서 실행하지 않았다.
+- 다음: 정확한 문서 diff 검사·안전 commit/SSH branch push 후 신산님께 이 계획과 공개 API·schema 구현 범위의 검토를 요청한다. 공유 DB 0011 적용은 격리 PASS와 정확한 SQL 영향 확인 뒤 별도 요청한다. S3.2 구현·PR/병합·Oracle/UAT는 미완료다.
+
 ## 진행 중 — 2026-10-03 S3.2 통합 쿠폰 상세 설계 초안
 
 - 담당 어울 단일 writer, 기존 `codex/s31-checkout-reservation-plan@1900c1e816b05bb6752c6b13057708ca21bebdc0` clean 기준. 신산님의 “계속하자”를 직전 권장안인 목록 선택·코드 입력의 단일 쿠폰 원장 방향으로 상세 설계 진행 지시로 해석한다. 이는 새 API/schema/공유 DB 적용 승인이 아니다.
