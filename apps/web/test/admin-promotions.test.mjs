@@ -27,3 +27,10 @@ test('operator can see campaign version, rules, limits, issue count and explicit
   assert.match(html, /name="reason"/);
   assert.doesNotMatch(html, /자동 송금|결제 완료/);
 });
+
+test('fixed-amount promotion accepts the displayed whole-won default in a browser form', () => {
+  const html = renderToStaticMarkup(createElement(AdminPromotionsView, {
+    campaigns: [], busy: false, onCreate: () => {}, onVersion: () => {}, onStop: () => {}, onGrant: () => {},
+  }));
+  assert.match(html, /id="promotion-new-amount"[^>]*min="1"[^>]*step="1"[^>]*value="5000"/);
+});

@@ -61,7 +61,7 @@ function RuleFields({ prefix, initial }: { prefix: string; initial?: Campaign })
         <option value="fixed">정액 · 원</option><option value="percent">정률 · %</option>
       </select></> : <input type="hidden" name="amountKind" value="fixed" />}
     <label htmlFor={`${prefix}-amount`}>{amountKind === 'percent' ? '할인율 · %' : '혜택 금액 · 원'}</label>
-    <input id={`${prefix}-amount`} name="amountValue" type="number" min="0.01"
+    <input id={`${prefix}-amount`} name="amountValue" type="number" min={amountKind === 'percent' ? '0.01' : '1'}
       max={amountKind === 'percent' ? 100 : undefined} step={amountKind === 'percent' ? '0.01' : '1'} required
       defaultValue={initial ? (initial.amountKind === 'percent' ? initial.amountValue / 100 : initial.amountValue) :
         (kind === 'shipping_support' ? 3000 : 5000)} />
