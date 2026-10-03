@@ -215,7 +215,26 @@ export class CheckoutReservations {
       const row = await this.expireIfDue(client, found.rows[0]);
       if (row.status !== 'ACTIVE') return null;
       const view = await this.view(client, row);
-      return { ...view, quote: await quoteReservationInTransaction(this.pool, client, accountId, view.id) };
+      let quote: ShipmentQuote;
+      try {
+        quote = await quoteReservationInTransaction(this.pool, client, accountId, view.id);
+      } catch (error) {
+        // The hold can cross its DB deadline between the first check and quote validation.
+        if (error instanceof Error && error.message === 'Reservation unavailable') {
+          const latest = await client.query<ReservationRow>(
+            'SELECT * FROM checkout_reservations WHERE id=$1 AND account_id=$2', [view.id, accountId],
+          );
+          if (latest.rowCount && (await this.expireIfDue(client, latest.rows[0])).status !== 'ACTIVE') return null;
+        }
+        throw error;
+      }
+      const latest = await client.query<ReservationRow>(
+        'SELECT * FROM checkout_reservations WHERE id=$1 AND account_id=$2', [view.id, accountId],
+      );
+      if (!latest.rowCount) return null;
+      const checked = await this.expireIfDue(client, latest.rows[0]);
+      if (checked.status !== 'ACTIVE') return null;
+      return { ...(await this.view(client, checked)), quote };
     });
   }
 
