@@ -10,6 +10,8 @@
 
 **Spec:** `docs/design/S3_PROMOTION_CONTRACT_DRAFT.md`(신산님 상세 설계 승인). 상위 범위는 `docs/WORK_PLAN.md` S3.2와 `docs/design/DELIVERY_SCOPE_ADDENDUM.md` 28~32행이다.
 
+**승인 기록:** 신산님이 이 구현계획과 아래 공개 API 7개·신규 테이블 5개·0011 migration의 구현을 승인했다. 공유 `local-postgres/shoppingmall` 적용은 격리 검증 뒤 SQL·영향·복구를 제시해 별도 승인받는다.
+
 ## Global Constraints
 
 - 정본은 `D:\Project\shoppingmall2`의 기존 clean 격리 worktree와 단일 writer다. `main` 직접 개발, OneDrive 작업, 새 후속 브랜치, GitHub 계정·토큰을 사용하지 않는다.
