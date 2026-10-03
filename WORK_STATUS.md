@@ -8,6 +8,13 @@
 - 환경 오류: 보조 계획 추적 스크립트가 D: sandbox 쓰기 거부를 만나 반복 출력을 시작해 정확한 새 `bash` 프로세스를 중지했다. 기능 오류 0, 보조 스크립트 오류 1회. 제품 파일 변경 전 상태였으며 이 실패를 제품 시험 결과로 세지 않는다. 추적은 이 파일로 지속한다.
 - 미검증: S3.2 영속 schema·격리 DB·WSL 실DB/HTTP/브라우저·주문/PG/Oracle/UAT. 다음: Task 1 lint·diff·안전 commit, Task 2 격리 DB 이름·수명·정리 기록 후 schema RED→GREEN.
 
+## 진행 중 — 2026-10-03 S3.2 Task 2 격리 DB 계획
+
+- 담당: 어울 단일 writer. Task 1 `70688ff340412fae176a5e4d99004ca9f1e96466`을 지정 SSH 별칭으로 기존 원격 작업 브랜치에 push했다. 10건 RED→GREEN·전체 로컬 267건/205 pass/62 환경 skip/0 fail·PR 검사 8 pass·typecheck/lint·diff check 종료 0. 결제·PG·공유 DB는 미검증이다.
+- Task 2 임시 자원 예정: `WSL-server`의 **새** 일회성 Docker 컨테이너 `shoppingmall-s32-pg-1003`(기존 `local-postgres` 아님), 내부 DB `shoppingmall_s32_qa_20261003`, 호스트 공개 포트/영속 볼륨 없음. 신규 DB에 0000~0010 → 예상 RED → 0011 → GREEN 및 전체 재현 시험을 실행한다. 시험 계정·캠페인·쿠폰·예약·사용 행은 해당 DB 트랜잭션에서 rollback하고, 완료 후 정확한 컨테이너만 삭제해 DB도 제거한다. 기존 공유 DB와 다른 컨테이너·백업은 변경하지 않는다.
+- 준비 상태: WSL 지정 checkout은 읽기 전용 확인 시 `1900c1e`로 원격 브랜치보다 뒤이며 clean이었다. 시험은 새 커밋을 push한 후 해당 checkout을 fast-forward하고 정확한 SHA에서 진행한다. 임시 DB/컨테이너는 아직 생성하지 않았다.
+- 환경 오류 누계: Task 1 보조 추적 스크립트 sandbox 쓰기 거부 1회, WSL 기본 `bash`와 Git Bash 경로 차이 1회; 권한 있는 Git Bash로 임시 추적 폴더를 정상 생성했다. 같은 근본 원인 연속 3회 아님. 다음: DB 제약 시험 파일 선작성 및 격리 DB RED.
+
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
 - 신산님이 `docs/design/S3_PROMOTION_CONTRACT_DRAFT.md`에 대해 “설계서 대로 진행하자”라고 직접 지시했다. 상세 설계 승인으로 기록하고, 신규 공개 API·영속 schema/migration·공유 개발 DB 적용은 설계서 7절의 별도 경계로 유지한다.
