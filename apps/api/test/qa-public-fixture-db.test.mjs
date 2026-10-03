@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
 import { PublicProducts } from '../src/catalog/public-products.ts';
@@ -164,6 +164,51 @@ test('public browser fixture reset removes approved sale-stop history for only i
   } finally {
     if (!reset && productId) {
       await pool.query('DELETE FROM product_sale_stop_requests WHERE product_id=$1', [productId]);
+      await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
+    }
+    await pool.end();
+  }
+});
+
+test('public browser fixture reset removes only its reservation history before product and account cleanup', {
+  skip: !process.env.DATABASE_URL,
+}, async () => {
+  const runId = randomBytes(4).toString('hex');
+  const { runQaPublicFixture } = await import('../scripts/qa-public-fixture.ts');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  let reservationId;
+  let seeded = false;
+  let reset = false;
+  try {
+    const product = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL,
+      'test-only-password-12345');
+    seeded = true;
+    const account = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [`qa+${runId}-customer@example.invalid`])).rows[0].account_id;
+    const option = (await pool.query('SELECT id FROM product_options WHERE revision_id=$1',
+      [product.revisionId])).rows[0].id;
+    reservationId = (await pool.query(
+      `INSERT INTO checkout_reservations(account_id,idempotency_key,status,expires_at,ended_at)
+       VALUES ($1,$2,'RELEASED',clock_timestamp()+interval '15 minutes',clock_timestamp()) RETURNING id`,
+      [account, randomUUID()],
+    )).rows[0].id;
+    await pool.query('INSERT INTO checkout_reservation_lines(reservation_id,option_id,quantity) VALUES ($1,$2,1)',
+      [reservationId, option]);
+    await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
+    reset = true;
+    const remaining = await pool.query(`SELECT
+      (SELECT count(*)::int FROM checkout_reservations WHERE id=$1) AS reservations,
+      (SELECT count(*)::int FROM checkout_reservation_lines WHERE reservation_id=$1) AS lines,
+      (SELECT count(*)::int FROM products WHERE id=$2) AS products,
+      (SELECT count(*)::int FROM account_identities WHERE identifier=$3) AS accounts`,
+    [reservationId, product.productId, `qa+${runId}-customer@example.invalid`]);
+    assert.deepEqual(remaining.rows[0], { reservations: 0, lines: 0, products: 0, accounts: 0 });
+  } finally {
+    if (seeded && !reset) {
+      if (reservationId) {
+        await pool.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=$1', [reservationId]);
+        await pool.query('DELETE FROM checkout_reservations WHERE id=$1', [reservationId]);
+      }
       await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
     }
     await pool.end();
