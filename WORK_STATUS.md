@@ -48,6 +48,12 @@
 - 최신 시험 SHA `03ca70a`에서 로컬 `pnpm test` 271건/205 pass/66 DB·환경 skip/0 fail + PR 본문 8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` 종료 0. WSL 격리 0011 DB의 전체 271건/264 pass/7 환경 skip/0 fail. 사후 계정·상품·예약·프로모션 5관계·감사·세션 10범주 모두 0. 정확한 label·mount 0·호스트 공개 포트 없음을 확인하고 `shoppingmall-s32-customer-pg-1003` 컨테이너/tmpfs만 제거해 부재를 확인했다. 가상 자료의 별도 복구본은 없으며 공유 DB와 백업은 건드리지 않았다.
 - 다음 Task 5는 점유/해제/확정 서비스와 동시 경쟁. 공유 DB 0011 적용, 최종 주문·PG·화면·실브라우저·Oracle/UAT는 아직 미검증이다. 이 상태 문서 커밋 후 정확한 SHA를 다시 확인한다.
 
+## 진행 중 — 2026-10-03 S3.2 Task 5 쿠폰 자리 점유·해제·확정
+
+- 담당 어울 단일 writer, 시작 기준 clean `codex/s31-checkout-reservation-plan@d819c25843962323222a70102bde6f67e92ad94f`. 주문/PG 완료 경로는 추가하지 않고, 승인된 내부 거래 서비스와 DB 경합 시험만 만든다.
+- 격리 시험 자원 계획: WSL 일회용 `shoppingmall-s32-usage-pg-1003`(label `s32-usage-20261003`), 내부 DB `shoppingmall`, tmpfs·무볼륨·호스트 공개 포트 없음. 가상 2계정/상품/예약과 한도 1개 캠페인·코드·grant·use를 만들어 두 독립 DB 세션 경쟁을 검증한다. 사용 행·grant·버전/캠페인·예약/장바구니·상품/계정·감사를 정확히 정리하고 잔류 0 후 컨테이너만 제거한다. 공유 `local-postgres/shoppingmall`과 백업은 변경하지 않는다.
+- 예정 검증: 같은 멱등 키 재시도, 마지막 1회 경쟁, 중지/기간/타인 grant, 무료배송 0원 미점유, `HELD→USED` 또는 `HELD→RELEASED`의 일방 전이, 종료된 예약만 안전하게 만료 해제. S4 실제 결제 승인/콜백과 접수된 결제 시도 처리 전에는 자동 사용 확정으로 주장하지 않는다. 착수 오류 0, Task 5 전체 미검증.
+
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
 - 신산님이 `docs/design/S3_PROMOTION_CONTRACT_DRAFT.md`에 대해 “설계서 대로 진행하자”라고 직접 지시했다. 상세 설계 승인으로 기록하고, 신규 공개 API·영속 schema/migration·공유 개발 DB 적용은 설계서 7절의 별도 경계로 유지한다.
