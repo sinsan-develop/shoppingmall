@@ -13,6 +13,7 @@ test('one final coupon place is serialized across direct/code customers, then re
   const runId = randomBytes(4).toString('hex');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 8 });
   let seeded = false; let extraAccountId; let campaignId; let optionId;
+  const campaignIds = [];
   const reservations = [];
   try {
     const product = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL,
@@ -37,6 +38,7 @@ test('one final coupon place is serialized across direct/code customers, then re
     campaignId = (await pool.query(`INSERT INTO promotion_campaigns
       (title,kind,direct_issue_limit,total_use_limit,per_account_use_limit,created_by_account_id)
       VALUES ($1,'goods_discount',2,1,1,$2) RETURNING id`, [`QA-${runId}-one-place`, adminId])).rows[0].id;
+    campaignIds.push(campaignId);
     const versionId = (await pool.query(`INSERT INTO promotion_versions
       (campaign_id,version,scope,starts_at,ends_at,minimum_eligible_goods_won,
         amount_kind,amount_value,created_by_account_id)
@@ -82,6 +84,9 @@ test('one final coupon place is serialized across direct/code customers, then re
     const winner = race[winnerIndex].value[0];
     assert.equal(winner.status, 'HELD');
     assert.equal((await pool.query("SELECT count(*)::int AS n FROM promotion_uses WHERE status='HELD'" )).rows[0].n, 1);
+    assert.equal(await service.releaseDue(10), 0);
+    await assert.rejects(() => hold({ ...requests[1], key: randomUUID(),
+      selection: { goodsCoupon: { grantId } } }), /Promotion unavailable/);
     const retry = await hold(requests[winnerIndex]);
     assert.equal(retry[0].id, winner.id);
     await transition('releaseInTransaction', [winner.id], 'QA release');
@@ -107,13 +112,42 @@ test('one final coupon place is serialized across direct/code customers, then re
     await assert.rejects(() => hold({ ...requests[loserIndex], key: randomUUID() }),
       /Promotion conflict|Reservation unavailable/);
     assert.equal((await pool.query("SELECT count(*)::int AS n FROM promotion_uses WHERE status='USED'" )).rows[0].n, 1);
+    await new CheckoutReservations(pool).release(requests[winnerIndex].accountId,
+      requests[winnerIndex].id);
+    await pool.query('UPDATE customer_cart_items SET quantity=3 WHERE account_id=$1 AND option_id=$2',
+      [customerId, optionId]);
+    const freeHold = await new CheckoutReservations(pool).start(customerId, randomUUID(), true);
+    reservations.push({ accountId: customerId, id: freeHold.id, expiresAt: freeHold.expiresAt });
+    assert.equal(freeHold.quote.shippingWon, 0);
+    const supportCampaignId = (await pool.query(`INSERT INTO promotion_campaigns
+      (title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
+      VALUES ($1,'shipping_support',2,2,$2) RETURNING id`,
+    [`QA-${runId}-free-support`, adminId])).rows[0].id;
+    campaignIds.push(supportCampaignId);
+    const supportVersionId = (await pool.query(`INSERT INTO promotion_versions
+      (campaign_id,version,scope,starts_at,ends_at,minimum_eligible_goods_won,
+        amount_kind,amount_value,created_by_account_id)
+      VALUES ($1,1,'all',$2,$3,0,'fixed',3000,$4) RETURNING id`,
+    [supportCampaignId, new Date(Date.now() - 60_000), new Date(Date.now() + 3_600_000), adminId])).rows[0].id;
+    const supportCode = `F${runId.toUpperCase()}`;
+    await pool.query('INSERT INTO promotion_codes(version_id,code) VALUES ($1,$2)',
+      [supportVersionId, supportCode]);
+    const freeRequest = { accountId: customerId, id: freeHold.id, expiresAt: freeHold.expiresAt,
+      key: randomUUID(), selection: { shippingCoupons: [{ shipmentKey: freeHold.quote.shipments[0].key,
+        selector: { code: supportCode } }] } };
+    assert.deepEqual(await hold(freeRequest), []);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM promotion_grants WHERE version_id=$1',
+      [supportVersionId])).rows[0].n, 0);
+    await pool.query(`UPDATE promotion_campaigns SET status='stopped',stopped_by_account_id=$2,
+      stopped_at=now(),stop_reason='QA stopped' WHERE id=$1`, [supportCampaignId, adminId]);
+    await assert.rejects(() => hold({ ...freeRequest, key: randomUUID() }), /Promotion conflict/);
   } finally {
-    if (campaignId) {
-      await pool.query('DELETE FROM promotion_uses WHERE campaign_id=$1', [campaignId]);
-      await pool.query('DELETE FROM promotion_grants WHERE version_id IN (SELECT id FROM promotion_versions WHERE campaign_id=$1)', [campaignId]);
-      await pool.query('DELETE FROM promotion_codes WHERE version_id IN (SELECT id FROM promotion_versions WHERE campaign_id=$1)', [campaignId]);
-      await pool.query('DELETE FROM promotion_versions WHERE campaign_id=$1', [campaignId]);
-      await pool.query('DELETE FROM promotion_campaigns WHERE id=$1', [campaignId]);
+    if (campaignIds.length) {
+      await pool.query('DELETE FROM promotion_uses WHERE campaign_id=ANY($1::uuid[])', [campaignIds]);
+      await pool.query('DELETE FROM promotion_grants WHERE version_id IN (SELECT id FROM promotion_versions WHERE campaign_id=ANY($1::uuid[]))', [campaignIds]);
+      await pool.query('DELETE FROM promotion_codes WHERE version_id IN (SELECT id FROM promotion_versions WHERE campaign_id=ANY($1::uuid[]))', [campaignIds]);
+      await pool.query('DELETE FROM promotion_versions WHERE campaign_id=ANY($1::uuid[])', [campaignIds]);
+      await pool.query('DELETE FROM promotion_campaigns WHERE id=ANY($1::uuid[])', [campaignIds]);
     }
     if (extraAccountId) {
       await pool.query('DELETE FROM checkout_reservation_lines WHERE reservation_id IN (SELECT id FROM checkout_reservations WHERE account_id=$1)', [extraAccountId]);
