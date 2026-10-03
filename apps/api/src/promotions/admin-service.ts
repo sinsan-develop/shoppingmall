@@ -74,6 +74,20 @@ async function insertVersion(client: PoolClient, campaignId: string, version: nu
   return versionId;
 }
 
+async function ensureTargets(client: PoolClient, rule: PromotionRule): Promise<void> {
+  if (rule.scope === 'all') return;
+  const query = rule.scope === 'sellers'
+    ? 'SELECT count(*)::int AS count FROM sellers WHERE id=ANY($1::uuid[])'
+    : `SELECT count(*)::int AS count FROM product_options o
+       JOIN product_revisions r ON r.id=o.revision_id
+       JOIN product_publications p ON p.product_id=r.product_id AND p.revision_id=r.id
+       WHERE o.id=ANY($1::uuid[])
+         AND NOT EXISTS (SELECT 1 FROM product_sale_stop_requests s
+           WHERE s.product_id=r.product_id AND s.status='approved')`;
+  const result = await client.query<{ count: number }>(query, [rule.targetIds]);
+  if (result.rows[0].count !== rule.targetIds.length) throw new Error('Invalid promotion input');
+}
+
 async function audit(client: PoolClient, actor: AccessContext, action: string, targetId: string, details: object) {
   await client.query(`INSERT INTO audit_events
     (actor_account_id,active_role,action,target_type,target_id,details)
@@ -113,6 +127,7 @@ export class PromotionAdminService {
   async create(actor: AccessContext, input: unknown) {
     const parsed = parseCampaignInput(input);
     return this.transaction(async (client) => {
+      await ensureTargets(client, parsed.rule);
       const inserted = await client.query<{ id: string }>(`INSERT INTO promotion_campaigns
         (title,kind,direct_issue_limit,total_use_limit,per_account_use_limit,created_by_account_id)
         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
@@ -135,6 +150,7 @@ export class PromotionAdminService {
       if (!current) throw new Error('Promotion not found');
       if (current.status !== 'active') throw new Error('Promotion stopped');
       if (current.kind !== parsed.rule.kind) throw new Error('Invalid promotion input');
+      await ensureTargets(client, parsed.rule);
       const version = (await client.query<{ next: number }>(
         'SELECT coalesce(max(version),0)::int+1 AS next FROM promotion_versions WHERE campaign_id=$1',
         [campaignId])).rows[0].next;
