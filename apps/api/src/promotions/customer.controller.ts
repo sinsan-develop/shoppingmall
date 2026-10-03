@@ -38,7 +38,7 @@ export class CustomerPromotionController {
     catch (error) {
       const message = error instanceof Error ? error.message : '';
       if (['Invalid promotion selection', 'Invalid coupon selector', 'Invalid shipping support'].includes(message))
-        throw new BadRequestException();
+        throw new BadRequestException({ status: 'invalid_promotion_selection', reason: message });
       if (message === 'Promotion unavailable') throw new NotFoundException();
       if (['Promotion conflict', 'Reservation unavailable', 'Reserved product changed'].includes(message))
         throw new ConflictException({ status: 'promotion_quote_conflict' });
