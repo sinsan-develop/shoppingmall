@@ -1,13 +1,19 @@
 import { pathToFileURL } from 'node:url';
 import { Pool } from 'pg';
+import { runQaCatalogFixture } from './qa-catalog-fixture.js';
 import { qaNames, validateQaRunId } from './qa-fixture.js';
 import { runQaPublicFixture } from './qa-public-fixture.js';
+
+const isolatedHosts: Record<string, string> = {
+  b83f3204: 'shoppingmall-s32-ui-pg-1003',
+  e4401004: 'shoppingmall-s32-three-pg-1004',
+};
 
 export function assertIsolatedPromotionQaTarget(runId: string, databaseUrl: string) {
   const id = validateQaRunId(runId);
   const url = new URL(databaseUrl);
   if (!['postgres:', 'postgresql:'].includes(url.protocol) ||
-      url.hostname !== 'shoppingmall-s32-ui-pg-1003' || url.port !== '5432' ||
+      url.hostname !== isolatedHosts[id] || url.port !== '5432' ||
       url.pathname !== '/shoppingmall') {
     throw new Error('Expected isolated promotion QA database');
   }
@@ -41,12 +47,17 @@ export async function resetPromotionUiFixture(runId: string, databaseUrl: string
         (SELECT id FROM promotion_versions WHERE campaign_id=ANY($1::uuid[]))`, [ids]);
       await client.query('DELETE FROM promotion_versions WHERE campaign_id=ANY($1::uuid[])', [ids]);
       await client.query('DELETE FROM promotion_campaigns WHERE id=ANY($1::uuid[])', [ids]);
+      const accountIds = accounts.rows.map((row) => row.account_id);
+      await client.query(`DELETE FROM checkout_reservation_lines WHERE reservation_id IN
+        (SELECT id FROM checkout_reservations WHERE account_id=ANY($1::uuid[]))`, [accountIds]);
+      await client.query('DELETE FROM checkout_reservations WHERE account_id=ANY($1::uuid[])', [accountIds]);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
     } finally { client.release(); }
-    await runQaPublicFixture('reset', id, databaseUrl);
+    if (id === 'e4401004') await runQaCatalogFixture('reset', id, databaseUrl);
+    else await runQaPublicFixture('reset', id, databaseUrl);
     return { runId: id, removedCampaigns: ids.length, removedAccounts: accounts.rows.length };
   } finally { await pool.end(); }
 }

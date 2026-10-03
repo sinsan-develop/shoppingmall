@@ -9,4 +9,6 @@ test('promotion browser QA reset only accepts its isolated container and a valid
     'postgresql://postgres:test@shoppingmall-s32-ui-pg-1003:5432/shoppingmall'), /QA_RUN_ID/);
   assert.equal(assertIsolatedPromotionQaTarget('B83F3204',
     'postgresql://postgres:test@shoppingmall-s32-ui-pg-1003:5432/shoppingmall'), 'b83f3204');
+  assert.equal(assertIsolatedPromotionQaTarget('E4401004',
+    'postgresql://postgres:test@shoppingmall-s32-three-pg-1004:5432/shoppingmall'), 'e4401004');
 });
