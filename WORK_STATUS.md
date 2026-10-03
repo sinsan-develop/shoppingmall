@@ -2,6 +2,7 @@
 
 ## 진행 중 — 2026-10-03 S3.2 독립 금액 배분 계산 선행
 
+- 2026-10-03 다음 계약 준비 읽기 전용 대조: 기존 `home` 모듈에는 관리자 초안 저장·미리보기·게시·이력/복원, 기간 있는 `HomeEvent`의 대표 상품·대표 이미지, 고객의 현재 게시/판매 가능 기획전 조회가 이미 있다(`home/controller.ts`, `home/types.ts`, 관리자 화면과 실DB HTTP 시험). 이는 S2.4 기획전 전시 기능의 재사용 후보이며 금액 할인·쿠폰 발행/중지·사용 횟수/예산 기능을 증명하지 않는다. 별도 `promotions`·`orders` 모듈/테이블/공개 API는 현재 없고 `checkout_reservations`의 `CONSUMED` 상태도 주문 제출 경로에 연결되지 않았다. 그러므로 새 할인·주문 계약을 홈 콘텐츠 snapshot에 암묵적으로 넣거나 이미 구현됐다고 판정하지 않는다. 이전에 요청한 결제 완료 후 취소 쿠폰 반환 정책의 신산님 결정을 기다리되, 독립적인 기존 구현 중복 여부 대조는 완료했다.
 - 최종 WSL 증거: `3b51f6ae1665d6e4ff32d7bc04b1f33a5913fa0b` exact SHA·clean에서 공유 개발 DB 전체 순차 **257건/250 pass/7 환경 skip/0 fail**, exit 0. 종료 뒤 migration 11, 계정/판매자/상품/카트/예약/예약품목/재고대기/감사/세션 9범주 모두 0, `shoppingmall-s32-allocation-node-1003` 컨테이너 0. 새 볼륨·포트·백업 없음. 로컬도 257건/195 pass/62 DB·환경 skip/0 fail, PR 본문 8 pass, typecheck/lint/build exit 0. 실제 프로모션 발행/고객 견적/주문·결제는 변경·검증하지 않았다.
 - 다음 승인 경계: S3.2 관리자 프로모션의 대상 SKU/판매자/기간·최소 구매액·정액/정률 상한·발행/사용 횟수·동시 경쟁·취소 후 쿠폰 반환과 주문/환불 금액 snapshot, S3.3 주문 제출 공개 API·영속 schema/금액 배분 계약은 승인된 DESIGN 보완안 28~32행과 WORK_PLAN 194~196행이 별도 상세 계약·승인을 요구한다. 지금의 두 함수는 실제 화면/API에 연결하지 않고 확정 규칙의 내부 준비로만 보존한다. 상세 계약 승인 전에도 별도 외부 계정은 요구하지 않으며, 불명확한 운영 예산·비용 부담을 임의로 결정하지 않는다.
 - `793cc81071f6ab03e8adb102d04ecc642cfac0f6`의 WSL 지정 checkout exact SHA·clean, 공유 `local-postgres/shoppingmall` 전체 순차 **255건/248 pass/7 환경 skip/0 fail**, exit 0. 사후 migration 11, QA 9범주 0, 일회용 `shoppingmall-s32-allocation-node-1003` 0. 사용자용 쿠폰·실제 주문 금액은 변하지 않았다.
