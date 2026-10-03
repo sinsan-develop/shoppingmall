@@ -2,6 +2,7 @@
 
 ## 2026-10-03 최신 상태 — 공유 개발 DB 0010 적용 완료
 
+- 후속 `2c80c61` 공유 DB 실제 Chrome 검증: WSL exact SHA 읽기 전용 소스 + 전용 Docker 빌드 볼륨의 API 9092/Web 9091, Windows SSH 루프백/Chrome CDP 9229에서 고객 장바구니·예약 복구/해제·390px/키보드·제거 스크립트 exit 0. QA ID `b83f1003` reset, DB 9범주 0, 지정 컨테이너·볼륨·터널 포트·Chrome 프로필·임시 암호 파일 잔류 0. 다판매자 3묶음 브라우저·실제 200% 확대·Oracle/UAT는 이 검증에 포함되지 않는다.
 - 신산님 승인 후 WSL-server의 `local-postgres/shoppingmall`에 `0010_s3_checkout_reservations`를 적용했다. 현재 Drizzle 이력은 11건, 시험 계정·상품·장바구니·예약·예약품목·재고대기·감사·세션 등 9범주 자료는 0건이다. 아래 과거 `0010 미적용` 문구는 당시의 기록으로 현재 상태가 아니다.
 - 현재 작업 브랜치 `codex/s31-checkout-reservation-plan`의 `cf05ad7`에서 공유 개발 DB 루트 순차 시험은 248건/241 pass/7 환경 skip/0 fail. 로컬 시험은 248건/187 pass/61 DB·환경 skip/0 fail, PR 본문 시험 8 pass, typecheck/lint/build 성공. 브라우저 실제 공유 DB 시험·Oracle 배포·사용자 인수는 아직 미검증이다.
 - 격리 fixture 시험용 컨테이너와 공유 DB 회귀용 컨테이너는 종료·제거했고, 이번 적용 전 생성한 `/tmp/shoppingmall-s31-0010-pre-20261003.dump`도 정확한 해시·경로 확인 뒤 삭제했다. 이후 브라우저 시험을 새로 진행한다면 고유 QA ID의 자료를 시험 직후 reset하고 잔류 0을 재확인해야 한다. 승인된 migration/schema는 삭제하지 않는다.

@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.1 공유 개발 DB 실제 브라우저 검증
+
+- 담당 어울 단일 writer, branch `codex/s31-checkout-reservation-plan@2c80c61`, 로컬/SSH 원격/WSL exact SHA·clean. 공유 `local-postgres/shoppingmall`의 승인된 migration 11건과 기존 9범주 0을 확인한 뒤 QA ID `b83f1003`만 사용했다. 9091/9092/9229 사전 비점유, QA 컨테이너 0. 기존 WSL ignored dist 소유권을 변경하거나 삭제하지 않기 위해 exact SHA 소스를 읽기 전용 마운트한 Docker 전용 API/Web 산출물 볼륨에 빌드했고 Web 14 route 생성, WSL checkout dirty 0이었다.
+- 실제 서비스: 지정 일회용 API/Web 컨테이너를 WSL 호스트 루프백 9092/9091에서 실행해 `/ready`·`/login` 각 HTTP 200. 고유 가상 고객·판매자·상품을 공유 DB에 seed하고 난수 비밀번호는 0600 일회용 파일에만 보관했다. Windows 숨김 SSH 터널/전용 Chrome CDP에서 `scripts/qa-cart-browser.mjs`를 실행해 로그인, 상품 수량 2→장바구니 49,000원, 수량 3→69,000원 무료배송, 서버 예약 201을 브라우저에서 409로 주입한 뒤 저장 ID·키 없는 새 진입에서 자기 예약 ID·만료시각 복구/해제, 390px 가로 넘침 없음·Tab 포커스, 상품 제거·빈 장바구니를 모두 통과했다. 브라우저 스크립트 exit 0. 이는 실제 공유 DB 연결 E2E이며 200% 확대·다판매자 주문/통합 결제·Oracle/UAT 증거는 아니다.
+- 사용 후 정리: 같은 QA ID의 `qa-public-fixture.ts reset` 성공, accounts/sellers/products/cart/reservations/lines/deferred/audit/sessions **9범주 모두 0**, API/Web/빌드 지정 컨테이너 0, 전용 볼륨 0, 0600 임시 암호 파일 부재, Windows 9091/9092/9229 LISTEN 0·Chrome 프로필 부재, WSL checkout clean. 승인된 0010 migration은 보존한다. 실행 오류는 첫 빌드 경로 오류 1회·기존 ignored 산출물 쓰기 권한 오류 1회로 각각 원인 분리/대안 빌드 통과했으며 같은 근본 원인 3회 반복 없음.
+- 현재 S3.1 미완료: 실제 판매자 A/B+어울몰 발송 3묶음의 고객 HTTP/브라우저 증거와 할인 전 49,999/50,000원 경계의 현재 정책·DB 증거를 추가한다. 주문 제출/통합 결제의 영속 계약은 `WORK_PLAN` S3.3/S4에 속하며 새 schema/API·금액 배분 계약은 별도 승인 경계다. 이 브라우저 통과만으로 S3.1 또는 Stage S3 전체 완료·PR 병합을 선언하지 않는다.
+
 ## 진행 중 — 2026-10-03 S3.1 공유 개발 DB 0010 적용·정식 회귀
 
 - 담당 어울, 단일 writer `codex/s31-checkout-reservation-plan@9f1f41ac4e751ed7b127a10ef9575d20e02b66b9`. 신산님이 공유 개발 DB 적용을 명시 승인했다. 대상은 `WSL-server`의 정확한 컨테이너 `local-postgres`, DB `shoppingmall`, migration `0010_s3_checkout_reservations` 1건뿐이다. Oracle·다른 DB/컨테이너·실제 외부 서비스·main/PR 병합은 이번 승인에 포함하지 않는다.
