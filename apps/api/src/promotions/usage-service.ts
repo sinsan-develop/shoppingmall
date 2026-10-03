@@ -225,8 +225,7 @@ export class PromotionUsageService {
       await client.query('BEGIN');
       const due = await client.query<{ id: string }>(`SELECT u.id FROM promotion_uses u
         JOIN checkout_reservations r ON r.id=u.reservation_id
-        WHERE u.status='HELD' AND u.expires_at<=clock_timestamp()
-          AND r.status IN ('EXPIRED','RELEASED','CANCELLED')
+        WHERE u.status='HELD' AND r.status IN ('EXPIRED','RELEASED','CANCELLED')
         ORDER BY u.expires_at,u.id LIMIT $1 FOR UPDATE OF u SKIP LOCKED`, [limit]);
       await this.releaseInTransaction(client, due.rows.map((row) => row.id), 'Reservation ended');
       await client.query('COMMIT');
