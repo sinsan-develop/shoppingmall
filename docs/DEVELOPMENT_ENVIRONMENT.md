@@ -1,5 +1,11 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-10-04 최신 상태 — S3.2 격리 화면·DB 검증, 공유 DB 0011 승인 대기
+
+- `codex/s31-checkout-reservation-plan@a109758c33ab363291b3af096e4f47df54b72fe0`을 지정 SSH 별칭으로 WSL 시험 checkout에 맞췄다. 0011의 **수정된** SQL SHA-256 `75675ca05c8e55e3f0d8ecc7cba5ada64c304372adbde9d1bface5e82850c330`을 별도 tmpfs PostgreSQL의 빈 `/shoppingmall`에 0000~0011까지 적용했다. 관리자 등록·직접 발행·새 버전·중지와 구매자 목록/코드 쿠폰을 실제 production Web 브라우저에서 확인했다. 기본 49,000원에서 상품 할인 5,000원·배송비 지원 3,000원 적용 시 예상액 41,000원이며 결제는 아니다. 390px 가로 넘침 없음과 Tab 초점 이동, 예약 해제·장바구니 편집/제거도 확인했다. 실제 3발송 쿠폰 화면 및 200% 브라우저 확대는 미검증이다.
+- 격리 DB 전체 회귀 첫 시도는 시험 프로세스가 `API_HOST=0.0.0.0`을 상속하여 루프백 전용 모의 전화/이미지 시험 6건이 실패했다. 시험 프로세스만 `API_HOST=127.0.0.1,NODE_ENV=test`로 재실행해 전체 종료 코드 0; 별도 PR 검사 8 pass. 로컬은 278건/211 pass/67 DB·환경 skip/0 fail, PR 검사 8 pass, typecheck/lint/build 성공. QA ID `b83f3204` 행을 reset한 뒤 13범주 0, 지정 임시 컨테이너 3개·전용 네트워크·SSH 포트 잔류 0, WSL checkout clean을 확인했다. 상세 오류·제약은 `WORK_STATUS.md`를 따른다.
+- 공유 개발 DB `local-postgres/shoppingmall`은 **읽기 전용 확인만** 했으며 이력 11건·계정/예약 0건이다. 0011은 아직 적용하지 않았다. 별도 승인 후 적용·공유 DB 전체 검증을 수행해야 한다. 아래 2026-10-03 기록은 시점별 이력이며 최신 상태 판단에는 이 절을 우선한다.
+
 ## 2026-10-03 최신 상태 — 공유 개발 DB 0010 적용 완료
 
 - S3.2 Task 1·2 진행 현황: 신산님이 S3.2 공개 API 7개·신규 프로모션 테이블 5개·0011 migration의 **구현**을 승인했다. 첫 격리 적용 체크포인트 `b854ee1b2b8bc6aafff47aca40a8cdf482fb0d8b`의 SQL SHA-256은 `8a16344acc0098535beb28253f231614c3912a02873670598fafa408c7d86e79`였고, 완전히 분리된 일회용 PostgreSQL에서 0000~0011 전량 재현(12건), schema/repository 2 pass·0 skip, 전체 실DB 순차 269건/262 pass/7 환경 skip/0 fail, QA 계정·상품·예약·프로모션·감사 0을 확인했다. 임시 컨테이너·두 임시 DB는 제거했다. **후속 수정:** Task 3의 직접 발행 멱등계약을 위해 동일 0011 신규 grant 테이블에 `idempotency_key`와 유일 제약을 추가했다. 수정 SQL SHA-256은 `75675ca05c8e55e3f0d8ecc7cba5ada64c304372adbde9d1bface5e82850c330`이며 새 격리 재검증 전이므로 이전 PASS를 수정본의 PASS로 대체하지 않는다. 공유 `local-postgres/shoppingmall`은 첫 버전 read-only 미리보기에서 11건 적용·0011 1건/30문장 대기, 계정/예약 0, 신규 관계 부재였고 **0011을 적용하지 않았다**. 변경된 SQL의 공유 DB read-only 미리보기와 새 격리 적용을 다시 확인해야 한다. 공유 DB 적용은 별도 승인받는다. 관리자/고객 API·실제 발행/결제/Oracle/UAT는 미완료다.
