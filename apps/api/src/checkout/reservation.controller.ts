@@ -59,6 +59,16 @@ export class CustomerReservationController {
     catch (error) { translate(error); }
   }
 
+  @Get('active')
+  async active(@Req() request: RequestHeaders) {
+    const { accountId, reservations } = await context(this.database, request, 'customer');
+    try {
+      const view = await reservations.getActive(accountId);
+      if (!view) throw new NotFoundException();
+      return view;
+    } catch (error) { translate(error); }
+  }
+
   @Get(':id')
   async get(@Req() request: RequestHeaders, @Param('id') id: string) {
     const { pool, accountId, reservations } = await context(this.database, request, 'customer');

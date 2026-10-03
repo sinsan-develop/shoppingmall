@@ -46,6 +46,23 @@ export async function startReservationRequest(apiBase: string,
   return { kind: 'ended', reservation };
 }
 
+export async function discoverActiveReservation(apiBase: string,
+  storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>,
+  send: typeof fetch = fetch, signal?: AbortSignal): Promise<
+    { kind: 'active'; reservation: Reservation } | { kind: 'none' }> {
+  const response = await send(`${apiBase}/customer/checkout/reservations/active`,
+    { credentials: 'include', signal, cache: 'no-store' });
+  if (response.status === 404) return { kind: 'none' };
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('구매자 역할로 로그인한 뒤 예약을 확인해 주세요');
+  }
+  if (!response.ok) throw new Error('예약 상태를 불러오지 못했습니다');
+  const reservation = await response.json() as Reservation;
+  if (reservation.status !== 'ACTIVE') throw new Error('예약 상태를 다시 확인해 주세요');
+  storage.setItem(reservationStorageKey, reservation.id);
+  return { kind: 'active', reservation };
+}
+
 export function createRefreshGate() {
   let generation = 0;
   return {
@@ -167,6 +184,14 @@ export default function CartPage() {
       } else if (heldResponse.status === 401 || heldResponse.status === 403) {
         throw new Error('구매자 역할로 로그인한 뒤 예약을 확인해 주세요');
       } else throw new Error('예약 상태를 불러오지 못했습니다');
+    }
+    const discovered = await discoverActiveReservation(apiOrigin, window.sessionStorage, fetch, signal);
+    if (!isCurrent()) return;
+    if (discovered.kind === 'active') {
+      setReservation(discovered.reservation);
+      setRetryAvailable(false);
+      setNowMs(Date.now()); setQuote(discovered.reservation.quote); setMessage('');
+      return;
     }
     if (cartItems.length === 0) { setQuote(undefined); setMessage(''); return; }
     const quoted = await fetch(`${apiOrigin}/customer/cart/quote`,

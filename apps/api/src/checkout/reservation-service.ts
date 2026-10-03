@@ -203,6 +203,22 @@ export class CheckoutReservations {
     });
   }
 
+  /** Discover only the calling customer's current hold, never another account's ID. */
+  async getActive(accountId: string): Promise<(ReservationView & { quote: ShipmentQuote }) | null> {
+    if (!uuid.test(accountId)) throw new Error('Invalid reservation request');
+    return this.transaction(async (client) => {
+      await this.lockAccount(client, accountId);
+      const found = await client.query<ReservationRow>(
+        `SELECT * FROM checkout_reservations WHERE account_id=$1 AND status='ACTIVE'`, [accountId],
+      );
+      if (!found.rowCount) return null;
+      const row = await this.expireIfDue(client, found.rows[0]);
+      if (row.status !== 'ACTIVE') return null;
+      const view = await this.view(client, row);
+      return { ...view, quote: await quoteReservationInTransaction(this.pool, client, accountId, view.id) };
+    });
+  }
+
   async release(accountId: string, id: string): Promise<ReservationView | null> {
     if (!uuid.test(accountId) || !uuid.test(id)) throw new Error('Invalid reservation request');
     return this.transaction(async (client) => {

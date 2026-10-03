@@ -113,3 +113,31 @@ test('a 409 after reservation commit preserves the idempotency key for the same-
   assert.deepEqual(usedKeys, [key, key]);
   assert.equal(values.get('owool-checkout-reservation-id'), held.id);
 });
+
+test('a tab without a saved reservation ID discovers only the signed-in account hold', async () => {
+  const { discoverActiveReservation } = await import('../app/cart/page.tsx');
+  assert.equal(typeof discoverActiveReservation, 'function');
+  const values = new Map();
+  const storage = {
+    getItem: (name) => values.get(name) ?? null,
+    setItem: (name, value) => values.set(name, value),
+    removeItem: (name) => values.delete(name),
+  };
+  const held = { id: randomUUID(), status: 'ACTIVE', expiresAt: '2026-10-03T12:15:00Z',
+    endReason: null, lines: [{ optionId: 'o1', quantity: 2 }], quote };
+  const send = async (url, options) => {
+    assert.equal(url, 'http://127.0.0.1:9092/customer/checkout/reservations/active');
+    assert.equal(options.credentials, 'include');
+    assert.equal(options.cache, 'no-store');
+    return Response.json(held);
+  };
+  const found = await discoverActiveReservation('http://127.0.0.1:9092', storage, send);
+  assert.equal(found.kind, 'active');
+  assert.equal(found.reservation.id, held.id);
+  assert.equal(values.get('owool-checkout-reservation-id'), held.id);
+  const none = await discoverActiveReservation('http://127.0.0.1:9092', storage,
+    async () => new Response(null, { status: 404 }));
+  assert.equal(none.kind, 'none');
+  await assert.rejects(discoverActiveReservation('http://127.0.0.1:9092', storage,
+    async () => new Response(null, { status: 403 })), /구매자 역할/);
+});

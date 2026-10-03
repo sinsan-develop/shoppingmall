@@ -7,6 +7,11 @@
 - 변경 예상: `apps/api/src/checkout/reservation-service.ts`, `reservation.controller.ts`, 실DB HTTP 시험, 고객 장바구니 화면·시험/QA 도구, 이 현황. RED→GREEN 후 로컬 test/typecheck/lint/build, SSH alias push→WSL exact SHA 격리 실DB·브라우저 회귀. 최초 로컬 기준 `pnpm test` 245건/186 pass/59 DB·환경 skip/0 fail 및 PR validator 8 pass. DB skip은 실DB 증거가 아니다.
 - RED 자체 QA 예정 자원: 지정 WSL checkout과 기존 `pgvector/pgvector:0.8.2-pg15`/`node:24-bookworm-slim` 이미지로 `shoppingmall-s31-active-red-pg-1003`, `shoppingmall-s31-active-red-node-1003` 두 일회용 컨테이너. 내부 fixture DB명만 `shoppingmall`, 0000~0010 적용, 외부 포트·영속 볼륨·공유 DB 쓰기 없음. 시험 암호는 런타임에서만 생성. 실패 재현 후 정확한 두 컨테이너·익명 볼륨 자동제거/잔류 0 확인. GREEN QA 자원은 실행 전 별도 기록한다.
 - 오류 횟수 0. 다음: API HTTP 실패 시험 먼저 작성·WSL 격리 RED 확인.
+- 첫 RED 실행은 0000~0010 적용 후 PowerShell→SSH 파이프의 마지막 인수에 CR 문자가 붙어 시험 파일을 찾지 못하고 종료됐다(제품 시험 미실행, 전달 래퍼 오류 1회). 지정 `shoppingmall-s31-active-red-*` 컨테이너·볼륨은 trap 정리 후 0, WSL checkout clean. 동일 스크립트를 LF 보존 전달로 재실행한다.
+- LF 보존 재실행: 지정 WSL SHA `203befb5f86810d52678821b0829439e63eadfbe`의 실DB HTTP 시험 2건/1 pass/1 fail, 예약이 없는 본인 계정의 `/active`가 `404` 대신 ID 형식 오류 `400`을 반환하는 예상 RED. QA 두 컨테이너·볼륨 0, WSL clean, 공유 DB migration 10건 불변. 제품 목표 RED 1회, 스크립트 전달 오류 1회는 원인 구분.
+- 화면 RED→GREEN: 새 탭에 저장된 ID가 없을 때 본인 예약을 조회하고 브라우저에 ID를 저장하는 목표 시험이 함수 부재로 1 fail, 호출 helper·화면 새로고침 연결 뒤 9 pass/0 fail. 서버는 계정 행 잠금, DB 시각 만료 처리, 같은 트랜잭션 견적을 거쳐 본인 ACTIVE만 반환하는 메서드와 정적 `/active` 라우트를 동적 `/:id`보다 먼저 등록했다.
+- 로컬 변경 검증: `pnpm test` 246건/187 pass/59 DB·환경 skip/0 fail + PR validator 8 pass, `pnpm typecheck`, `pnpm lint`, 권한 상승 `pnpm build` 모두 exit 0. 로컬 DB skip을 실DB 합격으로 치지 않는다.
+- GREEN 자체 QA 자원 계획: 지정 WSL checkout에 해당 제품 SHA를 SSH branch fast-forward한 뒤 일회용 `shoppingmall-s31-active-green-pg-1003`, `shoppingmall-s31-active-green-node-1003`(기존 이미지)에서 내부 `shoppingmall` DB에 0000~0010 적용, 목표 HTTP와 저장소 전체 순차 실DB 회귀를 실행한다. 외부 포트·영속 볼륨·공유 DB 쓰기 없음; 런타임 임시 암호만 사용하고 결과 후 QA 9범주 0, 정확한 두 컨테이너·익명 볼륨 0, checkout clean·공유 migration 10건 불변을 확인한다. 자체 QA만이며 정식 공유 DB E2E가 아니다.
 
 ## 진행 중 — 2026-10-03 S3.1 예약 생성·견적 원자성 보정
 
