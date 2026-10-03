@@ -172,6 +172,33 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
     assert.equal((await fetch(activeUrl, { headers: { cookie: customer } })).status, 404);
     assert.equal((await pool.query('SELECT status FROM checkout_reservations WHERE id=$1',
       [dueOnDiscovery.id])).rows[0].status, 'EXPIRED');
+    // Change the DB expiry exactly between the discovery check and the quote check.
+    const boundary = await (await start(customer, randomUUID())).json();
+    const { CheckoutReservations } = await import('../src/checkout/reservation-service.ts');
+    let crossedBoundary = false;
+    const boundaryPool = { connect: async () => {
+      const client = await pool.connect();
+      return new Proxy(client, { get(target, property) {
+        if (property === 'query') return async (sql, parameters) => {
+          if (!crossedBoundary && typeof sql === 'string' &&
+              sql.includes("SELECT status='ACTIVE' AND expires_at>clock_timestamp() AS valid")) {
+            crossedBoundary = true;
+            await pool.query(`UPDATE checkout_reservations SET created_at=clock_timestamp()-interval '16 minutes',
+              expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, [boundary.id]);
+          }
+          return target.query(sql, parameters);
+        };
+        const value = target[property];
+        return typeof value === 'function' ? value.bind(target) : value;
+      } });
+    } };
+    assert.equal(await new CheckoutReservations(boundaryPool).getActive(ids.accounts[0]), null);
+    assert.equal(crossedBoundary, true);
+    assert.equal((await pool.query('SELECT status FROM checkout_reservations WHERE id=$1',
+      [boundary.id])).rows[0].status, 'EXPIRED');
+    assert.equal((await pool.query(`SELECT count(*)::int AS count FROM audit_events
+      WHERE target_type='checkout_reservation' AND target_id=$1 AND action='checkout_reservation_expired'`,
+    [boundary.id])).rows[0].count, 1);
   } finally {
     if (app) await app.close();
     for (const id of ids.accounts) {
