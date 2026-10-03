@@ -55,10 +55,11 @@ CREATE TABLE "promotion_grants" (
   "version_id" uuid NOT NULL,
   "source" text NOT NULL,
   "issued_by_account_id" uuid,
+  "idempotency_key" uuid,
   "reason" text,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   CONSTRAINT "promotion_grants_source_ck" CHECK ("source" IN ('direct','code')),
-  CONSTRAINT "promotion_grants_actor_ck" CHECK (("source" = 'direct' AND "issued_by_account_id" IS NOT NULL AND length(trim(coalesce("reason",''))) BETWEEN 1 AND 500) OR ("source" = 'code' AND "issued_by_account_id" IS NULL AND "reason" IS NULL))
+  CONSTRAINT "promotion_grants_actor_ck" CHECK (("source" = 'direct' AND "issued_by_account_id" IS NOT NULL AND "idempotency_key" IS NOT NULL AND length(trim(coalesce("reason",''))) BETWEEN 1 AND 500) OR ("source" = 'code' AND "issued_by_account_id" IS NULL AND "idempotency_key" IS NULL AND "reason" IS NULL))
 );
 --> statement-breakpoint
 CREATE TABLE "promotion_uses" (
@@ -118,6 +119,8 @@ CREATE UNIQUE INDEX "promotion_codes_code_uq" ON "promotion_codes" ("code");
 CREATE INDEX "promotion_codes_version_idx" ON "promotion_codes" ("version_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "promotion_grants_account_version_source_uq" ON "promotion_grants" ("account_id","version_id","source");
+--> statement-breakpoint
+CREATE UNIQUE INDEX "promotion_grants_actor_key_uq" ON "promotion_grants" ("issued_by_account_id","idempotency_key") WHERE "source" = 'direct';
 --> statement-breakpoint
 CREATE INDEX "promotion_grants_version_idx" ON "promotion_grants" ("version_id");
 --> statement-breakpoint

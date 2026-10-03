@@ -481,15 +481,20 @@ export const promotionGrants = pgTable('promotion_grants', {
   versionId: uuid('version_id').notNull().references(() => promotionVersions.id),
   source: text('source').notNull(),
   issuedByAccountId: uuid('issued_by_account_id').references(() => accounts.id),
+  idempotencyKey: uuid('idempotency_key'),
   reason: text('reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('promotion_grants_account_version_source_uq').on(table.accountId, table.versionId, table.source),
+  uniqueIndex('promotion_grants_actor_key_uq').on(table.issuedByAccountId, table.idempotencyKey)
+    .where(sql`${table.source} = 'direct'`),
   index('promotion_grants_version_idx').on(table.versionId),
   check('promotion_grants_source_ck', sql`${table.source} IN ('direct','code')`),
   check('promotion_grants_actor_ck', sql`(${table.source} = 'direct' AND ${table.issuedByAccountId} IS NOT NULL
+      AND ${table.idempotencyKey} IS NOT NULL
       AND length(trim(coalesce(${table.reason},''))) BETWEEN 1 AND 500)
-    OR (${table.source} = 'code' AND ${table.issuedByAccountId} IS NULL AND ${table.reason} IS NULL)`),
+    OR (${table.source} = 'code' AND ${table.issuedByAccountId} IS NULL
+      AND ${table.idempotencyKey} IS NULL AND ${table.reason} IS NULL)`),
 ]);
 
 export const promotionUses = pgTable('promotion_uses', {

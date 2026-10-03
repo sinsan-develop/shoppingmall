@@ -29,6 +29,7 @@
 - 단계: HTTP/권한/코드 충돌/한도/버전/중지 RED 작성 전. Task 2의 목표 2 pass/0 skip 및 격리 전체 269건/262 pass/7 환경 skip/0 fail은 Task 3 합격을 대신하지 않는다. 오류 0, 미검증 관리자 API 전체. 다음: 테스트 선작성·실DB 404 RED.
 - 관리자 HTTP 실DB RED: `7afd353fef83f3caceee457298f48761dca7fd2b`을 지정 WSL checkout에 clean fast-forward하고 새 일회용 `shoppingmall-s32-admin-pg-1003`(DB `shoppingmall`, migration 12)를 만들었다. 목표 1건은 등록 전 경로 404로 예상 RED/0 skip, 사후 계정·세션·혜택·감사 각 0. 공유 DB는 변경하지 않았다.
 - 구현 전 계약 보정: 직접 발행 `Idempotency-Key`의 재시도 이력을 보존할 필드가 신규 `promotion_grants`에 없어 테스트 우선으로 같은 0011의 새 테이블 안에 UUID 키·유일 제약을 보강한다. 이는 승인된 직접 발행 멱등 계약의 필수 필드이며 새 테이블 수나 기존 테이블 구조를 늘리지 않는다. 기존 0011은 격리 DB에만 적용됐으므로 임시 컨테이너를 정확히 재생성해 보정 SQL을 처음부터 다시 시험한다. 공유 DB 적용 전 SQL hash가 바뀌면 read-only preview도 갱신한다.
+- 멱등키 보정 RED: `5f37aa67484ab84c73fcbe3a22ef548d355e60e8`을 WSL checkout에 clean fast-forward하고 현재 일회용 DB에서 schema 시험 1건을 실행해 `promotion_grants.idempotency_key` 부재(`42703`)의 예상 RED/skip 0을 확인했다. 기존 0011 SQL SHA는 이제 유효한 최신 제안이 아니며 수정 SHA-256 `75675CA05C8E55E3F0D8ECC7CBA5ADA64C304372ADBDE9D1BFACE5E82850C330`이다. 수정본은 아직 실DB GREEN 전; 공유 DB는 여전히 11개 migration·0011 미적용. 다음은 현재 정확한 임시 컨테이너를 제거·재생성하고 수정 0011부터 실DB 검증한다.
 
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
