@@ -66,7 +66,7 @@ export class CustomerPromotionService {
     if (state.status !== 'active' || version.rule.startAt > now || version.rule.endAt <= now ||
       state.totalUses >= state.totalUseLimit || state.accountUses >= state.perAccountUseLimit)
       throw new Error('Promotion conflict');
-    return { ...selected, rule: version.rule };
+    return { ...selected, rule: version.rule, state };
   }
 
   async list(accountId: string) {
@@ -98,18 +98,31 @@ export class CustomerPromotionService {
       eligibleGoods(lines, goods.rule) < goods.rule.minimumEligibleGoodsWon))
       throw new Error('Promotion conflict');
     const supports = [];
-    const usedCampaigns = new Set(goods ? [goods.campaignId] : []);
+    const selectedSupports = [];
+    const seenShipmentKeys = new Set<string>();
     for (const chosen of selection.shippingCoupons ?? []) {
       const selected = await this.currentRule(accountId, chosen, 'shipping_support');
-      if (usedCampaigns.has(selected.campaignId)) throw new Error('Invalid promotion selection');
-      usedCampaigns.add(selected.campaignId);
+      if (seenShipmentKeys.has(chosen.shipmentKey)) throw new Error('Invalid promotion selection');
+      seenShipmentKeys.add(chosen.shipmentKey);
       const shipment = base.shipments.find((part) => part.key === chosen.shipmentKey);
       if (!shipment || eligibleGoods(shipment.lines, selected.rule) === 0 ||
           eligibleGoods(shipment.lines, selected.rule) < selected.rule.minimumEligibleGoodsWon)
         throw new Error('Promotion conflict');
       supports.push({ shipmentKey: chosen.shipmentKey, rule: selected.rule });
+      selectedSupports.push({ ...selected, shipmentKey: chosen.shipmentKey });
     }
     const applied = applyPromotionQuote(base, lines, goods?.rule, supports);
+    const requestedByCampaign = new Map<string, { needed: number; state: CampaignState }>();
+    for (const selected of [...(goods && applied.discountWon > 0 ? [goods] : []),
+      ...selectedSupports.filter((item) =>
+        (applied.shipments.find((part) => part.key === item.shipmentKey)?.supportWon ?? 0) > 0)]) {
+      const current = requestedByCampaign.get(selected.campaignId) ?? { needed: 0, state: selected.state };
+      current.needed += 1;
+      requestedByCampaign.set(selected.campaignId, current);
+    }
+    if ([...requestedByCampaign.values()].some(({ needed, state }) =>
+      state.totalUses + needed > state.totalUseLimit ||
+      state.accountUses + needed > state.perAccountUseLimit)) throw new Error('Promotion conflict');
     const zeroSupportShipmentKeys = supports.filter((item) =>
       applied.shipments.find((part) => part.key === item.shipmentKey)?.supportWon === 0)
       .map((item) => item.shipmentKey);

@@ -15,7 +15,7 @@ test('customer lists own coupon, previews direct/code discounts and shipping wit
   const runId = randomBytes(4).toString('hex');
   const names = qaNames(runId);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  let seeded = false; let app; let customerId; let optionId;
+  let seeded = false; let app; let customerId; let optionId; let secondaryProductId;
   const campaignIds = [];
   try {
     const product = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL, password);
@@ -167,6 +167,45 @@ test('customer lists own coupon, previews direct/code discounts and shipping wit
       body: JSON.stringify({ goodsCoupon: { grantId } }),
     });
     assert.equal(stale.status, 409);
+    const categoryId = (await pool.query('SELECT category_id FROM products WHERE id=$1',
+      [product.productId])).rows[0].category_id;
+    const sellerBId = (await pool.query('SELECT id FROM sellers WHERE display_name=$1',
+      [names.sellerB])).rows[0].id;
+    secondaryProductId = (await pool.query('INSERT INTO products(seller_id,category_id) VALUES ($1,$2) RETURNING id',
+      [sellerBId, categoryId])).rows[0].id;
+    const secondaryRevisionId = (await pool.query(`INSERT INTO product_revisions
+      (product_id,version,title,description,origin_label,shipping_mode,status,proposed_by_account_id,
+        reviewed_by_account_id,reviewed_at)
+      VALUES ($1,1,$2,'QA seller B','경남','seller_direct','approved',$3,$4,now()) RETURNING id`,
+    [secondaryProductId, `qa-${runId}-seller-b-product`, sellerAccountId, adminId])).rows[0].id;
+    const secondaryOptionId = (await pool.query(`INSERT INTO product_options
+      (revision_id,name,price_won,display_order) VALUES ($1,'500g',23000,0) RETURNING id`,
+    [secondaryRevisionId])).rows[0].id;
+    await pool.query('INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity) VALUES ($1,5,5)',
+      [secondaryOptionId]);
+    await pool.query('INSERT INTO product_publications(product_id,revision_id,published_by_account_id) VALUES ($1,$2,$3)',
+      [secondaryProductId, secondaryRevisionId, adminId]);
+    await pool.query('UPDATE customer_cart_items SET quantity=1 WHERE account_id=$1 AND option_id=$2',
+      [customerId, optionId]);
+    await pool.query('INSERT INTO customer_cart_items(account_id,option_id,quantity) VALUES ($1,$2,1)',
+      [customerId, secondaryOptionId]);
+    const two = await reserve();
+    assert.equal(two.quote.shipments.length, 2);
+    const bothCode = `T${runId.toUpperCase()}`;
+    const both = await campaign('shipping_support', 3000, bothCode);
+    const bothSelection = { shippingCoupons: two.quote.shipments.map((part) =>
+      ({ shipmentKey: part.key, code: bothCode })) };
+    const bothPath = `${base}/customer/checkout/reservations/${two.id}/promotions/quote`;
+    const bothQuote = await fetch(bothPath, { method: 'POST',
+      headers: { cookie: customer, origin, 'content-type': 'application/json' },
+      body: JSON.stringify(bothSelection) });
+    assert.equal(bothQuote.status, 201, await bothQuote.clone().text());
+    assert.equal((await bothQuote.json()).supportWon, 6000);
+    await pool.query('UPDATE promotion_campaigns SET total_use_limit=1 WHERE id=$1', [both.campaignId]);
+    const overLimit = await fetch(bothPath, { method: 'POST',
+      headers: { cookie: customer, origin, 'content-type': 'application/json' },
+      body: JSON.stringify(bothSelection) });
+    assert.equal(overLimit.status, 409);
   } finally {
     if (app) await app.close();
     if (customerId) {
@@ -180,6 +219,16 @@ test('customer lists own coupon, previews direct/code discounts and shipping wit
       await pool.query('DELETE FROM promotion_codes WHERE version_id IN (SELECT id FROM promotion_versions WHERE campaign_id=ANY($1::uuid[]))', [campaignIds]);
       await pool.query('DELETE FROM promotion_versions WHERE campaign_id=ANY($1::uuid[])', [campaignIds]);
       await pool.query('DELETE FROM promotion_campaigns WHERE id=ANY($1::uuid[])', [campaignIds]);
+    }
+    if (secondaryProductId) {
+      await pool.query('DELETE FROM product_publications WHERE product_id=$1', [secondaryProductId]);
+      await pool.query(`DELETE FROM inventory_levels WHERE option_id IN
+        (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)`,
+      [secondaryProductId]);
+      await pool.query(`DELETE FROM product_options WHERE revision_id IN
+        (SELECT id FROM product_revisions WHERE product_id=$1)`, [secondaryProductId]);
+      await pool.query('DELETE FROM product_revisions WHERE product_id=$1', [secondaryProductId]);
+      await pool.query('DELETE FROM products WHERE id=$1', [secondaryProductId]);
     }
     if (seeded) await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
     await pool.end();
