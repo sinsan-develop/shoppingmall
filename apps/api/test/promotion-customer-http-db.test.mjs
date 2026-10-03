@@ -94,7 +94,7 @@ test('customer lists own coupon, previews direct/code discounts and shipping wit
     assert.equal((await postQuote({}, customer, 'http://invalid.test')).status, 403);
     const selection = { goodsCoupon: { grantId }, shippingCoupons: [{ shipmentKey, code: shippingCode }] };
     const direct = await postQuote(selection);
-    assert.equal(direct.status, 201);
+    assert.equal(direct.status, 201, await direct.clone().text());
     const first = await direct.json();
     assert.equal(first.discountWon, 5000);
     assert.equal(first.supportWon, 3000);
