@@ -35,6 +35,8 @@
 - 관리자 첫 실DB HTTP GREEN: `32e6d987643bfad2c86b5d60be2a819dec891904` exact SHA, 신규 5경로의 등록→조회→직접 발행/멱등 재시도→새 버전→코드 충돌→중지, 비관리자/위조 Origin 차단, 감사 4사건 1 pass/0 skip/0 fail. 그러나 대상 ID의 실제 존재를 아직 확인하지 않아 후속 경계 시험을 추가했다.
 - 대상 유효성 RED: `cce530757ea73bcbc37b5711649b40310e23165d` exact SHA에서 존재하지 않는 판매자 UUID 입력이 201로 통과해 기대 400에 대한 RED/0 skip을 재현했다. 시험 정리 뒤 계정·캠페인·버전·코드·감사 각 0. 이제 등록/버전 변경 transaction에서 판매자 실존 및 옵션의 현재 게시·판매 가능 개정을 확인하도록 보정했다. 로컬 typecheck 성공; 동일 SHA의 격리 HTTP GREEN은 아직 전이다. 공유 DB 미적용.
 - 대상 유효성 GREEN: `70e07383625ac7d6a84355ddf5f315f15df1ba53` exact SHA 격리 실DB에서 관리자 HTTP·schema·repository 3 pass/0 skip/0 fail. 이어 `42daf07d48b3dc6f5a7706c7967e0fb7c3a3529c`에서 캠페인 중지 뒤 기존 발행 키 재시도가 409로 실패하는 추가 RED/0 skip을 확인했다. 중지 전에 이미 확정된 직접 발행의 같은 키·같은 대상 재시도는 기존 grant ID를 돌려주고, 새 키 발행만 중지 거부하도록 조회 순서를 보정했다. 보정 후 실DB GREEN은 아직 전. 공유 DB 미적용.
+- Task 3 완료 판정: 최신 시험 전용 SHA `cf073a27dad61592f715a8257a52169559c47993`에서 관리자 목표 HTTP 1 pass/0 skip(생성·목록·버전·중지·직접발행/멱등·코드 충돌·발행 한도·역할/Origin·대상 ID·감사 포함), 로컬 루트 270건/205 pass/65 DB·환경 skip/0 fail·PR 검사 8 pass·typecheck/lint/build 종료 0. 지정 WSL 격리 DB 전체 순차 270건/263 pass/7 환경 skip/0 fail. 사후 계정·상품·예약·프로모션 5관계·감사·세션 10범주 각 0, 임시 Node 0. label `s32-admin-20261003`·mount 0·공개 포트 없음 확인 후 정확한 `shoppingmall-s32-admin-pg-1003` 컨테이너와 tmpfs DB를 제거해 부재 확인. 임시 데이터 별도 복구본 없음, 사용자 데이터 없음. 최종 SHA는 다음 상태 기록 커밋 후 다시 확인한다.
+- 미검증: 공유 DB 0011 적용, 고객 쿠폰 목록/코드 견적, 사용 점유·경쟁, 화면·실브라우저, 주문/PG/Oracle/UAT. 다음은 Task 4 고객 API를 새 격리 DB에서 RED→GREEN으로 진행한다. 같은 근본 원인 3회 연속 없음.
 
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
