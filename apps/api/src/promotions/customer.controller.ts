@@ -6,7 +6,7 @@ import { DatabaseService } from '../db/service.js';
 import { CustomerPromotionService } from './customer-service.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string } };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Controller('customer')
 export class CustomerPromotionController {
@@ -33,7 +33,7 @@ export class CustomerPromotionController {
   async quote(@Req() request: RequestHeaders, @Param('id') id: string, @Body() body: unknown) {
     requireOrigin(request);
     const { accountId, service } = await this.context(request);
-    if (!uuid.test(id)) throw new BadRequestException({ status: 'invalid_reservation_id', received: id });
+    if (!uuid.test(id)) throw new BadRequestException({ status: 'invalid_reservation_id' });
     try { return await service.quote(accountId, id, body); }
     catch (error) {
       const message = error instanceof Error ? error.message : '';
