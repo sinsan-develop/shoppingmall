@@ -174,3 +174,40 @@ test('discount allocation uses exact integer arithmetic near the safe-money limi
     { key: 'seller_direct:b', discountWon: 1 },
   ]);
 });
+
+test('shipping support pays at most the actual fee after free-shipping is decided', () => {
+  const apply = shipmentQuote.applyShipmentShippingSupportWon;
+  assert.equal(typeof apply, 'function');
+  assert.deepEqual(apply([
+    { key: 'seller_direct:a', shippingWon: 0 },
+    { key: 'seller_direct:b', shippingWon: 3000 },
+    { key: 'owool_fulfillment', shippingWon: 3000 },
+  ], [
+    { key: 'seller_direct:a', requestedSupportWon: 3000 },
+    { key: 'seller_direct:b', requestedSupportWon: 5000 },
+    { key: 'owool_fulfillment', requestedSupportWon: 1000 },
+  ]), [
+    { key: 'seller_direct:a', shippingWon: 0, supportWon: 0, payableShippingWon: 0 },
+    { key: 'seller_direct:b', shippingWon: 3000, supportWon: 3000, payableShippingWon: 0 },
+    { key: 'owool_fulfillment', shippingWon: 3000, supportWon: 1000, payableShippingWon: 2000 },
+  ]);
+  assert.deepEqual(apply([{ key: 'seller_direct:a', shippingWon: 3000 }], []), [
+    { key: 'seller_direct:a', shippingWon: 3000, supportWon: 0, payableShippingWon: 3000 },
+  ]);
+});
+
+test('shipping support rejects duplicate applications, foreign shipments and invalid money', () => {
+  const apply = shipmentQuote.applyShipmentShippingSupportWon;
+  assert.equal(typeof apply, 'function');
+  const shipments = [{ key: 'seller_direct:a', shippingWon: 3000 }];
+  const request = { key: 'seller_direct:a', requestedSupportWon: 1000 };
+  for (const bad of [
+    () => apply(shipments, [request, request]),
+    () => apply(shipments, [{ ...request, key: 'seller_direct:b' }]),
+    () => apply([...shipments, ...shipments], []),
+    () => apply(shipments, [{ ...request, requestedSupportWon: -1 }]),
+    () => apply(shipments, [{ ...request, requestedSupportWon: 1.5 }]),
+    () => apply([{ ...shipments[0], shippingWon: -1 }], []),
+    () => apply([{ ...shipments[0], shippingWon: Number.MAX_SAFE_INTEGER + 1 }], []),
+  ]) assert.throws(bad, /Invalid shipping support/);
+});

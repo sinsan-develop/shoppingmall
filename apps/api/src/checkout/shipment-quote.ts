@@ -63,6 +63,34 @@ export function allocateShipmentDiscountWon(groups: readonly DiscountEligibleGro
   return allocation.map(({ key, discountWon: amount }) => ({ key, discountWon: amount }));
 }
 
+export type ShippingCharge = { key: string; shippingWon: number };
+export type ShippingSupportRequest = { key: string; requestedSupportWon: number };
+export type SupportedShipping = ShippingCharge & { supportWon: number; payableShippingWon: number };
+
+/** Internal arithmetic only: the caller has already decided each shipment's pre-discount shipping fee. */
+export function applyShipmentShippingSupportWon(shipments: readonly ShippingCharge[],
+  requests: readonly ShippingSupportRequest[]): SupportedShipping[] {
+  if (!Array.isArray(shipments) || !Array.isArray(requests)) throw new Error('Invalid shipping support');
+  const shipmentKeys = new Set<string>();
+  for (const shipment of shipments) {
+    if (!shipment || typeof shipment.key !== 'string' || !shipment.key.trim() ||
+        shipmentKeys.has(shipment.key) || !Number.isSafeInteger(shipment.shippingWon) ||
+        shipment.shippingWon < 0) throw new Error('Invalid shipping support');
+    shipmentKeys.add(shipment.key);
+  }
+  const requestedByKey = new Map<string, number>();
+  for (const request of requests) {
+    if (!request || typeof request.key !== 'string' || !shipmentKeys.has(request.key) ||
+        requestedByKey.has(request.key) || !Number.isSafeInteger(request.requestedSupportWon) ||
+        request.requestedSupportWon < 0) throw new Error('Invalid shipping support');
+    requestedByKey.set(request.key, request.requestedSupportWon);
+  }
+  return shipments.map(({ key, shippingWon }) => {
+    const supportWon = Math.min(shippingWon, requestedByKey.get(key) ?? 0);
+    return { key, shippingWon, supportWon, payableShippingWon: shippingWon - supportWon };
+  });
+}
+
 /** Grouping is independent of the eventual order and reservation persistence. */
 export function groupShipmentLines(input: readonly ShipmentLine[]): ShipmentGroup[] {
   if (!Array.isArray(input)) throw new Error('Invalid shipment line');
