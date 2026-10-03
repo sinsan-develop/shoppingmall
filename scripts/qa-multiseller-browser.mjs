@@ -7,6 +7,8 @@ const email = process.env.QA_EMAIL;
 const password = process.env.QA_PASSWORD;
 const debugging = process.env.QA_CHROME_DEBUGGING ?? 'http://127.0.0.1:9229';
 if (!web || products.length !== 5 || !email || !password) throw new Error('QA browser inputs missing');
+const qaRunId = /^qa\+([0-9a-f]{8})-customer@example\.invalid$/.exec(email)?.[1];
+if (!qaRunId) throw new Error('QA customer email required');
 
 const page = await fetch(`${debugging}/json/new?about:blank`, { method: 'PUT' }).then((response) => response.json());
 const socket = new WebSocket(page.webSocketDebuggerUrl);
@@ -102,11 +104,15 @@ try {
   })`);
   assert.equal(screen.groups.length, 3);
   for (const [index, expected] of [
-    ['판매자 직접 발송 1 · 고추·양파', '상품 35,000원', '배송비 3,000원', '소계 38,000원'],
-    ['어울몰 모아 발송 · 고춧가루', '상품 18,000원', '배송비 3,000원', '소계 21,000원'],
-    ['판매자 직접 발송 2 · 마늘·블루베리', '상품 44,000원', '배송비 3,000원', '소계 47,000원'],
+    [`판매자 직접 발송 1 · qa-${qaRunId}-고추·qa-${qaRunId}-양파`,
+      '상품 35,000원', '배송비 3,000원', '소계 38,000원'],
+    [`어울몰 모아 발송 · qa-${qaRunId}-고춧가루`,
+      '상품 18,000원', '배송비 3,000원', '소계 21,000원'],
+    [`판매자 직접 발송 2 · qa-${qaRunId}-마늘·qa-${qaRunId}-블루베리`,
+      '상품 44,000원', '배송비 3,000원', '소계 47,000원'],
   ].entries()) {
-    for (const text of expected) assert.ok(screen.groups[index].includes(text), `shipment ${index + 1}: ${text}`);
+    for (const text of expected) assert.ok(screen.groups[index].includes(text),
+      `shipment ${index + 1}: ${text}; actual=${JSON.stringify(screen.groups[index])}`);
   }
   assert.ok(screen.total.includes('106,000원'));
   console.info('browser: two direct sellers + owool grouped into three shipment quotes PASS');

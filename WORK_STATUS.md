@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.1 리뷰 보정·시험 자원 정리
+
+- 담당 어울 단일 writer, `codex/s31-checkout-reservation-plan@feb5dc7` 제품 SHA. 변경: 고객 장바구니 발송 묶음에 해당 상품명 표시, HTTP 경계 시험의 런타임 난수 비밀번호와 예외 시 중첩 `finally` 정리, 다판매자 Chrome UI 검증 강화. 화면 렌더 시험은 RED 1 실패 후 GREEN 5 통과했고 로컬 전체 250건/188 pass/62 DB·환경 skip/0 fail, PR 본문 8 pass, typecheck/lint/build exit 0. 공유 개발 DB 목표 HTTP 1 pass, 해당 QA 자료 9범주 0.
+- WSL exact SHA `feb5dc7`, QA ID `b83f1005`의 실제 Chrome 첫 시도는 테스트 기대문구에 fixture의 `qa-<ID>-` 상품명 접두어를 누락해 실패했다. 실제 화면의 판매자 직접 발송 1행에 접두어를 포함한 고추·양파와 상품 35,000원/배송 3,000원/소계 38,000원이 표시된 것을 확인했다. 이는 화면 결함이 아니라 테스트 기대값 오류 1회다. 해당 고객의 카트 5행만 비운 뒤 스크립트 기대값을 같은 QA ID 상품명으로 수정해 재실행했고 직접 판매자 A/B·어울몰 3묶음 금액/상품명 및 5상품 제거가 모두 PASS, exit 0이었다. 초기 CDP 연결 실패 시 자체 탭 정리는 Minor 후속 후보로 남긴다.
+- 사용 후 정리: 같은 QA ID fixture reset, 공유 DB 계정/판매자/상품/카트/예약/품목/재고대기/감사/세션 9범주 0, migration 11건 유지. 정확한 임시 API/Web/빌드 컨테이너와 두 빌드 볼륨·0600 암호 파일·Windows 9091/9092/9229 listener/터널·Chrome 프로필은 모두 0. WSL checkout은 `feb5dc7` clean. 이 시험은 견적 UI 증거이지 영속 주문 3건·통합 결제 1건 또는 사용자 인수가 아니다.
+- 후속 전체 회귀 자원 계획: QA 스크립트 최종 보정·문서 커밋을 SSH alias로 push하고 WSL 지정 checkout을 exact SHA로 fast-forward한다. 기존 `local-postgres/shoppingmall`에 Node24 일회용 `shoppingmall-s31-review-full-node-1003`만 `--rm --network container:local-postgres`로 연결해 루트 순차 실DB suite를 재실행한다. 새 DB/볼륨/포트/백업은 만들지 않는다. 종료 시 컨테이너·QA 9범주 0, migration 11건, checkout clean·동일 SHA를 확인한다. 결제/주문 영속 계약은 별도 승인 경계이며 S3 완료·PR 병합을 선언하지 않는다.
+- 최종 QA 스크립트 보정 뒤 로컬 재검증: `node --check`·`git diff --check` 통과, `pnpm test` 250건/188 pass/62 DB·환경 skip/0 fail 및 PR 본문 8 pass, typecheck/lint exit 0. 첫 `pnpm build`는 제한된 D: 작업 폴더의 `.next/trace` 쓰기 EPERM으로 실패 1회; 같은 명령을 필요한 파일 권한으로 재실행해 API/Web 빌드 exit 0. 제품 소스 추가 변경은 없다.
+
 ## 진행 중 — 2026-10-03 S3.1 공유 개발 DB 실제 브라우저 검증
 
 - 담당 어울 단일 writer, branch `codex/s31-checkout-reservation-plan@2c80c61`, 로컬/SSH 원격/WSL exact SHA·clean. 공유 `local-postgres/shoppingmall`의 승인된 migration 11건과 기존 9범주 0을 확인한 뒤 QA ID `b83f1003`만 사용했다. 9091/9092/9229 사전 비점유, QA 컨테이너 0. 기존 WSL ignored dist 소유권을 변경하거나 삭제하지 않기 위해 exact SHA 소스를 읽기 전용 마운트한 Docker 전용 API/Web 산출물 볼륨에 빌드했고 Web 14 route 생성, WSL checkout dirty 0이었다.
