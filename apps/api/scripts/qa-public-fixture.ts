@@ -102,6 +102,8 @@ async function resetPublicProduct(client: PoolClient, runId: string) {
     await client.query('DELETE FROM product_publications WHERE product_id=$1', [row.id]);
     await client.query(`DELETE FROM stock_change_requests WHERE option_id IN
       (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)`, [row.id]);
+    await client.query(`DELETE FROM inventory_deferred_stock_targets WHERE option_id IN
+      (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)`, [row.id]);
     await client.query('DELETE FROM product_images WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)',
       [row.id]);
     await client.query(
