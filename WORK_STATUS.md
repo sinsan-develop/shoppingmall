@@ -16,6 +16,7 @@
 - 전체 저장소 회귀 추가 자원: 같은 exact SHA에서 새 일회용 `shoppingmall-s31-atomic-root-pg-1003`, `shoppingmall-s31-atomic-root-node-1003`를 사용한다. 동일 격리 규칙/0000~0010/런타임 암호/완료 즉시 정확한 자원 제거를 적용하고, 명령의 작업 디렉터리만 `/app`으로 바꿔 전체 실DB suite를 확인한다. 정식 공유 DB E2E 증거로 승격하지 않는다.
 - 전체 저장소 실DB 결과: WSL 지정 checkout `d32ffaa915939e0c0a2161f878a51f12cc9821f6`, 격리 DB 0000~0010 적용, 루트 `/app` 순차 suite **245건/238 pass/7 조건부 skip/0 fail**, 바깥 셸 exit 0. QA 9범주 `0,0,0,0,0,0,0,0,0`; 정확한 GREEN·ROOT 컨테이너/이름 일치 볼륨 0; WSL checkout clean·동일 SHA; 공유 `local-postgres/shoppingmall` migration 10건 불변. 별도 API 목표 시험 2 pass·전체 API 114건/107 pass/7 skip/0 fail과 구분한다. 새 공개 활성 예약 조회·공유 0010 적용·정식 WSL 통합/E2E·Oracle/PG/인수는 여전히 미승인 또는 미검증이다.
 - 판정: POST의 커밋 후 견적 오류로 숨은 예약이 남는 Important는 기존 계약 범위에서 재현·보정·실DB GREEN 확인. 다른 탭/기기에서 활성 예약 ID를 찾을 수 없는 Important는 그대로 남아 PR/병합 게이트 미충족. 다음: 정확한 공개 조회 계약 승인과 공유 0010 적용 승인 후 목표 RED→GREEN, 정식 WSL 통합·브라우저/리뷰 재검증.
+- 후속 읽기 전용 확인: 로컬/WSL/SSH 원격 모두 문서 checkpoint `5f4079ac341167a09cb48bea30c1cfd5638b3470` 및 clean; 0010 SQL SHA-256 `2be18dda86fb4ed32df427628ace9f9359c714d117bd3429cfd7ff81dc42267c`; 공유 DB `shoppingmall|migration 10|accounts 0|products 0`. 첫 SQL 조회의 셸 인용 오류 1회는 조회 전 구문 오류였고 단순 SELECT로 재확인했으며 DB 쓰기 없음. 공개 활성 예약 조회 API 결정은 비차단 질문으로 요청했고, 답 전에는 구현하지 않는다. 공유 0010도 적용 승인 전 미실행.
 
 ## 진행 중 — 2026-10-03 S3.1 최신 화면의 멱등키 실브라우저 회귀
 
