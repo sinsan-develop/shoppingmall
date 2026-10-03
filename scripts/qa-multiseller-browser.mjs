@@ -101,8 +101,13 @@ try {
     total: document.querySelector('[aria-label="현재 장바구니 견적"] p')?.innerText
   })`);
   assert.equal(screen.groups.length, 3);
-  assert.ok(screen.groups[0].includes('35,000원') && screen.groups[1].includes('18,000원') &&
-    screen.groups[2].includes('44,000원'));
+  for (const [index, expected] of [
+    ['판매자 직접 발송 1 · 고추·양파', '상품 35,000원', '배송비 3,000원', '소계 38,000원'],
+    ['어울몰 모아 발송 · 고춧가루', '상품 18,000원', '배송비 3,000원', '소계 21,000원'],
+    ['판매자 직접 발송 2 · 마늘·블루베리', '상품 44,000원', '배송비 3,000원', '소계 47,000원'],
+  ].entries()) {
+    for (const text of expected) assert.ok(screen.groups[index].includes(text), `shipment ${index + 1}: ${text}`);
+  }
   assert.ok(screen.total.includes('106,000원'));
   console.info('browser: two direct sellers + owool grouped into three shipment quotes PASS');
   for (let count = 5; count > 0; count--) {

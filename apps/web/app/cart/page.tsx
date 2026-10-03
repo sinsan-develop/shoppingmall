@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 type CartItem = { optionId: string; productId: string; title: string; optionName: string;
   quantity: number; unitPriceWon: number | null; availability: 'available' | 'unavailable' };
 type Shipment = { key: string; shippingMode: string; sellerId: string | null;
-  goodsWon: number; shippingWon: number; totalWon: number };
+  goodsWon: number; shippingWon: number; totalWon: number; lines: { optionId: string }[] };
 type Quote = { shipments: Shipment[]; goodsWon: number; shippingWon: number; totalWon: number };
 type Reservation = { id: string; status: 'ACTIVE' | 'EXPIRED' | 'RELEASED' | 'CANCELLED' | 'CONSUMED';
   expiresAt: string; endReason: string | null; lines: { optionId: string; quantity: number }[];
@@ -78,6 +78,10 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
   const seconds = active ? Math.max(0, Math.ceil((Date.parse(reservation.expiresAt) -
     (nowMs ?? Date.now())) / 1000)) : 0;
   const shownQuote = active ? reservation.quote : quote;
+  const optionTitles = new Map(items.map((item) => [item.optionId, item.title]));
+  const directOrdinal = new Map<string, number>((shownQuote?.shipments ?? [])
+    .filter((shipment) => shipment.shippingMode === 'seller_direct')
+    .map((shipment, index) => [shipment.key, index + 1]));
   return <main id="main-content" tabIndex={-1} className="shell cart-main">
     <a className="text-link" href="/products">상품 더 보기</a>
     <h1>장바구니</h1>
@@ -121,10 +125,15 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
         </ul>
         {shownQuote ? <section className="cart-quote" aria-label="현재 장바구니 견적">
           <h2>발송별 금액</h2>
-          <ul>{shownQuote.shipments.map((shipment) => <li key={shipment.key}>
-            <strong>{shipment.shippingMode === 'owool_fulfillment' ? '어울몰 모아 발송' : '판매자 직접 발송'}</strong>
+          <ul>{shownQuote.shipments.map((shipment) => {
+            const titles = shipment.lines.map((line) => optionTitles.get(line.optionId))
+              .filter((title): title is string => !!title).join('·');
+            const label = shipment.shippingMode === 'owool_fulfillment' ? '어울몰 모아 발송' :
+              `판매자 직접 발송 ${directOrdinal.get(shipment.key)}`;
+            return <li key={shipment.key}>
+            <strong>{label}{titles ? ` · ${titles}` : ''}</strong>
             <span>상품 {won(shipment.goodsWon)} · 배송비 {won(shipment.shippingWon)} · 소계 {won(shipment.totalWon)}</span>
-          </li>)}</ul>
+          </li>; })}</ul>
           <p>상품 {won(shownQuote.goodsWon)} + 배송비 {won(shownQuote.shippingWon)} = <strong>총 {won(shownQuote.totalWon)}</strong></p>
         </section> : <p role="status">현재 상품·재고를 확인해야 금액을 안내할 수 있습니다</p>}
         {!active && (shownQuote || retryAvailable) && onReserve ? <button type="button" className="primary-button" disabled={!!busy}

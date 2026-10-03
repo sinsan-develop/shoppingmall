@@ -9,6 +9,7 @@ test('customer HTTP quote applies 49,999/50,000 free-shipping boundary to each o
   skip: !process.env.DATABASE_URL,
 }, async () => {
   const runId = randomBytes(4).toString('hex');
+  const password = randomBytes(24).toString('hex');
   const databaseUrl = process.env.DATABASE_URL;
   const pool = new Pool({ connectionString: databaseUrl });
   let seeded = false;
@@ -16,7 +17,7 @@ test('customer HTTP quote applies 49,999/50,000 free-shipping boundary to each o
   try {
     const policy = (await pool.query('SELECT fee_won,free_threshold_won FROM shipping_policy_global')).rows[0];
     assert.deepEqual(policy, { fee_won: 3000, free_threshold_won: 50000 });
-    await runQaCatalogFixture('seed', runId, databaseUrl, 'test-only-password-12345');
+    await runQaCatalogFixture('seed', runId, databaseUrl, password);
     seeded = true;
     const rows = (await pool.query(
       `SELECT r.title,o.id AS option_id,p.seller_id FROM product_revisions r
@@ -36,7 +37,7 @@ test('customer HTTP quote applies 49,999/50,000 free-shipping boundary to each o
     const login = await fetch(`${base}/auth/login`, { method: 'POST',
       headers: { origin, 'content-type': 'application/json' },
       body: JSON.stringify({ email: `qa+${runId}-customer@example.invalid`,
-        password: 'test-only-password-12345', role: 'customer' }) });
+        password, role: 'customer' }) });
     assert.equal(login.status, 201);
     const cookie = login.headers.get('set-cookie').split(';')[0];
     for (const item of ['고추', '고춧가루', '마늘']) {
@@ -58,8 +59,14 @@ test('customer HTTP quote applies 49,999/50,000 free-shipping boundary to each o
     assert.notEqual(quote.shipments[0].sellerId, quote.shipments[2].sellerId);
     assert.deepEqual([quote.goodsWon, quote.shippingWon, quote.totalWon], [117999, 6000, 123999]);
   } finally {
-    if (app) await app.close();
-    await pool.end();
-    if (seeded) await runQaCatalogFixture('reset', runId, databaseUrl);
+    try {
+      if (app) await app.close();
+    } finally {
+      try {
+        await pool.end();
+      } finally {
+        if (seeded) await runQaCatalogFixture('reset', runId, databaseUrl);
+      }
+    }
   }
 });
