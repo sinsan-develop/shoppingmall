@@ -66,6 +66,25 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
       method: 'POST', headers: { origin: requestOrigin, cookie: cookieValue,
         'idempotency-key': keyValue },
     });
+    // A quote failure must not leave an undiscoverable active hold behind.
+    ids.invalidPolicyRequest = (await pool.query(
+      `INSERT INTO seller_shipping_policy_requests(seller_id,policy,status,requested_by_account_id,
+       decided_by_account_id,decided_at) VALUES ($1,$2::jsonb,'approved',$3,$3,now()) RETURNING id`,
+      [ids.seller, JSON.stringify({ feeWon: -1 }), ids.accounts[3]],
+    )).rows[0].id;
+    await pool.query(
+      `INSERT INTO seller_shipping_policies(seller_id,policy,approved_request_id,approved_by_account_id)
+       VALUES ($1,$2::jsonb,$3,$4)`,
+      [ids.seller, JSON.stringify({ feeWon: -1 }), ids.invalidPolicyRequest, ids.accounts[3]],
+    );
+    assert.equal((await start(customer, randomUUID())).status, 500);
+    assert.equal((await pool.query(
+      `SELECT count(*)::int AS count FROM checkout_reservations WHERE account_id=$1 AND status='ACTIVE'`,
+      [ids.accounts[0]],
+    )).rows[0].count, 0, 'failed quote must roll back the new reservation');
+    await pool.query('DELETE FROM seller_shipping_policies WHERE seller_id=$1', [ids.seller]);
+    await pool.query('DELETE FROM seller_shipping_policy_requests WHERE id=$1', [ids.invalidPolicyRequest]);
+    ids.invalidPolicyRequest = null;
     assert.equal((await start('', key)).status, 401);
     assert.equal((await start(seller, key)).status, 403);
     assert.equal((await start(customer, key, 'https://untrusted.invalid')).status, 403);
@@ -134,6 +153,9 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
       await pool.query('DELETE FROM checkout_reservations WHERE account_id=$1', [id]);
     }
     if (ids.product) await pool.query('DELETE FROM product_publications WHERE product_id=$1', [ids.product]);
+    if (ids.seller) await pool.query('DELETE FROM seller_shipping_policies WHERE seller_id=$1', [ids.seller]);
+    if (ids.invalidPolicyRequest) await pool.query('DELETE FROM seller_shipping_policy_requests WHERE id=$1',
+      [ids.invalidPolicyRequest]);
     if (ids.option) await pool.query('DELETE FROM inventory_levels WHERE option_id=$1', [ids.option]);
     if (ids.option) await pool.query('DELETE FROM product_options WHERE id=$1', [ids.option]);
     if (ids.revision) await pool.query('DELETE FROM product_revisions WHERE id=$1', [ids.revision]);

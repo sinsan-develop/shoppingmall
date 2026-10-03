@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.1 예약 생성·견적 원자성 보정
+
+- 담당 어울. 기존 단일 writer `codex/s31-checkout-reservation-plan@19612b562f4b75854d4237e7fc79b90f53789427`의 clean 격리 worktree에서 진행한다. 새 공개 API·schema·공유 DB 쓰기·외부 서비스는 제외한다.
+- 근거: `POST /customer/checkout/reservations`는 `CheckoutReservations.start`가 예약을 먼저 COMMIT한 뒤 별도 `quoteReservation`을 호출한다. 판매자 배송정책 조회·견적이 실패하면 고객에게 예약 ID 없이 오류가 돌아가지만 활성 예약이 남는다.
+- 계획: 소유 QA 판매자에만 유효하지 않은 승인 정책을 넣어 HTTP 실패 후 예약 0을 단언하는 RED를 먼저 확인한다. 이후 기존 POST 성공 응답 계약은 유지하며 예약·현재 견적을 같은 DB 트랜잭션에서 완료하거나 함께 rollback하도록 고친다. 테스트 fixture의 정책과 계정·상품은 finally에서 정리한다. 로컬 4 gate와 exact SHA WSL 격리 DB 전체 회귀를 수행하고 정식 공유 DB 통합·타 탭/기기 회복은 별도 경계로 남긴다.
+- 오류 횟수: 0. 다음: 실패 시험 작성·RED 재현.
+
 ## 진행 중 — 2026-10-03 S3.1 최신 화면의 멱등키 실브라우저 회귀
 
 - 담당 어울, 단일 writer `codex/s31-checkout-reservation-plan@a73610c7085976449b02858042675470c3106ccf`. Windows/WSL 지정 checkout clean·동일 SHA, SSH 원격 alias 확인. 승인된 S3.1의 기존 POST/화면 동작만 검증하고 공개 API·schema·공유 DB·Secret 계약은 변경하지 않는다.
