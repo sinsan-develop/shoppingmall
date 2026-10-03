@@ -27,6 +27,8 @@
 - 담당 어울 단일 writer, 기준 `codex/s31-checkout-reservation-plan@421df39d30af57ee57ce7e878938e47d9c02667a` clean. 이번 Task 3는 승인된 관리자 공개 경로 5개와 감사/권한만 구현한다. 고객 사용·주문·PG·공유 DB 적용은 변경하지 않는다.
 - 격리 QA 계획: `WSL-server`에 새 일회성 컨테이너 `shoppingmall-s32-admin-pg-1003`, 내부 DB명 `shoppingmall`(fixture guard용), 기존 `pgvector/pgvector:0.8.2-pg15` 이미지·공개 포트 없음·tmpfs·볼륨 없음. 0000~0011 migration 전체 적용 후 고유 `QA_RUN_ID` 계정 5개, 관리자 혜택/코드/직접 grant/감사만 시험한다. 시험 후 정확한 ID의 혜택·코드·grant·감사·계정/세션을 정리하고 잔류 0을 확인한 뒤 정확한 컨테이너만 제거한다. 기존 `local-postgres/shoppingmall`과 백업은 변경하지 않는다.
 - 단계: HTTP/권한/코드 충돌/한도/버전/중지 RED 작성 전. Task 2의 목표 2 pass/0 skip 및 격리 전체 269건/262 pass/7 환경 skip/0 fail은 Task 3 합격을 대신하지 않는다. 오류 0, 미검증 관리자 API 전체. 다음: 테스트 선작성·실DB 404 RED.
+- 관리자 HTTP 실DB RED: `7afd353fef83f3caceee457298f48761dca7fd2b`을 지정 WSL checkout에 clean fast-forward하고 새 일회용 `shoppingmall-s32-admin-pg-1003`(DB `shoppingmall`, migration 12)를 만들었다. 목표 1건은 등록 전 경로 404로 예상 RED/0 skip, 사후 계정·세션·혜택·감사 각 0. 공유 DB는 변경하지 않았다.
+- 구현 전 계약 보정: 직접 발행 `Idempotency-Key`의 재시도 이력을 보존할 필드가 신규 `promotion_grants`에 없어 테스트 우선으로 같은 0011의 새 테이블 안에 UUID 키·유일 제약을 보강한다. 이는 승인된 직접 발행 멱등 계약의 필수 필드이며 새 테이블 수나 기존 테이블 구조를 늘리지 않는다. 기존 0011은 격리 DB에만 적용됐으므로 임시 컨테이너를 정확히 재생성해 보정 SQL을 처음부터 다시 시험한다. 공유 DB 적용 전 SQL hash가 바뀌면 read-only preview도 갱신한다.
 
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 

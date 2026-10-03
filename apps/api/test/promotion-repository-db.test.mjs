@@ -23,8 +23,9 @@ test('repository resolves owned direct grants and normalized public codes to one
       RETURNING id`, [campaignId, adminId])).rows[0].id;
     await pool.query('INSERT INTO promotion_codes(version_id,code) VALUES ($1,$2)', [versionId, code]);
     grantId = (await pool.query(`INSERT INTO promotion_grants
-      (account_id,version_id,source,issued_by_account_id,reason)
-      VALUES ($1,$2,'direct',$3,'QA') RETURNING id`, [buyerId, versionId, adminId])).rows[0].id;
+      (account_id,version_id,source,issued_by_account_id,reason,idempotency_key)
+      VALUES ($1,$2,'direct',$3,'QA',$4) RETURNING id`,
+    [buyerId, versionId, adminId, randomUUID()])).rows[0].id;
 
     const repo = new PromotionRepository(pool);
     const version = await repo.getVersionById(versionId);

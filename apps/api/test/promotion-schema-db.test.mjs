@@ -46,12 +46,20 @@ test('0011 adds five constrained promotion relations without changing existing r
     await client.query('INSERT INTO promotion_codes(version_id,code) VALUES ($1,$2)', [versionId, 'QA1003']);
     await rejects('INSERT INTO promotion_codes(version_id,code) VALUES ($1,$2)', [versionId, 'QA1003'], '23505');
     await rejects('INSERT INTO promotion_codes(version_id,code) VALUES ($1,$2)', [randomUUID(), 'OTHER'], '23503');
+    const issueKey = randomUUID();
     const grantId = (await client.query(`INSERT INTO promotion_grants
-      (account_id,version_id,source,issued_by_account_id,reason)
-      VALUES ($1,$2,'direct',$3,'QA issuance') RETURNING id`, [buyerId, versionId, adminId])).rows[0].id;
+      (account_id,version_id,source,issued_by_account_id,reason,idempotency_key)
+      VALUES ($1,$2,'direct',$3,'QA issuance',$4) RETURNING id`,
+    [buyerId, versionId, adminId, issueKey])).rows[0].id;
+    await rejects(`INSERT INTO promotion_grants
+      (account_id,version_id,source,issued_by_account_id,reason,idempotency_key)
+      VALUES ($1,$2,'direct',$3,'QA duplicate',$4)`, [buyerId, versionId, adminId, randomUUID()], '23505');
+    await rejects(`INSERT INTO promotion_grants
+      (account_id,version_id,source,issued_by_account_id,reason,idempotency_key)
+      VALUES ($1,$2,'direct',$3,'QA duplicate key',$4)`, [adminId, versionId, adminId, issueKey], '23505');
     await rejects(`INSERT INTO promotion_grants
       (account_id,version_id,source,issued_by_account_id,reason)
-      VALUES ($1,$2,'direct',$3,'QA duplicate')`, [buyerId, versionId, adminId], '23505');
+      VALUES ($1,$2,'direct',$3,'QA missing key')`, [adminId, versionId, adminId], '23514');
     const reservationId = (await client.query(`INSERT INTO checkout_reservations
       (account_id,idempotency_key,expires_at) VALUES ($1,$2,now()+interval '15 minutes') RETURNING id`,
     [buyerId, randomUUID()])).rows[0].id;
