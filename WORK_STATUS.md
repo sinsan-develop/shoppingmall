@@ -42,7 +42,11 @@
 
 - 담당 어울 단일 writer, 기존 clean `codex/s31-checkout-reservation-plan@4eea851c07428e98e0473aad00345c4449783852`. 관리자 Task 3 원격 보존·격리 회귀는 위에 기록했다. 새 고객 공개 경로 2개만 우선 구현하고, 기존 무혜택 예약 API/금액·장바구니 동작은 보존한다.
 - 이번 격리 시험 자원 계획: WSL의 새 일회용 컨테이너 `shoppingmall-s32-customer-pg-1003`(label `s32-customer-20261003`), 내부 DB `shoppingmall`, tmpfs·무볼륨·호스트 공개 포트 없음. 승인된 0000~0011을 새로 적용한 뒤 `QA_RUN_ID` 가상 구매자·판매자·운영자 5계정/공개 상품 1개/옵션·재고/예약·직접 grant·공용 코드·감사만 시험한다. 정확한 시험 ID별 혜택 사용·grant·코드·버전·캠페인·예약/카트·상품/계정/세션·감사를 순서대로 정리하고 주요 잔류 0을 확인한 뒤 이 컨테이너만 제거한다. 기존 공유 `local-postgres/shoppingmall`과 백업은 변경하지 않는다.
-- 단계: 목록 선택/코드 입력의 동일 견적, 남의 grant 차단, 기간·중지·무료배송 0원·무기록 견적·역할/Origin을 테스트 우선으로 진행. 아직 Task 4 파일·QA 자원 없음, 오류 0. 미검증 Task 4 전체.
+- 착수 계획: 목록 선택/코드 입력의 동일 견적, 남의 grant 차단, 기간·중지·무료배송 0원·무기록 견적·역할/Origin을 테스트 우선으로 진행. 착수 당시 Task 4 파일·QA 자원 없음, 오류 0이었다.
+- Task 4 완료 판정: 새 `apps/api/test/promotion-customer-http-db.test.mjs`가 미구현 404로 예상 RED·0 skip을 확인한 뒤 고객 `GET /customer/promotions/coupons`, `POST /customer/checkout/reservations/:id/promotions/quote`를 구현했다. 목록은 본인 직접 발행·활성 기간·잔여 한도만, 견적은 현재 예약/가격/승인 배송 정책과 코드·직접 쿠폰을 같은 규칙으로 계산한다. 타인 grant 404, 미래·만료·중지·한도 소진·해제 예약 409, 미인증 401·판매자/잘못된 Origin 403, 무료배송 지원 0원·안내와 사용 행 0을 시험했다. 기존 예약 조회 계약·금액은 변경하지 않았다.
+- 오류 기록: 고객 새 경로의 정상 예약 UUID가 400으로 거부되는 현상이 진단 과정에서 5회 관찰되었다. 주 담당 어울이 직접 원인을 UUID 정규식의 4자리 구간 누락으로 확인·수정했고, 진단용 예약 ID 응답 필드는 제거했다. 최종 목표 HTTP 1 pass/0 skip. 같은 오류의 추가 subagent 지시는 없었다.
+- 최신 시험 SHA `03ca70a`에서 로컬 `pnpm test` 271건/205 pass/66 DB·환경 skip/0 fail + PR 본문 8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` 종료 0. WSL 격리 0011 DB의 전체 271건/264 pass/7 환경 skip/0 fail. 사후 계정·상품·예약·프로모션 5관계·감사·세션 10범주 모두 0. 정확한 label·mount 0·호스트 공개 포트 없음을 확인하고 `shoppingmall-s32-customer-pg-1003` 컨테이너/tmpfs만 제거해 부재를 확인했다. 가상 자료의 별도 복구본은 없으며 공유 DB와 백업은 건드리지 않았다.
+- 다음 Task 5는 점유/해제/확정 서비스와 동시 경쟁. 공유 DB 0011 적용, 최종 주문·PG·화면·실브라우저·Oracle/UAT는 아직 미검증이다. 이 상태 문서 커밋 후 정확한 SHA를 다시 확인한다.
 
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
