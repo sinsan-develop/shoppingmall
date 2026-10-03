@@ -185,7 +185,6 @@ export class PromotionAdminService {
       const campaign = await client.query<CampaignRow>(`SELECT id,status,
         direct_issue_limit AS "directIssueLimit" FROM promotion_campaigns WHERE id=$1 FOR UPDATE`, [campaignId]);
       if (!campaign.rows[0]) throw new Error('Promotion not found');
-      if (campaign.rows[0].status !== 'active') throw new Error('Promotion stopped');
       const retried = await client.query<{ id: string; accountId: string; campaignId: string; reason: string }>(
         `SELECT g.id,g.account_id AS "accountId",v.campaign_id AS "campaignId",g.reason
          FROM promotion_grants g JOIN promotion_versions v ON v.id=g.version_id
@@ -195,6 +194,7 @@ export class PromotionAdminService {
             retried.rows[0].reason !== reason.trim()) throw new Error('Promotion conflict');
         return { id: retried.rows[0].id };
       }
+      if (campaign.rows[0].status !== 'active') throw new Error('Promotion stopped');
       if (campaign.rows[0].directIssueLimit === null) throw new Error('Promotion issue unavailable');
       const account = await client.query(`SELECT 1 FROM accounts a JOIN account_roles r ON r.account_id=a.id
         WHERE a.id=$1 AND a.disabled_at IS NULL AND r.role='customer' LIMIT 1`, [accountId]);

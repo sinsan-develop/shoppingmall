@@ -34,6 +34,7 @@
 - 관리자 API 5경로의 service/controller와 Nest 등록을 로컬에 추가했다. 직접 발행은 캠페인 행 잠금·UUID 멱등키·계정 역할·발행 한도·감사 트랜잭션으로 처리하고, 기존 발행 grant 버전은 새 버전과 분리한다. 로컬 `pnpm typecheck` 종료 0. 아직 HTTP GREEN/전체 회귀·실브라우저는 검증 전이며 공유 DB는 변경하지 않았다. 다음: 정확한 커밋/push→WSL 동일 SHA에서 목표 HTTP 시험.
 - 관리자 첫 실DB HTTP GREEN: `32e6d987643bfad2c86b5d60be2a819dec891904` exact SHA, 신규 5경로의 등록→조회→직접 발행/멱등 재시도→새 버전→코드 충돌→중지, 비관리자/위조 Origin 차단, 감사 4사건 1 pass/0 skip/0 fail. 그러나 대상 ID의 실제 존재를 아직 확인하지 않아 후속 경계 시험을 추가했다.
 - 대상 유효성 RED: `cce530757ea73bcbc37b5711649b40310e23165d` exact SHA에서 존재하지 않는 판매자 UUID 입력이 201로 통과해 기대 400에 대한 RED/0 skip을 재현했다. 시험 정리 뒤 계정·캠페인·버전·코드·감사 각 0. 이제 등록/버전 변경 transaction에서 판매자 실존 및 옵션의 현재 게시·판매 가능 개정을 확인하도록 보정했다. 로컬 typecheck 성공; 동일 SHA의 격리 HTTP GREEN은 아직 전이다. 공유 DB 미적용.
+- 대상 유효성 GREEN: `70e07383625ac7d6a84355ddf5f315f15df1ba53` exact SHA 격리 실DB에서 관리자 HTTP·schema·repository 3 pass/0 skip/0 fail. 이어 `42daf07d48b3dc6f5a7706c7967e0fb7c3a3529c`에서 캠페인 중지 뒤 기존 발행 키 재시도가 409로 실패하는 추가 RED/0 skip을 확인했다. 중지 전에 이미 확정된 직접 발행의 같은 키·같은 대상 재시도는 기존 grant ID를 돌려주고, 새 키 발행만 중지 거부하도록 조회 순서를 보정했다. 보정 후 실DB GREEN은 아직 전. 공유 DB 미적용.
 
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
