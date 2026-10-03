@@ -2,6 +2,7 @@
 
 ## 2026-10-03 S3.1 예약 작업의 현재 경계
 
+- 최신 제품 SHA `cbdd439d8931376cac688b73ba8912a9bfc206fe`: 승인된 계정 소유 `GET /customer/checkout/reservations/active`와 장바구니의 저장 ID 없는 자동 조회를 추가했다. 로컬 246건/187 pass/59 DB·환경 skip/0 fail, typecheck/lint/build exit 0. WSL 격리 PostgreSQL에 0000~0010을 적용한 루트 순차 실DB 246건/239 pass/7 조건부 skip/0 fail, 신규 HTTP 목표 2 pass/0 fail. 일회용 QA 컨테이너·볼륨/자료 잔류 0, 지정 checkout clean·동일 SHA. 공유 DB는 여전히 migration 10건이며 0010 미적용; 실제 브라우저와 정식 공유 DB 통합/E2E·Oracle·사용자 인수는 이 SHA에서 아직 미검증이다.
 - 2026-10-03 추가: 기존 POST 계약 내 예약·견적 원자성 보정 제품 SHA `d32ffaa915939e0c0a2161f878a51f12cc9821f6`. 격리 DB에서 견적 실패 후 예약 0 및 동일 멱등키 재시도, 목표 HTTP 2 pass; API suite 114건/107 pass/7 skip/0 fail; 루트 실DB suite 245건/238 pass/7 skip/0 fail. QA 9범주·일회용 자원 잔류 0. 공유 `local-postgres/shoppingmall` migration은 여전히 10건(0010 미적용). 이는 자체 격리 QA이며 정식 WSL 통합·타 탭/기기 복구·Oracle 인수 검증이 아니다.
 
 - 현재 단일 작업 브랜치는 `codex/s31-checkout-reservation-plan`, Windows 작업 checkout은 `D:\Project\shoppingmall2\.worktrees\flat-v2-prototypes`, WSL 지정 checkout은 `/home/daon/deploy/shopping`이다. 아래 과거 `codex/flat-v2-prototypes` 명령·SHA는 당시 기록이며 현재 checkout 명령에 그대로 사용하지 않는다. 원격은 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git` SSH alias만 사용한다.

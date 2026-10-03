@@ -131,11 +131,9 @@ try {
     assert.match(hidden.id, /^[0-9a-f-]{36}$/i);
     assert.match(hidden.key, /^[0-9a-f-]{36}$/i);
     assert.equal(hidden.storedId, null);
+    await evaluate("sessionStorage.removeItem('owool-checkout-reservation-key'); true");
     await navigate('/cart');
-    await waitFor("document.body.innerText.includes('이전 예약 결과 다시 확인')", 'cart reload after hidden success');
-    assert.equal(await evaluate("sessionStorage.getItem('owool-checkout-reservation-key')"), hidden.key);
-    await evaluate("[...document.querySelectorAll('button')].find((button) => button.textContent.includes('이전 예약 결과 다시 확인')).click(); true");
-    await waitFor("document.body.innerText.includes('예약 번호') && sessionStorage.getItem('owool-checkout-reservation-id')", 'same-key reservation recovery');
+    await waitFor("document.body.innerText.includes('예약 번호') && sessionStorage.getItem('owool-checkout-reservation-id')", 'account reservation discovery without saved ID or key');
     const recovered = await evaluate(`(async () => {
       const id = sessionStorage.getItem('owool-checkout-reservation-id');
       const response = await fetch('http://127.0.0.1:9092/customer/checkout/reservations/' + id,
@@ -146,12 +144,12 @@ try {
         shown: !!document.querySelector('[aria-label="재고 예약 상태"] [role="status"]') };
     })()`);
     assert.equal(recovered.id, hidden.id);
-    assert.equal(recovered.key, hidden.key);
+    assert.equal(recovered.key, null);
     assert.equal(recovered.expiresAt, hidden.expiresAt);
     assert.equal(recovered.shown, true);
     await evaluate("[...document.querySelectorAll('button')].find((button) => button.textContent.includes('예약 해제')).click(); true");
     await waitFor("!sessionStorage.getItem('owool-checkout-reservation-id') && !sessionStorage.getItem('owool-checkout-reservation-key')", 'reservation release');
-    console.info('browser: hidden committed POST, reload, same-key ID recovery, unchanged expiry and release PASS');
+    console.info('browser: hidden committed POST, reload without saved ID/key, account lookup, unchanged expiry and release PASS');
   }
 
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
