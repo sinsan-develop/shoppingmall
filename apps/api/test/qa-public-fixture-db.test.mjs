@@ -214,3 +214,41 @@ test('public browser fixture reset removes only its reservation history before p
     await pool.end();
   }
 });
+
+test('public browser fixture reset removes its option deferred stock target', {
+  skip: !process.env.DATABASE_URL,
+}, async () => {
+  const runId = randomBytes(4).toString('hex');
+  const { runQaPublicFixture } = await import('../scripts/qa-public-fixture.ts');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  let targetId;
+  let seeded = false;
+  let reset = false;
+  try {
+    const product = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL,
+      'test-only-password-12345');
+    seeded = true;
+    const account = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [`qa+${runId}-seller-a@example.invalid`])).rows[0].account_id;
+    const option = (await pool.query('SELECT id FROM product_options WHERE revision_id=$1',
+      [product.revisionId])).rows[0].id;
+    targetId = (await pool.query(
+      `INSERT INTO inventory_deferred_stock_targets(option_id,requested_by_account_id,status,applied_at)
+       VALUES ($1,$2,'applied',clock_timestamp()) RETURNING id`, [option, account],
+    )).rows[0].id;
+    await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
+    reset = true;
+    const remaining = await pool.query(`SELECT
+      (SELECT count(*)::int FROM inventory_deferred_stock_targets WHERE id=$1) AS targets,
+      (SELECT count(*)::int FROM products WHERE id=$2) AS products,
+      (SELECT count(*)::int FROM account_identities WHERE identifier=$3) AS accounts`,
+    [targetId, product.productId, `qa+${runId}-seller-a@example.invalid`]);
+    assert.deepEqual(remaining.rows[0], { targets: 0, products: 0, accounts: 0 });
+  } finally {
+    if (seeded && !reset) {
+      if (targetId) await pool.query('DELETE FROM inventory_deferred_stock_targets WHERE id=$1', [targetId]);
+      await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
+    }
+    await pool.end();
+  }
+});
