@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.1 계정 소유 활성 예약 조회
+
+- 담당 어울, 기존 단일 writer `codex/s31-checkout-reservation-plan@93df4813d2849be36d2c887cd0c7979a62ee461a`, Windows/WSL 지정 checkout clean·동일 SHA. 신산님의 직전 공개 API 질문 후 `계속하자`를 `GET /customer/checkout/reservations/active`의 한정된 추가 승인으로 해석한다. 공유 DB 0010 적용·새 schema·Oracle/실서비스는 포함하지 않는다.
+- 계약/범위: 로그인한 구매자 자기 계정의 유효 `ACTIVE` 예약 한 건에만 ID·DB 만료시각·품목·현재 견적을 기존 예약 조회와 같은 형태로 반환한다. 없거나 DB 시각상 만료면 404, 비로그인 401, 다른 역할 403, DB 미설정 503. 요청자 제공 계정 ID는 받지 않는다. 새 탭·기기에서 브라우저 저장 ID가 없어도 화면이 자기 예약을 찾고 해제할 수 있어야 한다. 만료된 행은 기존 만료 전이·감사를 거쳐 정리하며 시간을 연장하지 않는다.
+- 변경 예상: `apps/api/src/checkout/reservation-service.ts`, `reservation.controller.ts`, 실DB HTTP 시험, 고객 장바구니 화면·시험/QA 도구, 이 현황. RED→GREEN 후 로컬 test/typecheck/lint/build, SSH alias push→WSL exact SHA 격리 실DB·브라우저 회귀. 최초 로컬 기준 `pnpm test` 245건/186 pass/59 DB·환경 skip/0 fail 및 PR validator 8 pass. DB skip은 실DB 증거가 아니다.
+- RED 자체 QA 예정 자원: 지정 WSL checkout과 기존 `pgvector/pgvector:0.8.2-pg15`/`node:24-bookworm-slim` 이미지로 `shoppingmall-s31-active-red-pg-1003`, `shoppingmall-s31-active-red-node-1003` 두 일회용 컨테이너. 내부 fixture DB명만 `shoppingmall`, 0000~0010 적용, 외부 포트·영속 볼륨·공유 DB 쓰기 없음. 시험 암호는 런타임에서만 생성. 실패 재현 후 정확한 두 컨테이너·익명 볼륨 자동제거/잔류 0 확인. GREEN QA 자원은 실행 전 별도 기록한다.
+- 오류 횟수 0. 다음: API HTTP 실패 시험 먼저 작성·WSL 격리 RED 확인.
+
 ## 진행 중 — 2026-10-03 S3.1 예약 생성·견적 원자성 보정
 
 - 담당 어울. 기존 단일 writer `codex/s31-checkout-reservation-plan@19612b562f4b75854d4237e7fc79b90f53789427`의 clean 격리 worktree에서 진행한다. 새 공개 API·schema·공유 DB 쓰기·외부 서비스는 제외한다.

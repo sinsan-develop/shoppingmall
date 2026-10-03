@@ -57,15 +57,20 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
       return response.headers.get('set-cookie').split(';')[0];
     }
     const customer = await cookie(0, 'customer');
+    const customerElsewhere = await cookie(0, 'customer');
     const other = await cookie(1, 'customer');
     const seller = await cookie(2, 'seller');
     const admin = await cookie(3, 'admin');
     const url = `${base}/customer/checkout/reservations`;
+    const activeUrl = `${url}/active`;
     const key = randomUUID();
     const start = (cookieValue, keyValue, requestOrigin = origin) => fetch(url, {
       method: 'POST', headers: { origin: requestOrigin, cookie: cookieValue,
         'idempotency-key': keyValue },
     });
+    assert.equal((await fetch(activeUrl)).status, 401);
+    assert.equal((await fetch(activeUrl, { headers: { cookie: seller } })).status, 403);
+    assert.equal((await fetch(activeUrl, { headers: { cookie: customer } })).status, 404);
     // A quote failure must not leave an undiscoverable active hold behind.
     ids.invalidPolicyRequest = (await pool.query(
       `INSERT INTO seller_shipping_policy_requests(seller_id,policy,status,requested_by_account_id,
@@ -104,6 +109,13 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
     assert.equal(hold.status, 'ACTIVE');
     assert.deepEqual({ goodsWon: hold.quote.goodsWon, shippingWon: hold.quote.shippingWon },
       { goodsWon: 23000, shippingWon: 3000 });
+    assert.equal((await fetch(activeUrl, { headers: { cookie: other } })).status, 404);
+    const discovered = await fetch(activeUrl, { headers: { cookie: customerElsewhere } });
+    assert.equal(discovered.status, 200);
+    const discoveredHold = await discovered.json();
+    assert.equal(discoveredHold.id, hold.id);
+    assert.equal(discoveredHold.expiresAt, hold.expiresAt);
+    assert.equal(discoveredHold.quote.totalWon, 26000);
     const cartItem = `${base}/customer/cart/items/${ids.option}`;
     assert.equal((await fetch(cartItem, { method: 'DELETE', headers: { cookie: customer, origin } })).status, 409);
     assert.equal((await fetch(cartItem, { method: 'PUT', headers: {
@@ -130,6 +142,7 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
     const cancelled = await cancel(admin, 'QA 출고 불가');
     assert.equal(cancelled.status, 201);
     assert.equal((await cancelled.json()).status, 'CANCELLED');
+    assert.equal((await fetch(activeUrl, { headers: { cookie: customerElsewhere } })).status, 404);
     const own = await (await fetch(item, { headers: { cookie: customer } })).json();
     assert.equal(own.status, 'CANCELLED');
     assert.match(own.endReason, /QA 출고 불가/);
@@ -152,6 +165,13 @@ test('checkout reservation HTTP enforces customer ownership, idempotency and adm
     assert.equal(await expireReservationBatch(pool, 100), 0);
     assert.equal((await (await fetch(`${url}/${next.id}`, { headers: { cookie: customer } })).json()).status,
       'EXPIRED');
+    const dueOnDiscovery = await (await start(customerElsewhere, randomUUID())).json();
+    await pool.query(
+      `UPDATE checkout_reservations SET created_at=clock_timestamp()-interval '16 minutes',
+       expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, [dueOnDiscovery.id]);
+    assert.equal((await fetch(activeUrl, { headers: { cookie: customer } })).status, 404);
+    assert.equal((await pool.query('SELECT status FROM checkout_reservations WHERE id=$1',
+      [dueOnDiscovery.id])).rows[0].status, 'EXPIRED');
   } finally {
     if (app) await app.close();
     for (const id of ids.accounts) {
@@ -194,6 +214,7 @@ test('reservation endpoints report 503 when the database is not configured', asy
       { headers })).status, 503);
     assert.equal((await fetch(`${base}/customer/checkout/reservations`, { method: 'POST',
       headers: { ...headers, 'idempotency-key': randomUUID() } })).status, 503);
+    assert.equal((await fetch(`${base}/customer/checkout/reservations/active`, { headers })).status, 503);
     assert.equal((await fetch(`${base}/checkout/admin/reservations/${randomUUID()}/cancel`, {
       method: 'POST', headers: { ...headers, 'content-type': 'application/json' },
       body: JSON.stringify({ reason: 'QA 사유' }),
