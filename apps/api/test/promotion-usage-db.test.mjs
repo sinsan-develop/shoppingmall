@@ -74,7 +74,8 @@ test('one final coupon place is serialized across direct/code customers, then re
       finally { client.release(); }
     }
     const race = await Promise.allSettled(requests.map(hold));
-    assert.equal(race.filter((part) => part.status === 'fulfilled').length, 1);
+    assert.equal(race.filter((part) => part.status === 'fulfilled').length, 1,
+      race.map((part) => part.status === 'rejected' ? part.reason?.stack : 'fulfilled').join('\n'));
     assert.equal(race.filter((part) => part.status === 'rejected').length, 1);
     const winnerIndex = race.findIndex((part) => part.status === 'fulfilled');
     const loserIndex = 1 - winnerIndex;
