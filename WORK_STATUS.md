@@ -2,6 +2,7 @@
 
 ## 진행 중 — 2026-10-03 S3.1 리뷰 보정·시험 자원 정리
 
+- 최종 WSL 공유 DB 회귀: SSH alias 원격→지정 WSL checkout `c4fc056435aa546c8cb9c40df697758084a139c2` fast-forward·clean 확인 뒤, 계획한 `shoppingmall-s31-review-full-node-1003` Node24 일회용 컨테이너로 루트 순차 시험 **250건/243 pass/7 환경 skip/0 fail**, 바깥 명령 exit 0. 사후 migration 11건, QA 9범주 `0|0|0|0|0|0|0|0|0`, 정확한 시험 컨테이너 0, WSL checkout clean·동일 SHA. 새 DB·볼륨·포트·백업 없음. Windows 9091/9092/9229 listener 0. 7 skip은 통과로 간주하지 않는다. 영속 주문 3건·한 결제·Oracle/UAT는 미구현 또는 미검증이므로 S3.1/S3 완료·PR 병합 보류.
 - 담당 어울 단일 writer, `codex/s31-checkout-reservation-plan@feb5dc7` 제품 SHA. 변경: 고객 장바구니 발송 묶음에 해당 상품명 표시, HTTP 경계 시험의 런타임 난수 비밀번호와 예외 시 중첩 `finally` 정리, 다판매자 Chrome UI 검증 강화. 화면 렌더 시험은 RED 1 실패 후 GREEN 5 통과했고 로컬 전체 250건/188 pass/62 DB·환경 skip/0 fail, PR 본문 8 pass, typecheck/lint/build exit 0. 공유 개발 DB 목표 HTTP 1 pass, 해당 QA 자료 9범주 0.
 - WSL exact SHA `feb5dc7`, QA ID `b83f1005`의 실제 Chrome 첫 시도는 테스트 기대문구에 fixture의 `qa-<ID>-` 상품명 접두어를 누락해 실패했다. 실제 화면의 판매자 직접 발송 1행에 접두어를 포함한 고추·양파와 상품 35,000원/배송 3,000원/소계 38,000원이 표시된 것을 확인했다. 이는 화면 결함이 아니라 테스트 기대값 오류 1회다. 해당 고객의 카트 5행만 비운 뒤 스크립트 기대값을 같은 QA ID 상품명으로 수정해 재실행했고 직접 판매자 A/B·어울몰 3묶음 금액/상품명 및 5상품 제거가 모두 PASS, exit 0이었다. 초기 CDP 연결 실패 시 자체 탭 정리는 Minor 후속 후보로 남긴다.
 - 사용 후 정리: 같은 QA ID fixture reset, 공유 DB 계정/판매자/상품/카트/예약/품목/재고대기/감사/세션 9범주 0, migration 11건 유지. 정확한 임시 API/Web/빌드 컨테이너와 두 빌드 볼륨·0600 암호 파일·Windows 9091/9092/9229 listener/터널·Chrome 프로필은 모두 0. WSL checkout은 `feb5dc7` clean. 이 시험은 견적 UI 증거이지 영속 주문 3건·통합 결제 1건 또는 사용자 인수가 아니다.
