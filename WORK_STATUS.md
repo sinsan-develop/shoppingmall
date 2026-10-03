@@ -22,6 +22,12 @@
 - Task 2 최종 격리 판정: 이름 제한에 맞춘 **별도 컨테이너 안**의 새 `/shoppingmall` DB에서 0000~0011 전체 12 migration 재현, `b854ee1b2b8bc6aafff47aca40a8cdf482fb0d8b` exact SHA 전체 순차 실DB 269건/262 pass/7 환경 skip/0 fail, 목표 2 pass/0 skip. 계정/상품/예약/프로모션 캠페인/사용·감사 잔류 각 0. `shoppingmall-s32-pg-1003`의 label `s32-20261003`·mount 0·호스트 포트 없음 재확인 후 컨테이너와 내부 두 tmpfs DB만 제거해 부재 확인. 임시 데이터는 복구본 없이 제거됐으며 실제 사용자 데이터는 없었다. 공유 DB 11 migration·기존 계정/예약 0은 read-only 그대로다.
 - Task 2 오류·미검증: 첫 격리 DB의 잘못된 이름으로 fixture guard 회귀 실패 1회, 조사 후 독립 DB로 재시험 GREEN. 처음 로컬 빌드 sandbox EPERM 1회, 권한 실행 재시험 GREEN. 동일 근본 원인 3회 연속 없음. 아직 공유 DB 0011 실제 적용, 관리자/고객 HTTP·동시 사용·브라우저·PG/Oracle/UAT 미검증. 다음은 Task 3 관리자 API를 새 격리 DB에서 테스트 우선으로 구현한다.
 
+## 진행 중 — 2026-10-03 S3.2 Task 3 관리자 혜택 API
+
+- 담당 어울 단일 writer, 기준 `codex/s31-checkout-reservation-plan@421df39d30af57ee57ce7e878938e47d9c02667a` clean. 이번 Task 3는 승인된 관리자 공개 경로 5개와 감사/권한만 구현한다. 고객 사용·주문·PG·공유 DB 적용은 변경하지 않는다.
+- 격리 QA 계획: `WSL-server`에 새 일회성 컨테이너 `shoppingmall-s32-admin-pg-1003`, 내부 DB명 `shoppingmall`(fixture guard용), 기존 `pgvector/pgvector:0.8.2-pg15` 이미지·공개 포트 없음·tmpfs·볼륨 없음. 0000~0011 migration 전체 적용 후 고유 `QA_RUN_ID` 계정 5개, 관리자 혜택/코드/직접 grant/감사만 시험한다. 시험 후 정확한 ID의 혜택·코드·grant·감사·계정/세션을 정리하고 잔류 0을 확인한 뒤 정확한 컨테이너만 제거한다. 기존 `local-postgres/shoppingmall`과 백업은 변경하지 않는다.
+- 단계: HTTP/권한/코드 충돌/한도/버전/중지 RED 작성 전. Task 2의 목표 2 pass/0 skip 및 격리 전체 269건/262 pass/7 환경 skip/0 fail은 Task 3 합격을 대신하지 않는다. 오류 0, 미검증 관리자 API 전체. 다음: 테스트 선작성·실DB 404 RED.
+
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
 - 신산님이 `docs/design/S3_PROMOTION_CONTRACT_DRAFT.md`에 대해 “설계서 대로 진행하자”라고 직접 지시했다. 상세 설계 승인으로 기록하고, 신규 공개 API·영속 schema/migration·공유 개발 DB 적용은 설계서 7절의 별도 경계로 유지한다.
