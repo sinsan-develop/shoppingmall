@@ -83,6 +83,7 @@ test('customer lists own coupon, previews direct/code discounts and shipping wit
       return response.json();
     }
     const hold = await reserve();
+    assert.match(hold.id, /^[0-9a-f]{8}-[0-9a-f-]{27}$/i);
     assert.equal(hold.quote.goodsWon, 46000);
     assert.equal(hold.quote.shippingWon, 3000);
     const shipmentKey = hold.quote.shipments[0].key;
@@ -92,6 +93,8 @@ test('customer lists own coupon, previews direct/code discounts and shipping wit
       body: JSON.stringify(body) });
     assert.equal((await postQuote({}, seller)).status, 403);
     assert.equal((await postQuote({}, customer, 'http://invalid.test')).status, 403);
+    const emptyQuote = await postQuote({});
+    assert.equal(emptyQuote.status, 201, await emptyQuote.clone().text());
     const selection = { goodsCoupon: { grantId }, shippingCoupons: [{ shipmentKey, code: shippingCode }] };
     const direct = await postQuote(selection);
     assert.equal(direct.status, 201, await direct.clone().text());
