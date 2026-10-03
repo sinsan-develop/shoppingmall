@@ -43,7 +43,7 @@ export class PromotionRepository {
         g.version_id AS "versionId", g.id AS "grantId"
         FROM promotion_grants g JOIN promotion_versions v ON v.id=g.version_id
         JOIN promotion_campaigns c ON c.id=v.campaign_id
-        WHERE g.id=$1 AND g.account_id=$2 AND g.source='direct' AND c.status='active'`,
+        WHERE g.id=$1 AND g.account_id=$2 AND g.source='direct'`,
       [selector.grantId, accountId]);
       const row = result.rows[0];
       return row ? { ...row, source: 'direct' } : null;
@@ -54,7 +54,7 @@ export class PromotionRepository {
       c.version_id AS "versionId", NULL::uuid AS "grantId"
       FROM promotion_codes c JOIN promotion_versions v ON v.id=c.version_id
       JOIN promotion_campaigns p ON p.id=v.campaign_id
-      WHERE c.code=$1 AND p.status='active'`, [code]);
+      WHERE c.code=$1`, [code]);
     const row = result.rows[0];
     return row ? { ...row, source: 'code' } : null;
   }
