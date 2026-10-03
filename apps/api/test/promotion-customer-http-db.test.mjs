@@ -133,6 +133,40 @@ test('customer lists own coupon, previews direct/code discounts and shipping wit
         code: shippingCode }] }),
     });
     assert.equal(stopped.status, 409);
+    await pool.query('UPDATE promotion_versions SET starts_at=$2,ends_at=$3 WHERE id=$1',
+      [goods.versionId, new Date(Date.now() + 3_600_000), new Date(Date.now() + 7_200_000)]);
+    assert.deepEqual(await (await fetch(couponsPath, { headers: { cookie: customer } })).json(), []);
+    const future = await fetch(`${base}/customer/checkout/reservations/${freeHold.id}/promotions/quote`, {
+      method: 'POST', headers: { cookie: customer, origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ goodsCoupon: { grantId } }),
+    });
+    assert.equal(future.status, 409);
+    await pool.query('UPDATE promotion_versions SET starts_at=$2,ends_at=$3 WHERE id=$1',
+      [goods.versionId, new Date(Date.now() - 7_200_000), new Date(Date.now() - 3_600_000)]);
+    assert.deepEqual(await (await fetch(couponsPath, { headers: { cookie: customer } })).json(), []);
+    await pool.query('UPDATE promotion_versions SET starts_at=$2,ends_at=$3 WHERE id=$1',
+      [goods.versionId, startAt, endAt]);
+    await pool.query('UPDATE promotion_campaigns SET total_use_limit=1 WHERE id=$1', [goods.campaignId]);
+    await pool.query(`INSERT INTO promotion_uses
+      (account_id,campaign_id,version_id,grant_id,reservation_id,status,idempotency_key,expires_at)
+      VALUES ($1,$2,$3,$4,$5,'HELD',$6,$7)`,
+    [customerId, goods.campaignId, goods.versionId, grantId, freeHold.id, randomUUID(), endAt]);
+    assert.deepEqual(await (await fetch(couponsPath, { headers: { cookie: customer } })).json(), []);
+    const exhausted = await fetch(`${base}/customer/checkout/reservations/${freeHold.id}/promotions/quote`, {
+      method: 'POST', headers: { cookie: customer, origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ goodsCoupon: { grantId } }),
+    });
+    assert.equal(exhausted.status, 409);
+    await pool.query('DELETE FROM promotion_uses WHERE campaign_id=$1', [goods.campaignId]);
+    const releasedFree = await fetch(`${base}/customer/checkout/reservations/${freeHold.id}`, {
+      method: 'DELETE', headers: { cookie: customer, origin },
+    });
+    assert.equal(releasedFree.status, 200);
+    const stale = await fetch(`${base}/customer/checkout/reservations/${freeHold.id}/promotions/quote`, {
+      method: 'POST', headers: { cookie: customer, origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ goodsCoupon: { grantId } }),
+    });
+    assert.equal(stale.status, 409);
   } finally {
     if (app) await app.close();
     if (customerId) {
