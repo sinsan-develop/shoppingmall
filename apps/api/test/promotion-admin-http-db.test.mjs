@@ -50,6 +50,10 @@ test('admin may create, version, issue and stop one campaign while role and Orig
     assert.equal((await post(path, campaign, customer)).status, 403);
     assert.equal((await post(path, campaign, seller)).status, 403);
     assert.equal((await fetch(path)).status, 401);
+    assert.equal((await post(path, { ...campaign, title: `QA-${runId}-unknown-seller`,
+      scope: 'sellers', targetIds: [randomUUID()], code: `S${code}` })).status, 400);
+    assert.equal((await post(path, { ...campaign, title: `QA-${runId}-unknown-option`,
+      scope: 'options', targetIds: [randomUUID()], code: `O${code}` })).status, 400);
     const created = await post(path, campaign);
     assert.equal(created.status, 201);
     const first = await created.json();
@@ -88,7 +92,8 @@ test('admin may create, version, issue and stop one campaign while role and Orig
   } finally {
     if (app) await app.close();
     if (seeded) {
-      const campaigns = (await pool.query('SELECT id FROM promotion_campaigns WHERE title=$1', [title])).rows.map((row) => row.id);
+      const campaigns = (await pool.query('SELECT id FROM promotion_campaigns WHERE title LIKE $1',
+        [`QA-${runId}-%`])).rows.map((row) => row.id);
       if (campaigns.length) {
         await pool.query('DELETE FROM promotion_uses WHERE campaign_id=ANY($1::uuid[])', [campaigns]);
         await pool.query('DELETE FROM promotion_grants WHERE version_id IN (SELECT id FROM promotion_versions WHERE campaign_id=ANY($1::uuid[]))', [campaigns]);
