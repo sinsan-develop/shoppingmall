@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.1 공유 개발 DB 0010 적용·정식 회귀
+
+- 담당 어울, 단일 writer `codex/s31-checkout-reservation-plan@9f1f41ac4e751ed7b127a10ef9575d20e02b66b9`. 신산님이 공유 개발 DB 적용을 명시 승인했다. 대상은 `WSL-server`의 정확한 컨테이너 `local-postgres`, DB `shoppingmall`, migration `0010_s3_checkout_reservations` 1건뿐이다. Oracle·다른 DB/컨테이너·실제 외부 서비스·main/PR 병합은 이번 승인에 포함하지 않는다.
+- 시작 읽기 전용 확인: 로컬/SSH 원격/WSL 작업 branch SHA 일치·clean, 공유 `shoppingmall|postgres|migration 10|accounts 0|products 0|audit 0`, 신규 예약 3테이블 미존재. SQL SHA-256 `2be18dda86fb4ed32df427628ace9f9359c714d117bd3429cfd7ff81dc42267c`, 격리 DB에서 0000~0010 적용과 246건/239 pass/7 skip/0 fail을 사전 확인했다. 첫 확인 질의에 미존재 테이블을 직접 SELECT해 관계 없음 오류 1회(읽기 전용/예상 상태) 뒤 기존 관계만 조회해 성공했다. 동일 근본 원인 반복 0회.
+- 적용·복구 계획: Node24 일회용 `shoppingmall-s31-migrate-preflight-node-1003`로 Drizzle read-only dry-run 1건/14문장을 재확인한다. WSL `/tmp/shoppingmall-s31-0010-pre-20261003.dump`를 DB 전체 custom-format `pg_dump`로 `umask 077` 생성하고 `pg_restore --list`·크기·sha256을 검증한다. 대상 파일 기존 존재 시 덮지 않고 중단한다. 이어 정확한 동일 SHA의 `migrate.ts`로 0010만 적용하고 이력 11건·새 표/인덱스·기존 0행 불변을 확인한다. SQL 적용은 Drizzle 트랜잭션을 따른다. 실패 시 후속 쓰기를 멈추고 백업·DB 상태를 보존해 보고하며 광범위 restore/기존 DB 삭제는 하지 않는다.
+- 정식 회귀 자원 계획: 지정 WSL checkout과 공유 `local-postgres/shoppingmall`만 사용, 기존 `node:24-bookworm-slim` 이미지의 일회용 `shoppingmall-s31-shared-test-node-1003`를 `--rm --network container:local-postgres`로 연결한다. 목표 HTTP/전체 루트 순차 실DB suite를 실행하되 DB URL·암호는 런타임에서만 주입하고 출력/문서화하지 않는다. 테스트는 자기 식별 QA 계정·상품을 `finally` 정리하며 9범주 잔류 0을 확인한다. 종료 시 두 정확한 Node 컨테이너·연결 볼륨 0, WSL checkout clean·공유 migration 11건을 확인한다. 성공 후 이번 백업 파일은 신산님의 ‘사용 후 모두 정리’ 지시에 따라 정확한 경로·형식·해시를 다시 확인하고 삭제해 잔류 0을 검사한다. 정식 실브라우저/E2E·Oracle 인수는 별도 검증이다.
+
 ## 진행 중 — 2026-10-03 S3.1 계정 소유 활성 예약 조회
 
 - 담당 어울, 기존 단일 writer `codex/s31-checkout-reservation-plan@93df4813d2849be36d2c887cd0c7979a62ee461a`, Windows/WSL 지정 checkout clean·동일 SHA. 신산님의 직전 공개 API 질문 후 `계속하자`를 `GET /customer/checkout/reservations/active`의 한정된 추가 승인으로 해석한다. 공유 DB 0010 적용·새 schema·Oracle/실서비스는 포함하지 않는다.
