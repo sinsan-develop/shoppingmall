@@ -85,6 +85,10 @@ test('admin may create, version, issue and stop one campaign while role and Orig
     assert.equal((await post(`${path}/${first.id}/stop`, { reason: 'QA end' })).status, 201);
     assert.equal((await post(grantsPath, { accountId: customerId, reason: 'late issue' }, admin,
       origin, randomUUID())).status, 409);
+    const stoppedRetry = await post(grantsPath, { accountId: customerId, reason: 'QA direct issue' },
+      admin, origin, issueKey);
+    assert.equal(stoppedRetry.status, 201);
+    assert.equal((await stoppedRetry.json()).id, grant.id);
     const actions = (await pool.query("SELECT action FROM audit_events WHERE actor_account_id=$1 AND action LIKE 'promotion.%' ORDER BY occurred_at,id",
       [adminId])).rows.map((row) => row.action);
     assert.deepEqual(actions, ['promotion.campaign_created', 'promotion.grant_issued',
