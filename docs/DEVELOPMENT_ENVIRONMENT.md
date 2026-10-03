@@ -2,6 +2,8 @@
 
 ## 2026-10-03 S3.1 예약 작업의 현재 경계
 
+- 2026-10-03 추가: 기존 POST 계약 내 예약·견적 원자성 보정 제품 SHA `d32ffaa915939e0c0a2161f878a51f12cc9821f6`. 격리 DB에서 견적 실패 후 예약 0 및 동일 멱등키 재시도, 목표 HTTP 2 pass; API suite 114건/107 pass/7 skip/0 fail; 루트 실DB suite 245건/238 pass/7 skip/0 fail. QA 9범주·일회용 자원 잔류 0. 공유 `local-postgres/shoppingmall` migration은 여전히 10건(0010 미적용). 이는 자체 격리 QA이며 정식 WSL 통합·타 탭/기기 복구·Oracle 인수 검증이 아니다.
+
 - 현재 단일 작업 브랜치는 `codex/s31-checkout-reservation-plan`, Windows 작업 checkout은 `D:\Project\shoppingmall2\.worktrees\flat-v2-prototypes`, WSL 지정 checkout은 `/home/daon/deploy/shopping`이다. 아래 과거 `codex/flat-v2-prototypes` 명령·SHA는 당시 기록이며 현재 checkout 명령에 그대로 사용하지 않는다. 원격은 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git` SSH alias만 사용한다.
 - 공유 개발 DB는 `WSL-server`의 `local-postgres/shoppingmall`이다. 현재 적용 이력 0000~0009(10건), 예약 `0010`은 미적용이다. 2026-10-03 읽기 전용 미리보기에서 대기 `0010_s3_checkout_reservations` 1건/14문장/SHA-256 `2be18dda86fb4ed32df427628ace9f9359c714d117bd3429cfd7ff81dc42267c`를 확인했다. 공유 DB에 적용하려면 신산님의 정확한 별도 승인이 필요하다. `migrate.ts`는 dry-run이 아니다.
 - 예약 전체 회귀는 WSL 지정 checkout의 제품 SHA `5f16e5785dd8fbd50b2316daff9497b0ae7a4333`의 **별도 일회용 PostgreSQL 컨테이너**(공유 DB와 다른 서버, DB명만 fixture 가드용 `shoppingmall`)에서 0000~0010 적용 후 실행했다. 245건/238 pass/7 조건부 skip/0 fail, 바깥 셸 종료 코드 0, QA 9범주 행 0 및 지정 컨테이너·볼륨 제거를 확인했다. 이는 자체 QA 검증이며 PMO가 요구하는 정식 WSL 통합·E2E PASS가 아니다. 공유 DB 적용 후 정식 시험을 별도로 실행한다.
