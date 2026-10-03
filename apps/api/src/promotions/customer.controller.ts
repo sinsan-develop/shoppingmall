@@ -33,7 +33,7 @@ export class CustomerPromotionController {
   async quote(@Req() request: RequestHeaders, @Param('id') id: string, @Body() body: unknown) {
     requireOrigin(request);
     const { accountId, service } = await this.context(request);
-    if (!uuid.test(id)) throw new BadRequestException();
+    if (!uuid.test(id)) throw new BadRequestException({ status: 'invalid_reservation_id' });
     try { return await service.quote(accountId, id, body); }
     catch (error) {
       const message = error instanceof Error ? error.message : '';
