@@ -14,6 +14,8 @@
 - Task 2 임시 자원 예정: `WSL-server`의 **새** 일회성 Docker 컨테이너 `shoppingmall-s32-pg-1003`(기존 `local-postgres` 아님), 내부 DB `shoppingmall_s32_qa_20261003`, 호스트 공개 포트/영속 볼륨 없음. 신규 DB에 0000~0010 → 예상 RED → 0011 → GREEN 및 전체 재현 시험을 실행한다. 시험 계정·캠페인·쿠폰·예약·사용 행은 해당 DB 트랜잭션에서 rollback하고, 완료 후 정확한 컨테이너만 삭제해 DB도 제거한다. 기존 공유 DB와 다른 컨테이너·백업은 변경하지 않는다.
 - 준비 상태: WSL 지정 checkout은 읽기 전용 확인 시 `1900c1e`로 원격 브랜치보다 뒤이며 clean이었다. 시험은 새 커밋을 push한 후 해당 checkout을 fast-forward하고 정확한 SHA에서 진행한다. 임시 DB/컨테이너는 아직 생성하지 않았다.
 - 환경 오류 누계: Task 1 보조 추적 스크립트 sandbox 쓰기 거부 1회, WSL 기본 `bash`와 Git Bash 경로 차이 1회; 권한 있는 Git Bash로 임시 추적 폴더를 정상 생성했다. 같은 근본 원인 연속 3회 아님. 다음: DB 제약 시험 파일 선작성 및 격리 DB RED.
+- 실제 준비/RED: 지정 WSL checkout을 `583cf654b846ec263ff66eb63e3183cbe368ae05`로 clean fast-forward했다. 이름 붙인 신규 `shoppingmall-s32-pg-1003`는 기존 `pgvector/pgvector:0.8.2-pg15` 이미지, bridge 격리, 공개 포트 없음, tmpfs 데이터, Docker mount 0으로 실행했다. `shoppingmall_s32_qa_20261003`에 기존 0000~0010 migration 11건만 적용했고, 프로모션 관계 부재라는 정확한 사유로 새 DB 목표 시험 1건 RED/skip 0을 확인했다. 기존 `local-postgres/shoppingmall`은 변경하지 않았다.
+- 0011 구현 초안: 신규 관계 5개·FK/CHECK/유일 인덱스, 읽기 전용 repository와 직접 발행/공용 코드 조회를 추가했다. SQL 파일 SHA-256 `8A16344ACC0098535BEB28253F231614C3912A02873670598FAFA408C7D86E79`. repository 모듈 부재의 별도 RED를 확인했다. 로컬 typecheck/lint 성공; 로컬 루트 시험 269건/205 pass/64 DB·환경 skip/0 fail, PR 검사 8 pass. 이 2개 신규 DB skip은 GREEN 증거가 아니며, 정확한 push/WSL SHA에서 격리 DB에 0011 적용 후 0 skip을 확인해야 한다.
 
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 

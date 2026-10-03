@@ -406,3 +406,121 @@ export const accountDeletionRequests = pgTable('account_deletion_requests', {
   uniqueIndex('account_deletion_requests_open_uq').on(table.accountId)
     .where(sql`${table.status} = 'requested'`),
 ]);
+
+// Campaign limits span every version and both direct grants and public-code acquisition.
+export const promotionCampaigns = pgTable('promotion_campaigns', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  kind: text('kind').notNull(),
+  status: text('status').notNull().default('active'),
+  directIssueLimit: integer('direct_issue_limit'),
+  totalUseLimit: integer('total_use_limit').notNull(),
+  perAccountUseLimit: integer('per_account_use_limit').notNull(),
+  createdByAccountId: uuid('created_by_account_id').notNull().references(() => accounts.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  stoppedByAccountId: uuid('stopped_by_account_id').references(() => accounts.id),
+  stoppedAt: timestamp('stopped_at', { withTimezone: true }),
+  stopReason: text('stop_reason'),
+}, (table) => [
+  index('promotion_campaigns_status_idx').on(table.status),
+  check('promotion_campaigns_title_ck', sql`length(trim(${table.title})) BETWEEN 1 AND 160`),
+  check('promotion_campaigns_kind_ck', sql`${table.kind} IN ('goods_discount','shipping_support')`),
+  check('promotion_campaigns_status_ck', sql`${table.status} IN ('active','stopped')`),
+  check('promotion_campaigns_limits_ck', sql`(${table.directIssueLimit} IS NULL OR ${table.directIssueLimit} > 0)
+    AND ${table.totalUseLimit} > 0 AND ${table.perAccountUseLimit} > 0`),
+  check('promotion_campaigns_stop_ck', sql`(${table.status} = 'active' AND ${table.stoppedAt} IS NULL
+      AND ${table.stoppedByAccountId} IS NULL AND ${table.stopReason} IS NULL)
+    OR (${table.status} = 'stopped' AND ${table.stoppedAt} IS NOT NULL
+      AND ${table.stoppedByAccountId} IS NOT NULL AND length(trim(coalesce(${table.stopReason},''))) BETWEEN 1 AND 500)`),
+]);
+
+export const promotionVersions = pgTable('promotion_versions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  campaignId: uuid('campaign_id').notNull().references(() => promotionCampaigns.id),
+  version: integer('version').notNull(),
+  scope: text('scope').notNull(),
+  targetIds: uuid('target_ids').array().notNull().default(sql`'{}'::uuid[]`),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  minimumEligibleGoodsWon: integer('minimum_eligible_goods_won').notNull().default(0),
+  amountKind: text('amount_kind').notNull(),
+  amountValue: integer('amount_value').notNull(),
+  maxDiscountWon: integer('max_discount_won'),
+  createdByAccountId: uuid('created_by_account_id').notNull().references(() => accounts.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('promotion_versions_campaign_version_uq').on(table.campaignId, table.version),
+  index('promotion_versions_period_idx').on(table.startsAt, table.endsAt),
+  check('promotion_versions_version_ck', sql`${table.version} > 0`),
+  check('promotion_versions_scope_ck', sql`${table.scope} IN ('all','sellers','options')`),
+  check('promotion_versions_targets_ck', sql`array_position(${table.targetIds}, NULL) IS NULL
+    AND ((${table.scope} = 'all' AND cardinality(${table.targetIds}) = 0)
+      OR (${table.scope} <> 'all' AND cardinality(${table.targetIds}) > 0))`),
+  check('promotion_versions_period_ck', sql`${table.endsAt} > ${table.startsAt}`),
+  check('promotion_versions_minimum_ck', sql`${table.minimumEligibleGoodsWon} >= 0`),
+  check('promotion_versions_amount_ck', sql`(${table.amountKind} = 'fixed' AND ${table.amountValue} > 0)
+    OR (${table.amountKind} = 'percent' AND ${table.amountValue} BETWEEN 1 AND 10000
+      AND ${table.maxDiscountWon} IS NOT NULL)`),
+  check('promotion_versions_cap_ck', sql`${table.maxDiscountWon} IS NULL OR ${table.maxDiscountWon} > 0`),
+]);
+
+export const promotionCodes = pgTable('promotion_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  versionId: uuid('version_id').notNull().references(() => promotionVersions.id),
+  code: text('code').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('promotion_codes_code_uq').on(table.code),
+  index('promotion_codes_version_idx').on(table.versionId),
+  check('promotion_codes_normalized_ck', sql`${table.code} ~ '^[A-Z0-9_-]{4,40}$'`),
+]);
+
+export const promotionGrants = pgTable('promotion_grants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  versionId: uuid('version_id').notNull().references(() => promotionVersions.id),
+  source: text('source').notNull(),
+  issuedByAccountId: uuid('issued_by_account_id').references(() => accounts.id),
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('promotion_grants_account_version_source_uq').on(table.accountId, table.versionId, table.source),
+  index('promotion_grants_version_idx').on(table.versionId),
+  check('promotion_grants_source_ck', sql`${table.source} IN ('direct','code')`),
+  check('promotion_grants_actor_ck', sql`(${table.source} = 'direct' AND ${table.issuedByAccountId} IS NOT NULL
+      AND length(trim(coalesce(${table.reason},''))) BETWEEN 1 AND 500)
+    OR (${table.source} = 'code' AND ${table.issuedByAccountId} IS NULL AND ${table.reason} IS NULL)`),
+]);
+
+export const promotionUses = pgTable('promotion_uses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  campaignId: uuid('campaign_id').notNull().references(() => promotionCampaigns.id),
+  versionId: uuid('version_id').notNull().references(() => promotionVersions.id),
+  grantId: uuid('grant_id').notNull().references(() => promotionGrants.id),
+  reservationId: uuid('reservation_id').notNull().references(() => checkoutReservations.id),
+  shipmentKey: text('shipment_key'),
+  status: text('status').notNull().default('HELD'),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  heldAt: timestamp('held_at', { withTimezone: true }).notNull().defaultNow(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  releasedAt: timestamp('released_at', { withTimezone: true }),
+  releaseReason: text('release_reason'),
+}, (table) => [
+  uniqueIndex('promotion_uses_reservation_campaign_shipment_uq')
+    .on(table.reservationId, table.campaignId, sql`coalesce(${table.shipmentKey},'')`)
+    .where(sql`${table.status} IN ('HELD','USED')`),
+  uniqueIndex('promotion_uses_account_key_campaign_shipment_uq')
+    .on(table.accountId, table.idempotencyKey, table.campaignId, sql`coalesce(${table.shipmentKey},'')`),
+  index('promotion_uses_campaign_status_idx').on(table.campaignId, table.status),
+  index('promotion_uses_account_campaign_idx').on(table.accountId, table.campaignId),
+  index('promotion_uses_due_idx').on(table.status, table.expiresAt),
+  check('promotion_uses_status_ck', sql`${table.status} IN ('HELD','USED','RELEASED')`),
+  check('promotion_uses_shipment_ck', sql`${table.shipmentKey} IS NULL OR length(trim(${table.shipmentKey})) > 0`),
+  check('promotion_uses_dates_ck', sql`(${table.status} = 'HELD' AND ${table.usedAt} IS NULL
+      AND ${table.releasedAt} IS NULL AND ${table.releaseReason} IS NULL)
+    OR (${table.status} = 'USED' AND ${table.usedAt} IS NOT NULL AND ${table.releasedAt} IS NULL)
+    OR (${table.status} = 'RELEASED' AND ${table.releasedAt} IS NOT NULL
+      AND length(trim(coalesce(${table.releaseReason},''))) BETWEEN 1 AND 500)`),
+]);
