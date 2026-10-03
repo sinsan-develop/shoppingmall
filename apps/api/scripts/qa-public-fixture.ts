@@ -76,6 +76,16 @@ async function seedPublicProduct(client: PoolClient, runId: string, count: numbe
 async function resetPublicProduct(client: PoolClient, runId: string) {
   const names = qaNames(runId);
   const product = productNames(runId);
+  const accounts = await client.query<{ account_id: string }>(
+    `SELECT account_id FROM account_identities WHERE kind='email' AND identifier=ANY($1::text[])`,
+    [names.emails],
+  );
+  const accountIds = accounts.rows.map((row) => row.account_id);
+  if (accountIds.length) {
+    await client.query(`DELETE FROM checkout_reservation_lines WHERE reservation_id IN
+      (SELECT id FROM checkout_reservations WHERE account_id=ANY($1::uuid[]))`, [accountIds]);
+    await client.query('DELETE FROM checkout_reservations WHERE account_id=ANY($1::uuid[])', [accountIds]);
+  }
   const target = await client.query<{ id: string }>(
     `SELECT DISTINCT p.id FROM products p
      JOIN sellers s ON s.id=p.seller_id
