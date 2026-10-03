@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-03 S3.2 프로모션 구현 승인·착수
+
+- 담당: 어울 단일 writer. 신산님이 상세 설계와 구현계획의 신규 공개 API 7개·신규 테이블 5개·0011 migration **구현**을 승인했다. 공유 개발 DB에 0011을 적용하는 승인은 별도로 확인한다.
+- 작업 위치: `D:\Project\shoppingmall2\.worktrees\flat-v2-prototypes`, `codex/s31-checkout-reservation-plan@b4a13e622423896c3d9aedd61620d7e4eae69cf3`. 기존 worktree clean 및 로컬 기준선 `pnpm test` 257건/195 pass/62 환경 skip/0 fail, PR 검사 8 pass를 확인했다.
+- 단계: Task 1 규칙·금액 계산 RED→GREEN 완료. 새 테스트는 모듈 부재 RED 뒤 9건 GREEN, 저가 상품 배송비 지원액이 상품금액에 잘못 묶이는 회귀를 별도 RED(1000≠3000)로 재현·수정해 최종 10건 GREEN. 원본 발송 견적은 변경하지 않는다. 전체 로컬 `pnpm test` 267건/205 pass/62 DB·환경 skip/0 fail, PR 검사 8 pass, `pnpm typecheck` 성공. lint·diff·commit은 후속 확인한다. 공유 DB·WSL checkout·운영 자원은 아직 변경하지 않았다.
+- 환경 오류: 보조 계획 추적 스크립트가 D: sandbox 쓰기 거부를 만나 반복 출력을 시작해 정확한 새 `bash` 프로세스를 중지했다. 기능 오류 0, 보조 스크립트 오류 1회. 제품 파일 변경 전 상태였으며 이 실패를 제품 시험 결과로 세지 않는다. 추적은 이 파일로 지속한다.
+- 미검증: S3.2 영속 schema·격리 DB·WSL 실DB/HTTP/브라우저·주문/PG/Oracle/UAT. 다음: Task 1 lint·diff·안전 commit, Task 2 격리 DB 이름·수명·정리 기록 후 schema RED→GREEN.
+
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
 - 신산님이 `docs/design/S3_PROMOTION_CONTRACT_DRAFT.md`에 대해 “설계서 대로 진행하자”라고 직접 지시했다. 상세 설계 승인으로 기록하고, 신규 공개 API·영속 schema/migration·공유 개발 DB 적용은 설계서 7절의 별도 경계로 유지한다.
