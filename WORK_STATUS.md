@@ -53,6 +53,10 @@
 - 담당 어울 단일 writer, 시작 기준 clean `codex/s31-checkout-reservation-plan@d819c25843962323222a70102bde6f67e92ad94f`. 주문/PG 완료 경로는 추가하지 않고, 승인된 내부 거래 서비스와 DB 경합 시험만 만든다.
 - 격리 시험 자원 계획: WSL 일회용 `shoppingmall-s32-usage-pg-1003`(label `s32-usage-20261003`), 내부 DB `shoppingmall`, tmpfs·무볼륨·호스트 공개 포트 없음. 가상 2계정/상품/예약과 한도 1개 캠페인·코드·grant·use를 만들어 두 독립 DB 세션 경쟁을 검증한다. 사용 행·grant·버전/캠페인·예약/장바구니·상품/계정·감사를 정확히 정리하고 잔류 0 후 컨테이너만 제거한다. 공유 `local-postgres/shoppingmall`과 백업은 변경하지 않는다.
 - 예정 검증: 같은 멱등 키 재시도, 마지막 1회 경쟁, 중지/기간/타인 grant, 무료배송 0원 미점유, `HELD→USED` 또는 `HELD→RELEASED`의 일방 전이, 종료된 예약만 안전하게 만료 해제. S4 실제 결제 승인/콜백과 접수된 결제 시도 처리 전에는 자동 사용 확정으로 주장하지 않는다. 착수 오류 0, Task 5 전체 미검증.
+- Task 5 완료 판정: 내부 `PromotionUsageService.holdInTransaction`은 계정·예약 확인 후 캠페인 ID순 행 잠금, 현재 재고/금액·정책 재견적, 직접 grant/공용 코드의 동일 총·계정 한도, 코드 grant 생성·HELD 기록을 호출자 DB transaction에 묶는다. `markPaidInTransaction`/`releaseInTransaction`은 일방 상태 전이·멱등, `releaseDue`는 종료 상태 예약만 해제하고 활성/결제 시도 가능 예약은 건드리지 않는다. S4 PG 콜백에 아직 연결하지 않았다.
+- 오류 기록: 첫 경쟁 목표 시험의 경합 자체는 한 건만 성공했으나, 종료된 예약의 쿠폰 해제가 원래 만료시각까지 지연돼 목표 시험 1회 실패했다. 주 담당 어울이 종료 예약은 즉시 해제하되 활성/소비 예약은 제외하도록 고쳤다. 이후 목표 DB 시험 1 pass/0 skip; 추가 IDOR·활성 예약·무료배송 0원 미점유·중지·두 발송 묶음의 같은 캠페인 한도 시험도 2 pass/0 skip. 같은 근본 원인 3회 연속 없음.
+- 최신 시험 SHA `95b27d5`에서 로컬 전체 `pnpm test` 272건/205 pass/67 DB·환경 skip/0 fail + PR 본문 8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` 종료 0. WSL 격리 0011 DB 전체 272건/265 pass/7 환경 skip/0 fail. 사후 계정·상품·예약·프로모션 5관계·감사·세션 10범주 모두 0. label `s32-usage-20261003`·mount 0·호스트 공개 포트 없음 확인 뒤 정확한 `shoppingmall-s32-usage-pg-1003` 컨테이너/tmpfs만 제거해 부재 확인. 가상 자료 별도 복구본은 없고 공유 DB/백업은 무변경.
+- 다음은 Task 6 관리자·고객 화면과 정식 WSL 확인. 공유 DB 0011 적용, 실제 브라우저/UAT, S3.3 주문·S4 PG는 미검증. 이 상태 문서 커밋 후 정확한 SHA를 다시 확인한다.
 
 ## 진행 중 — 2026-10-03 S3.2 승인 설계의 구현계획 작성
 
