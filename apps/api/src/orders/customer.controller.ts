@@ -4,7 +4,7 @@ import { BadRequestException, Body, ConflictException, Controller, ForbiddenExce
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
-import { getOrderSnapshot } from './repository.js';
+import { getOrderSnapshotConsistent } from './repository.js';
 import { submitPendingOrderWithDisposition } from './service.js';
 import type { PromotionSelection } from '../promotions/usage-service.js';
 
@@ -91,11 +91,8 @@ export class CustomerOrderController {
   async get(@Req() request: RequestHeaders, @Param('id') id: string) {
     const { pool, accountId } = await this.context(request);
     if (!uuid.test(id)) throw new BadRequestException();
-    const client = await pool.connect();
-    try {
-      const view = await getOrderSnapshot(client, accountId, id);
-      if (!view) throw new NotFoundException();
-      return view;
-    } finally { client.release(); }
+    const view = await getOrderSnapshotConsistent(pool, accountId, id);
+    if (!view) throw new NotFoundException();
+    return view;
   }
 }

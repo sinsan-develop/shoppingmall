@@ -1,4 +1,4 @@
-import type { PoolClient } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 
 export type OrderAmounts = {
   goodsWon: number; goodsDiscountWon: number; shippingFeeWon: number;
@@ -205,4 +205,19 @@ export async function getOrderSnapshot(client: PoolClient, accountId: string,
     shippingFeeWon: row.shippingFeeWon, shippingSupportWon: row.shippingSupportWon,
     payableWon: row.payableWon, shipments,
   };
+}
+
+/** Keep parent and shipment statuses on one MVCC snapshot while expiry commits. */
+export async function getOrderSnapshotConsistent(pool: Pool, accountId: string,
+  id: string): Promise<PendingOrderView | null> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    const view = await getOrderSnapshot(client, accountId, id);
+    await client.query('COMMIT');
+    return view;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
 }
