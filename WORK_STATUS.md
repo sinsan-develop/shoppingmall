@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-04 S3.2 공유 DB 실제 화면 QA
+
+- 담당 어울 단일 writer. 시작 기준 `codex/s31-checkout-reservation-plan@c73dd9c9c50e257f888ef70b5fd361cf65c35be8` clean, WSL checkout 동일 SHA. S3.2 Task 6 Step 4~5의 공유 DB 실제 운영자·구매자 Chrome 검증을 이어간다. 앞선 0011 적용·공유 DB 전체 278건 회귀와 격리 브라우저 3발송 결과는 재사용하되 정식 공유 DB 화면 PASS로 대신하지 않는다.
+- 식별 자료/정리: 새 `QA_RUN_ID=f44f1004`, 가상 5계정·판매자 3·상품 5(기존 fixture), 이 ID 접두어 캠페인 최대 2개(상품 할인 직접 발행 1, 배송비 지원 코드 1), 고객 장바구니 3품목·15분 예약 1건만 사용한다. 기존 정리 도구의 격리 DB 전용 guard는 보존하고, 새 ID와 정확한 `local-postgres:5432/shoppingmall` 조합에서만 공유 QA reset을 허용하도록 테스트 RED→GREEN으로 보강한다. reset 전 QA 계정 5개·캠페인 제목/소유·상품 제목을 검사하고 부속 예약/프로모션/상품/계정을 역참조 정리한다. 정리 실패 시 일반 DB 전체 삭제나 기존 자료 수동 삭제로 우회하지 않는다.
+- 시험 자원 계획: WSL 정식 checkout과 공유 `local-postgres/shoppingmall`, 기존 네트워크 `postgres_env_default`를 사용한다(네트워크 자체 변경 없음). 새 일회용 `shoppingmall-s32-shared-ui-build-1004`, `shoppingmall-s32-shared-ui-api-1004`, `shoppingmall-s32-shared-ui-web-1004`만 사용하며 Web/API 호스트 포트는 루프백 9091/9092, Windows는 `WSL-server` 별칭의 임시 SSH 터널만 연다. 브라우저 탭은 검증 후 닫는다. 시작 전에 이름/포트 점유·DB QA ID 부재를 확인하고 완료/실패 시 QA reset·주요 13범주 잔류 0과 정확한 컨테이너/포트/터널 부재를 확인한다. 다른 컨테이너·DB·백업은 대상이 아니다. 현재 아직 시험 자원은 만들지 않았다.
+- 검증 목표: 운영자 혜택 등록/직접 발행, 구매자 본인 목록·코드 입력, 직접 판매자 A/B+어울몰의 3발송, 상품/배송 할인과 통합 예상액, 타 역할 접근 차단, 390px·키보드 조작. 실제 주문/결제·200% 확대·Oracle/UAT는 제외한다. 필요한 로컬 test/typecheck/lint/build와 WSL 실DB 회귀를 정확한 QA 도구 커밋에서 다시 확인한다.
+- 안전 정리 도구 준비: `apps/api/test/qa-promotion-ui-fixture.test.mjs`에 공유 QA run/DB 정확한 조합과 잘못된 run/host/DB 거부, 기존 격리 guard의 공유 DB 거부를 추가했다. 첫 실행은 새 export 부재로 module import 오류 1회라 판정하지 않았고, namespace import로 시험 본문 내 예상 RED(새 guard 함수 부재) 1 fail/0 skip을 확인했다. `apps/api/scripts/qa-promotion-ui-reset.ts`는 `f44f1004`에만 `local-postgres:5432/shoppingmall`을 허용하고 동일 ID의 5상품 정리 경로를 재사용한다. 목표 GREEN 2 pass/0 fail. 기존 계정·상품·프로모션을 무조건 삭제하는 경로는 없다. 같은 근본 원인 연속 3회 없음; 전체 로컬·WSL·브라우저는 후속 검증한다.
+- 로컬 게이트: `pnpm test` 279건/212 pass/67 DB·환경 skip/0 fail 및 PR 본문 검사 8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` 모두 exit 0. 로컬 skip은 공유 DB 검증으로 합치지 않는다. 변경 파일은 이 상태 문서와 QA reset/test 두 파일뿐이며 제품 API·화면·schema 변경 없음. 다음은 diff 확인·commit/push 후 WSL 지정 checkout exact SHA로 안전 guard 및 공유 DB 시험을 재현한다.
+
 ## 진행 중 — 2026-10-04 S3.2 공유 개발 DB 0011 적용
 
 - 담당: 어울 단일 writer. 신산님이 직전의 정확한 공유 DB 0011 적용 요청에 `승인해`라고 답했다. 대상은 `WSL-server`의 `local-postgres/shoppingmall`과 `0011_s3_promotions.sql` 한 건이며 다른 DB·운영·Oracle·PG는 제외한다.

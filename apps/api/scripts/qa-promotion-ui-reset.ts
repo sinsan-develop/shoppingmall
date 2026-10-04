@@ -20,8 +20,21 @@ export function assertIsolatedPromotionQaTarget(runId: string, databaseUrl: stri
   return id;
 }
 
+export function assertSharedPromotionQaTarget(runId: string, databaseUrl: string) {
+  const id = validateQaRunId(runId);
+  const url = new URL(databaseUrl);
+  if (id !== 'f44f1004' || !['postgres:', 'postgresql:'].includes(url.protocol) ||
+      url.hostname !== 'local-postgres' || url.port !== '5432' ||
+      url.pathname !== '/shoppingmall' || url.search || url.hash) {
+    throw new Error('Expected exact shared promotion QA database');
+  }
+  return id;
+}
+
 export async function resetPromotionUiFixture(runId: string, databaseUrl: string) {
-  const id = assertIsolatedPromotionQaTarget(runId, databaseUrl);
+  const id = validateQaRunId(runId);
+  if (id === 'f44f1004') assertSharedPromotionQaTarget(id, databaseUrl);
+  else assertIsolatedPromotionQaTarget(id, databaseUrl);
   const names = qaNames(id);
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
@@ -56,7 +69,7 @@ export async function resetPromotionUiFixture(runId: string, databaseUrl: string
       await client.query('ROLLBACK');
       throw error;
     } finally { client.release(); }
-    if (id === 'e4401004') await runQaCatalogFixture('reset', id, databaseUrl);
+    if (id === 'e4401004' || id === 'f44f1004') await runQaCatalogFixture('reset', id, databaseUrl);
     else await runQaPublicFixture('reset', id, databaseUrl);
     return { runId: id, removedCampaigns: ids.length, removedAccounts: accounts.rows.length };
   } finally { await pool.end(); }
