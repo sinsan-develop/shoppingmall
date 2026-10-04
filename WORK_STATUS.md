@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-04 S3.2 공유 개발 DB 0011 적용
+
+- 담당: 어울 단일 writer. 신산님이 직전의 정확한 공유 DB 0011 적용 요청에 `승인해`라고 답했다. 대상은 `WSL-server`의 `local-postgres/shoppingmall`과 `0011_s3_promotions.sql` 한 건이며 다른 DB·운영·Oracle·PG는 제외한다.
+- 적용 전 읽기 전용 확인: 로컬/WSL 지정 checkout은 `codex/s31-checkout-reservation-plan@4b04591e347974d9272e8499b034355ac376cbe0` clean. 로컬/WSL SQL SHA-256 `75675ca05c8e55e3f0d8ecc7cba5ada64c304372adbde9d1bface5e82850c330`. 공유 DB `shoppingmall`, migration 11건, 계정·상품·예약 각 0, 신규 프로모션 관계 없음. 미존재 관계 확인의 첫 SQL은 셸 인용 오류로 실패 1회(읽기 전용); `psql \\dt promotion_*`로 재확인했다. 같은 원인 반복 0회.
+- 적용·복구 계획: WSL checkout exact SHA의 기존 `node:24-bookworm-slim` 이미지로 일회용 `shoppingmall-s32-shared-migration-node-1004`를 `--rm --network container:local-postgres`에서 구동해 읽기 전용 dry-run(대기 0011 한 건/31문장)을 확인한다. 공유 DB 전체를 정확한 `/tmp/shoppingmall-s32-0011-pre-20261004.dump`에 0600 custom-format 덤프하고 `pg_restore --list`·크기·SHA-256을 검증한다. 기존 파일은 덮지 않는다. 그 뒤 동일 소스의 Drizzle `migrate.ts`로 0011만 적용해 이력 12건·신규 5관계·기존 행 수 불변을 확인한다. 실패하면 후속 쓰기를 중단하고 덤프와 DB 상태를 보존해 보고하며 DB 전체 restore·기존 관계 삭제는 하지 않는다.
+- 적용 후 계획: 같은 checkout에서 새 프로모션 DB/HTTP 목표 시험과 전체 순차 실DB 회귀를 공유 DB로 실행한다. 식별된 QA fixture만 `finally` 정리하고 계정·상품·예약·프로모션·감사·세션 등 잔여를 조회한다. 성공 후 정확한 시험 컨테이너 부재와 백업 파일의 경로·형식·해시를 재확인한 다음 이 시험용 덤프만 정리한다. 브라우저 격리 QA의 성공을 공유 DB 회귀나 주문·PG·UAT 성공으로 대체하지 않는다. 현재 자원 생성 전, 오류 누계는 위 읽기 명령 1회.
+
 ## 진행 중 — 2026-10-03 S3.2 프로모션 구현 승인·착수
 
 - 담당: 어울 단일 writer. 신산님이 상세 설계와 구현계획의 신규 공개 API 7개·신규 테이블 5개·0011 migration **구현**을 승인했다. 공유 개발 DB에 0011을 적용하는 승인은 별도로 확인한다.
