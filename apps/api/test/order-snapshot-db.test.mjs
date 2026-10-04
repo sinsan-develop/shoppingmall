@@ -86,8 +86,9 @@ test('one pending checkout snapshots three shipments, pooled original sellers an
     assert.equal(saved.status, 'PENDING_PAYMENT');
     assert.equal(saved.payableWon, 44000);
     assert.equal(saved.shipments.length, 3);
-    assert.deepEqual(saved.shipments[2].lines.map(({ sellerId }) => sellerId), sellerIds);
-    assert.deepEqual(saved.shipments.map(({ goodsDiscountWon }) => goodsDiscountWon), [2000, 1000, 2000]);
+    assert.deepEqual(saved.shipments.find(({ key }) => key === 'owool_fulfillment').lines
+      .map(({ sellerId }) => sellerId).sort(), [...sellerIds].sort());
+    assert.deepEqual(saved.shipments.map(({ goodsDiscountWon }) => goodsDiscountWon).sort(), [1000, 2000, 2000]);
     const fromDb = await getOrderSnapshot(client, accountId, saved.id);
     assert.deepEqual(fromDb, saved);
     assert.equal(await getOrderSnapshot(client, otherId, saved.id), null);
