@@ -66,6 +66,23 @@ export async function submitOrderRequest(apiBase: string,
   return order;
 }
 
+export async function restorePendingOrderRequest(apiBase: string,
+  storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>,
+  send: typeof fetch = fetch, signal?: AbortSignal): Promise<PendingOrder | undefined> {
+  const savedId = storage.getItem(orderStorageKey);
+  const reservationId = storage.getItem(orderReservationKey) ?? undefined;
+  if (!savedId) return undefined;
+  const response = await send(`${apiBase}/customer/checkout/orders/${encodeURIComponent(savedId)}`,
+    { credentials: 'include', signal, cache: 'no-store' });
+  if (signal?.aborted || storage.getItem(orderStorageKey) !== savedId) return undefined;
+  if (response.status === 404) { storage.removeItem(orderStorageKey); return undefined; }
+  if (!response.ok) return undefined;
+  const order = await response.json() as PendingOrder;
+  if (signal?.aborted || storage.getItem(orderStorageKey) !== savedId || order.id !== savedId)
+    return undefined;
+  return { ...order, reservationId };
+}
+
 type ReservationStartResult = { kind: 'conflict' } |
   { kind: 'active' | 'ended'; reservation: Reservation };
 
@@ -418,17 +435,11 @@ export default function CartPage() {
 
   useEffect(() => {
     if (!apiOrigin) return;
-    const saved = window.sessionStorage.getItem(orderStorageKey);
-    if (!saved) return;
     const controller = new AbortController();
-    fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(saved)}`,
-      { credentials: 'include', signal: controller.signal, cache: 'no-store' })
-      .then(async (response) => {
-        if (response.status === 404) { window.sessionStorage.removeItem(orderStorageKey); return; }
-        if (!response.ok) return;
-        const order = await response.json() as PendingOrder;
-        if (!controller.signal.aborted) setPendingOrder({ ...order,
-          reservationId: window.sessionStorage.getItem(orderReservationKey) ?? undefined });
+    restorePendingOrderRequest(apiOrigin, window.sessionStorage, fetch, controller.signal)
+      .then((order) => {
+        if (order && !controller.signal.aborted &&
+            window.sessionStorage.getItem(orderStorageKey) === order.id) setPendingOrder(order);
       }).catch(() => {});
     return () => controller.abort();
   }, []);

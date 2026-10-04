@@ -5,7 +5,7 @@ import { Pool } from 'pg';
 import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 import { CheckoutReservations } from '../src/checkout/reservation-service.ts';
-import { skipWithoutOrderSchema } from './order-schema-guard.mjs';
+import { assertOrderMutationQaTarget, skipWithoutOrderSchema } from './order-schema-guard.mjs';
 
 test('two direct sellers and pooled goods submit once with an exact pending amount and owned address', {
   skip: !process.env.DATABASE_URL,
@@ -39,19 +39,24 @@ test('two direct sellers and pooled goods submit once with an exact pending amou
     assert.equal(hold.quote.shipments.length, 3);
     assert.equal(hold.quote.totalWon, 66000);
     const base = { reservationId: hold.id, addressId, selections: {}, expectedPayableWon: 66000 };
-    const originalRanges = (await pool.query(`SELECT blocked_postal_ranges AS ranges
-      FROM shipping_policy_global WHERE id=1`)).rows[0].ranges;
-    try {
-      await pool.query(`UPDATE shipping_policy_global SET blocked_postal_ranges=$1::jsonb WHERE id=1`,
-        [JSON.stringify([{ start: '12345', end: '12345' }])]);
-      await assert.rejects(() => submitPendingOrder(pool, buyerId,
-        { ...base, idempotencyKey: randomUUID() }), /Delivery unavailable/);
-      assert.equal((await pool.query('SELECT count(*)::int AS n FROM checkout_orders WHERE account_id=$1',
-        [buyerId])).rows[0].n, 0);
-    } finally {
-      await pool.query(`UPDATE shipping_policy_global SET blocked_postal_ranges=$1::jsonb WHERE id=1`,
-        [JSON.stringify(originalRanges)]);
-    }
+    await context.test('blocked postal range rejects the whole order on an exact private DB', {
+      skip: !process.env.S3_ORDER_MUTATION_TEST_DB_SYSTEM_ID,
+    }, async () => {
+      await assertOrderMutationQaTarget(pool, process.env.S3_ORDER_MUTATION_TEST_DB_SYSTEM_ID);
+      const originalRanges = (await pool.query(`SELECT blocked_postal_ranges AS ranges
+        FROM shipping_policy_global WHERE id=1`)).rows[0].ranges;
+      try {
+        await pool.query(`UPDATE shipping_policy_global SET blocked_postal_ranges=$1::jsonb WHERE id=1`,
+          [JSON.stringify([{ start: '12345', end: '12345' }])]);
+        await assert.rejects(() => submitPendingOrder(pool, buyerId,
+          { ...base, idempotencyKey: randomUUID() }), /Delivery unavailable/);
+        assert.equal((await pool.query('SELECT count(*)::int AS n FROM checkout_orders WHERE account_id=$1',
+          [buyerId])).rows[0].n, 0);
+      } finally {
+        await pool.query(`UPDATE shipping_policy_global SET blocked_postal_ranges=$1::jsonb WHERE id=1`,
+          [JSON.stringify(originalRanges)]);
+      }
+    });
     await assert.rejects(() => submitPendingOrder(pool, buyerId,
       { ...base, expectedPayableWon: 65999, idempotencyKey: randomUUID() }), /Order conflict/);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM checkout_orders WHERE account_id=$1',

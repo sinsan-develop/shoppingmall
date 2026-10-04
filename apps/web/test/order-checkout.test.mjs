@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CartView, submitOrderRequest } from '../app/cart/page.tsx';
+import { CartView, restorePendingOrderRequest, submitOrderRequest } from '../app/cart/page.tsx';
 
 test('pending order request keeps its key for safe retry and never claims payment', async () => {
   const key = randomUUID();
@@ -45,6 +45,24 @@ test('an older pending order does not hide submission for a new reservation', ()
   }));
   assert.match(html, /결제대기 주문 생성/);
   assert.match(html, /이전 주문/);
+});
+
+test('a late previous-order response cannot replace a newly submitted order', async () => {
+  const oldId = randomUUID(); const newId = randomUUID();
+  const values = new Map([['owool-checkout-order-id', oldId],
+    ['owool-checkout-order-reservation-id', 'old-hold']]);
+  const storage = { getItem: (name) => values.get(name) ?? null,
+    setItem: (name, value) => values.set(name, value),
+    removeItem: (name) => values.delete(name) };
+  let release;
+  const send = async () => new Promise((resolve) => { release = resolve; });
+  const pending = restorePendingOrderRequest('http://127.0.0.1:9092', storage, send);
+  values.set('owool-checkout-order-id', newId);
+  values.set('owool-checkout-order-reservation-id', 'new-hold');
+  release(Response.json({ id: oldId, status: 'EXPIRED', payableWon: 26000,
+    expiresAt: new Date().toISOString(), shipments: [] }));
+  assert.equal(await pending, undefined);
+  assert.equal(values.get('owool-checkout-order-id'), newId);
 });
 
 test('active cart offers pending submission but preserves quantity and remove controls', () => {
