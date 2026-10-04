@@ -1,5 +1,12 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-10-04 S3.3 결제대기 주문 시험 경계
+
+- Windows 작업은 `D:\Project\shoppingmall2\.worktrees\flat-v2-prototypes`의 단일 `codex/s31-checkout-reservation-plan` 브랜치에서, WSL 시험은 SSH 별칭 `WSL-server`의 `/home/daon/deploy/shopping`에서 정확한 push SHA를 fast-forward해 진행한다. Git 원격은 `github-sinsan-develop` SSH 별칭만 사용한다.
+- `0012_s3_orders.sql`의 SHA-256은 `efe1d8848186d4b74c202241d20cc0a80a4417078e469aa3b082a294b8d267fa`다. S3.3 시험용 DB는 별도 private Docker 네트워크의 tmpfs PostgreSQL이며 외부 포트·영속 볼륨이 없다. 여기에는 0000~0012 총 13개 migration을 적용한다. **공유** `local-postgres/shoppingmall`은 2026-10-04 읽기 전용 확인에서 12개 migration, 계정·상품·예약 0건, `checkout_orders` 부재였다. 별도 승인 전 0012를 적용하지 않는다.
+- S3.3 실DB 시험은 먼저 주문 관계 5개 존재를 읽기 전용으로 검사한다. 관계가 없으면 QA 계정·상품을 만들기 전에 건너뛰며, 목표 검증에서는 `S3_ORDER_SCHEMA_REQUIRED=1`로 건너뛰기를 실패 처리한다. `DATABASE_URL`만 지정한 실행의 skip을 PASS로 합치지 않는다.
+- API/Web은 `PENDING_PAYMENT` 생성·본인 조회·만료까지만 구현한다. PG 승인/실결제·Oracle staging·공유 DB 기반 실제 Chrome 주문·사용자 인수는 검증에 포함하지 않는다. 격리 DB 전체 회귀 및 사용 후 QA 행·컨테이너 정리 결과는 `WORK_STATUS.md` 최신 항목에 기록한다.
+
 ## 2026-10-04 최신 상태 — S3.2 공유 DB 실제 Chrome QA
 
 - `codex/s31-checkout-reservation-plan@965a87c512f7f6bca27e151630c32961728d3409`을 승인된 SSH alias로 WSL 지정 checkout에 일치시켰다. 공유 `local-postgres/shoppingmall` 0011 적용 상태에서 전체 순차 시험 279건/272 pass/7 환경 skip/0 fail, API/Web 빌드 exit 0. 전용 가상 `QA_RUN_ID=f44f1004`로 운영자 상품할인 5,000원 직접 발행·배송비 지원 코드 3,000원 등록, 구매자 Chrome의 세 판매자 발송 원견적 66,000원과 할인 후 예상 결제금액 52,000원, 구매자의 운영자 화면 차단, Enter 재조회와 390px 가로 넘침 없음을 확인했다. 이는 결제 전 견적이며 실제 주문·PG·사용 확정은 아니다. 13범주 QA 행 0, 전용 컨테이너·빌드 볼륨·9091/9092 포트·SSH 시험 터널 0, WSL checkout clean. Chrome 시험 탭은 닫혔다. in-app browser 임시 탭의 최종 재조회는 세션 교체로 불가했다. 세부 오류와 복구는 `WORK_STATUS.md`를 따른다. 실제 200% 확대·인쇄·Oracle/UAT는 여전히 미검증이다.
