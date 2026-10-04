@@ -109,6 +109,9 @@ async function seedThreeShipmentQaOrder(pool) {
     await client.query(`INSERT INTO audit_events
       (actor_account_id,active_role,action,target_type,target_id)
       VALUES ($1,'customer','pending_order_created','checkout_order',$2)`, [customerId, saved.id]);
+    await client.query(`INSERT INTO audit_events
+      (actor_account_id,active_role,action,target_type,target_id)
+      VALUES ($1,'customer','customer.address_add','customer_address',$2)`, [customerId, addressId]);
     await client.query('COMMIT');
     return { orderId: saved.id, customerId, adminId, reservationId, addressId,
       campaignId, versionId, grantId, useId, shipments: saved.shipments };

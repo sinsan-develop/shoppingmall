@@ -284,8 +284,13 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
         reservationIds, sellerIds, productIds: catalog.productIds, optionIds,
         campaignIds, versionIds, useIds,
       });
+      const customerId = accounts.rows.find((row) => row.identifier === names.emails[0])!.account_id;
+      const addressIds = (await client.query<{ id: string }>(
+        'SELECT id FROM customer_addresses WHERE account_id=$1', [customerId],
+      )).rows.map((row) => row.id);
       const allowedAuditTargets: Record<string, Set<string>> = {
         account: new Set(accountIds),
+        customer_address: new Set(addressIds),
         seller: new Set(sellerIds),
         product: new Set(catalog.productIds),
         product_option: new Set(optionIds),
