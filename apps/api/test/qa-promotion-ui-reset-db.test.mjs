@@ -35,7 +35,7 @@ test('shared reset test preflight skips wrong port and database before seeding',
       env: childEnv,
     });
     assert.equal(child.status, 0, `${target}: ${child.stdout}\n${child.stderr}`);
-    assert.match(`${child.stdout}\n${child.stderr}`, /skipped 1/);
+    assert.match(`${child.stdout}\n${child.stderr}`, /skipped 1\b/);
     assert.match(`${child.stdout}\n${child.stderr}`, /fail 0/);
   }
 });
@@ -575,7 +575,8 @@ test('shared reset refuses foreign stock and shipping actors and off-run audit t
     if (foreignAddressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [foreignAddressId]);
     if (ownedAddressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [ownedAddressId]);
     if (foreignAccountId) await pool.query('DELETE FROM accounts WHERE id=$1', [foreignAccountId]);
-    if (seeded) await resetPromotionUiFixture(runId, databaseUrl);
+    if (seeded && (await pool.query('SELECT count(*)::int AS n FROM account_identities WHERE identifier LIKE $1',
+      [`qa+${runId}-%@example.invalid`])).rows[0].n) await resetPromotionUiFixture(runId, databaseUrl);
     await pool.end();
   }
 });

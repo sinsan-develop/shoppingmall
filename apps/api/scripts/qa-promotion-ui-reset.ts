@@ -308,6 +308,12 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
           (row.seller_id !== null && !allowedAuditTargets.seller.has(row.seller_id)))) {
         throw new Error('QA audit history references a target outside this run');
       }
+      const externalAudit = await client.query<{ target_type: string; target_id: string }>(
+        `SELECT target_type,target_id FROM audit_events
+         WHERE actor_account_id IS NULL OR actor_account_id<>ALL($1::uuid[])`, [accountIds]);
+      if (externalAudit.rows.some((row) => allowedAuditTargets[row.target_type]?.has(row.target_id))) {
+        throw new Error('QA audit history outside QA accounts references this run');
+      }
       const outsidePromotions = await client.query<{
         versions: number; grants: number; uses: number; stops: number;
       }>(
