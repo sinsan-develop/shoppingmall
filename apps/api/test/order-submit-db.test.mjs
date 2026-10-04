@@ -76,6 +76,31 @@ test('two direct sellers and pooled goods submit once with an exact pending amou
       [hold.id])).rows[0].n, 1);
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM promotion_uses
       WHERE reservation_id=$1`, [hold.id])).rows[0].n, 0);
+    const { getOrderSnapshotConsistent } = await import('../src/orders/repository.ts');
+    let changedBetweenReads = false;
+    const readerPool = { connect: async () => {
+      const reader = await pool.connect();
+      return { query: async (...args) => {
+        const result = await reader.query(...args);
+        if (!changedBetweenReads && typeof args[0] === 'string' &&
+            args[0].includes('FROM checkout_orders WHERE id=$1 AND account_id=$2')) {
+          changedBetweenReads = true;
+          const writer = await pool.connect();
+          try {
+            await writer.query('BEGIN');
+            await writer.query(`UPDATE checkout_orders SET status='EXPIRED',ended_at=now() WHERE id=$1`, [saved.id]);
+            await writer.query(`UPDATE shipment_orders SET status='EXPIRED' WHERE checkout_order_id=$1`, [saved.id]);
+            await writer.query('COMMIT');
+          } catch (error) { await writer.query('ROLLBACK'); throw error; }
+          finally { writer.release(); }
+        }
+        return result;
+      }, release: () => reader.release() };
+    } };
+    const consistent = await getOrderSnapshotConsistent(readerPool, buyerId, saved.id);
+    assert.equal(changedBetweenReads, true);
+    assert.equal(consistent.status, 'PENDING_PAYMENT');
+    assert.ok(consistent.shipments.every((shipment) => shipment.status === 'PENDING_PAYMENT'));
   } finally {
     if (reservationId) {
       const orders = (await pool.query('SELECT id FROM checkout_orders WHERE reservation_id=$1',
