@@ -6,6 +6,7 @@
 - Windows `D:\Project\shoppingmall2`와 WSL `/home/daon/deploy/shopping`은 같은 병합 `main` SHA/clean tracked 상태다. 병합 `main`에서 로컬 `pnpm test` 309건/226 pass/83 환경 skip/0 fail 및 PR 본문 검사 8 pass, typecheck/lint/build exit 0. 루트의 미추적 `legacy-onedrive/`는 사용자 자료로 보존했으므로 이 루트 시험 309건은 정식 DB 시험으로 계산하지 않는다. 새 S4 worktree의 동일 기준 트리는 `pnpm test` 306건/223 pass/83 환경 skip/0 fail 및 PR 본문 검사 8 pass다. S3 공유 WSL DB·Chrome 결과는 아래 이전 기록의 exact PR 트리 검증이며 이번 병합 후 재실행한 DB/브라우저 시험은 아니다.
 - 이전 S3 원격·Windows/WSL 로컬 작업 브랜치 `codex/s31-checkout-reservation-plan`을 삭제하고 작업 worktree를 정리했다. Windows Git 제거 중 긴 pnpm 파일명으로 orphan 폴더가 남아 정확한 폴더만 제거했다(정리 오류 1회·원인 Windows 경로 길이, 재시도 성공). worktree의 Git 비추적 `.superpowers` 기록 34개/130,644바이트는 SHA-256 대조 후 프로젝트 루트 `.superpowers`에 보존했다. 다른 사용자 미추적 자료·공유 DB는 변경하지 않았다.
 - 다음 단일 작업 브랜치 `codex/s4-payment-refund`를 최신 `origin/main`에서 `D:\Project\shoppingmall2\.worktrees\s4-payment-refund`에 만들고 잠금파일 의존성·기준 시험을 확인했다. S4는 새 결제·환불 API/영속 schema 계약 승인이 별도로 필요한 단계다. 현재는 계약·계획 조사만 하며 신규 migration·공유 DB·외부 PG·Oracle은 변경하지 않았다. 다음 조치: S4.1 mock 결제 사건/상태 전이와 S4.2 취소·환불 계약을 나누어 신산님께 정확한 승인 범위를 제시하고, 승인된 부분을 TDD·격리 DB→WSL exact SHA 순서로 구현한다.
+- S4.1 구조 조사 결과 기존 `0012`는 결제대기/만료만 허용하고, 예약에는 이미 `CONSUMED`, 쿠폰 점유에는 `USED` 상태가 있다. 새 고객 결제 시도·검증 사건·0원 결제·늦은 승인 처리와 `0013` 전진 migration 제안을 `docs/design/S4_PAYMENT_CONTRACT_DRAFT.md`에 **미승인 초안**으로 기록했다. 실제 코드·SQL·공유 DB 변경은 아직 없으며, 신산님에게 이 API/schema 계약의 구현 승인과 공유 DB 적용 승인을 별도로 확인한다.
 
 ## 진행 중 — 2026-10-04 S3.3 Task 6 공유 개발 DB 적용 승인
 
