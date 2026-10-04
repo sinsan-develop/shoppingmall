@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S3 통합·정리 완료, S4 계약 준비
+
+- 담당 어울. 신산님이 PR #11의 GitHub 검사 실행을 승인했고, `Verify shoppingmall` PR run `37217744284` attempt 2가 성공한 뒤 PR #11이 `0b0746aeee220ed37c097e46d1f85e9922413983`으로 병합됐다. PR head `d58f48decaee91b76da6cea822ab75e2173e7cdd`와 병합 `main`의 파일 내용은 동일하며 `refs/pull/11/head`는 원본 head를 가리킨다. 병합은 신산님 계정에서 이미 이루어져 중복 병합 요청을 하지 않았다.
+- Windows `D:\Project\shoppingmall2`와 WSL `/home/daon/deploy/shopping`은 같은 병합 `main` SHA/clean tracked 상태다. 병합 `main`에서 로컬 `pnpm test` 309건/226 pass/83 환경 skip/0 fail 및 PR 본문 검사 8 pass, typecheck/lint/build exit 0. 루트의 미추적 `legacy-onedrive/`는 사용자 자료로 보존했으므로 이 루트 시험 309건은 정식 DB 시험으로 계산하지 않는다. 새 S4 worktree의 동일 기준 트리는 `pnpm test` 306건/223 pass/83 환경 skip/0 fail 및 PR 본문 검사 8 pass다. S3 공유 WSL DB·Chrome 결과는 아래 이전 기록의 exact PR 트리 검증이며 이번 병합 후 재실행한 DB/브라우저 시험은 아니다.
+- 이전 S3 원격·Windows/WSL 로컬 작업 브랜치 `codex/s31-checkout-reservation-plan`을 삭제하고 작업 worktree를 정리했다. Windows Git 제거 중 긴 pnpm 파일명으로 orphan 폴더가 남아 정확한 폴더만 제거했다(정리 오류 1회·원인 Windows 경로 길이, 재시도 성공). worktree의 Git 비추적 `.superpowers` 기록 34개/130,644바이트는 SHA-256 대조 후 프로젝트 루트 `.superpowers`에 보존했다. 다른 사용자 미추적 자료·공유 DB는 변경하지 않았다.
+- 다음 단일 작업 브랜치 `codex/s4-payment-refund`를 최신 `origin/main`에서 `D:\Project\shoppingmall2\.worktrees\s4-payment-refund`에 만들고 잠금파일 의존성·기준 시험을 확인했다. S4는 새 결제·환불 API/영속 schema 계약 승인이 별도로 필요한 단계다. 현재는 계약·계획 조사만 하며 신규 migration·공유 DB·외부 PG·Oracle은 변경하지 않았다. 다음 조치: S4.1 mock 결제 사건/상태 전이와 S4.2 취소·환불 계약을 나누어 신산님께 정확한 승인 범위를 제시하고, 승인된 부분을 TDD·격리 DB→WSL exact SHA 순서로 구현한다.
+
 ## 진행 중 — 2026-10-04 S3.3 Task 6 공유 개발 DB 적용 승인
 
 - Task 6 최종 코드 검증 판정: `7b1ab1fffe3b118f3f5c7eeb20dc0cbee738c486`에서 독립 리뷰의 Important(외부 작성 감사→QA 대상 참조 누락)를 전체 QA 허용 대상의 역방향 감사 검사로 수정했고, `ae1b7a3` 격리 DB RED→수정 후 23 pass/0 skip/0 fail GREEN을 확인했다. 같은 리뷰 agent의 읽기 전용 재판정은 새 Critical/Important 0, 기존 Minor `/skipped 1/`도 `\b`로 해소. 최신 SHA 로컬 `pnpm test` 306건/223 pass/83 DB·환경 skip/0 fail + PR 본문 8 pass, typecheck/lint/build exit 0(Next 15경로). WSL 지정 checkout 같은 SHA·공유 개발 DB 전체 순차 **307건/290 pass/17 환경 skip/0 fail**, 사후 QA 15범주 각 0·일회용 시험 컨테이너 0. 격리 PG/네트워크·QA API/Web·빌드 볼륨·9091/9092 포트·브라우저 탭·이번 임시 덤프 각각 잔류 0, 기존 DB migration 13건 보존. 실제 PG·Oracle·UAT·다른 구매자 브라우저 IDOR·자연 만료 UI·200% 확대는 PASS 아님. `.github/PR_REQUEST.md`는 S3.1 구문을 S3 전체의 목적/영향/검증/미검증/rollback으로 교정하고 validator exit 0; Stage PR/CI/병합은 이 문장 시점 아직 미수행이다.
