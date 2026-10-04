@@ -84,11 +84,13 @@ export async function submitPendingOrderWithDisposition(pool: Pool, accountId: s
       [input.reservationId]);
     if (already.rowCount) throw new Error('Order conflict');
     const address = await client.query<{ id: string; recipientName: string; phone: string;
-      postalCode: string; line1: string; line2: string }>(`SELECT id,recipient_name AS "recipientName",
-      phone,postal_code AS "postalCode",line1,line2 FROM customer_addresses
-      WHERE id=$1 AND account_id=$2 AND deleted_at IS NULL FOR SHARE`,
+      postalCode: string; line1: string; line2: string; deletedAt: Date | null }>(`SELECT id,
+      recipient_name AS "recipientName",phone,postal_code AS "postalCode",line1,line2,
+      deleted_at AS "deletedAt" FROM customer_addresses
+      WHERE id=$1 AND account_id=$2 FOR SHARE`,
     [input.addressId, accountId]);
     if (!address.rows[0]) throw new Error('Address unavailable');
+    if (address.rows[0].deletedAt) throw new Error('Address changed');
     const options = await lockOptions(client, input.reservationId);
     await client.query('SELECT id FROM shipping_policy_global WHERE id=1 FOR SHARE');
     for (const sellerId of [...new Set([...options.values()].map((option) => option.sellerId))].sort()) {

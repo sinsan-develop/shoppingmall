@@ -79,7 +79,7 @@ export class CustomerOrderController {
       if (['Address unavailable', 'Order unavailable', 'Promotion unavailable'].includes(message))
         throw new NotFoundException();
       if (['Order conflict', 'Reservation unavailable', 'Reserved product changed',
-        'Promotion conflict', 'Insufficient stock', 'Delivery unavailable'].includes(message))
+        'Promotion conflict', 'Insufficient stock', 'Delivery unavailable', 'Address changed'].includes(message))
         throw new ConflictException({ status: 'order_conflict' });
       if (error && typeof error === 'object' && 'code' in error && error.code === '42P01')
         throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
