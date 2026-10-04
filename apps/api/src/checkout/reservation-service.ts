@@ -283,9 +283,6 @@ export class CheckoutReservations {
       const found = await client.query<ReservationRow>(
         'SELECT * FROM checkout_reservations WHERE id=$1', [id]);
       if (!found.rowCount) return null;
-      const lines = await client.query<{ option_id: string }>(
-        'SELECT option_id FROM checkout_reservation_lines WHERE reservation_id=$1 ORDER BY option_id', [id]);
-      await this.lockOptions(client, lines.rows.map((line) => line.option_id));
       const current = await client.query<ReservationRow>(
         'SELECT * FROM checkout_reservations WHERE id=$1 FOR UPDATE', [id]);
       if (current.rows[0].status !== 'ACTIVE') return this.view(client, current.rows[0]);
