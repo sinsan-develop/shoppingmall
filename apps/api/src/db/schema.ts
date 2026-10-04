@@ -529,3 +529,131 @@ export const promotionUses = pgTable('promotion_uses', {
     OR (${table.status} = 'RELEASED' AND ${table.releasedAt} IS NOT NULL
       AND length(trim(coalesce(${table.releaseReason},''))) BETWEEN 1 AND 500)`),
 ]);
+
+// S3.3 records a pending payment target only; payment approval belongs to S4.
+export const checkoutOrders = pgTable('checkout_orders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  reservationId: uuid('reservation_id').notNull().references(() => checkoutReservations.id),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  requestFingerprint: text('request_fingerprint').notNull(),
+  addressId: uuid('address_id').notNull().references(() => customerAddresses.id),
+  recipientName: text('recipient_name').notNull(),
+  phone: text('phone').notNull(),
+  postalCode: text('postal_code').notNull(),
+  line1: text('line1').notNull(),
+  line2: text('line2').notNull().default(''),
+  goodsWon: integer('goods_won').notNull(),
+  goodsDiscountWon: integer('goods_discount_won').notNull(),
+  shippingFeeWon: integer('shipping_fee_won').notNull(),
+  shippingSupportWon: integer('shipping_support_won').notNull(),
+  payableWon: integer('payable_won').notNull(),
+  status: text('status').notNull().default('PENDING_PAYMENT'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('checkout_orders_account_key_uq').on(table.accountId, table.idempotencyKey),
+  uniqueIndex('checkout_orders_reservation_uq').on(table.reservationId),
+  index('checkout_orders_due_idx').on(table.status, table.expiresAt),
+  index('checkout_orders_account_created_idx').on(table.accountId, table.createdAt),
+  check('checkout_orders_fingerprint_ck', sql`${table.requestFingerprint} ~ '^[0-9a-f]{64}$'`),
+  check('checkout_orders_address_ck', sql`length(trim(${table.recipientName})) > 0
+    AND length(trim(${table.phone})) > 0 AND length(trim(${table.postalCode})) > 0
+    AND length(trim(${table.line1})) > 0`),
+  check('checkout_orders_money_ck', sql`${table.goodsWon} >= 0
+    AND ${table.goodsDiscountWon} BETWEEN 0 AND ${table.goodsWon}
+    AND ${table.shippingFeeWon} >= 0
+    AND ${table.shippingSupportWon} BETWEEN 0 AND ${table.shippingFeeWon}
+    AND ${table.payableWon} = ${table.goodsWon} - ${table.goodsDiscountWon}
+      + ${table.shippingFeeWon} - ${table.shippingSupportWon}`),
+  check('checkout_orders_status_ck', sql`${table.status} IN ('PENDING_PAYMENT','EXPIRED')`),
+  check('checkout_orders_expires_ck', sql`${table.expiresAt} > ${table.createdAt}`),
+  check('checkout_orders_ended_ck', sql`(${table.status} = 'PENDING_PAYMENT' AND ${table.endedAt} IS NULL)
+    OR (${table.status} = 'EXPIRED' AND ${table.endedAt} IS NOT NULL)`),
+]);
+
+export const shipmentOrders = pgTable('shipment_orders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  checkoutOrderId: uuid('checkout_order_id').notNull().references(() => checkoutOrders.id),
+  shipmentKey: text('shipment_key').notNull(),
+  shippingMode: productShippingMode('shipping_mode').notNull(),
+  sellerId: uuid('seller_id').references(() => sellers.id),
+  goodsWon: integer('goods_won').notNull(),
+  goodsDiscountWon: integer('goods_discount_won').notNull(),
+  shippingFeeWon: integer('shipping_fee_won').notNull(),
+  shippingSupportWon: integer('shipping_support_won').notNull(),
+  payableWon: integer('payable_won').notNull(),
+  status: text('status').notNull().default('PENDING_PAYMENT'),
+}, (table) => [
+  uniqueIndex('shipment_orders_checkout_key_uq').on(table.checkoutOrderId, table.shipmentKey),
+  uniqueIndex('shipment_orders_checkout_id_uq').on(table.checkoutOrderId, table.id),
+  check('shipment_orders_key_ck', sql`length(trim(${table.shipmentKey})) > 0`),
+  check('shipment_orders_mode_seller_ck', sql`(${table.shippingMode} = 'seller_direct'
+    AND ${table.sellerId} IS NOT NULL) OR (${table.shippingMode} = 'owool_fulfillment'
+    AND ${table.sellerId} IS NULL)`),
+  check('shipment_orders_money_ck', sql`${table.goodsWon} >= 0
+    AND ${table.goodsDiscountWon} BETWEEN 0 AND ${table.goodsWon}
+    AND ${table.shippingFeeWon} >= 0
+    AND ${table.shippingSupportWon} BETWEEN 0 AND ${table.shippingFeeWon}
+    AND ${table.payableWon} = ${table.goodsWon} - ${table.goodsDiscountWon}
+      + ${table.shippingFeeWon} - ${table.shippingSupportWon}`),
+  check('shipment_orders_status_ck', sql`${table.status} IN ('PENDING_PAYMENT','EXPIRED')`),
+]);
+
+export const shipmentOrderLines = pgTable('shipment_order_lines', {
+  shipmentOrderId: uuid('shipment_order_id').notNull().references(() => shipmentOrders.id),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  optionId: uuid('option_id').notNull().references(() => productOptions.id),
+  sellerId: uuid('seller_id').notNull().references(() => sellers.id),
+  productName: text('product_name').notNull(),
+  optionName: text('option_name').notNull(),
+  unitPriceWon: integer('unit_price_won').notNull(),
+  quantity: integer('quantity').notNull(),
+  goodsDiscountWon: integer('goods_discount_won').notNull(),
+  goodsPayableWon: integer('goods_payable_won').notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.shipmentOrderId, table.optionId], name: 'shipment_order_lines_pk' }),
+  index('shipment_order_lines_product_idx').on(table.productId),
+  index('shipment_order_lines_seller_idx').on(table.sellerId),
+  check('shipment_order_lines_names_ck', sql`length(trim(${table.productName})) > 0
+    AND length(trim(${table.optionName})) > 0`),
+  check('shipment_order_lines_money_ck', sql`${table.unitPriceWon} >= 0
+    AND ${table.quantity} BETWEEN 1 AND 1000000 AND ${table.goodsDiscountWon} >= 0
+    AND ${table.goodsPayableWon} >= 0
+    AND ${table.goodsPayableWon}::bigint = ${table.unitPriceWon}::bigint * ${table.quantity}
+      - ${table.goodsDiscountWon}`),
+]);
+
+export const orderPromotionAllocations = pgTable('order_promotion_allocations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  checkoutOrderId: uuid('checkout_order_id').notNull().references(() => checkoutOrders.id),
+  shipmentOrderId: uuid('shipment_order_id').notNull(),
+  promotionUseId: uuid('promotion_use_id').notNull().references(() => promotionUses.id),
+  campaignId: uuid('campaign_id').notNull().references(() => promotionCampaigns.id),
+  versionId: uuid('version_id').notNull().references(() => promotionVersions.id),
+  kind: text('kind').notNull(),
+  amountWon: integer('amount_won').notNull(),
+}, (table) => [
+  foreignKey({ name: 'order_promotion_allocations_shipment_order_fk',
+    columns: [table.checkoutOrderId, table.shipmentOrderId],
+    foreignColumns: [shipmentOrders.checkoutOrderId, shipmentOrders.id] }),
+  uniqueIndex('order_promotion_allocations_use_shipment_kind_uq')
+    .on(table.promotionUseId, table.shipmentOrderId, table.kind),
+  index('order_promotion_allocations_checkout_idx').on(table.checkoutOrderId),
+  check('order_promotion_allocations_kind_ck', sql`${table.kind} IN ('goods_discount','shipping_support')`),
+  check('order_promotion_allocations_amount_ck', sql`${table.amountWon} > 0`),
+]);
+
+export const orderStatusEvents = pgTable('order_status_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  checkoutOrderId: uuid('checkout_order_id').notNull().references(() => checkoutOrders.id),
+  status: text('status').notNull(),
+  actorAccountId: uuid('actor_account_id').references(() => accounts.id),
+  reason: text('reason').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('order_status_events_checkout_created_idx').on(table.checkoutOrderId, table.createdAt),
+  check('order_status_events_status_ck', sql`${table.status} IN ('PENDING_PAYMENT','EXPIRED')`),
+  check('order_status_events_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
+]);
