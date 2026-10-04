@@ -4,6 +4,7 @@ import { allocateOrderLineDiscountWon } from './line-allocation.js';
 import { getOrderSnapshot, insertOrderSnapshot, type OrderLineSnapshot,
   type PendingOrderSnapshot, type PendingOrderView } from './repository.js';
 import { PromotionUsageService, type PromotionSelection } from '../promotions/usage-service.js';
+import { ShippingPolicies } from '../shipping/service.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type SubmitInput = { reservationId: string; addressId: string;
@@ -89,9 +90,22 @@ export async function submitPendingOrderWithDisposition(pool: Pool, accountId: s
     [input.addressId, accountId]);
     if (!address.rows[0]) throw new Error('Address unavailable');
     const options = await lockOptions(client, input.reservationId);
+    await client.query('SELECT id FROM shipping_policy_global WHERE id=1 FOR SHARE');
+    for (const sellerId of [...new Set([...options.values()].map((option) => option.sellerId))].sort()) {
+      await client.query(`SELECT seller_id FROM seller_shipping_policies
+        WHERE seller_id=$1 FOR SHARE`, [sellerId]);
+    }
     const { uses, quote, goodsRule } = await new PromotionUsageService(pool).holdForOrderInTransaction(
       client, accountId, input.reservationId, input.selections,
       input.idempotencyKey, hold.expiresAt);
+    const policies = new ShippingPolicies(pool, client);
+    const globalPolicy = (await policies.getGlobal()).policy;
+    for (const shipment of quote.shipments) {
+      const policy = shipment.sellerId ? (await policies.getEffective(shipment.sellerId)).policy : globalPolicy;
+      if (!/^\d{5}$/.test(address.rows[0].postalCode) || policy.blockedPostalRanges.some((range) =>
+        range.start <= address.rows[0].postalCode && address.rows[0].postalCode <= range.end))
+        throw new Error('Delivery unavailable');
+    }
     if (quote.payableTotalWon !== input.expectedPayableWon) throw new Error('Order conflict');
     const targetIds = new Set(goodsRule?.targetIds ?? []);
     const shipments: PendingOrderSnapshot['shipments'] = quote.shipments.map((shipment) => {
