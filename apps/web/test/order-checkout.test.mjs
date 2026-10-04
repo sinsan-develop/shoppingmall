@@ -26,6 +26,25 @@ test('pending order request keeps its key for safe retry and never claims paymen
   assert.deepEqual(sent, [key, key]);
   assert.equal(values.get('owool-checkout-order-key'), key);
   assert.equal(values.get('owool-checkout-order-id'), order.id);
+  assert.equal(values.get('owool-checkout-order-reservation-id'), input.reservationId);
+});
+
+test('an older pending order does not hide submission for a new reservation', () => {
+  const quote = { goodsWon: 23000, shippingWon: 3000, totalWon: 26000,
+    shipments: [{ key: 'seller_direct:s1', shippingMode: 'seller_direct', sellerId: 's1',
+      goodsWon: 23000, shippingWon: 3000, totalWon: 26000, lines: [] }] };
+  const html = renderToStaticMarkup(createElement(CartView, {
+    items: [], edits: {}, busy: '', message: '', loading: false,
+    reservation: { id: 'new-hold', status: 'ACTIVE', expiresAt: '2026-10-05T00:00:00Z',
+      lines: [], quote },
+    pendingOrder: { id: 'older-order', reservationId: 'old-hold', status: 'EXPIRED',
+      payableWon: 26000, expiresAt: '2026-10-04T00:00:00Z', shipments: [] },
+    addresses: [{ id: 'a1', label: '집' }], selectedAddressId: 'a1',
+    onAddressChange: () => {}, onSubmitOrder: () => {},
+    onEdit: () => {}, onSave: () => {}, onRemove: () => {},
+  }));
+  assert.match(html, /결제대기 주문 생성/);
+  assert.match(html, /이전 주문/);
 });
 
 test('active cart offers pending submission but preserves quantity and remove controls', () => {

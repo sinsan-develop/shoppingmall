@@ -20,7 +20,8 @@ type Reservation = { id: string; status: 'ACTIVE' | 'EXPIRED' | 'RELEASED' | 'CA
   quote?: Quote };
 type Address = { id: string; label: string; recipientName?: string; line1?: string };
 type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED'; payableWon: number;
-  expiresAt: string; shipments: { id: string; key: string; payableWon: number }[] };
+  expiresAt: string; reservationId?: string;
+  shipments: { id: string; key: string; payableWon: number }[] };
 type ViewProps = { items: CartItem[]; quote?: Quote; edits: Record<string, number>;
   busy: string; message: string; loading: boolean; onEdit: (id: string, quantity: number) => void;
   onSave: (id: string) => void; onRemove: (id: string) => void;
@@ -35,6 +36,7 @@ const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 const reservationStorageKey = 'owool-checkout-reservation-id';
 const requestStorageKey = 'owool-checkout-reservation-key';
 const orderStorageKey = 'owool-checkout-order-id';
+const orderReservationKey = 'owool-checkout-order-reservation-id';
 const orderRequestKey = 'owool-checkout-order-key';
 const orderInputKey = 'owool-checkout-order-input';
 
@@ -60,6 +62,7 @@ export async function submitOrderRequest(apiBase: string,
   if (!response.ok) throw new Error('주문 결과를 확인하지 못했습니다. 같은 버튼으로 다시 확인해 주세요');
   const order = await response.json() as PendingOrder;
   storage.setItem(orderStorageKey, order.id);
+  storage.setItem(orderReservationKey, input.reservationId);
   return order;
 }
 
@@ -118,6 +121,7 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
   addresses = [], selectedAddressId = '', onAddressChange, onSubmitOrder, pendingOrder,
   orderPayableWon }: ViewProps) {
   const active = reservation?.status === 'ACTIVE';
+  const currentPendingOrder = pendingOrder?.reservationId === reservation?.id ? pendingOrder : undefined;
   const seconds = active ? Math.max(0, Math.ceil((Date.parse(reservation.expiresAt) -
     (nowMs ?? Date.now())) / 1000)) : 0;
   const shownQuote = active ? reservation.quote : quote;
@@ -135,7 +139,7 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
       <p>예약 번호 {reservation.id}</p>
       <p role="status">서버 만료 시각 {new Date(reservation.expiresAt).toLocaleString('ko-KR')} · 남은 시간 {Math.floor(seconds / 60)}분 {seconds % 60}초</p>
       <p>예약 해제 후 수량을 수정하거나 상품을 제거할 수 있습니다. 결제·주문은 아직 확정되지 않았습니다.</p>
-      <button type="button" className="secondary-button" disabled={!!busy || !!pendingOrder} onClick={onRelease}>예약 해제</button>
+      <button type="button" className="secondary-button" disabled={!!busy || !!currentPendingOrder} onClick={onRelease}>예약 해제</button>
     </section> : reservation && reservation.status !== 'RELEASED' ? <section className="cart-quote" aria-label="종료된 예약 상태">
       <h2>예약을 다시 확인해 주세요</h2>
       <p>예약 번호 {reservation.id}</p>
@@ -183,12 +187,15 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
           onClick={onReserve}>{retryAvailable ? '이전 예약 결과 다시 확인' : '결제 준비 · 15분 재고 예약'}</button> : null}
         <p className="section-note">결제 기능은 준비 중입니다. 이 금액은 결제 확정 금액이 아닙니다.</p>
       </>}
+    {pendingOrder && !currentPendingOrder ? <p role="status">이전 주문 {pendingOrder.id} ·
+      {pendingOrder.status === 'EXPIRED' ? '기한 만료' : '결제대기'} ·
+      <a href="/account/customer">본인 주문 확인</a></p> : null}
     {active && onSubmitOrder ? <section className="cart-quote" aria-labelledby="pending-order-heading">
       <h2 id="pending-order-heading">결제대기 주문</h2>
-      {pendingOrder ? <div role="status">
-        <p>주문 번호 {pendingOrder.id} · {pendingOrder.status === 'EXPIRED' ? '기한 만료' : '결제대기'}</p>
-        <p>서버 확정 금액 {won(pendingOrder.payableWon)} · 만료 시각 {new Date(pendingOrder.expiresAt).toLocaleString('ko-KR')}</p>
-        <p>발송 주문 {pendingOrder.shipments.length}건 · 결제는 아직 완료되지 않았습니다.</p>
+      {currentPendingOrder ? <div role="status">
+        <p>주문 번호 {currentPendingOrder.id} · {currentPendingOrder.status === 'EXPIRED' ? '기한 만료' : '결제대기'}</p>
+        <p>서버 확정 금액 {won(currentPendingOrder.payableWon)} · 만료 시각 {new Date(currentPendingOrder.expiresAt).toLocaleString('ko-KR')}</p>
+        <p>발송 주문 {currentPendingOrder.shipments.length}건 · 결제는 아직 완료되지 않았습니다.</p>
       </div> : <>
         <label htmlFor="checkout-address">받는 분 배송지</label>
         <select id="checkout-address" value={selectedAddressId} disabled={!!busy}
@@ -420,13 +427,15 @@ export default function CartPage() {
         if (response.status === 404) { window.sessionStorage.removeItem(orderStorageKey); return; }
         if (!response.ok) return;
         const order = await response.json() as PendingOrder;
-        if (!controller.signal.aborted) setPendingOrder(order);
+        if (!controller.signal.aborted) setPendingOrder({ ...order,
+          reservationId: window.sessionStorage.getItem(orderReservationKey) ?? undefined });
       }).catch(() => {});
     return () => controller.abort();
   }, []);
 
   async function submitOrder() {
-    if (!apiOrigin || !reservation || reservation.status !== 'ACTIVE' || !selectedAddressId || busy || pendingOrder) return;
+    if (!apiOrigin || !reservation || reservation.status !== 'ACTIVE' || !selectedAddressId || busy ||
+        pendingOrder?.reservationId === reservation.id) return;
     const shippingCoupons: ({ shipmentKey: string; grantId: string } |
       { shipmentKey: string; code: string })[] = [];
     for (const [shipmentKey, choice] of Object.entries(shippingChoices)) {
@@ -445,7 +454,7 @@ export default function CartPage() {
         selections: { ...(goodsCoupon ? { goodsCoupon } : {}), shippingCoupons },
         expectedPayableWon: promotionQuote?.payableTotalWon ?? reservation.quote?.totalWon ?? 0,
       });
-      setPendingOrder(order);
+      setPendingOrder({ ...order, reservationId: reservation.id });
       setMessage('결제대기 주문이 저장됐습니다. 결제는 아직 완료되지 않았습니다');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '주문 결과를 확인하지 못했습니다');
