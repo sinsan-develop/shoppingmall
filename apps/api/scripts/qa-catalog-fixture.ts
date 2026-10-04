@@ -78,9 +78,37 @@ async function seedCatalog(client: PoolClient, runId: string) {
 export async function assertQaCatalogResetSafe(client: PoolClient, runId: string, qaAccountIds?: string[]) {
   const names = qaNames(runId);
   const titles = catalogQaSpecs.map((spec) => name(runId, spec.item));
-  const products = await client.query<{ product_id: string; revision_id: string }>(
-    `SELECT p.id AS product_id,r.id AS revision_id FROM products p
-     JOIN product_revisions r ON r.product_id=p.id JOIN sellers s ON s.id=p.seller_id
+  const expectedSellers = qaAccountIds ? await client.query<{
+    account_id: string; identifier: string; seller_id: string; display_name: string; category_name: string;
+  }>(`SELECT a.account_id,a.identifier,role.seller_id,s.display_name,c.name AS category_name
+    FROM account_identities a JOIN account_roles role ON role.account_id=a.account_id AND role.role='seller'
+    JOIN sellers s ON s.id=role.seller_id JOIN seller_categories c ON c.id=s.category_id
+    WHERE a.kind='email' AND a.identifier=ANY($1::text[])`, [names.emails.slice(1, 4)]) : null;
+  const expectedNames = [names.sellerA, names.sellerB, names.owool];
+  if (expectedSellers && qaAccountIds) {
+    if (expectedSellers.rows.length !== 3 || expectedSellers.rows.some((row) =>
+      !qaAccountIds.includes(row.account_id) || row.category_name !== names.category ||
+      row.display_name !== expectedNames[names.emails.indexOf(row.identifier) - 1])) {
+      throw new Error('QA seller ownership or category differs from fixture');
+    }
+    const categorySellers = await client.query<{ id: string }>(
+      `SELECT s.id FROM sellers s JOIN seller_categories c ON c.id=s.category_id WHERE c.name=$1`,
+      [names.category]);
+    const expectedIds = new Set(expectedSellers.rows.map((row) => row.seller_id));
+    if (categorySellers.rows.length !== 3 || categorySellers.rows.some((row) => !expectedIds.has(row.id))) {
+      throw new Error('QA seller category contains an unexpected seller');
+    }
+  }
+  const products = await client.query<{
+    product_id: string; revision_id: string; seller_id: string; title: string;
+    minor_name: string; major_name: string; proposed_by_account_id: string; reviewed_by_account_id: string;
+  }>(
+    `SELECT p.id AS product_id,r.id AS revision_id,p.seller_id,r.title,
+       minor.name AS minor_name,major.name AS major_name,r.proposed_by_account_id,r.reviewed_by_account_id
+     FROM products p JOIN product_revisions r ON r.product_id=p.id
+     JOIN sellers s ON s.id=p.seller_id
+     JOIN product_categories minor ON minor.id=p.category_id
+     JOIN product_categories major ON major.id=minor.parent_id
      WHERE r.title=ANY($1::text[]) AND s.display_name=ANY($2::text[])`,
     [titles, [names.sellerA, names.sellerB, names.owool]],
   );
@@ -95,6 +123,20 @@ export async function assertQaCatalogResetSafe(client: PoolClient, runId: string
   if (products.rowCount !== catalogQaSpecs.length ||
       new Set(products.rows.map((row) => row.product_id)).size !== catalogQaSpecs.length) {
     throw new Error('Expected five exact QA products');
+  }
+  if (expectedSellers) {
+    const byEmail = new Map(expectedSellers.rows.map((row) => [row.identifier, row]));
+    for (const spec of catalogQaSpecs) {
+      const match = products.rows.filter((row) => row.title === name(runId, spec.item));
+      const sellerIndex = spec.seller === 'sellerA' ? 1 : spec.seller === 'sellerB' ? 2 : 3;
+      const seller = byEmail.get(names.emails[sellerIndex]);
+      if (match.length !== 1 || !seller || match[0].seller_id !== seller.seller_id ||
+          match[0].minor_name !== name(runId, spec.item) ||
+          match[0].major_name !== name(runId, spec.major) ||
+          match[0].proposed_by_account_id !== seller.account_id) {
+        throw new Error('QA product ownership or category differs from fixture');
+      }
+    }
   }
   const productIds = products.rows.map((row) => row.product_id);
   const revisionIds = products.rows.map((row) => row.revision_id);

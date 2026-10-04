@@ -97,7 +97,57 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
         throw new Error('QA admin owns a campaign outside this run');
       }
       const campaignIds = campaigns.rows.map((row) => row.id);
-      await assertQaCatalogResetSafe(client, id, accountIds);
+      const catalog = await assertQaCatalogResetSafe(client, id, accountIds);
+      const sellerIds = (await client.query<{ id: string }>(
+        `SELECT s.id FROM sellers s JOIN seller_categories c ON c.id=s.category_id WHERE c.name=$1`,
+        [names.category])).rows.map((row) => row.id);
+      const optionIds = (await client.query<{ id: string }>(
+        'SELECT id FROM product_options WHERE revision_id=ANY($1::uuid[])', [catalog.revisionIds],
+      )).rows.map((row) => row.id);
+      const reservationIds = (await client.query<{ id: string }>(
+        'SELECT id FROM checkout_reservations WHERE account_id=ANY($1::uuid[])', [accountIds],
+      )).rows.map((row) => row.id);
+      const stockRequestIds = (await client.query<{ id: string }>(
+        'SELECT id FROM stock_change_requests WHERE option_id=ANY($1::uuid[])', [optionIds],
+      )).rows.map((row) => row.id);
+      const shippingRequestIds = (await client.query<{ id: string }>(
+        'SELECT id FROM seller_shipping_policy_requests WHERE seller_id=ANY($1::uuid[])', [sellerIds],
+      )).rows.map((row) => row.id);
+      const useIds = (await client.query<{ id: string }>(
+        'SELECT id FROM promotion_uses WHERE campaign_id=ANY($1::uuid[])', [campaignIds],
+      )).rows.map((row) => row.id);
+      const outsideOperations = await client.query<{ stock: number; shipping: number; policy: number }>(
+        `SELECT
+          (SELECT count(*)::int FROM stock_change_requests WHERE option_id=ANY($1::uuid[])
+           AND (requested_by_account_id<>ALL($3::uuid[]) OR
+             (decided_by_account_id IS NOT NULL AND decided_by_account_id<>ALL($3::uuid[])))) AS stock,
+          (SELECT count(*)::int FROM seller_shipping_policy_requests WHERE seller_id=ANY($2::uuid[])
+           AND (requested_by_account_id<>ALL($3::uuid[]) OR
+             (decided_by_account_id IS NOT NULL AND decided_by_account_id<>ALL($3::uuid[])))) AS shipping,
+          (SELECT count(*)::int FROM seller_shipping_policies WHERE seller_id=ANY($2::uuid[])
+           AND approved_by_account_id<>ALL($3::uuid[])) AS policy`,
+        [optionIds, sellerIds, accountIds]);
+      if (Object.values(outsideOperations.rows[0]).some((count) => count !== 0)) {
+        throw new Error('QA stock or shipping history involves accounts outside QA accounts');
+      }
+      const allowedAuditTargets: Record<string, Set<string>> = {
+        account: new Set(accountIds),
+        seller: new Set(sellerIds),
+        product: new Set(catalog.productIds),
+        product_option: new Set(optionIds),
+        stock_change_request: new Set(stockRequestIds),
+        shipping_policy_request: new Set(shippingRequestIds),
+        checkout_reservation: new Set(reservationIds),
+        promotion_campaign: new Set(campaignIds),
+        promotion_use: new Set(useIds),
+      };
+      const audit = await client.query<{ target_type: string; target_id: string; seller_id: string | null }>(
+        'SELECT target_type,target_id,seller_id FROM audit_events WHERE actor_account_id=ANY($1::uuid[])',
+        [accountIds]);
+      if (audit.rows.some((row) => !allowedAuditTargets[row.target_type]?.has(row.target_id) ||
+          (row.seller_id !== null && !allowedAuditTargets.seller.has(row.seller_id)))) {
+        throw new Error('QA audit history references a target outside this run');
+      }
       const outsidePromotions = await client.query<{
         versions: number; grants: number; uses: number; stops: number;
       }>(
