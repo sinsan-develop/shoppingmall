@@ -68,3 +68,38 @@ test('shared promotion reset rolls back promotion and account rows if catalog is
     await pool.end();
   }
 });
+
+test('shared promotion reset refuses a foreign grant without deleting its campaign', {
+  skip: !enabled,
+}, async () => {
+  const pool = new Pool({ connectionString: databaseUrl });
+  let seeded = false;
+  let foreignAccountId;
+  let foreignGrantId;
+  try {
+    await runQaCatalogFixture('seed', runId, databaseUrl, 'test-only-shared-reset-password');
+    seeded = true;
+    const admin = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [`qa+${runId}-admin@example.invalid`])).rows[0].account_id;
+    const campaignId = (await pool.query(`INSERT INTO promotion_campaigns
+      (title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
+      VALUES ($1,'goods_discount',10,1,$2) RETURNING id`, [`QA-${runId}-foreign-grant`, admin])).rows[0].id;
+    const versionId = (await pool.query(`INSERT INTO promotion_versions
+      (campaign_id,version,scope,starts_at,ends_at,amount_kind,amount_value,created_by_account_id)
+      VALUES ($1,1,'all',now(),now()+interval '1 day','fixed',1000,$2) RETURNING id`,
+    [campaignId, admin])).rows[0].id;
+    foreignAccountId = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    foreignGrantId = (await pool.query(`INSERT INTO promotion_grants(account_id,version_id,source)
+      VALUES ($1,$2,'code') RETURNING id`, [foreignAccountId, versionId])).rows[0].id;
+    await assert.rejects(resetPromotionUiFixture(runId, databaseUrl), /outside QA accounts/);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM promotion_grants WHERE id=$1',
+      [foreignGrantId])).rows[0].n, 1);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM promotion_campaigns WHERE id=$1',
+      [campaignId])).rows[0].n, 1);
+  } finally {
+    if (foreignGrantId) await pool.query('DELETE FROM promotion_grants WHERE id=$1', [foreignGrantId]);
+    if (foreignAccountId) await pool.query('DELETE FROM accounts WHERE id=$1', [foreignAccountId]);
+    if (seeded) await resetPromotionUiFixture(runId, databaseUrl);
+    await pool.end();
+  }
+});
