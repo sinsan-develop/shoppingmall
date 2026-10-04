@@ -75,7 +75,7 @@ async function seedCatalog(client: PoolClient, runId: string) {
   return { products: catalogQaSpecs.length, sellers: 3, virtual: true };
 }
 
-async function resetCatalog(client: PoolClient, runId: string) {
+export async function assertQaCatalogResetSafe(client: PoolClient, runId: string, qaAccountIds?: string[]) {
   const names = qaNames(runId);
   const titles = catalogQaSpecs.map((spec) => name(runId, spec.item));
   const products = await client.query<{ product_id: string; revision_id: string }>(
@@ -90,7 +90,7 @@ async function resetCatalog(client: PoolClient, runId: string) {
       'SELECT count(*)::int AS total FROM product_categories WHERE name=ANY($1::text[])', [categoryNames],
     );
     if (categories.rows[0].total !== 0) throw new Error('QA categories remain without expected products');
-    return { products: 0 };
+    return { products: 0, productIds: [] as string[], revisionIds: [] as string[] };
   }
   if (products.rowCount !== catalogQaSpecs.length ||
       new Set(products.rows.map((row) => row.product_id)).size !== catalogQaSpecs.length) {
@@ -106,6 +106,20 @@ async function resetCatalog(client: PoolClient, runId: string) {
   if (protectedRows.rows[0].revisions !== catalogQaSpecs.length || protectedRows.rows[0].images !== 0) {
     throw new Error('QA catalog has additional revisions or images requiring separate cleanup');
   }
+  if (qaAccountIds) {
+    const outsideCart = await client.query<{ total: number }>(`SELECT count(*)::int AS total FROM customer_cart_items
+      WHERE option_id IN (SELECT id FROM product_options WHERE revision_id=ANY($1::uuid[]))
+      AND account_id<>ALL($2::uuid[])`, [revisionIds, qaAccountIds]);
+    if (outsideCart.rows[0].total !== 0) throw new Error('QA catalog cart belongs to accounts outside QA accounts');
+  }
+  return { products: catalogQaSpecs.length, productIds, revisionIds };
+}
+
+export async function resetQaCatalog(client: PoolClient, runId: string, qaAccountIds?: string[]) {
+  const safe = await assertQaCatalogResetSafe(client, runId, qaAccountIds);
+  if (safe.products === 0) return { products: 0 };
+  const { productIds, revisionIds } = safe;
+  const titles = catalogQaSpecs.map((spec) => name(runId, spec.item));
   await client.query(`DELETE FROM customer_cart_items WHERE option_id IN
     (SELECT o.id FROM product_options o WHERE o.revision_id=ANY($1::uuid[]))`, [revisionIds]);
   await client.query('DELETE FROM product_publications WHERE product_id=ANY($1::uuid[])', [productIds]);
@@ -133,7 +147,7 @@ export async function runQaCatalogFixture(action: 'seed' | 'reset', runId: strin
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const result = action === 'seed' ? await seedCatalog(client, id) : await resetCatalog(client, id);
+      const result = action === 'seed' ? await seedCatalog(client, id) : await resetQaCatalog(client, id);
       await client.query('COMMIT');
       if (action === 'reset') await runQaFixture('reset', id, databaseUrl);
       return result;

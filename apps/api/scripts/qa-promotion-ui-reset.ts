@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { Pool } from 'pg';
-import { runQaCatalogFixture } from './qa-catalog-fixture.js';
-import { qaNames, validateQaRunId } from './qa-fixture.js';
+import { assertQaCatalogResetSafe, resetQaCatalog, runQaCatalogFixture } from './qa-catalog-fixture.js';
+import { qaNames, resetQaAccounts, validateQaRunId } from './qa-fixture.js';
 import { runQaPublicFixture } from './qa-public-fixture.js';
 
 const isolatedHosts: Record<string, string> = {
@@ -33,8 +33,11 @@ export function assertSharedPromotionQaTarget(runId: string, databaseUrl: string
 
 export async function resetPromotionUiFixture(runId: string, databaseUrl: string) {
   const id = validateQaRunId(runId);
-  if (id === 'f44f1004') assertSharedPromotionQaTarget(id, databaseUrl);
-  else assertIsolatedPromotionQaTarget(id, databaseUrl);
+  if (id === 'f44f1004') {
+    assertSharedPromotionQaTarget(id, databaseUrl);
+    return resetSharedPromotionUiFixture(id, databaseUrl);
+  }
+  assertIsolatedPromotionQaTarget(id, databaseUrl);
   const names = qaNames(id);
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
@@ -72,6 +75,66 @@ export async function resetPromotionUiFixture(runId: string, databaseUrl: string
     if (id === 'e4401004' || id === 'f44f1004') await runQaCatalogFixture('reset', id, databaseUrl);
     else await runQaPublicFixture('reset', id, databaseUrl);
     return { runId: id, removedCampaigns: ids.length, removedAccounts: accounts.rows.length };
+  } finally { await pool.end(); }
+}
+
+async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+      const names = qaNames(id);
+      const accounts = await client.query<{ account_id: string; identifier: string }>(
+        `SELECT account_id,identifier FROM account_identities WHERE kind='email'
+         AND identifier=ANY($1::text[])`, [names.emails]);
+      if (accounts.rows.length !== 5) throw new Error('Expected five exact QA accounts before reset');
+      const accountIds = accounts.rows.map((row) => row.account_id);
+      const admin = accounts.rows.find((row) => row.identifier === names.emails[4])!;
+      const campaigns = await client.query<{ id: string; title: string }>(
+        'SELECT id,title FROM promotion_campaigns WHERE created_by_account_id=$1', [admin.account_id]);
+      if (campaigns.rows.some((row) => !row.title.startsWith(`QA-${id}-`))) {
+        throw new Error('QA admin owns a campaign outside this run');
+      }
+      const campaignIds = campaigns.rows.map((row) => row.id);
+      await assertQaCatalogResetSafe(client, id, accountIds);
+      const outsidePromotions = await client.query<{
+        versions: number; grants: number; uses: number; stops: number;
+      }>(
+        `SELECT
+          (SELECT count(*)::int FROM promotion_versions v WHERE v.campaign_id=ANY($1::uuid[])
+           AND v.created_by_account_id<>ALL($2::uuid[])) AS versions,
+          (SELECT count(*)::int FROM promotion_grants g JOIN promotion_versions v ON v.id=g.version_id
+           WHERE v.campaign_id=ANY($1::uuid[]) AND
+             (g.account_id<>ALL($2::uuid[]) OR (g.issued_by_account_id IS NOT NULL
+               AND g.issued_by_account_id<>ALL($2::uuid[])))) AS grants,
+          (SELECT count(*)::int FROM promotion_uses u JOIN checkout_reservations r ON r.id=u.reservation_id
+           WHERE u.campaign_id=ANY($1::uuid[]) AND
+             (u.account_id<>ALL($2::uuid[]) OR r.account_id<>ALL($2::uuid[]))) AS uses,
+          (SELECT count(*)::int FROM promotion_campaigns c WHERE c.id=ANY($1::uuid[])
+           AND c.stopped_by_account_id IS NOT NULL
+           AND c.stopped_by_account_id<>ALL($2::uuid[])) AS stops`, [campaignIds, accountIds]);
+      if (Object.values(outsidePromotions.rows[0]).some((count) => count !== 0)) {
+        throw new Error('QA promotion belongs to accounts outside QA accounts');
+      }
+      await client.query('DELETE FROM promotion_uses WHERE campaign_id=ANY($1::uuid[])', [campaignIds]);
+      await client.query(`DELETE FROM promotion_grants WHERE version_id IN
+        (SELECT id FROM promotion_versions WHERE campaign_id=ANY($1::uuid[]))`, [campaignIds]);
+      await client.query(`DELETE FROM promotion_codes WHERE version_id IN
+        (SELECT id FROM promotion_versions WHERE campaign_id=ANY($1::uuid[]))`, [campaignIds]);
+      await client.query('DELETE FROM promotion_versions WHERE campaign_id=ANY($1::uuid[])', [campaignIds]);
+      await client.query('DELETE FROM promotion_campaigns WHERE id=ANY($1::uuid[])', [campaignIds]);
+      await client.query(`DELETE FROM checkout_reservation_lines WHERE reservation_id IN
+        (SELECT id FROM checkout_reservations WHERE account_id=ANY($1::uuid[]))`, [accountIds]);
+      await client.query('DELETE FROM checkout_reservations WHERE account_id=ANY($1::uuid[])', [accountIds]);
+      await resetQaCatalog(client, id, accountIds);
+      await resetQaAccounts(client, id);
+      await client.query('COMMIT');
+      return { runId: id, removedCampaigns: campaignIds.length, removedAccounts: accountIds.length };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
   } finally { await pool.end(); }
 }
 
