@@ -502,6 +502,7 @@ test('shared reset refuses foreign stock and shipping actors and off-run audit t
   let requestId;
   let auditId;
   let foreignAddressId;
+  let ownedAddressId;
   try {
     await runQaCatalogFixture('seed', runId, databaseUrl, 'test-only-shared-reset-password');
     seeded = true;
@@ -550,6 +551,21 @@ test('shared reset refuses foreign stock and shipping actors and off-run audit t
     await assert.rejects(resetPromotionUiFixture(runId, databaseUrl), /audit history references/);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM audit_events WHERE id=$1',
       [auditId])).rows[0].n, 1);
+    await pool.query('DELETE FROM audit_events WHERE id=$1', [auditId]);
+    auditId = undefined;
+    const customerId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [`qa+${runId}-customer@example.invalid`])).rows[0].account_id;
+    ownedAddressId = (await pool.query(`INSERT INTO customer_addresses
+      (account_id,label,recipient_name,phone,postal_code,line1)
+      VALUES ($1,'QA','가상 고객','01000000000','12345','가상 주소') RETURNING id`,
+    [customerId])).rows[0].id;
+    auditId = (await pool.query(`INSERT INTO audit_events
+      (actor_account_id,active_role,action,target_type,target_id)
+      VALUES ($1,'customer','qa.test','customer_address',$2) RETURNING id`,
+    [foreignAccountId, ownedAddressId])).rows[0].id;
+    await assert.rejects(resetPromotionUiFixture(runId, databaseUrl), /outside QA accounts/);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM audit_events WHERE id=$1',
+      [auditId])).rows[0].n, 1);
   } finally {
     if (auditId) await pool.query('DELETE FROM audit_events WHERE id=$1', [auditId]);
     if (requestId) {
@@ -557,6 +573,7 @@ test('shared reset refuses foreign stock and shipping actors and off-run audit t
       await pool.query('DELETE FROM seller_shipping_policy_requests WHERE id=$1', [requestId]);
     }
     if (foreignAddressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [foreignAddressId]);
+    if (ownedAddressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [ownedAddressId]);
     if (foreignAccountId) await pool.query('DELETE FROM accounts WHERE id=$1', [foreignAccountId]);
     if (seeded) await resetPromotionUiFixture(runId, databaseUrl);
     await pool.end();
