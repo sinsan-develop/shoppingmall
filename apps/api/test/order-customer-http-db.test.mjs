@@ -12,13 +12,16 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
 }, async () => {
   const runId = randomBytes(4).toString('hex');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  let seeded = false; let app; let addressId; let deletedId; let reservationId; let orderId;
+  let seeded = false; let app; let addressId; let deletedId; let foreignAddressId;
+  let reservationId; let orderId;
   try {
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);
     const buyerId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
       [names.emails[0]])).rows[0].account_id;
+    const otherBuyerId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [names.emails[1]])).rows[0].account_id;
     const optionId = (await pool.query(`SELECT o.id FROM product_options o
       JOIN product_revisions r ON r.id=o.revision_id WHERE r.title=$1`,
     [`qa-${runId}-고추`])).rows[0].id;
@@ -32,6 +35,10 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
     }
     addressId = await address(false);
     deletedId = await address(true);
+    foreignAddressId = (await pool.query(`INSERT INTO customer_addresses
+      (account_id,label,recipient_name,phone,postal_code,line1)
+      VALUES ($1,'타인','다른 분','01000000000','12345','타인 주소') RETURNING id`,
+    [otherBuyerId])).rows[0].id;
     app = await createApp();
     await app.listen(0, '127.0.0.1');
     const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
@@ -43,6 +50,7 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
       return response.headers.get('set-cookie')?.split(';')[0];
     }
     const buyer = await login(names.emails[0], 'customer');
+    const otherBuyer = await login(names.emails[1], 'customer');
     const seller = await login(names.emails[1], 'seller');
     const reservation = await fetch(`${base}/customer/checkout/reservations`, { method: 'POST',
       headers: { cookie: buyer, origin, 'idempotency-key': randomUUID() } });
@@ -59,6 +67,8 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
     assert.equal((await post(body, seller)).status, 403);
     assert.equal((await post(body, buyer, 'http://invalid.test')).status, 403);
     assert.equal((await post({ ...body, addressId: deletedId }, buyer, origin, randomUUID())).status, 404);
+    assert.equal((await post({ ...body, addressId: foreignAddressId }, buyer, origin, randomUUID())).status, 404);
+    assert.notEqual((await post(body, otherBuyer, origin, randomUUID())).status, 201);
     const created = await post();
     assert.equal(created.status, 201, await created.clone().text());
     const order = await created.json();
@@ -69,6 +79,7 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
     assert.equal((await post({ ...body, expectedPayableWon: body.expectedPayableWon - 1 })).status, 409);
     assert.equal((await fetch(`${url}/${orderId}`, { headers: { cookie: buyer } })).status, 200);
     assert.equal((await fetch(`${url}/${orderId}`, { headers: { cookie: seller } })).status, 403);
+    assert.equal((await fetch(`${url}/${orderId}`, { headers: { cookie: otherBuyer } })).status, 404);
     assert.equal((await fetch(`${url}/${randomUUID()}`, { headers: { cookie: buyer } })).status, 404);
   } finally {
     if (app) await app.close();
@@ -86,6 +97,7 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
     }
     if (addressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [addressId]);
     if (deletedId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [deletedId]);
+    if (foreignAddressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [foreignAddressId]);
     if (seeded) await runQaCatalogFixture('reset', runId, process.env.DATABASE_URL);
     await pool.end();
   }
