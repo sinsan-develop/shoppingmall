@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
 import { createApp } from '../src/app.ts';
+import { AuthRepository } from '../src/auth/repository.ts';
 import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 
@@ -12,7 +13,7 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
 }, async () => {
   const runId = randomBytes(4).toString('hex');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  let seeded = false; let app; let addressId; let deletedId; let foreignAddressId;
+  let seeded = false; let app; let addressId; let deletedId; let foreignAddressId; let otherBuyerId;
   let reservationId; let orderId;
   try {
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
@@ -20,8 +21,9 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
     const names = qaNames(runId);
     const buyerId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
       [names.emails[0]])).rows[0].account_id;
-    const otherBuyerId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
-      [names.emails[1]])).rows[0].account_id;
+    const otherEmail = `qa+${runId}-order-other@example.invalid`;
+    otherBuyerId = await new AuthRepository(pool).createCustomerAccount(
+      otherEmail, 'test-only-password-12345');
     const optionId = (await pool.query(`SELECT o.id FROM product_options o
       JOIN product_revisions r ON r.id=o.revision_id WHERE r.title=$1`,
     [`qa-${runId}-고추`])).rows[0].id;
@@ -50,7 +52,7 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
       return response.headers.get('set-cookie')?.split(';')[0];
     }
     const buyer = await login(names.emails[0], 'customer');
-    const otherBuyer = await login(names.emails[1], 'customer');
+    const otherBuyer = await login(otherEmail, 'customer');
     const seller = await login(names.emails[1], 'seller');
     const reservation = await fetch(`${base}/customer/checkout/reservations`, { method: 'POST',
       headers: { cookie: buyer, origin, 'idempotency-key': randomUUID() } });
@@ -98,6 +100,13 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
     if (addressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [addressId]);
     if (deletedId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [deletedId]);
     if (foreignAddressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [foreignAddressId]);
+    if (otherBuyerId) {
+      await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [otherBuyerId]);
+      await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [otherBuyerId]);
+      await pool.query('DELETE FROM account_roles WHERE account_id=$1', [otherBuyerId]);
+      await pool.query('DELETE FROM account_identities WHERE account_id=$1', [otherBuyerId]);
+      await pool.query('DELETE FROM accounts WHERE id=$1', [otherBuyerId]);
+    }
     if (seeded) await runQaCatalogFixture('reset', runId, process.env.DATABASE_URL);
     await pool.end();
   }
