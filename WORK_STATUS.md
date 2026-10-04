@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S4.1 결제 계약 구현 승인·착수
+
+- 담당 어울, 단일 writer. 작업 위치 `D:\Project\shoppingmall2\.worktrees\s4-payment-refund`, 브랜치 `codex/s4-payment-refund`, 승인 시 HEAD `f9d2cf87f74249e13d1dad415437eab20a7904ab`(원격 추적과 일치). `D:\Project\shoppingmall2`의 `main`은 직접 수정하지 않고 미추적 `legacy-onedrive/`·`.superpowers/`를 보존한다.
+- 신산님이 `docs/design/S4_PAYMENT_CONTRACT_DRAFT.md`의 고객 결제 시도 POST/GET 2개·주문 GET 상태 확장, 내부 mock 검증 계약, 추가 `0013` 두 결제 관계와 상태 제약 확장의 **구현**을 승인했다. 공유 `WSL-server/local-postgres/shoppingmall` 적용, 실제 PG/Secret·비용, Oracle, S4.2 환불 API/schema는 승인 범위가 아니다.
+- 실행 계획 `docs/superpowers/plans/2026-10-05-s4-mock-payments.md` Task 1~6. 기준 worktree 시험은 이전 체크포인트에서 306건/223 pass/83 DB·환경 skip/0 fail 및 PR 본문 8 pass; 이는 격리 실DB 증거가 아니다. 새 구현/격리 DB/브라우저/WSL exact-SHA 검증은 아직 미실행. 같은 근본 원인 연속 오류 0회.
+- 계획 자원: Task 1/3/4/5의 사적 DB 시험은 WSL 기존 `pgvector/pgvector:0.8.2-pg15`와 `node:24-bookworm-slim` 이미지를 사용한 전용 비공개 네트워크 `shoppingmall-s41-private-1005`, tmpfs PostgreSQL `shoppingmall-s41-private-pg-1005`, 일회용 Node 시험 컨테이너 접두 `shoppingmall-s41-private-node-1005`에서만 수행한다. 외부 포트·영속 볼륨 없이 만들고 시험 종료/중단 후 정확한 자원만 제거·부재를 확인한다. 생성 전 이름 충돌과 지정 checkout/공유 DB 상태를 확인한다. 공유 DB migration/QA 자료는 변경하지 않는다.
+- 현재 변경은 승인 상태/실행 계획/작업현황 문서뿐. 다음은 Task 1 RED 스키마 실DB 시험, 0013 구현, GREEN 및 후속 Task. 범위 밖의 실제 PG·Oracle·UAT는 미검증으로 유지한다. rollback은 mock 모드 비활성화 및 원사건 보존이며 적용된 migration을 임의 역적용하지 않는다.
+
 ## 진행 중 — 2026-10-05 S3 통합·정리 완료, S4 계약 준비
 
 - 담당 어울. 신산님이 PR #11의 GitHub 검사 실행을 승인했고, `Verify shoppingmall` PR run `37217744284` attempt 2가 성공한 뒤 PR #11이 `0b0746aeee220ed37c097e46d1f85e9922413983`으로 병합됐다. PR head `d58f48decaee91b76da6cea822ab75e2173e7cdd`와 병합 `main`의 파일 내용은 동일하며 `refs/pull/11/head`는 원본 head를 가리킨다. 병합은 신산님 계정에서 이미 이루어져 중복 병합 요청을 하지 않았다.
