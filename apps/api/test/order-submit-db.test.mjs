@@ -75,6 +75,8 @@ test('two direct sellers and pooled goods submit once with an exact pending amou
         await pool.query('DELETE FROM shipment_orders WHERE checkout_order_id=$1', [id]);
         await pool.query('DELETE FROM checkout_orders WHERE id=$1', [id]);
       }
+      await pool.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=$1', [reservationId]);
+      await pool.query('DELETE FROM checkout_reservations WHERE id=$1', [reservationId]);
     }
     if (addressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [addressId]);
     if (seeded) await runQaCatalogFixture('reset', runId, process.env.DATABASE_URL);
