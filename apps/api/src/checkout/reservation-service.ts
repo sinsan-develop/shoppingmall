@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { quoteReservationInTransaction } from './reservation-quote.js';
 import type { ShipmentQuote } from './shipment-quote.js';
+import { expirePendingOrderInTransaction } from '../orders/expiry-core.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const maxOptions = 100;
@@ -117,7 +118,23 @@ export class CheckoutReservations {
     const due = await client.query<{ due: boolean }>(
       'SELECT $1::timestamptz<=clock_timestamp() AS due', [row.expires_at],
     );
-    return due.rows[0].due ? this.terminate(client, row, 'EXPIRED') : row;
+    if (!due.rows[0].due) return row;
+    const linked = await client.query(`SELECT id FROM checkout_orders
+      WHERE reservation_id=$1 AND status='PENDING_PAYMENT'`, [row.id]);
+    if (!linked.rowCount) return this.terminate(client, row, 'EXPIRED');
+    await expirePendingOrderInTransaction(this.pool, client, row.account_id, row.id,
+      async () => { await this.terminate(client, row, 'EXPIRED'); });
+    const updated = await client.query<ReservationRow>('SELECT * FROM checkout_reservations WHERE id=$1',
+      [row.id]);
+    return updated.rows[0];
+  }
+
+  /** The order expiry worker reuses the same stock/deferred-target and audit transition. */
+  async expireInTransaction(client: PoolClient, accountId: string, reservationId: string): Promise<void> {
+    await this.lockAccount(client, accountId);
+    const found = await client.query<ReservationRow>(`SELECT * FROM checkout_reservations
+      WHERE id=$1 AND account_id=$2 FOR UPDATE`, [reservationId, accountId]);
+    if (found.rows[0]?.status === 'ACTIVE') await this.terminate(client, found.rows[0], 'EXPIRED');
   }
 
   async start(accountId: string, key: string, includeQuote = false): Promise<ReservationView & { quote?: ShipmentQuote }> {
@@ -247,6 +264,9 @@ export class CheckoutReservations {
       );
       if (!found.rowCount) return null;
       const row = await this.expireIfDue(client, found.rows[0]);
+      if (row.status === 'ACTIVE' && (await client.query(`SELECT id FROM checkout_orders
+        WHERE reservation_id=$1 AND status='PENDING_PAYMENT'`, [id])).rowCount)
+        throw new Error('Pending order must expire before releasing its reservation');
       return this.view(client, row.status === 'ACTIVE' ?
         await this.terminate(client, row, 'RELEASED') : row);
     });
@@ -269,6 +289,9 @@ export class CheckoutReservations {
       const current = await client.query<ReservationRow>(
         'SELECT * FROM checkout_reservations WHERE id=$1 FOR UPDATE', [id]);
       if (current.rows[0].status !== 'ACTIVE') return this.view(client, current.rows[0]);
+      if ((await client.query(`SELECT id FROM checkout_orders
+        WHERE reservation_id=$1 AND status='PENDING_PAYMENT'`, [id])).rowCount)
+        throw new Error('Pending order must expire before cancelling its reservation');
       const valid = await client.query<{ valid: boolean }>(
         'SELECT $1::timestamptz>clock_timestamp() AS valid', [current.rows[0].expires_at]);
       if (!valid.rows[0].valid) throw new Error('Reservation unavailable');

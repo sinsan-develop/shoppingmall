@@ -74,6 +74,10 @@ test('pending order expiry and existing reservation expiry race end order, hold 
     assert.equal(await expirePendingOrders(pool, 10), 0);
     assert.equal((await pool.query('SELECT status FROM checkout_orders WHERE id=$1',
       [first.orderId])).rows[0].status, 'PENDING_PAYMENT');
+    await assert.rejects(() => new CheckoutReservations(pool).release(buyerId, first.reservationId),
+      /Pending order/);
+    await assert.rejects(() => new CheckoutReservations(pool).cancel(adminId, first.reservationId,
+      'QA cancellation'), /Pending order/);
     await due(first);
     assert.equal((await new CheckoutReservations(pool).get(buyerId, first.reservationId)).status, 'EXPIRED');
     await verifyExpired(first);
