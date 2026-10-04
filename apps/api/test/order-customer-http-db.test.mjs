@@ -68,7 +68,7 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
     assert.equal((await post(body, '')).status, 401);
     assert.equal((await post(body, seller)).status, 403);
     assert.equal((await post(body, buyer, 'http://invalid.test')).status, 403);
-    assert.equal((await post({ ...body, addressId: deletedId }, buyer, origin, randomUUID())).status, 404);
+    assert.equal((await post({ ...body, addressId: deletedId }, buyer, origin, randomUUID())).status, 409);
     assert.equal((await post({ ...body, addressId: foreignAddressId }, buyer, origin, randomUUID())).status, 404);
     assert.notEqual((await post(body, otherBuyer, origin, randomUUID())).status, 201);
     const created = await post();
