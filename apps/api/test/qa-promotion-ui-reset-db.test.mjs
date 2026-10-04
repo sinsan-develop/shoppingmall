@@ -51,8 +51,11 @@ test('shared promotion reset rolls back promotion and account rows if catalog is
     seeded = true;
     const admin = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
       [`qa+${runId}-admin@example.invalid`])).rows[0].account_id;
-    await pool.query(`INSERT INTO promotion_campaigns(title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
-      VALUES ($1,'goods_discount',10,1,$2)`, [`QA-${runId}-test`, admin]);
+    const campaignId = (await pool.query(`INSERT INTO promotion_campaigns
+      (title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
+      VALUES ($1,'goods_discount',10,1,$2) RETURNING id`, [`QA-${runId}-test`, admin])).rows[0].id;
+    await pool.query(`INSERT INTO audit_events(actor_account_id,active_role,action,target_type,target_id)
+      VALUES ($1,'admin','promotion.campaign_create','promotion_campaign',$2)`, [admin, campaignId]);
     const revision = (await pool.query('SELECT id FROM product_revisions WHERE title=$1',
       [`qa-${runId}-고추`])).rows[0].id;
     imageId = (await pool.query(`INSERT INTO product_images(revision_id,object_key,purpose,mime_type,size_bytes)
@@ -62,6 +65,8 @@ test('shared promotion reset rolls back promotion and account rows if catalog is
       [admin])).rows[0].n, 1);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM account_identities WHERE identifier LIKE $1',
       [`qa+${runId}-%@example.invalid`])).rows[0].n, 5);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM audit_events WHERE target_id=$1',
+      [campaignId])).rows[0].n, 1);
   } finally {
     if (imageId) await pool.query('DELETE FROM product_images WHERE id=$1', [imageId]);
     if (seeded) await resetPromotionUiFixture(runId, databaseUrl);
