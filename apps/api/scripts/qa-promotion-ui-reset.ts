@@ -228,6 +228,9 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
       const versionIds = (await client.query<{ id: string }>(
         'SELECT id FROM promotion_versions WHERE campaign_id=ANY($1::uuid[])', [campaignIds],
       )).rows.map((row) => row.id);
+      const grantIds = (await client.query<{ id: string }>(
+        'SELECT id FROM promotion_grants WHERE version_id=ANY($1::uuid[])', [versionIds],
+      )).rows.map((row) => row.id);
       const catalog = await assertQaCatalogResetSafe(client, id, accountIds);
       const sellerIds = (await client.query<{ id: string }>(
         `SELECT s.id FROM sellers s JOIN seller_categories c ON c.id=s.category_id WHERE c.name=$1`,
@@ -252,8 +255,9 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
           v.campaign_id AS version_campaign_id FROM promotion_uses u
          JOIN promotion_grants g ON g.id=u.grant_id
          JOIN promotion_versions v ON v.id=u.version_id
-         WHERE u.campaign_id=ANY($1::uuid[]) OR u.account_id=ANY($2::uuid[])`,
-        [campaignIds, accountIds]);
+         WHERE u.campaign_id=ANY($1::uuid[]) OR u.account_id=ANY($2::uuid[])
+           OR u.version_id=ANY($3::uuid[]) OR u.grant_id=ANY($4::uuid[])`,
+        [campaignIds, accountIds, versionIds, grantIds]);
       if (useRows.rows.some((row) => !accountIds.includes(row.account_id) ||
           !campaignIds.includes(row.campaign_id) || row.grant_account_id !== row.account_id ||
           row.grant_version_id !== row.version_id || row.version_campaign_id !== row.campaign_id)) {

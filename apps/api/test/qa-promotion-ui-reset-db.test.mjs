@@ -1,15 +1,44 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 import { insertOrderSnapshot } from '../src/orders/repository.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
-import { resetPromotionUiFixture } from '../scripts/qa-promotion-ui-reset.ts';
+import { assertSharedPromotionQaTarget, resetPromotionUiFixture } from '../scripts/qa-promotion-ui-reset.ts';
 
 const runId = 'f44f1004';
 const databaseUrl = process.env.DATABASE_URL;
-const enabled = process.env.QA_ISOLATED_SHARED_FIXTURE_TEST === '1' &&
-  databaseUrl && new URL(databaseUrl).hostname === 'local-postgres';
+const enabled = (() => {
+  if (process.env.QA_ISOLATED_SHARED_FIXTURE_TEST !== '1' || !databaseUrl) return false;
+  try {
+    assertSharedPromotionQaTarget(runId, databaseUrl);
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+test('shared reset test preflight skips wrong port and database before seeding', () => {
+  for (const target of [
+    'postgresql://postgres@local-postgres:5433/shoppingmall',
+    'postgresql://postgres@local-postgres:5432/not-shoppingmall',
+  ]) {
+    const childEnv = { ...process.env, QA_ISOLATED_SHARED_FIXTURE_TEST: '1', DATABASE_URL: target };
+    delete childEnv.NODE_TEST_CONTEXT;
+    const child = spawnSync(process.execPath, [
+      '--import', 'tsx', '--test', '--test-name-pattern', 'shared reset removes exactly',
+      fileURLToPath(import.meta.url),
+    ], {
+      encoding: 'utf8',
+      env: childEnv,
+    });
+    assert.equal(child.status, 0, `${target}: ${child.stdout}\n${child.stderr}`);
+    assert.match(`${child.stdout}\n${child.stderr}`, /skipped 1/);
+    assert.match(`${child.stdout}\n${child.stderr}`, /fail 0/);
+  }
+});
 
 async function seedThreeShipmentQaOrder(pool) {
   const client = await pool.connect();
@@ -141,6 +170,73 @@ test('shared reset removes exactly one pending three-shipment QA order and its c
     if (seeded && (await pool.query('SELECT count(*)::int AS n FROM account_identities')).rows[0].n) {
       await resetPromotionUiFixture(runId, databaseUrl);
     }
+    await pool.end();
+  }
+});
+
+test('shared reset preflights foreign uses of QA version and grant before deletion', {
+  skip: !enabled,
+}, async (context) => {
+  const pool = new Pool({ connectionString: databaseUrl });
+  let seeded = false;
+  let order;
+  let foreignAccountId;
+  let foreignCampaignId;
+  let foreignVersionId;
+  let foreignGrantId;
+  let foreignReservationId;
+  try {
+    await runQaCatalogFixture('seed', runId, databaseUrl, 'test-only-shared-reset-password');
+    seeded = true;
+    order = await seedThreeShipmentQaOrder(pool);
+    foreignAccountId = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    foreignCampaignId = (await pool.query(`INSERT INTO promotion_campaigns
+      (title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
+      VALUES ($1,'goods_discount',10,1,$2) RETURNING id`,
+    [`foreign-${randomUUID()}`, foreignAccountId])).rows[0].id;
+    foreignVersionId = (await pool.query(`INSERT INTO promotion_versions
+      (campaign_id,version,scope,starts_at,ends_at,amount_kind,amount_value,created_by_account_id)
+      VALUES ($1,1,'all',now(),now()+interval '1 day','fixed',5000,$2) RETURNING id`,
+    [foreignCampaignId, foreignAccountId])).rows[0].id;
+    foreignGrantId = (await pool.query(`INSERT INTO promotion_grants(account_id,version_id,source)
+      VALUES ($1,$2,'code') RETURNING id`, [foreignAccountId, foreignVersionId])).rows[0].id;
+    foreignReservationId = (await pool.query(`INSERT INTO checkout_reservations
+      (account_id,idempotency_key,expires_at)
+      VALUES ($1,$2,now()+interval '15 minutes') RETURNING id`,
+    [foreignAccountId, randomUUID()])).rows[0].id;
+    for (const sample of [
+      { name: 'foreign use references QA version only', versionId: order.versionId,
+        grantId: foreignGrantId },
+      { name: 'foreign use references QA grant only', versionId: foreignVersionId,
+        grantId: order.grantId },
+    ]) {
+      await context.test(sample.name, async () => {
+        const useId = (await pool.query(`INSERT INTO promotion_uses
+          (account_id,campaign_id,version_id,grant_id,reservation_id,idempotency_key,expires_at)
+          VALUES ($1,$2,$3,$4,$5,$6,now()+interval '10 minutes') RETURNING id`,
+        [foreignAccountId, foreignCampaignId, sample.versionId, sample.grantId,
+          foreignReservationId, randomUUID()])).rows[0].id;
+        try {
+          await assert.rejects(resetPromotionUiFixture(runId, databaseUrl),
+            /QA order promotion use references/);
+          await assertQaOrderIntact(pool, order);
+          assert.equal((await pool.query('SELECT count(*)::int AS n FROM promotion_uses WHERE id=$1',
+            [useId])).rows[0].n, 1);
+        } finally {
+          await pool.query('DELETE FROM promotion_uses WHERE id=$1', [useId]);
+        }
+      });
+    }
+  } finally {
+    await removeExactTestOrder(pool, order?.orderId);
+    if (foreignGrantId) await pool.query('DELETE FROM promotion_grants WHERE id=$1', [foreignGrantId]);
+    if (foreignVersionId) await pool.query('DELETE FROM promotion_versions WHERE id=$1', [foreignVersionId]);
+    if (foreignCampaignId) await pool.query('DELETE FROM promotion_campaigns WHERE id=$1', [foreignCampaignId]);
+    if (foreignReservationId) await pool.query('DELETE FROM checkout_reservations WHERE id=$1',
+      [foreignReservationId]);
+    if (foreignAccountId) await pool.query('DELETE FROM accounts WHERE id=$1', [foreignAccountId]);
+    if (seeded && (await pool.query('SELECT count(*)::int AS n FROM account_identities WHERE identifier LIKE $1',
+      [`qa+${runId}-%@example.invalid`])).rows[0].n) await resetPromotionUiFixture(runId, databaseUrl);
     await pool.end();
   }
 });
