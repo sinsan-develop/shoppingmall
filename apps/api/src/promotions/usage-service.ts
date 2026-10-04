@@ -1,7 +1,7 @@
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import { quoteReservationInTransaction } from '../checkout/reservation-quote.js';
 import type { ShipmentLine } from '../checkout/shipment-quote.js';
-import { applyPromotionQuote } from './quote.js';
+import { applyPromotionQuote, type AppliedPromotionQuote } from './quote.js';
 import type { CouponSelector } from './repository.js';
 import { validatePromotionRule, type PromotionRule } from './rules.js';
 
@@ -9,6 +9,8 @@ export type PromotionSelection = { goodsCoupon?: CouponSelector;
   shippingCoupons?: { shipmentKey: string; selector: CouponSelector }[] };
 export type PromotionUseView = { id: string; campaignId: string; versionId: string;
   reservationId: string; shipmentKey: string | null; status: 'HELD' | 'USED' | 'RELEASED' };
+export type HeldOrderQuote = { uses: PromotionUseView[]; quote: AppliedPromotionQuote;
+  goodsRule?: PromotionRule };
 
 type Resolved = { campaignId: string; versionId: string; grantId: string | null;
   source: 'direct' | 'code'; rule: PromotionRule; shipmentKey: string | null };
@@ -185,6 +187,38 @@ export class PromotionUsageService {
           versionId: item.versionId, source: item.source });
     }
     return held;
+  }
+
+  /** Reuse the exact held campaign versions for the pending order snapshot in this transaction. */
+  async holdForOrderInTransaction(client: PoolClient, accountId: string, reservationId: string,
+    selections: PromotionSelection, idempotencyKey: string, expiresAt: Date): Promise<HeldOrderQuote> {
+    const uses = await this.holdInTransaction(client, accountId, reservationId,
+      selections, idempotencyKey, expiresAt);
+    const base = await quoteReservationInTransaction(this.pool, client, accountId, reservationId);
+    const rules: { id: string; shipmentKey: string | null; rule: PromotionRule }[] = [];
+    for (const use of uses) {
+      const found = await client.query<{ id: string; shipmentKey: string | null;
+        kind: PromotionRule['kind']; scope: PromotionRule['scope']; targetIds: string[];
+        startAt: Date; endAt: Date; minimumEligibleGoodsWon: number;
+        amountKind: PromotionRule['amountKind']; amountValue: number; maxDiscountWon: number | null }>(
+        `SELECT u.id,u.shipment_key AS "shipmentKey",c.kind,v.scope,v.target_ids AS "targetIds",
+          v.starts_at AS "startAt",v.ends_at AS "endAt",
+          v.minimum_eligible_goods_won AS "minimumEligibleGoodsWon",
+          v.amount_kind AS "amountKind",v.amount_value AS "amountValue",
+          v.max_discount_won AS "maxDiscountWon"
+         FROM promotion_uses u JOIN promotion_versions v ON v.id=u.version_id
+         JOIN promotion_campaigns c ON c.id=u.campaign_id
+         WHERE u.id=$1 AND u.account_id=$2 AND u.reservation_id=$3 AND u.status='HELD'`,
+      [use.id, accountId, reservationId]);
+      if (!found.rows[0]) throw new Error('Promotion conflict');
+      rules.push({ id: use.id, shipmentKey: use.shipmentKey,
+        rule: validatePromotionRule(found.rows[0]) });
+    }
+    const goods = rules.find((item) => item.shipmentKey === null);
+    const quote = applyPromotionQuote(base, base.shipments.flatMap((part) => part.lines),
+      goods?.rule, rules.filter((item) => item.shipmentKey !== null).map((item) =>
+        ({ shipmentKey: item.shipmentKey!, rule: item.rule })));
+    return { uses, quote, goodsRule: goods?.rule };
   }
 
   async markPaidInTransaction(client: PoolClient, useIds: string[]): Promise<void> {
