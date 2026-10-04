@@ -2,6 +2,8 @@
 
 ## 진행 중 — 2026-10-04 S3.3 Task 6 공유 개발 DB 적용 승인
 
+- 후속 Task 6 실제 브라우저 QA 착수 계획: 기존 고정 공유 QA 식별자 `f44f1004`를 재사용하되 사전 15범주 행 0을 확인한다. 결제대기 주문이 생기면 기존 `qa-promotion-ui-reset.ts`가 주문 FK를 정리하지 못하므로, 단일 코드 writer가 주문·발송·혜택배분·상태사건의 QA 소유권 사전 검사와 역참조 삭제를 TDD로 추가한다. 본 공유 DB에 QA seed를 쓰기 전에 private tmpfs `shoppingmall-s33-reset-pg-1004`와 전용 네트워크 `shoppingmall-s33-reset-1004`에서 위험 거부·정상정리 테스트를 한다(외부 포트·영속 볼륨 없음). 이 두 전용 자원은 정확한 대상/데이터를 확인해 사용 후 제거한다. 기존 branch/worktree 외 신규 branch/worktree 금지, PG·Oracle·실결제 제외. 책임자 어울은 QA 자원·검증/리뷰·기록만 관리하고 코드 writer는 이 reset 도구·대상 테스트만 수정한다.
+
 - 담당 어울, 기존 단일 writer `codex/s31-checkout-reservation-plan@81ac9ac34fe607b2fe3a1e7784842b48b313c3a7`. 신산님이 `WSL-server`의 `local-postgres/shoppingmall`에 검증된 `0012_s3_orders`만 적용하도록 별도 승인했다. PG·Oracle·실결제·운영 DB는 범위 밖이다.
 - 적용 전 읽기 전용 확인: WSL 지정 checkout은 같은 SHA/clean, SQL SHA-256 `efe1d8848186d4b74c202241d20cc0a80a4417078e469aa3b082a294b8d267fa`, 공유 DB 이력 12건·신규 주문 테이블 부재·계정/상품/예약 0건. `local-postgres` 외 비슷한 이름의 다른 DB 컨테이너는 대상이 아니다.
 - 사전 QA/복구 자원 계획: `local-postgres` 내부 `/tmp/shoppingmall-s33-0012-pre-20261004.dump`에 custom-format 전체 백업을 만들고 WSL 호스트 `/tmp/shoppingmall-s33-0012-pre-20261004.dump`로 복사해 형식·목록·해시를 확인한다. 0012만 적용하고 이력 13건/신규 5관계/기존 행 불변을 대조한다. 실패 시 임의 역마이그레이션·DB 초기화 없이 적용을 멈추고 백업을 보존하여 별도 복구 결정을 받는다. 성공 후 정식 공유 DB QA에는 고유 가상 계정/상품/주문만 쓰고 정확한 ID의 데이터·임시 컨테이너/포트/터널을 정리한다. 백업은 적용·QA 확인 전 제거하지 않는다.
