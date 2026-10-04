@@ -7,6 +7,9 @@
 - 기준 검사: 로컬 `pnpm test` 285건/212 pass/73 DB·환경 skip/0 fail, PR 본문 검사 8 pass. DB skip은 실DB 검증이 아니다. 다음은 격리 DB에서 0011 부재 RED → 0012 적용 GREEN, 이후 계획 Task 2~6을 차례로 수행한다.
 - 격리 QA 자원 계획: WSL 지정 checkout의 동일 SHA를 Git으로 전달한 뒤 고유 `shoppingmall-s33-1004` 접두어의 전용 비공개 Docker 네트워크·tmpfs PostgreSQL 컨테이너(`shoppingmall` DB명은 fixture 가드용, 공유 `local-postgres`와 별도)와 일회용 Node 컨테이너를 사용한다. 외부 포트·영속 볼륨 없음. 각 시험 직후 정확한 QA 행·컨테이너·네트워크 잔류 0 확인 후 제거한다. 공유 DB schema/행은 변경하지 않는다.
 - 미검증: S3.3 구현/실DB, 공유 개발 DB 0012, 실제 브라우저 주문, PG·Oracle·사용자 인수. 같은 근본 원인 연속 오류 0회.
+- Task 1 주문 영속 계약: RED 시험 전용 커밋 `4574f22`을 SSH alias로 push→WSL 지정 checkout fast-forward하고, 독립 비공개 tmpfs `shoppingmall-s33-pg-1004`에 기존 0000~0011만 적용해 `order-schema-db` **0 pass/1 예상 fail/0 skip**(`checkout_orders` 부재)를 관찰했다. 이후 구현 커밋 `bfd38eb`을 동일 경로로 fast-forward하고 `0012_s3_orders.sql` SHA-256 `efe1d8848186d4b74c202241d20cc0a80a4417078e469aa3b082a294b8d267fa`를 적용했다. 새 관계 5개: `checkout_orders`, `shipment_orders`, `shipment_order_lines`, `order_promotion_allocations`, `order_status_events`. 기존 0000~0011 SQL은 불변이다.
+- Task 1 검증: 위 private DB에서 목표 시험 **1 pass/0 fail/0 skip**, 전체 순차 실DB **286 total/273 pass/13 환경 skip/0 fail**, exit 0. 별도 새 tmpfs `shoppingmall-s33-fresh-pg-1004`의 빈 DB에서도 0000~0012 전량 적용·migration 13건·목표 시험 1 pass/0 skip 확인 뒤 정확한 fresh 컨테이너를 종료해 잔류 0 확인. 로컬 `pnpm typecheck`, `pnpm lint`, `git diff --check` 모두 exit 0. 원래 private PG와 private network는 Task 2~4 격리 검증을 위해 계속 사용하고, 사용 완료 시 정확한 자원만 제거한다. 공유 `local-postgres/shoppingmall`에는 0012를 적용하지 않았다.
+- Task 1 복구 경계: 0012는 additive이며 주문·감사·혜택의 지속 행을 무단 삭제하거나 migration을 역적용하지 않는다. 장애 시 주문 제출을 중지하고 원인 조회 후 별도 승인된 보정 절차를 따른다. 보조 `task-start`의 Git Bash C: 경로 실행 실패 1회는 직접 `task-brief` 호출로 우회했고 제품 변경/시험 실패가 아니다. 동일 근본 원인 3회 반복 없음. 다음은 Task 2 스냅샷·원 단위 배분 RED→GREEN.
 
 ## 설계 검토 요청 — 2026-10-04 S3.3 영속 주문
 
