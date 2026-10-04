@@ -49,8 +49,8 @@ async function lockOptions(client: PoolClient, reservationId: string): Promise<M
 }
 
 /** Create exactly one pending payment target from a still-valid owned reservation. */
-export async function submitPendingOrder(pool: Pool, accountId: string,
-  input: SubmitInput): Promise<PendingOrderView> {
+export async function submitPendingOrderWithDisposition(pool: Pool, accountId: string,
+  input: SubmitInput): Promise<{ view: PendingOrderView; created: boolean }> {
   if (!uuid.test(accountId) || !input || !uuid.test(input.reservationId) ||
       !uuid.test(input.addressId) || !uuid.test(input.idempotencyKey) ||
       !Number.isSafeInteger(input.expectedPayableWon) || input.expectedPayableWon < 0 ||
@@ -71,7 +71,7 @@ export async function submitPendingOrder(pool: Pool, accountId: string,
       const prior = await getOrderSnapshot(client, accountId, previous.rows[0].id);
       if (!prior) throw new Error('Order unavailable');
       await client.query('COMMIT');
-      return prior;
+      return { view: prior, created: false };
     }
     const reservation = await client.query<{ expiresAt: Date; status: string }>(
       `SELECT expires_at AS "expiresAt",status FROM checkout_reservations
@@ -147,11 +147,16 @@ export async function submitPendingOrder(pool: Pool, accountId: string,
       VALUES ($1,'customer','pending_order_created','checkout_order',$2,$3::jsonb)`,
     [accountId, order.id, JSON.stringify({ reservationId: input.reservationId })]);
     await client.query('COMMIT');
-    return order;
+    return { view: order, created: true };
   } catch (error) {
     await client.query('ROLLBACK');
     if (error && typeof error === 'object' && 'code' in error && error.code === '23505')
       throw new Error('Order conflict');
     throw error;
   } finally { client.release(); }
+}
+
+export async function submitPendingOrder(pool: Pool, accountId: string,
+  input: SubmitInput): Promise<PendingOrderView> {
+  return (await submitPendingOrderWithDisposition(pool, accountId, input)).view;
 }

@@ -18,17 +18,50 @@ type ShippingChoice = { grantId: string; code: string };
 type Reservation = { id: string; status: 'ACTIVE' | 'EXPIRED' | 'RELEASED' | 'CANCELLED' | 'CONSUMED';
   expiresAt: string; endReason: string | null; lines: { optionId: string; quantity: number }[];
   quote?: Quote };
+type Address = { id: string; label: string; recipientName?: string; line1?: string };
+type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED'; payableWon: number;
+  expiresAt: string; shipments: { id: string; key: string; payableWon: number }[] };
 type ViewProps = { items: CartItem[]; quote?: Quote; edits: Record<string, number>;
   busy: string; message: string; loading: boolean; onEdit: (id: string, quantity: number) => void;
   onSave: (id: string) => void; onRemove: (id: string) => void;
   reservation?: Reservation; nowMs?: number; onReserve?: () => void; onRelease?: () => void;
-  onRecheck?: () => void; retryAvailable?: boolean; children?: ReactNode };
+  onRecheck?: () => void; retryAvailable?: boolean; children?: ReactNode;
+  addresses?: Address[]; selectedAddressId?: string; onAddressChange?: (id: string) => void;
+  onSubmitOrder?: () => void; pendingOrder?: PendingOrder; orderPayableWon?: number };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 const reservationStorageKey = 'owool-checkout-reservation-id';
 const requestStorageKey = 'owool-checkout-reservation-key';
+const orderStorageKey = 'owool-checkout-order-id';
+const orderRequestKey = 'owool-checkout-order-key';
+const orderInputKey = 'owool-checkout-order-input';
+
+export async function submitOrderRequest(apiBase: string,
+  storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>,
+  input: { reservationId: string; addressId: string; selections: object; expectedPayableWon: number },
+  send: typeof fetch = fetch): Promise<PendingOrder> {
+  const signature = JSON.stringify(input);
+  const prior = storage.getItem(orderInputKey);
+  if (prior && prior !== signature) storage.removeItem(orderRequestKey);
+  storage.setItem(orderInputKey, signature);
+  const key = storage.getItem(orderRequestKey) ?? crypto.randomUUID();
+  storage.setItem(orderRequestKey, key);
+  const response = await send(`${apiBase}/customer/checkout/orders`, {
+    method: 'POST', credentials: 'include', headers: {
+      'content-type': 'application/json', 'idempotency-key': key,
+    }, body: signature,
+  });
+  if (response.status === 401 || response.status === 403)
+    throw new Error('구매자 역할로 로그인해 주세요');
+  if (response.status === 404) throw new Error('배송지 또는 쿠폰을 다시 확인해 주세요');
+  if (response.status === 409) throw new Error('예약·가격·재고·혜택이 변경됐습니다. 견적을 다시 확인해 주세요');
+  if (!response.ok) throw new Error('주문 결과를 확인하지 못했습니다. 같은 버튼으로 다시 확인해 주세요');
+  const order = await response.json() as PendingOrder;
+  storage.setItem(orderStorageKey, order.id);
+  return order;
+}
 
 type ReservationStartResult = { kind: 'conflict' } |
   { kind: 'active' | 'ended'; reservation: Reservation };
@@ -81,7 +114,9 @@ export function createRefreshGate() {
 }
 
 export function CartView({ items, quote, edits, busy, message, loading, onEdit, onSave, onRemove,
-  reservation, nowMs, onReserve, onRelease, onRecheck, retryAvailable, children }: ViewProps) {
+  reservation, nowMs, onReserve, onRelease, onRecheck, retryAvailable, children,
+  addresses = [], selectedAddressId = '', onAddressChange, onSubmitOrder, pendingOrder,
+  orderPayableWon }: ViewProps) {
   const active = reservation?.status === 'ACTIVE';
   const seconds = active ? Math.max(0, Math.ceil((Date.parse(reservation.expiresAt) -
     (nowMs ?? Date.now())) / 1000)) : 0;
@@ -100,7 +135,7 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
       <p>예약 번호 {reservation.id}</p>
       <p role="status">서버 만료 시각 {new Date(reservation.expiresAt).toLocaleString('ko-KR')} · 남은 시간 {Math.floor(seconds / 60)}분 {seconds % 60}초</p>
       <p>예약 해제 후 수량을 수정하거나 상품을 제거할 수 있습니다. 결제·주문은 아직 확정되지 않았습니다.</p>
-      <button type="button" className="secondary-button" disabled={!!busy} onClick={onRelease}>예약 해제</button>
+      <button type="button" className="secondary-button" disabled={!!busy || !!pendingOrder} onClick={onRelease}>예약 해제</button>
     </section> : reservation && reservation.status !== 'RELEASED' ? <section className="cart-quote" aria-label="종료된 예약 상태">
       <h2>예약을 다시 확인해 주세요</h2>
       <p>예약 번호 {reservation.id}</p>
@@ -146,8 +181,29 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
         </section> : <p role="status">현재 상품·재고를 확인해야 금액을 안내할 수 있습니다</p>}
         {!active && (shownQuote || retryAvailable) && onReserve ? <button type="button" className="primary-button" disabled={!!busy}
           onClick={onReserve}>{retryAvailable ? '이전 예약 결과 다시 확인' : '결제 준비 · 15분 재고 예약'}</button> : null}
-        <p className="section-note">결제 기능은 준비 중입니다. 이 금액은 주문·결제 확정 금액이 아닙니다.</p>
+        <p className="section-note">결제 기능은 준비 중입니다. 이 금액은 결제 확정 금액이 아닙니다.</p>
       </>}
+    {active && onSubmitOrder ? <section className="cart-quote" aria-labelledby="pending-order-heading">
+      <h2 id="pending-order-heading">결제대기 주문</h2>
+      {pendingOrder ? <div role="status">
+        <p>주문 번호 {pendingOrder.id} · {pendingOrder.status === 'EXPIRED' ? '기한 만료' : '결제대기'}</p>
+        <p>서버 확정 금액 {won(pendingOrder.payableWon)} · 만료 시각 {new Date(pendingOrder.expiresAt).toLocaleString('ko-KR')}</p>
+        <p>발송 주문 {pendingOrder.shipments.length}건 · 결제는 아직 완료되지 않았습니다.</p>
+      </div> : <>
+        <label htmlFor="checkout-address">받는 분 배송지</label>
+        <select id="checkout-address" value={selectedAddressId} disabled={!!busy}
+          onChange={(event) => onAddressChange?.(event.currentTarget.value)}>
+          <option value="">배송지를 선택해 주세요</option>
+          {addresses.map((address) => <option key={address.id} value={address.id}>
+            {address.label}{address.recipientName ? ` · ${address.recipientName}` : ''}</option>)}
+        </select>
+        {addresses.length === 0 ? <p><a href="/account/customer">배송지를 먼저 등록해 주세요</a></p> : null}
+        <p>서버 재확인 예정 금액 {won(orderPayableWon ?? shownQuote?.totalWon ?? 0)}</p>
+        <button type="button" className="primary-button" disabled={!!busy || !selectedAddressId}
+          onClick={onSubmitOrder}>결제대기 주문 생성</button>
+        <p>주문 생성은 결제 승인이나 구매 완료가 아닙니다.</p>
+      </>}
+    </section> : null}
     {children}
   </main>;
 }
@@ -226,6 +282,9 @@ export default function CartPage() {
   const [promotionQuote, setPromotionQuote] = useState<AppliedQuote>();
   const [promotionBusy, setPromotionBusy] = useState(false);
   const [promotionMessage, setPromotionMessage] = useState('');
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [pendingOrder, setPendingOrder] = useState<PendingOrder>();
   const refreshGate = useRef<ReturnType<typeof createRefreshGate> | null>(null);
   if (refreshGate.current === null) refreshGate.current = createRefreshGate();
   const refresh = useCallback(async (signal?: AbortSignal) => {
@@ -333,6 +392,66 @@ export default function CartPage() {
   const reservationQuoteKey = JSON.stringify(reservation?.quote ?? null);
   useEffect(() => { setPromotionQuote(undefined); }, [reservation?.id, reservationQuoteKey]);
 
+  useEffect(() => {
+    if (!apiOrigin || reservation?.status !== 'ACTIVE') return;
+    const controller = new AbortController();
+    fetch(`${apiOrigin}/customer/addresses`, { credentials: 'include', signal: controller.signal,
+      cache: 'no-store' }).then(async (response) => {
+      if (!response.ok) throw new Error('배송지를 불러오지 못했습니다');
+      const found = await response.json() as Address[];
+      if (!controller.signal.aborted) {
+        setAddresses(found);
+        setSelectedAddressId((current) => current || found[0]?.id || '');
+      }
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : '배송지를 불러오지 못했습니다');
+    });
+    return () => controller.abort();
+  }, [reservation?.id, reservation?.status]);
+
+  useEffect(() => {
+    if (!apiOrigin) return;
+    const saved = window.sessionStorage.getItem(orderStorageKey);
+    if (!saved) return;
+    const controller = new AbortController();
+    fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(saved)}`,
+      { credentials: 'include', signal: controller.signal, cache: 'no-store' })
+      .then(async (response) => {
+        if (response.status === 404) { window.sessionStorage.removeItem(orderStorageKey); return; }
+        if (!response.ok) return;
+        const order = await response.json() as PendingOrder;
+        if (!controller.signal.aborted) setPendingOrder(order);
+      }).catch(() => {});
+    return () => controller.abort();
+  }, []);
+
+  async function submitOrder() {
+    if (!apiOrigin || !reservation || reservation.status !== 'ACTIVE' || !selectedAddressId || busy || pendingOrder) return;
+    const shippingCoupons: ({ shipmentKey: string; grantId: string } |
+      { shipmentKey: string; code: string })[] = [];
+    for (const [shipmentKey, choice] of Object.entries(shippingChoices)) {
+      if (choice.grantId) shippingCoupons.push({ shipmentKey, grantId: choice.grantId });
+      else if (choice.code.trim()) shippingCoupons.push({ shipmentKey, code: choice.code.trim() });
+    }
+    const goodsCoupon = goodsGrantId ? { grantId: goodsGrantId } :
+      goodsCode.trim() ? { code: goodsCode.trim() } : undefined;
+    if ((goodsCoupon || shippingCoupons.length) && !promotionQuote) {
+      setMessage('쿠폰 견적을 다시 확인한 뒤 주문을 생성해 주세요'); return;
+    }
+    setBusy('order'); setMessage('');
+    try {
+      const order = await submitOrderRequest(apiOrigin, window.sessionStorage, {
+        reservationId: reservation.id, addressId: selectedAddressId,
+        selections: { ...(goodsCoupon ? { goodsCoupon } : {}), shippingCoupons },
+        expectedPayableWon: promotionQuote?.payableTotalWon ?? reservation.quote?.totalWon ?? 0,
+      });
+      setPendingOrder(order);
+      setMessage('결제대기 주문이 저장됐습니다. 결제는 아직 완료되지 않았습니다');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '주문 결과를 확인하지 못했습니다');
+    } finally { setBusy(''); }
+  }
+
   async function previewPromotions() {
     if (!apiOrigin || !reservation || reservation.status !== 'ACTIVE' || promotionBusy) return;
     setPromotionBusy(true); setPromotionMessage(''); setPromotionQuote(undefined);
@@ -429,6 +548,9 @@ export default function CartPage() {
 
   return <CartView items={items} quote={quote} edits={edits} busy={busy} message={message} loading={loading}
     reservation={reservation} retryAvailable={retryAvailable} nowMs={nowMs}
+    addresses={addresses} selectedAddressId={selectedAddressId} onAddressChange={setSelectedAddressId}
+    onSubmitOrder={() => void submitOrder()} pendingOrder={pendingOrder}
+    orderPayableWon={promotionQuote?.payableTotalWon ?? reservation?.quote?.totalWon}
     onReserve={() => void reserve()} onRelease={() => void release()}
     onRecheck={() => { setReservation(undefined); void refresh().catch(() =>
       setMessage('상품과 금액을 다시 확인하지 못했습니다')); }}

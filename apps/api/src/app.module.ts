@@ -10,9 +10,11 @@ import { CustomerCartController } from './checkout/cart.controller.js';
 import { AdminReservationController, CustomerReservationController } from './checkout/reservation.controller.js';
 import { PromotionAdminController } from './promotions/admin.controller.js';
 import { CustomerPromotionController } from './promotions/customer.controller.js';
+import { CustomerOrderController } from './orders/customer.controller.js';
 
 @Module({ controllers: [HealthController, AuthController, CustomerController, CustomerCartController,
   CustomerReservationController, AdminReservationController, CatalogController, ShippingController,
-  HomeAdminController, HomePublicController, PromotionAdminController, CustomerPromotionController],
+  HomeAdminController, HomePublicController, PromotionAdminController, CustomerPromotionController,
+  CustomerOrderController],
   providers: [DatabaseService] })
 export class AppModule {}
