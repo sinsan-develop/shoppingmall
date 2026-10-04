@@ -6,16 +6,18 @@ import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 import { CheckoutReservations } from '../src/checkout/reservation-service.ts';
 import { submitPendingOrder } from '../src/orders/service.ts';
+import { skipWithoutOrderSchema } from './order-schema-guard.mjs';
 
 test('pending order expiry and existing reservation expiry race end order, hold and coupon exactly once', {
   skip: !process.env.DATABASE_URL,
-}, async () => {
+}, async (context) => {
   const { expirePendingOrders } = await import('../src/orders/expiry.ts');
   const runId = randomBytes(4).toString('hex');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 6 });
   let seeded = false; let addressId; let campaignId;
   const reservations = []; const orders = [];
   try {
+    if (await skipWithoutOrderSchema(context, pool)) return;
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);

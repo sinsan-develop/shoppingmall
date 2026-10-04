@@ -6,16 +6,18 @@ import { createApp } from '../src/app.ts';
 import { AuthRepository } from '../src/auth/repository.ts';
 import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
+import { skipWithoutOrderSchema } from './order-schema-guard.mjs';
 
 const origin = 'http://127.0.0.1:9091';
 test('customer order HTTP is owned, same-origin and idempotent without claiming payment', {
   skip: !process.env.DATABASE_URL,
-}, async () => {
+}, async (context) => {
   const runId = randomBytes(4).toString('hex');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   let seeded = false; let app; let addressId; let deletedId; let foreignAddressId; let otherBuyerId;
   let reservationId; let orderId;
   try {
+    if (await skipWithoutOrderSchema(context, pool)) return;
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);

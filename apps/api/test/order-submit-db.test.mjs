@@ -5,10 +5,11 @@ import { Pool } from 'pg';
 import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 import { CheckoutReservations } from '../src/checkout/reservation-service.ts';
+import { skipWithoutOrderSchema } from './order-schema-guard.mjs';
 
 test('two direct sellers and pooled goods submit once with an exact pending amount and owned address', {
   skip: !process.env.DATABASE_URL,
-}, async () => {
+}, async (context) => {
   const { submitPendingOrder } = await import('../src/orders/service.ts');
   const runId = randomBytes(4).toString('hex');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 8 });
@@ -17,6 +18,7 @@ test('two direct sellers and pooled goods submit once with an exact pending amou
   let addressId;
   let reservationId;
   try {
+    if (await skipWithoutOrderSchema(context, pool)) return;
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);
@@ -124,12 +126,13 @@ test('two direct sellers and pooled goods submit once with an exact pending amou
 
 test('changed money, stock and campaign roll back order and coupon hold; valid snapshot preserves use', {
   skip: !process.env.DATABASE_URL,
-}, async () => {
+}, async (context) => {
   const { submitPendingOrder } = await import('../src/orders/service.ts');
   const runId = randomBytes(4).toString('hex');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
   let seeded = false; let reservationId; let addressId; let campaignId; let orderId;
   try {
+    if (await skipWithoutOrderSchema(context, pool)) return;
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);

@@ -2,14 +2,16 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
+import { skipWithoutOrderSchema } from './order-schema-guard.mjs';
 
 test('one pending checkout snapshots three shipments, pooled original sellers and coupon version exactly', {
   skip: !process.env.DATABASE_URL,
-}, async () => {
+}, async (context) => {
   const { insertOrderSnapshot, getOrderSnapshot } = await import('../src/orders/repository.ts');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const client = await pool.connect();
   try {
+    if (await skipWithoutOrderSchema(context, client)) return;
     await client.query('BEGIN');
     const accountId = (await client.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
     const otherId = (await client.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;

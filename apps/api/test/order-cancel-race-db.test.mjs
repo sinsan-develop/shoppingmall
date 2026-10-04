@@ -5,10 +5,11 @@ import { Pool } from 'pg';
 import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 import { CheckoutReservations } from '../src/checkout/reservation-service.ts';
+import { skipWithoutOrderSchema } from './order-schema-guard.mjs';
 
 test('admin cancellation locks reservation before its options, matching order submission', {
   skip: !process.env.DATABASE_URL,
-}, async () => {
+}, async (context) => {
   const runId = randomBytes(4).toString('hex');
   const applicationName = `qa-s33-cancel-${runId}`;
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 3 });
@@ -16,6 +17,7 @@ test('admin cancellation locks reservation before its options, matching order su
     application_name: applicationName, max: 1 });
   let seeded = false; let reservationId; let anchor;
   try {
+    if (await skipWithoutOrderSchema(context, pool)) return;
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);

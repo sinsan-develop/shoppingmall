@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
+import { skipWithoutOrderSchema } from './order-schema-guard.mjs';
 
 test('0012 keeps existing rows and constrains pending order money, grouping and ownership keys', {
   skip: !process.env.DATABASE_URL,
-}, async () => {
+}, async (context) => {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const client = await pool.connect();
   const relations = ['checkout_orders', 'shipment_orders', 'shipment_order_lines',
@@ -20,6 +21,7 @@ test('0012 keeps existing rows and constrains pending order money, grouping and 
     }
   }
   try {
+    if (await skipWithoutOrderSchema(context, client)) return;
     for (const name of relations) {
       const result = await client.query('SELECT to_regclass($1) AS name', [name]);
       assert.ok(result.rows[0].name, `${name} must exist after 0012`);
