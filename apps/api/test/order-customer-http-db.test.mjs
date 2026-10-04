@@ -55,7 +55,7 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
     const post = (payload = body, cookie = buyer, requestOrigin = origin, idKey = key) =>
       fetch(url, { method: 'POST', headers: { cookie, origin: requestOrigin,
         'idempotency-key': idKey, 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-    assert.equal((await fetch(url)).status, 401);
+    assert.equal((await post(body, '')).status, 401);
     assert.equal((await post(body, seller)).status, 403);
     assert.equal((await post(body, buyer, 'http://invalid.test')).status, 403);
     assert.equal((await post({ ...body, addressId: deletedId }, buyer, origin, randomUUID())).status, 404);
