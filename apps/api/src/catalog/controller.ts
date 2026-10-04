@@ -413,6 +413,9 @@ export class CatalogController {
       if (error instanceof Error && ['Invalid stock', 'Invalid stock target'].includes(error.message)) {
         throw new BadRequestException({ status: 'invalid_stock', reason: error.message });
       }
+      if (error instanceof Error && error.message === 'Active reservation stock conflict') {
+        throw new ConflictException({ status: 'active_reservation_stock_conflict', reason: error.message });
+      }
       if (error instanceof Error && error.message === 'Forbidden') throw new ForbiddenException();
       throw error;
     }
@@ -550,7 +553,8 @@ export class CatalogController {
     } catch (error) {
       if (error instanceof Error && error.message === 'Invalid proposal target') throw new BadRequestException();
       if (error instanceof Error && ['Pending proposal required', 'One thumbnail required',
-        'Invalid image', 'Image set changed', 'Option required', 'Image scan rejected'].includes(error.message)) {
+        'Invalid image', 'Image set changed', 'Option required', 'Image scan rejected',
+        'Active product reservation'].includes(error.message)) {
         throw new ConflictException({ status: 'approval_rejected', reason: error.message });
       }
       if (error instanceof Error && ['Image scan unavailable', 'Invalid object key'].includes(error.message)) {

@@ -76,6 +76,16 @@ async function seedPublicProduct(client: PoolClient, runId: string, count: numbe
 async function resetPublicProduct(client: PoolClient, runId: string) {
   const names = qaNames(runId);
   const product = productNames(runId);
+  const accounts = await client.query<{ account_id: string }>(
+    `SELECT account_id FROM account_identities WHERE kind='email' AND identifier=ANY($1::text[])`,
+    [names.emails],
+  );
+  const accountIds = accounts.rows.map((row) => row.account_id);
+  if (accountIds.length) {
+    await client.query(`DELETE FROM checkout_reservation_lines WHERE reservation_id IN
+      (SELECT id FROM checkout_reservations WHERE account_id=ANY($1::uuid[]))`, [accountIds]);
+    await client.query('DELETE FROM checkout_reservations WHERE account_id=ANY($1::uuid[])', [accountIds]);
+  }
   const target = await client.query<{ id: string }>(
     `SELECT DISTINCT p.id FROM products p
      JOIN sellers s ON s.id=p.seller_id
@@ -91,6 +101,8 @@ async function resetPublicProduct(client: PoolClient, runId: string) {
     await client.query('DELETE FROM product_sale_stop_requests WHERE product_id=$1', [row.id]);
     await client.query('DELETE FROM product_publications WHERE product_id=$1', [row.id]);
     await client.query(`DELETE FROM stock_change_requests WHERE option_id IN
+      (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)`, [row.id]);
+    await client.query(`DELETE FROM inventory_deferred_stock_targets WHERE option_id IN
       (SELECT o.id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=$1)`, [row.id]);
     await client.query('DELETE FROM product_images WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=$1)',
       [row.id]);

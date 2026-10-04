@@ -8,7 +8,8 @@ type Product = { productId: string; revisionId: string; title: string; status: s
 type SaleStopRequest = { id: string; productId: string; status: 'pending' | 'approved' | 'rejected';
   reason: string; requestedAt?: string; decisionReason?: string | null };
 type Stock = { optionId: string; productId: string; title: string; optionName: string;
-  onHand: number; sellable: number; pendingRequestId: string | null };
+  onHand: number; sellable: number; pendingRequestId: string | null;
+  activeReservationQuantity?: number; deferredZeroPending?: boolean };
 type Option = { name: string; priceWon: string };
 type DraftImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number;
   mimeType: string; sizeBytes: number };
@@ -33,6 +34,12 @@ type ViewProps = { categories: Category[]; products: Product[]; stock: Stock[]; 
   onSetStock: (optionId: string, quantity: number) => void };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
+
+export function stockSaveFailureMessage(status: number): string {
+  return status === 409 ?
+    '기존 예약 수량보다 적게 입력할 수 없습니다. 예약을 확인한 뒤 다시 입력해 주세요' :
+    '재고 수량을 반영하지 못했습니다. 0 이상의 정수를 확인해 주세요';
+}
 
 function ProductDraftItem({ product, categories, busy, onCreateRevision, onLoadDraft, onUpdate, onDelete, onUpload,
   onLoadImages, onOrderImages, onRemoveImage, onSubmitProposal, saleStopRequest, onRequestSaleStop }: {
@@ -311,12 +318,13 @@ export function SellerProductView({ categories, products, stock = [], busy, onCr
     </section>
     <section className="account-card profile-card" aria-labelledby="seller-stock-title">
       <h2 id="seller-stock-title">옵션별 재고</h2>
-      <p>수량 감소와 0개는 즉시 반영됩니다. 증가·재판매는 관리자 승인 전까지 구매 가능 수량에 반영되지 않습니다</p>
+      <p>0개 입력은 새 판매를 즉시 중단합니다. 기존 예약은 종료까지 보전하며, 증가·재판매는 관리자 승인 전까지 반영되지 않습니다</p>
       {stock.length === 0 ? <p>등록된 옵션이 없습니다</p> : <ul className="catalog-list">
         {stock.map((item) => <li key={item.optionId} className="draft-product-item">
           <strong>{item.title} · {item.optionName}</strong>
           <p>입력된 보유 {item.onHand}개 · 판매 가능 {item.sellable}개
             {item.pendingRequestId ? ' · 증가 승인 대기' : ''}</p>
+          {item.deferredZeroPending ? <p role="status">새 판매 중단 · 기존 예약 {item.activeReservationQuantity ?? 0}개 · 예약 종료 후 보유 0 적용</p> : null}
           <form className="account-form" onSubmit={(event) => {
             event.preventDefault();
             const quantity = Number(new FormData(event.currentTarget).get('quantity'));
@@ -537,7 +545,7 @@ export default function SellerProductsPage() {
         body: JSON.stringify({ quantity }),
       });
       if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
-      if (!response.ok) { setMessage('재고 수량을 반영하지 못했습니다. 0 이상의 정수를 확인해 주세요'); return; }
+      if (!response.ok) { setMessage(stockSaveFailureMessage(response.status)); return; }
       const result = await response.json() as { requestId: string | null };
       await reload();
       setMessage(result.requestId ? '재고 증가를 관리자에게 요청했습니다. 구매 가능 수량은 승인 전 그대로입니다' :

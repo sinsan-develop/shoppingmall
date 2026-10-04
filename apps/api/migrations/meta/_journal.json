@@ -71,6 +71,27 @@
       "when": 1790871928083,
       "tag": "0009_s3_customer_cart",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790895145725,
+      "tag": "0010_s3_checkout_reservations",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791032331586,
+      "tag": "0011_s3_promotions",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791105028546,
+      "tag": "0012_s3_orders",
+      "breakpoints": true
     }
   ]
 }

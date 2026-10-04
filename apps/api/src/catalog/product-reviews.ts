@@ -40,6 +40,8 @@ export class ProductReviews {
          JOIN products p ON p.id=r.product_id WHERE r.id=$1 FOR UPDATE OF r`, [revisionId],
       );
       if (locked.rows[0]?.status !== 'pending') throw new Error('Pending proposal required');
+      // Serialize publication with reservation start/release, which lock product before options.
+      await client.query('SELECT id FROM products WHERE id=$1 FOR UPDATE', [locked.rows[0].product_id]);
       const currentImages = await client.query<{
         id: string; object_key: string; purpose: string; mime_type: string; size_bytes: number;
       }>(
@@ -54,6 +56,13 @@ export class ProductReviews {
         [locked.rows[0].product_id],
       );
       if (published.rows[0]) {
+        const active = await client.query(
+          `SELECT 1 FROM checkout_reservation_lines l
+           JOIN checkout_reservations h ON h.id=l.reservation_id
+           JOIN product_options o ON o.id=l.option_id
+           WHERE o.revision_id=$1 AND h.status='ACTIVE' AND h.expires_at>clock_timestamp()
+           LIMIT 1`, [published.rows[0].revision_id]);
+        if (active.rowCount) throw new Error('Active product reservation');
         const oldOptions = await client.query<{ id: string; name: string }>(
           'SELECT id,name FROM product_options WHERE revision_id=$1 ORDER BY id FOR UPDATE',
           [published.rows[0].revision_id],

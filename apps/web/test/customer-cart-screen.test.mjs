@@ -58,3 +58,32 @@ test('empty and failed cart states do not claim a completed order', () => {
     /role="alert"/);
   assert.match(renderToStaticMarkup(createElement(CartPage)), /장바구니/);
 });
+
+test('three shipment rows identify each direct group by its cart products', () => {
+  const items = [
+    { optionId: 'a1', productId: 'p1', title: '고추', optionName: '기본', quantity: 1,
+      unitPriceWon: 23000, availability: 'available' },
+    { optionId: 'a2', productId: 'p2', title: '양파', optionName: '기본', quantity: 1,
+      unitPriceWon: 12000, availability: 'available' },
+    { optionId: 'w1', productId: 'p3', title: '고춧가루', optionName: '기본', quantity: 1,
+      unitPriceWon: 18000, availability: 'available' },
+    { optionId: 'b1', productId: 'p4', title: '마늘', optionName: '기본', quantity: 1,
+      unitPriceWon: 16000, availability: 'available' },
+  ];
+  const shipments = [
+    { key: 'seller_direct:a', shippingMode: 'seller_direct', sellerId: 'a', goodsWon: 35000,
+      shippingWon: 3000, totalWon: 38000, lines: [{ optionId: 'a1' }, { optionId: 'a2' }] },
+    { key: 'owool_fulfillment', shippingMode: 'owool_fulfillment', sellerId: null, goodsWon: 18000,
+      shippingWon: 3000, totalWon: 21000, lines: [{ optionId: 'w1' }] },
+    { key: 'seller_direct:b', shippingMode: 'seller_direct', sellerId: 'b', goodsWon: 16000,
+      shippingWon: 3000, totalWon: 19000, lines: [{ optionId: 'b1' }] },
+  ];
+  const html = renderToStaticMarkup(createElement(CartView, {
+    items, quote: { shipments, goodsWon: 69000, shippingWon: 9000, totalWon: 78000 },
+    edits: {}, busy: '', message: '', loading: false,
+    onEdit: () => {}, onSave: () => {}, onRemove: () => {},
+  }));
+  assert.match(html, /<strong>판매자 직접 발송 1 · 고추·양파<\/strong>/);
+  assert.match(html, /<strong>어울몰 모아 발송 · 고춧가루<\/strong>/);
+  assert.match(html, /<strong>판매자 직접 발송 2 · 마늘<\/strong>/);
+});

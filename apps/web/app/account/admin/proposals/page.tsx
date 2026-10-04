@@ -108,7 +108,7 @@ export function AdminSaleStopView({ requests, busy, onApprove, onReject }: {
 }) {
   return <section className="account-card profile-card" aria-labelledby="pending-sale-stop-title">
     <h2 id="pending-sale-stop-title">판매중지 승인 대기</h2>
-    <p>승인하면 신규 구매가 차단되며, 반려하면 판매가 유지됩니다. 재고·기존 주문은 보존됩니다</p>
+    <p>승인하면 신규 구매가 차단되고 활성 재고 예약은 요청 사유와 함께 취소됩니다. 반려하면 판매가 유지됩니다. 기존 주문은 보존됩니다</p>
     {requests.length === 0 ? <p>현재 판매중지 요청이 없습니다</p> : <ul className="catalog-list">
       {requests.map((item) => <li key={item.id} className="draft-product-item">
         <strong>{item.sellerName} · {item.title}</strong>
@@ -127,6 +127,28 @@ export function AdminSaleStopView({ requests, busy, onApprove, onReject }: {
         </form>
       </li>)}
     </ul>}
+  </section>;
+}
+
+export function AdminReservationCancelView({ busy, onCancel }: {
+  busy: boolean; onCancel: (id: string, reason: string) => void;
+}) {
+  return <section className="account-card profile-card" aria-labelledby="reservation-cancel-title">
+    <h2 id="reservation-cancel-title">재고 예약 취소</h2>
+    <p>출고할 수 없는 경우 고객에게 안내된 예약 번호와 사유를 확인한 뒤 취소해 주세요. 주문·환불 처리는 이 화면에 포함되지 않습니다</p>
+    <form className="account-form" onSubmit={(event) => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      const id = String(data.get('reservationId') ?? '').trim();
+      const reason = String(data.get('reason') ?? '').trim();
+      if (id && reason) onCancel(id, reason);
+    }}>
+      <label htmlFor="reservation-cancel-id">예약 번호</label>
+      <input id="reservation-cancel-id" name="reservationId" required maxLength={36} />
+      <label htmlFor="reservation-cancel-reason">취소 사유</label>
+      <textarea id="reservation-cancel-reason" name="reason" required maxLength={500} rows={2} />
+      <button type="submit" className="secondary-button" disabled={busy}>예약 취소</button>
+    </form>
   </section>;
 }
 
@@ -245,6 +267,24 @@ export default function AdminProposalsPage() {
     finally { setBusy(false); }
   }
 
+  async function cancelReservation(id: string, reason: string) {
+    if (!apiOrigin || busy) return;
+    setBusy(true); setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/checkout/admin/reservations/${encodeURIComponent(id)}/cancel`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      if (response.status === 401 || response.status === 403) { setState('unauthorized'); return; }
+      if (response.status === 404) { setMessage('예약 번호를 찾지 못했습니다. 다시 확인해 주세요'); return; }
+      if (!response.ok) { setMessage('예약을 취소하지 못했습니다. 만료 여부와 사유를 확인해 주세요'); return; }
+      const result = await response.json() as { status: string };
+      setMessage(result.status === 'CANCELLED' ? '예약 취소 사유와 운영 이력을 기록했습니다' :
+        '이미 종료된 예약입니다. 상태를 확인해 주세요');
+    } catch { setMessage('예약 관리 서버에 연결할 수 없습니다'); }
+    finally { setBusy(false); }
+  }
+
   return <main id="main-content" tabIndex={-1} className="shell account-shell">
     <a className="text-link" href="/account">내 계정으로</a>
     <h1>상품 요청 검토</h1>
@@ -258,6 +298,7 @@ export default function AdminProposalsPage() {
       <AdminSaleStopView requests={saleStopRequests} busy={busy}
         onApprove={(id) => void decideSaleStop(id, 'approve')}
         onReject={(id, reason) => void decideSaleStop(id, 'reject', reason)} />
+      <AdminReservationCancelView busy={busy} onCancel={(id, reason) => void cancelReservation(id, reason)} />
       {message ? <p role="status">{message}</p> : null}</> : null}
   </main>;
 }

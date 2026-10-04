@@ -9,6 +9,8 @@ type Address = {
   postalCode: string; line1: string; line2: string; isDefault: boolean;
 };
 type Preferences = { marketingEmail: boolean; marketingSms: boolean; push: boolean };
+type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED'; payableWon: number;
+  expiresAt: string; shipments: { id: string; key: string; payableWon: number }[] };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -25,6 +27,9 @@ export default function CustomerProfilePage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [confirmDeletion, setConfirmDeletion] = useState(false);
+  const [orderId, setOrderId] = useState('');
+  const [order, setOrder] = useState<PendingOrder>();
+  const [orderMessage, setOrderMessage] = useState('');
 
   useEffect(() => {
     if (!apiOrigin) { setState('unavailable'); return; }
@@ -49,6 +54,27 @@ export default function CustomerProfilePage() {
     });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (state !== 'ready') return;
+    const saved = window.sessionStorage.getItem('owool-checkout-order-id');
+    if (saved) setOrderId(saved);
+  }, [state]);
+
+  async function loadOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiOrigin || !orderId.trim()) return;
+    setOrder(undefined); setOrderMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(orderId.trim())}`,
+        { credentials: 'include', cache: 'no-store' });
+      if (response.status === 404) { setOrderMessage('본인 주문을 찾을 수 없습니다'); return; }
+      if (!response.ok) { setOrderMessage('주문 상태를 불러오지 못했습니다'); return; }
+      const current = await response.json() as PendingOrder;
+      setOrder(current);
+      window.sessionStorage.setItem('owool-checkout-order-id', current.id);
+    } catch { setOrderMessage('주문 상태를 불러오지 못했습니다'); }
+  }
 
   async function addAddress(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -145,6 +171,23 @@ export default function CustomerProfilePage() {
               <label className="check-row"><input name="isDefault" type="checkbox" /> 기본 배송지로 설정</label>
               <button className="primary-button" type="submit" disabled={busy}>배송지 저장</button>
             </form>
+          </section>
+          <section className="account-card profile-card" aria-labelledby="pending-order-title">
+            <h2 id="pending-order-title">결제대기 주문 조회</h2>
+            <form className="account-form" onSubmit={loadOrder}>
+              <label htmlFor="pending-order-id">주문 번호</label>
+              <input id="pending-order-id" value={orderId} onChange={(event) => setOrderId(event.currentTarget.value)}
+                placeholder="장바구니에서 생성한 주문 번호" required />
+              <button type="submit" className="secondary-button">본인 주문 확인</button>
+            </form>
+            {orderMessage ? <p role="alert">{orderMessage}</p> : null}
+            {order ? <div role="status">
+              <p>{order.status === 'EXPIRED' ? '기한 만료' : '결제대기'} · 서버 확정 금액 {order.payableWon.toLocaleString('ko-KR')}원</p>
+              <p>만료 시각 {new Date(order.expiresAt).toLocaleString('ko-KR')}</p>
+              <ul>{order.shipments.map((shipment) => <li key={shipment.id}>
+                발송 주문 {shipment.key} · {shipment.payableWon.toLocaleString('ko-KR')}원</li>)}</ul>
+              <p>결제는 아직 완료되지 않았습니다</p>
+            </div> : null}
           </section>
           <div>
             <section className="account-card profile-card" aria-labelledby="consent-title">

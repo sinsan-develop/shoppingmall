@@ -52,7 +52,7 @@ async function seed(client: PoolClient, runId: string, password: string) {
   return names;
 }
 
-async function reset(client: PoolClient, runId: string) {
+export async function resetQaAccounts(client: PoolClient, runId: string) {
   const names = qaNames(runId);
   const sellerIds = (await client.query<{ id: string }>(
     `SELECT s.id FROM sellers s JOIN seller_categories c ON c.id=s.category_id
@@ -97,7 +97,7 @@ export async function runQaFixture(action: 'seed' | 'reset', runId: string, data
     try {
       await client.query('BEGIN');
       const result = action === 'seed'
-        ? await seed(client, runId, password!) : await reset(client, runId);
+        ? await seed(client, runId, password!) : await resetQaAccounts(client, runId);
       await client.query('COMMIT');
       return result;
     } catch (error) {

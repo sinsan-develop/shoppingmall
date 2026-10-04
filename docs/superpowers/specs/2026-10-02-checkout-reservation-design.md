@@ -1,6 +1,6 @@
 # S3.1 주문 직전 15분 재고 예약 설계
 
-상태: **신산님 검토 초안**. 예약 구현·공개 API·DB migration·공유 개발 DB 적용을 승인한 문서가 아니다. 기준은 기존 `docs/design/DESIGN.md` R02~R05, `docs/WORK_PLAN.md` S3, `2026-10-02-account-cart-design.md`, 작업 브랜치 `codex/flat-v2-prototypes@c0621839ca720e0c2fd4391017b31d9b4982e8d9`이다.
+상태: **설계 방향 승인**. 신산님은 작성된 초안의 승인 질문에 `계속하자`고 답해 구현계획 작성을 진행하도록 했다. 이 승인은 새 공개 API·데이터 계약·DB migration 구현, 공유 개발 DB 적용 또는 Oracle 배포 승인이 아니다. 기준은 기존 `docs/design/DESIGN.md` R02~R05, `docs/WORK_PLAN.md` S3, `2026-10-02-account-cart-design.md`다.
 
 ## 목적·결정과 비범위
 
@@ -47,10 +47,11 @@
 |---|---|
 | `POST /customer/checkout/reservations` | 고객 세션·신뢰 Origin·멱등키 필수. 본문 가격/재고는 받지 않고 저장 장바구니를 예약. 성공 시 ID·서버 만료시각·현재 견적. |
 | `GET /customer/checkout/reservations/:id` | 소유 고객만 상태·만료시각·품목·현재 재견적 확인. 다른 고객 ID는 정보 유출 없이 거부. |
+| `GET /customer/checkout/reservations/active` | 후속 직접 승인된 추가 계약. 로그인 고객 자기 계정의 DB 시각상 유효한 ACTIVE 한 건의 ID·만료시각·품목·현재 견적 조회. 없음/만료는 404, 만료 시 기존 종료·감사 전이. 브라우저 저장 ID가 없어도 복구하며 만료시간은 연장하지 않음. |
 | `DELETE /customer/checkout/reservations/:id` | 소유 고객의 활성 예약 해제. 반복 요청은 종료된 상태를 반환하고 재고를 두 번 바꾸지 않음. |
 | `POST /checkout/admin/reservations/:id/cancel` | 운영자 역할·신뢰 Origin·사유 필수. 실제 배송 불능·상품 판매중지 예외를 감사에 남긴다. 판매자나 고객은 이 권한을 얻지 않는다. |
 
-400은 형식·멱등키·취소 사유 오류, 401은 비로그인, 403은 역할/Origin 거부, 404는 존재하지 않거나 소유하지 않은 예약, 409는 품절·만료·다른 활성 예약·금액 재확인·옵션 변경, 503은 DB 미준비다. SQL 상세와 다른 고객의 예약 ID/수량은 응답하지 않는다. 위 API와 관계는 **제안**이며 이 문서 검토만으로 공개 계약·migration 적용을 허가하지 않는다.
+400은 형식·멱등키·취소 사유 오류, 401은 비로그인, 403은 역할/Origin 거부, 404는 존재하지 않거나 소유하지 않은 예약, 409는 품절·만료·다른 활성 예약·금액 재확인·옵션 변경, 503은 DB 미준비다. SQL 상세와 다른 고객의 예약 ID/수량은 응답하지 않는다. 위 표의 기존 경로·관계는 당시 **제안**이었고 이후 승인·구현 이력은 `WORK_STATUS.md`를 따른다. `/active`만 후속 직접 지시 `계속하자`를 좁게 해석해 추가 구현했으며 공유 migration 0010 적용·Oracle 배포 허가는 아니다.
 
 ## 검증·복구 경계
 

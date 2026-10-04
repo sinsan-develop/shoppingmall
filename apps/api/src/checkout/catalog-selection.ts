@@ -1,4 +1,4 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { CartSelection } from './cart-selection.js';
 import type { ShipmentLine } from './shipment-quote.js';
 
@@ -13,7 +13,7 @@ export type ResolvedCartLine = ShipmentLine & {
 
 /** A quote read only. Checkout submission must lock and revalidate these rows. */
 export class CheckoutCatalog {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool | PoolClient) {}
 
   async resolve(selections: readonly CartSelection[]): Promise<ResolvedCartLine[]> {
     if (!Array.isArray(selections) || selections.length > 100) throw new Error('Invalid cart selection');
@@ -32,7 +32,12 @@ export class CheckoutCatalog {
     }>(
       `SELECT o.id AS "optionId",p.id AS "productId",r.title,o.name AS "optionName",
               p.seller_id AS "sellerId",r.shipping_mode AS "shippingMode",
-              o.price_won AS "unitPriceWon",coalesce(i.sellable_quantity,0)::int AS "sellableQuantity"
+              o.price_won AS "unitPriceWon",
+              greatest(0,coalesce(i.sellable_quantity,0)-coalesce((
+                SELECT sum(l.quantity) FROM checkout_reservation_lines l
+                JOIN checkout_reservations h ON h.id=l.reservation_id
+                WHERE l.option_id=o.id AND h.status='ACTIVE' AND h.expires_at>clock_timestamp()
+              ),0))::int AS "sellableQuantity"
        FROM unnest($1::uuid[]) WITH ORDINALITY wanted(id,position)
        JOIN product_options o ON o.id=wanted.id
        JOIN product_revisions r ON r.id=o.revision_id AND r.status='approved'

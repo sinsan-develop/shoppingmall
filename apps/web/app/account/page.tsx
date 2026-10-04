@@ -63,7 +63,8 @@ export default function AccountPage() {
             {session.role === 'admin' ? <p><a className="text-link" href="/account/admin/catalog">분류·판매자 등록</a><br />
               <a className="text-link" href="/account/admin/proposals">상품 요청 검토</a><br />
                 <a className="text-link" href="/account/admin/shipping">배송 정책 관리</a><br />
-                <a className="text-link" href="/account/admin/home">홈 전시 관리</a><br />그 밖의 운영 관리 기능은 준비 중입니다</p> : null}
+                <a className="text-link" href="/account/admin/home">홈 전시 관리</a><br />
+                <a className="text-link" href="/account/admin/promotions">프로모션 관리</a><br />그 밖의 운영 관리 기능은 준비 중입니다</p> : null}
             {session.role === 'customer' ? <p><a className="text-link" href="/account/customer">찜·재입고·배송지·알림 설정</a><br />주문 기능은 준비 중입니다</p> : null}
             <button type="button" className="primary-button" disabled={busy} onClick={logout}>로그아웃</button>
           </div>

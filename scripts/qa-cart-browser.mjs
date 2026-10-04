@@ -6,6 +6,7 @@ const web = process.env.QA_WEB_BASE;
 const productId = process.env.QA_PRODUCT_ID;
 const email = process.env.QA_EMAIL;
 const password = process.env.QA_PASSWORD;
+const retryReservation = process.env.QA_RESERVATION_RETRY === '1';
 const debugging = process.env.QA_CHROME_DEBUGGING ?? 'http://127.0.0.1:9229';
 if (![web, productId, email, password].every(Boolean)) throw new Error('QA browser inputs missing');
 
@@ -70,8 +71,11 @@ try {
   await send('Runtime.enable');
   await navigate('/login');
   await waitFor("document.querySelector('#login-email') && document.querySelector('#login-password')", 'login form');
+  await waitFor("Object.keys(document.querySelector('form') ?? {}).some((key) => key.startsWith('__reactProps$'))", 'login hydration');
   assert.equal(await setInput('#login-email', email), true);
   assert.equal(await setInput('#login-password', password), true);
+  await waitFor(`document.querySelector('#login-email')?.value === ${JSON.stringify(email)} &&
+    document.querySelector('#login-password')?.value === ${JSON.stringify(password)}`, 'login fields');
   await evaluate("document.querySelector('form').requestSubmit(); true");
   try {
     await waitFor("location.pathname === '/account'", 'customer login');
@@ -99,10 +103,60 @@ try {
   await waitFor("document.body.innerText.includes('69,000원') && document.body.innerText.includes('총 69,000원')", 'quantity update');
   console.info('browser: quantity update and free-shipping quote PASS');
 
+  if (retryReservation) {
+    assert.equal(await evaluate(`(() => {
+      const realFetch = window.fetch.bind(window);
+      window.fetch = async (...args) => {
+        const [input, init] = args;
+        const url = typeof input === 'string' ? input : input.url;
+        if (url.endsWith('/customer/checkout/reservations') && init?.method === 'POST' &&
+            !window.__qaReplacedReservationResponse) {
+          window.__qaReplacedReservationResponse = true;
+          const actual = await realFetch(...args);
+          if (actual.status !== 201) return actual;
+          window.__qaHiddenReservation = await actual.clone().json();
+          return new Response(JSON.stringify({ status: 'reservation_conflict', reason: 'QA response swap' }),
+            { status: 409, headers: { 'content-type': 'application/json' } });
+        }
+        return realFetch(...args);
+      };
+      return true;
+    })()`), true);
+    await evaluate("[...document.querySelectorAll('button')].find((button) => button.textContent.includes('15분 재고 예약')).click(); true");
+    await waitFor("window.__qaHiddenReservation && document.body.innerText.includes('같은 버튼')", 'hidden committed reservation');
+    const hidden = await evaluate(`({ id: window.__qaHiddenReservation.id,
+      expiresAt: window.__qaHiddenReservation.expiresAt,
+      key: sessionStorage.getItem('owool-checkout-reservation-key'),
+      storedId: sessionStorage.getItem('owool-checkout-reservation-id') })`);
+    assert.match(hidden.id, /^[0-9a-f-]{36}$/i);
+    assert.match(hidden.key, /^[0-9a-f-]{36}$/i);
+    assert.equal(hidden.storedId, null);
+    await evaluate("sessionStorage.removeItem('owool-checkout-reservation-key'); true");
+    await navigate('/cart');
+    await waitFor("document.body.innerText.includes('예약 번호') && sessionStorage.getItem('owool-checkout-reservation-id')", 'account reservation discovery without saved ID or key');
+    const recovered = await evaluate(`(async () => {
+      const id = sessionStorage.getItem('owool-checkout-reservation-id');
+      const response = await fetch('http://127.0.0.1:9092/customer/checkout/reservations/' + id,
+        { credentials: 'include' });
+      const view = await response.json();
+      return { id, key: sessionStorage.getItem('owool-checkout-reservation-key'),
+        expiresAt: view.expiresAt,
+        shown: !!document.querySelector('[aria-label="재고 예약 상태"] [role="status"]') };
+    })()`);
+    assert.equal(recovered.id, hidden.id);
+    assert.equal(recovered.key, null);
+    assert.equal(recovered.expiresAt, hidden.expiresAt);
+    assert.equal(recovered.shown, true);
+    await evaluate("[...document.querySelectorAll('button')].find((button) => button.textContent.includes('예약 해제')).click(); true");
+    await waitFor("!sessionStorage.getItem('owool-checkout-reservation-id') && !sessionStorage.getItem('owool-checkout-reservation-key')", 'reservation release');
+    console.info('browser: hidden committed POST, reload without saved ID/key, account lookup, unchanged expiry and release PASS');
+  }
+
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   const mobile = await evaluate('({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth })');
   assert.equal(mobile.width, 390);
   assert.ok(mobile.scrollWidth <= 390, `mobile horizontal overflow: ${mobile.scrollWidth}`);
+  await waitFor("document.querySelector('input[id^=cart-edit-]') && !document.querySelector('input[id^=cart-edit-]').disabled", 'cart edit enabled after reservation release');
   await evaluate("document.querySelector('input[id^=cart-edit-]').focus(); true");
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });

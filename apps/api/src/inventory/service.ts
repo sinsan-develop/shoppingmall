@@ -12,16 +12,26 @@ export class InventoryService {
     const result = await this.pool.query<{
       optionId: string; productId: string; title: string; optionName: string;
       onHand: number; sellable: number; pendingRequestId: string | null;
+      activeReservationQuantity: number; deferredZeroPending: boolean;
     }>(
       `SELECT o.id AS "optionId",p.id AS "productId",r.title,o.name AS "optionName",
               coalesce(i.on_hand_quantity,0) AS "onHand",
               coalesce(i.sellable_quantity,0) AS sellable,
-              q.id AS "pendingRequestId"
+              q.id AS "pendingRequestId",
+              coalesce(held.quantity,0)::int AS "activeReservationQuantity",
+              deferred.id IS NOT NULL AS "deferredZeroPending"
        FROM product_options o JOIN product_revisions r ON r.id=o.revision_id
        JOIN products p ON p.id=r.product_id
        LEFT JOIN product_publications pub ON pub.product_id=p.id
        LEFT JOIN inventory_levels i ON i.option_id=o.id
        LEFT JOIN stock_change_requests q ON q.option_id=o.id AND q.status='pending'
+       LEFT JOIN LATERAL (
+         SELECT sum(l.quantity) AS quantity FROM checkout_reservation_lines l
+         JOIN checkout_reservations h ON h.id=l.reservation_id
+         WHERE l.option_id=o.id AND h.status='ACTIVE' AND h.expires_at>clock_timestamp()
+       ) held ON true
+       LEFT JOIN inventory_deferred_stock_targets deferred
+         ON deferred.option_id=o.id AND deferred.status='pending'
        WHERE p.seller_id=$1 AND r.status <> 'rejected'
          AND (pub.revision_id=r.id OR (pub.product_id IS NULL AND r.version=1))
        ORDER BY r.title,o.display_order,o.id LIMIT 200`, [actor.sellerId],
@@ -54,6 +64,13 @@ export class InventoryService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE', [actor.accountId]);
+      const option = await client.query<{ product_id: string }>(
+        `SELECT r.product_id FROM product_options o
+         JOIN product_revisions r ON r.id=o.revision_id WHERE o.id=$1`, [optionId],
+      );
+      if (!option.rows[0]) throw new Error('Forbidden');
+      await client.query('SELECT id FROM products WHERE id=$1 FOR UPDATE', [option.rows[0].product_id]);
       const owned = await client.query<{ seller_id: string; product_id: string; revision_id: string }>(
         `SELECT p.seller_id,p.id AS product_id,r.id AS revision_id
          FROM product_options o JOIN product_revisions r ON r.id=o.revision_id
@@ -70,8 +87,17 @@ export class InventoryService {
       const result = await client.query<{ on_hand_quantity: number; sellable_quantity: number }>(
         'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1 FOR UPDATE', [optionId],
       );
-      const planned = planStockEntry({ onHand: result.rows[0].on_hand_quantity,
-        sellable: result.rows[0].sellable_quantity }, target);
+      const held = await client.query<{ quantity: string }>(
+        `SELECT coalesce(sum(l.quantity),0)::text AS quantity FROM checkout_reservation_lines l
+         JOIN checkout_reservations h ON h.id=l.reservation_id
+         WHERE l.option_id=$1 AND h.status='ACTIVE' AND h.expires_at>clock_timestamp()`, [optionId],
+      );
+      const reserved = Number(held.rows[0].quantity);
+      if (target > 0 && target < reserved) throw new Error('Active reservation stock conflict');
+      const planned = target === 0 && reserved > 0
+        ? { onHand: result.rows[0].on_hand_quantity, sellable: 0, requiresApproval: false }
+        : planStockEntry({ onHand: result.rows[0].on_hand_quantity,
+          sellable: result.rows[0].sellable_quantity }, target);
       await client.query(
         `UPDATE inventory_levels SET on_hand_quantity=$2,sellable_quantity=$3,updated_at=now()
          WHERE option_id=$1`, [optionId, planned.onHand, planned.sellable],
@@ -80,6 +106,19 @@ export class InventoryService {
         `UPDATE stock_change_requests SET status='superseded',decided_at=now()
          WHERE option_id=$1 AND status='pending'`, [optionId],
       );
+      if (target === 0 && reserved > 0) {
+        await client.query(
+          `INSERT INTO inventory_deferred_stock_targets(option_id,target_on_hand,requested_by_account_id)
+           VALUES ($1,0,$2) ON CONFLICT (option_id) WHERE status='pending'
+           DO UPDATE SET requested_by_account_id=EXCLUDED.requested_by_account_id,
+             requested_at=clock_timestamp()`, [optionId, actor.accountId],
+        );
+      } else {
+        await client.query(
+          `UPDATE inventory_deferred_stock_targets SET status='superseded'
+           WHERE option_id=$1 AND status='pending'`, [optionId],
+        );
+      }
       let requestId: string | null = null;
       if (planned.requiresApproval) {
         const request = await client.query<{ id: string }>(

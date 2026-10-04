@@ -7,6 +7,14 @@ import { CatalogController } from './catalog/controller.js';
 import { ShippingController } from './shipping/controller.js';
 import { HomeAdminController, HomePublicController } from './home/controller.js';
 import { CustomerCartController } from './checkout/cart.controller.js';
+import { AdminReservationController, CustomerReservationController } from './checkout/reservation.controller.js';
+import { PromotionAdminController } from './promotions/admin.controller.js';
+import { CustomerPromotionController } from './promotions/customer.controller.js';
+import { CustomerOrderController } from './orders/customer.controller.js';
 
-@Module({ controllers: [HealthController, AuthController, CustomerController, CustomerCartController, CatalogController, ShippingController, HomeAdminController, HomePublicController], providers: [DatabaseService] })
+@Module({ controllers: [HealthController, AuthController, CustomerController, CustomerCartController,
+  CustomerReservationController, AdminReservationController, CatalogController, ShippingController,
+  HomeAdminController, HomePublicController, PromotionAdminController, CustomerPromotionController,
+  CustomerOrderController],
+  providers: [DatabaseService] })
 export class AppModule {}
