@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-04 S3.3 영속 주문 구현 승인
+
+- 담당: 어울, 단일 writer. 신산님이 `S3_ORDER_CONTRACT_DRAFT.md`의 고객 API 2개와 `0012` 신규 관계 5개의 **구현**을 승인했다. 공유 `WSL-server`의 `local-postgres/shoppingmall` 적용, PG·Oracle 연동/배포는 승인 범위 밖이다.
+- 작업 위치: `D:\Project\shoppingmall2\.worktrees\flat-v2-prototypes`, 브랜치 `codex/s31-checkout-reservation-plan`, 시작 HEAD `d630efe`. 새 branch/worktree를 만들지 않는다. 변경 전 Git clean, 원격은 `github-sinsan-develop` SSH alias.
+- 기준 검사: 로컬 `pnpm test` 285건/212 pass/73 DB·환경 skip/0 fail, PR 본문 검사 8 pass. DB skip은 실DB 검증이 아니다. 다음은 격리 DB에서 0011 부재 RED → 0012 적용 GREEN, 이후 계획 Task 2~6을 차례로 수행한다.
+- 격리 QA 자원 계획: WSL 지정 checkout의 동일 SHA를 Git으로 전달한 뒤 고유 `shoppingmall-s33-1004` 접두어의 전용 비공개 Docker 네트워크·tmpfs PostgreSQL 컨테이너(`shoppingmall` DB명은 fixture 가드용, 공유 `local-postgres`와 별도)와 일회용 Node 컨테이너를 사용한다. 외부 포트·영속 볼륨 없음. 각 시험 직후 정확한 QA 행·컨테이너·네트워크 잔류 0 확인 후 제거한다. 공유 DB schema/행은 변경하지 않는다.
+- 미검증: S3.3 구현/실DB, 공유 개발 DB 0012, 실제 브라우저 주문, PG·Oracle·사용자 인수. 같은 근본 원인 연속 오류 0회.
+
 ## 설계 검토 요청 — 2026-10-04 S3.3 영속 주문
 
 - 담당 어울. S3.2 기능·QA 종료 뒤 현재 브랜치에서 `docs/design/S3_ORDER_CONTRACT_DRAFT.md`와 `docs/superpowers/plans/2026-10-04-s3-orders.md`를 **제안 문서만** 작성했다. 제안은 고객 공개 API 2개, additive `0012`의 신규 영속 관계 5개, 한 통합 결제대기 주문+판매자/발송별 주문 3건, 불변 주소·상품·혜택/금액 스냅샷, 15분 예약·쿠폰 점유와 동시 만료를 대상으로 한다. 실제 PG·결제 완료·환불은 포함하지 않는다.
