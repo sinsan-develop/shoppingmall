@@ -1,6 +1,15 @@
 # 어울몰 개발·시험 환경 (초안)
 
-## 2026-10-04 최신 상태 — S3.2 공유 DB 0011 적용·실DB 회귀
+## 2026-10-04 최신 상태 — S3.2 공유 DB 실제 Chrome QA
+
+- `codex/s31-checkout-reservation-plan@965a87c512f7f6bca27e151630c32961728d3409`을 승인된 SSH alias로 WSL 지정 checkout에 일치시켰다. 공유 `local-postgres/shoppingmall` 0011 적용 상태에서 전체 순차 시험 279건/272 pass/7 환경 skip/0 fail, API/Web 빌드 exit 0. 전용 가상 `QA_RUN_ID=f44f1004`로 운영자 상품할인 5,000원 직접 발행·배송비 지원 코드 3,000원 등록, 구매자 Chrome의 세 판매자 발송 원견적 66,000원과 할인 후 예상 결제금액 52,000원, 구매자의 운영자 화면 차단, Enter 재조회와 390px 가로 넘침 없음을 확인했다. 이는 결제 전 견적이며 실제 주문·PG·사용 확정은 아니다. 13범주 QA 행 0, 전용 컨테이너·빌드 볼륨·9091/9092 포트·SSH 시험 터널 0, WSL checkout clean. Chrome 시험 탭은 닫혔다. in-app browser 임시 탭의 최종 재조회는 세션 교체로 불가했다. 세부 오류와 복구는 `WORK_STATUS.md`를 따른다. 실제 200% 확대·인쇄·Oracle/UAT는 여전히 미검증이다.
+
+## 2026-10-04 후속 — S3.2 공유 QA 정리 안전 보강
+
+- 최초 리뷰의 타 계정 참조 삭제·부분 커밋 우려를 공유 QA reset의 단일 serializable 트랜잭션과 외부 계정 참조 사전 거부로 보강했다. 독립 tmpfs PostgreSQL을 private Docker 네트워크 안에서만 `local-postgres` 별칭으로 접근해 실제 외부 장바구니·외부 쿠폰 발행·카탈로그 검사 실패 3건을 시험했고 모두 변경 없는 거부를 확인했다(3 pass/0 skip). 같은 격리 DB의 전체 순차 회귀 282건/272 pass/10 환경 skip/0 fail, 13범주 시험 행 0. 정확한 일회용 PG/네트워크는 제거했고 **공유** `local-postgres/shoppingmall`의 기존 0011·데이터는 변경하지 않았다. 재리뷰와 Stage PR은 아직 완료 전. 상세 오류·검증 범위는 `WORK_STATUS.md` 참조.
+- 후속 재리뷰가 지적한 QA 판매자/상품 소유권, 외부 재고·배송 행위자·감사 대상, 외부 상품 승인/게시자도 공유 reset의 사전 검사에 추가했다. 최신 `b54253e`의 두 번째 분리 tmpfs DB에서 위험·정상정리 목표 회귀 6 pass/0 skip, 전체 순차 285건/272 pass/13 환경 skip/0 fail, 사후 13범주 0. 최종 읽기 전용 재리뷰의 미해결 Critical/Important 0. 정확한 두 번째 tmpfs PG와 private 네트워크를 제거했으며 공유 DB를 재시드·변경하지 않았다. 실제 영속 주문/PG/Oracle/UAT·200% 확대/인쇄는 미검증이다.
+
+## 2026-10-04 이전 상태 — S3.2 공유 DB 0011 적용·실DB 회귀
 
 - 신산님 승인 후 WSL `local-postgres/shoppingmall`에 `0011_s3_promotions` 한 건을 적용했다. 적용 전 이력 11건·계정/상품/예약 0, SQL SHA-256 `75675ca05c8e55e3f0d8ecc7cba5ada64c304372adbde9d1bface5e82850c330`과 읽기 전용 대기 1건/31문장을 확인했다. custom-format 전체 임시 덤프의 형식·0600 권한·크기·목록·해시를 확인한 뒤 exact SHA `7d64d81`의 Drizzle migrator로 적용했다. 적용 후 이력 12건/대기 0, 신규 5테이블, 기존 행 수 불변. 프로모션 DB/HTTP 목표 5 pass/0 skip, 전체 순차 실DB 278건/271 pass/7 환경 skip/0 fail. 사후 QA 13범주 행 0과 일회용 Node 컨테이너 0을 확인하고 정확한 임시 덤프만 제거했다. 공유 DB의 승인된 schema/이력은 유지한다. **정식 공유 DB 실제 브라우저 E2E와 주문·PG·Oracle/UAT는 아직 미검증**이다.
 - `codex/s31-checkout-reservation-plan@a109758c33ab363291b3af096e4f47df54b72fe0`을 지정 SSH 별칭으로 WSL 시험 checkout에 맞췄다. 0011의 **수정된** SQL SHA-256 `75675ca05c8e55e3f0d8ecc7cba5ada64c304372adbde9d1bface5e82850c330`을 별도 tmpfs PostgreSQL의 빈 `/shoppingmall`에 0000~0011까지 적용했다. 관리자 등록·직접 발행·새 버전·중지와 구매자 목록/코드 쿠폰을 실제 production Web 브라우저에서 확인했다. 기본 49,000원에서 상품 할인 5,000원·배송비 지원 3,000원 적용 시 예상액 41,000원이며 결제는 아니다. 390px 가로 넘침 없음과 Tab 초점 이동, 예약 해제·장바구니 편집/제거도 확인했다. 실제 200% 브라우저 확대는 미검증이다.

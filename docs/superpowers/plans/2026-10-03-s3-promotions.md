@@ -110,11 +110,13 @@
 
 **Interfaces:** 관리자에게 현재 버전·기간·대상·한도·발행/중지 이력을 보여주고, 고객 예약 화면에는 사용 가능한 목록 선택과 코드 입력, 묶음별 실제 할인·배송지원·총액·오류/0원 안내를 표시한다. 기존 Flat v2 시각 토큰·수량/제거·예약 해제·키보드 흐름은 보존한다. 실제 결제 완료처럼 보이지 않게 `견적`임을 표시한다.
 
-- [ ] Step 1: 관리자 저장/중지·고객 목록/코드·무료배송 0원·예약 만료/오류·키보드 이름과 기존 카트 회귀 화면 시험을 쓴다.
-- [ ] Step 2: 새 화면/선택 controls 부재의 예상 RED를 확인하고 최소 UI/API 연결 뒤 목표 GREEN을 확인한다.
-- [ ] Step 3: 로컬 전체 `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`를 실행해 실패 0, skip은 분리 기록한다.
-- [ ] Step 4: 정확한 커밋을 SSH alias로 push→지정 WSL checkout Git fast-forward. 승인된 공유 DB migration gate 후에만 `local-postgres/shoppingmall`에 0011 적용하고 이전 행·migration 수를 확인한다. 실DB 전체·두 역할 HTTP·실제 Chrome의 목록/코드·3발송 묶음·권한·키보드/반응형을 재현한다.
-- [ ] Step 5: 식별 QA 계정·상품·쿠폰·예약·감사·임시 컨테이너/포트/브라우저 프로필을 정확히 정리하고 잔류 0, exact SHA·clean·미검증 PG/주문/UAT를 `WORK_STATUS.md`에 기록한다. 필수 review의 Critical/Important를 RED→GREEN으로 해소한다. S3.3/S4 연결 전에는 최종 발행·사용·환불 완료로 표기하지 않는다.
+- [x] Step 1: 관리자 저장/중지·고객 목록/코드·무료배송 0원·예약 만료/오류·키보드 이름과 기존 카트 회귀 화면 시험을 쓴다.
+- [x] Step 2: 새 화면/선택 controls 부재의 예상 RED를 확인하고 최소 UI/API 연결 뒤 목표 GREEN을 확인한다.
+- [x] Step 3: 로컬 전체 `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`를 실행해 실패 0, skip은 분리 기록한다.
+- [x] Step 4: 정확한 커밋을 SSH alias로 push→지정 WSL checkout Git fast-forward. 승인된 공유 DB migration gate 후에만 `local-postgres/shoppingmall`에 0011 적용하고 이전 행·migration 수를 확인한다. 실DB 전체·두 역할 HTTP·실제 Chrome의 목록/코드·3발송 묶음·권한·키보드/반응형을 재현한다.
+- [x] Step 5: 식별 QA 계정·상품·쿠폰·예약·감사·임시 컨테이너/포트/브라우저 프로필을 정확히 정리하고 잔류 0, exact SHA·clean·미검증 PG/주문/UAT를 `WORK_STATUS.md`에 기록한다. 필수 review의 Critical/Important를 RED→GREEN으로 해소한다. S3.3/S4 연결 전에는 최종 발행·사용·환불 완료로 표기하지 않는다.
+
+Task 6 검증 근거는 `WORK_STATUS.md`의 2026-10-04 공유 DB 실제 Chrome QA 및 후속 안전 리뷰·`b54253e` 격리 회귀 기록이다. 이는 S3.2 검증 완료이며 전체 S3 완료 또는 실제 결제·인수를 뜻하지 않는다.
 
 ## 이후 단계 연결
 
