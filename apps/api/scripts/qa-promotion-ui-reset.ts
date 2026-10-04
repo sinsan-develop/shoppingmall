@@ -1,5 +1,5 @@
 import { pathToFileURL } from 'node:url';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { assertQaCatalogResetSafe, resetQaCatalog, runQaCatalogFixture } from './qa-catalog-fixture.js';
 import { qaNames, resetQaAccounts, validateQaRunId } from './qa-fixture.js';
 import { runQaPublicFixture } from './qa-public-fixture.js';
@@ -78,6 +78,117 @@ export async function resetPromotionUiFixture(runId: string, databaseUrl: string
   } finally { await pool.end(); }
 }
 
+async function assertQaOrdersResetSafe(client: PoolClient, scope: {
+  accountIds: string[]; customerId: string; reservationIds: string[];
+  sellerIds: string[]; productIds: string[]; optionIds: string[];
+  campaignIds: string[]; versionIds: string[]; useIds: string[];
+}) {
+  const { accountIds, customerId, reservationIds, sellerIds, productIds, optionIds,
+    campaignIds, versionIds, useIds } = scope;
+  const addresses = await client.query<{ id: string }>(
+    'SELECT id FROM customer_addresses WHERE account_id=$1', [customerId]);
+  const addressIds = addresses.rows.map((row) => row.id);
+  const orders = await client.query<{
+    id: string; account_id: string; reservation_id: string; address_id: string;
+    status: string; ended_at: Date | null;
+  }>(`SELECT o.id,o.account_id,o.reservation_id,o.address_id,o.status,o.ended_at
+    FROM checkout_orders o WHERE
+      o.account_id=ANY($1::uuid[]) OR o.reservation_id=ANY($2::uuid[])
+      OR o.address_id=ANY($3::uuid[])
+      OR EXISTS (SELECT 1 FROM shipment_orders s WHERE s.checkout_order_id=o.id
+        AND s.seller_id=ANY($4::uuid[]))
+      OR EXISTS (SELECT 1 FROM shipment_order_lines l JOIN shipment_orders s
+        ON s.id=l.shipment_order_id WHERE s.checkout_order_id=o.id AND
+        (l.product_id=ANY($5::uuid[]) OR l.option_id=ANY($6::uuid[])
+          OR l.seller_id=ANY($4::uuid[])))
+      OR EXISTS (SELECT 1 FROM order_promotion_allocations a WHERE a.checkout_order_id=o.id
+        AND (a.campaign_id=ANY($7::uuid[]) OR a.promotion_use_id=ANY($8::uuid[])
+          OR a.version_id=ANY($9::uuid[])))
+      OR EXISTS (SELECT 1 FROM order_status_events e WHERE e.checkout_order_id=o.id
+        AND e.actor_account_id=ANY($1::uuid[]))`,
+  [accountIds, reservationIds, addressIds, sellerIds, productIds, optionIds,
+    campaignIds, useIds, versionIds]);
+  if (orders.rows.length > 1 || orders.rows.some((row) => row.account_id !== customerId ||
+      !reservationIds.includes(row.reservation_id) || !addressIds.includes(row.address_id) ||
+      row.status !== 'PENDING_PAYMENT' || row.ended_at !== null)) {
+    throw new Error('QA order ownership or state differs from pending fixture');
+  }
+  const orderIds = orders.rows.map((row) => row.id);
+  if (!orderIds.length) return orderIds;
+  const reservation = await client.query<{ id: string; account_id: string; status: string }>(
+    'SELECT id,account_id,status FROM checkout_reservations WHERE id=ANY($1::uuid[])',
+    [orders.rows.map((row) => row.reservation_id)]);
+  if (reservation.rows.length !== orderIds.length || reservation.rows.some((row) =>
+    row.account_id !== customerId || row.status !== 'ACTIVE')) {
+    throw new Error('QA order reservation ownership or state differs from fixture');
+  }
+  const shipments = await client.query<{
+    id: string; shipment_key: string; shipping_mode: string; seller_id: string | null; status: string;
+  }>('SELECT id,shipment_key,shipping_mode,seller_id,status FROM shipment_orders WHERE checkout_order_id=$1',
+  [orderIds[0]]);
+  const shipmentIds = shipments.rows.map((row) => row.id);
+  if (shipments.rows.length !== 3 ||
+      shipments.rows.filter((row) => row.shipping_mode === 'owool_fulfillment' &&
+        row.seller_id === null && row.shipment_key === 'owool_fulfillment').length !== 1 ||
+      shipments.rows.filter((row) => row.shipping_mode === 'seller_direct' &&
+        row.seller_id !== null && sellerIds.includes(row.seller_id) &&
+        row.shipment_key === `seller_direct:${row.seller_id}`).length !== 2 ||
+      shipments.rows.some((row) => row.status !== 'PENDING_PAYMENT')) {
+    throw new Error('QA order shipment ownership or state differs from fixture');
+  }
+  const lines = await client.query<{
+    shipment_order_id: string; product_id: string; option_id: string; seller_id: string;
+    actual_product_id: string; actual_seller_id: string; shipping_mode: string;
+  }>(`SELECT l.shipment_order_id,l.product_id,l.option_id,l.seller_id,
+      r.product_id AS actual_product_id,p.seller_id AS actual_seller_id,r.shipping_mode
+    FROM shipment_order_lines l JOIN product_options o ON o.id=l.option_id
+    JOIN product_revisions r ON r.id=o.revision_id JOIN products p ON p.id=l.product_id
+    WHERE l.shipment_order_id=ANY($1::uuid[])`, [shipmentIds]);
+  if (lines.rows.length < 3 || shipments.rows.some((shipment) =>
+    !lines.rows.some((line) => line.shipment_order_id === shipment.id)) ||
+      lines.rows.some((line) => {
+        const shipment = shipments.rows.find((row) => row.id === line.shipment_order_id)!;
+        return !productIds.includes(line.product_id) || !optionIds.includes(line.option_id) ||
+          !sellerIds.includes(line.seller_id) || line.product_id !== line.actual_product_id ||
+          line.seller_id !== line.actual_seller_id || line.shipping_mode !== shipment.shipping_mode ||
+          (shipment.seller_id !== null && line.seller_id !== shipment.seller_id);
+      })) {
+    throw new Error('QA order line references a product or seller outside the fixture');
+  }
+  const allocations = await client.query<{
+    campaign_id: string; version_id: string; promotion_use_id: string;
+    use_campaign_id: string; use_version_id: string; use_account_id: string;
+    use_reservation_id: string; use_status: string; version_campaign_id: string;
+  }>(`SELECT a.campaign_id,a.version_id,a.promotion_use_id,
+      u.campaign_id AS use_campaign_id,u.version_id AS use_version_id,
+      u.account_id AS use_account_id,u.reservation_id AS use_reservation_id,
+      u.status AS use_status,v.campaign_id AS version_campaign_id
+    FROM order_promotion_allocations a JOIN promotion_uses u ON u.id=a.promotion_use_id
+    JOIN promotion_versions v ON v.id=a.version_id
+    WHERE a.checkout_order_id=$1`, [orderIds[0]]);
+  if (allocations.rows.some((row) => !campaignIds.includes(row.campaign_id) ||
+      !useIds.includes(row.promotion_use_id) || row.campaign_id !== row.use_campaign_id ||
+      row.campaign_id !== row.version_campaign_id || row.version_id !== row.use_version_id ||
+      row.use_account_id !== customerId || row.use_reservation_id !== orders.rows[0].reservation_id ||
+      row.use_status !== 'HELD')) {
+    throw new Error('QA order allocation references a promotion outside the fixture');
+  }
+  const events = await client.query<{ status: string; actor_account_id: string | null }>(
+    'SELECT status,actor_account_id FROM order_status_events WHERE checkout_order_id=$1',
+    [orderIds[0]]);
+  if (!events.rows.length || events.rows.some((row) =>
+    row.status !== 'PENDING_PAYMENT' || row.actor_account_id !== customerId)) {
+    throw new Error('QA order status event actor or state differs from fixture');
+  }
+  const foreignAudit = await client.query<{ count: number }>(`SELECT count(*)::int AS count
+    FROM audit_events WHERE target_type='checkout_order' AND target_id=ANY($1::text[])
+      AND actor_account_id<>ALL($2::uuid[])`, [orderIds, accountIds]);
+  if (foreignAudit.rows[0].count !== 0) {
+    throw new Error('QA order audit history involves an account outside the fixture');
+  }
+  return orderIds;
+}
+
 async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
@@ -114,6 +225,9 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
         throw new Error('QA admin owns a campaign outside this run');
       }
       const campaignIds = campaigns.rows.map((row) => row.id);
+      const versionIds = (await client.query<{ id: string }>(
+        'SELECT id FROM promotion_versions WHERE campaign_id=ANY($1::uuid[])', [campaignIds],
+      )).rows.map((row) => row.id);
       const catalog = await assertQaCatalogResetSafe(client, id, accountIds);
       const sellerIds = (await client.query<{ id: string }>(
         `SELECT s.id FROM sellers s JOIN seller_categories c ON c.id=s.category_id WHERE c.name=$1`,
@@ -130,9 +244,22 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
       const shippingRequestIds = (await client.query<{ id: string }>(
         'SELECT id FROM seller_shipping_policy_requests WHERE seller_id=ANY($1::uuid[])', [sellerIds],
       )).rows.map((row) => row.id);
-      const useIds = (await client.query<{ id: string }>(
-        'SELECT id FROM promotion_uses WHERE campaign_id=ANY($1::uuid[])', [campaignIds],
-      )).rows.map((row) => row.id);
+      const useRows = await client.query<{
+        id: string; account_id: string; campaign_id: string; version_id: string;
+        grant_account_id: string; grant_version_id: string; version_campaign_id: string;
+      }>(`SELECT u.id,u.account_id,u.campaign_id,u.version_id,
+          g.account_id AS grant_account_id,g.version_id AS grant_version_id,
+          v.campaign_id AS version_campaign_id FROM promotion_uses u
+         JOIN promotion_grants g ON g.id=u.grant_id
+         JOIN promotion_versions v ON v.id=u.version_id
+         WHERE u.campaign_id=ANY($1::uuid[]) OR u.account_id=ANY($2::uuid[])`,
+        [campaignIds, accountIds]);
+      if (useRows.rows.some((row) => !accountIds.includes(row.account_id) ||
+          !campaignIds.includes(row.campaign_id) || row.grant_account_id !== row.account_id ||
+          row.grant_version_id !== row.version_id || row.version_campaign_id !== row.campaign_id)) {
+        throw new Error('QA order promotion use references an account or campaign outside the fixture');
+      }
+      const useIds = useRows.rows.map((row) => row.id);
       const outsideOperations = await client.query<{ stock: number; shipping: number; policy: number }>(
         `SELECT
           (SELECT count(*)::int FROM stock_change_requests WHERE option_id=ANY($1::uuid[])
@@ -148,6 +275,11 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
       if (Object.values(outsideOperations.rows[0]).some((count) => count !== 0)) {
         throw new Error('QA stock or shipping history involves accounts outside QA accounts');
       }
+      const orderIds = await assertQaOrdersResetSafe(client, {
+        accountIds, customerId: accounts.rows.find((row) => row.identifier === names.emails[0])!.account_id,
+        reservationIds, sellerIds, productIds: catalog.productIds, optionIds,
+        campaignIds, versionIds, useIds,
+      });
       const allowedAuditTargets: Record<string, Set<string>> = {
         account: new Set(accountIds),
         seller: new Set(sellerIds),
@@ -158,6 +290,7 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
         checkout_reservation: new Set(reservationIds),
         promotion_campaign: new Set(campaignIds),
         promotion_use: new Set(useIds),
+        checkout_order: new Set(orderIds),
       };
       const audit = await client.query<{ target_type: string; target_id: string; seller_id: string | null }>(
         'SELECT target_type,target_id,seller_id FROM audit_events WHERE actor_account_id=ANY($1::uuid[])',
@@ -185,6 +318,14 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
       if (Object.values(outsidePromotions.rows[0]).some((count) => count !== 0)) {
         throw new Error('QA promotion belongs to accounts outside QA accounts');
       }
+      await client.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=ANY($1::uuid[])',
+        [orderIds]);
+      await client.query('DELETE FROM order_status_events WHERE checkout_order_id=ANY($1::uuid[])',
+        [orderIds]);
+      await client.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
+        (SELECT id FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
+      await client.query('DELETE FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
+      await client.query('DELETE FROM checkout_orders WHERE id=ANY($1::uuid[])', [orderIds]);
       await client.query('DELETE FROM promotion_uses WHERE campaign_id=ANY($1::uuid[])', [campaignIds]);
       await client.query(`DELETE FROM promotion_grants WHERE version_id IN
         (SELECT id FROM promotion_versions WHERE campaign_id=ANY($1::uuid[]))`, [campaignIds]);
