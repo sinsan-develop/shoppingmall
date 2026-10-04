@@ -83,3 +83,92 @@ test('two direct sellers and pooled goods submit once with an exact pending amou
     await pool.end();
   }
 });
+
+test('changed money, stock and campaign roll back order and coupon hold; valid snapshot preserves use', {
+  skip: !process.env.DATABASE_URL,
+}, async () => {
+  const { submitPendingOrder } = await import('../src/orders/service.ts');
+  const runId = randomBytes(4).toString('hex');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+  let seeded = false; let reservationId; let addressId; let campaignId; let orderId;
+  try {
+    await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
+    seeded = true;
+    const names = qaNames(runId);
+    const buyerId = (await pool.query(`SELECT account_id FROM account_identities
+      WHERE identifier=$1`, [names.emails[0]])).rows[0].account_id;
+    const adminId = (await pool.query(`SELECT account_id FROM account_identities
+      WHERE identifier=$1`, [names.emails[4]])).rows[0].account_id;
+    const optionId = (await pool.query(`SELECT o.id FROM product_options o
+      JOIN product_revisions r ON r.id=o.revision_id WHERE r.title=$1`,
+    [`qa-${runId}-고추`])).rows[0].id;
+    await pool.query('INSERT INTO customer_cart_items(account_id,option_id,quantity) VALUES ($1,$2,1)',
+      [buyerId, optionId]);
+    addressId = (await pool.query(`INSERT INTO customer_addresses
+      (account_id,label,recipient_name,phone,postal_code,line1)
+      VALUES ($1,'시험','받는 분','01000000000','12345','시험 주소') RETURNING id`,
+    [buyerId])).rows[0].id;
+    reservationId = (await new CheckoutReservations(pool).start(buyerId, randomUUID())).id;
+    campaignId = (await pool.query(`INSERT INTO promotion_campaigns
+      (title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
+      VALUES ($1,'goods_discount',1,1,$2) RETURNING id`, [`QA-${runId}`, adminId])).rows[0].id;
+    const versionId = (await pool.query(`INSERT INTO promotion_versions
+      (campaign_id,version,scope,starts_at,ends_at,amount_kind,amount_value,created_by_account_id)
+      VALUES ($1,1,'all',now()-interval '1 hour',now()+interval '1 day','fixed',5000,$2)
+      RETURNING id`, [campaignId, adminId])).rows[0].id;
+    const grantId = (await pool.query(`INSERT INTO promotion_grants
+      (account_id,version_id,source,issued_by_account_id,idempotency_key,reason)
+      VALUES ($1,$2,'direct',$3,$4,'QA order') RETURNING id`,
+    [buyerId, versionId, adminId, randomUUID()])).rows[0].id;
+    const base = { reservationId, addressId, selections: { goodsCoupon: { grantId } },
+      expectedPayableWon: 21000 };
+    await assert.rejects(() => submitPendingOrder(pool, buyerId,
+      { ...base, expectedPayableWon: 21001, idempotencyKey: randomUUID() }), /Order conflict/);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM promotion_uses WHERE reservation_id=$1',
+      [reservationId])).rows[0].n, 0);
+    await pool.query('UPDATE inventory_levels SET sellable_quantity=0 WHERE option_id=$1', [optionId]);
+    await assert.rejects(() => submitPendingOrder(pool, buyerId,
+      { ...base, idempotencyKey: randomUUID() }), /Reserved product changed/);
+    await pool.query('UPDATE inventory_levels SET sellable_quantity=5 WHERE option_id=$1', [optionId]);
+    await pool.query(`UPDATE promotion_campaigns SET status='stopped',stopped_by_account_id=$2,
+      stopped_at=now(),stop_reason='QA stopped' WHERE id=$1`, [campaignId, adminId]);
+    await assert.rejects(() => submitPendingOrder(pool, buyerId,
+      { ...base, idempotencyKey: randomUUID() }), /Promotion conflict/);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM checkout_orders WHERE reservation_id=$1',
+      [reservationId])).rows[0].n, 0);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM promotion_uses WHERE reservation_id=$1',
+      [reservationId])).rows[0].n, 0);
+    await pool.query(`UPDATE promotion_campaigns SET status='active',stopped_by_account_id=NULL,
+      stopped_at=NULL,stop_reason=NULL WHERE id=$1`, [campaignId]);
+    const saved = await submitPendingOrder(pool, buyerId, { ...base, idempotencyKey: randomUUID() });
+    orderId = saved.id;
+    assert.equal(saved.goodsDiscountWon, 5000);
+    assert.equal(saved.payableWon, 21000);
+    assert.equal(saved.shipments[0].promotions[0].versionId, versionId);
+    assert.equal((await pool.query(`SELECT count(*)::int AS n FROM promotion_uses
+      WHERE reservation_id=$1 AND status='HELD'`, [reservationId])).rows[0].n, 1);
+  } finally {
+    if (orderId) {
+      await pool.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=$1', [orderId]);
+      await pool.query('DELETE FROM order_status_events WHERE checkout_order_id=$1', [orderId]);
+      await pool.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
+        (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [orderId]);
+      await pool.query('DELETE FROM shipment_orders WHERE checkout_order_id=$1', [orderId]);
+      await pool.query('DELETE FROM checkout_orders WHERE id=$1', [orderId]);
+    }
+    if (reservationId) {
+      await pool.query('DELETE FROM promotion_uses WHERE reservation_id=$1', [reservationId]);
+      await pool.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=$1', [reservationId]);
+      await pool.query('DELETE FROM checkout_reservations WHERE id=$1', [reservationId]);
+    }
+    if (campaignId) {
+      await pool.query(`DELETE FROM promotion_grants WHERE version_id IN
+        (SELECT id FROM promotion_versions WHERE campaign_id=$1)`, [campaignId]);
+      await pool.query('DELETE FROM promotion_versions WHERE campaign_id=$1', [campaignId]);
+      await pool.query('DELETE FROM promotion_campaigns WHERE id=$1', [campaignId]);
+    }
+    if (addressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [addressId]);
+    if (seeded) await runQaCatalogFixture('reset', runId, process.env.DATABASE_URL);
+    await pool.end();
+  }
+});
