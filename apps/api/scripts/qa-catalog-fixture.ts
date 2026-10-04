@@ -126,6 +126,13 @@ export async function assertQaCatalogResetSafe(client: PoolClient, runId: string
   }
   if (expectedSellers) {
     const byEmail = new Map(expectedSellers.rows.map((row) => [row.identifier, row]));
+    const admins = await client.query<{ account_id: string }>(
+      `SELECT account_id FROM account_identities WHERE kind='email' AND identifier=$1`,
+      [names.emails[4]]);
+    if (admins.rows.length !== 1 || !qaAccountIds?.includes(admins.rows[0].account_id)) {
+      throw new Error('QA catalog admin ownership differs from fixture');
+    }
+    const adminId = admins.rows[0].account_id;
     for (const spec of catalogQaSpecs) {
       const match = products.rows.filter((row) => row.title === name(runId, spec.item));
       const sellerIndex = spec.seller === 'sellerA' ? 1 : spec.seller === 'sellerB' ? 2 : 3;
@@ -133,9 +140,20 @@ export async function assertQaCatalogResetSafe(client: PoolClient, runId: string
       if (match.length !== 1 || !seller || match[0].seller_id !== seller.seller_id ||
           match[0].minor_name !== name(runId, spec.item) ||
           match[0].major_name !== name(runId, spec.major) ||
-          match[0].proposed_by_account_id !== seller.account_id) {
+          match[0].proposed_by_account_id !== seller.account_id ||
+          match[0].reviewed_by_account_id !== adminId) {
         throw new Error('QA product ownership or category differs from fixture');
       }
+    }
+    const publications = await client.query<{
+      product_id: string; revision_id: string; published_by_account_id: string;
+    }>('SELECT product_id,revision_id,published_by_account_id FROM product_publications WHERE product_id=ANY($1::uuid[])',
+    [products.rows.map((row) => row.product_id)]);
+    if (publications.rows.length !== catalogQaSpecs.length || publications.rows.some((publication) =>
+      publication.published_by_account_id !== adminId ||
+      !products.rows.some((row) => row.product_id === publication.product_id &&
+        row.revision_id === publication.revision_id))) {
+      throw new Error('QA product publication ownership differs from fixture');
     }
   }
   const productIds = products.rows.map((row) => row.product_id);

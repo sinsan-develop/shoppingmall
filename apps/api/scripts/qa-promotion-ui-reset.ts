@@ -91,6 +91,23 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
       if (accounts.rows.length !== 5) throw new Error('Expected five exact QA accounts before reset');
       const accountIds = accounts.rows.map((row) => row.account_id);
       const admin = accounts.rows.find((row) => row.identifier === names.emails[4])!;
+      const accountShapes = await client.query<{
+        account_id: string; identifier: string; identity_count: number; role_count: number;
+        role: string; seller_id: string | null;
+      }>(`SELECT a.account_id,a.identifier,
+        (SELECT count(*)::int FROM account_identities i WHERE i.account_id=a.account_id) AS identity_count,
+        (SELECT count(*)::int FROM account_roles r WHERE r.account_id=a.account_id) AS role_count,
+        role.role,role.seller_id FROM account_identities a
+        JOIN account_roles role ON role.account_id=a.account_id
+        WHERE a.kind='email' AND a.identifier=ANY($1::text[])`, [names.emails]);
+      if (accountShapes.rows.length !== 5 || accountShapes.rows.some((row) => {
+        const index = names.emails.indexOf(row.identifier);
+        const expectedRole = index === 0 ? 'customer' : index === 4 ? 'admin' : 'seller';
+        return index < 0 || row.identity_count !== 1 || row.role_count !== 1 ||
+          row.role !== expectedRole || (row.seller_id === null) !== (expectedRole !== 'seller');
+      })) {
+        throw new Error('QA account has an identity or role outside this run');
+      }
       const campaigns = await client.query<{ id: string; title: string }>(
         'SELECT id,title FROM promotion_campaigns WHERE created_by_account_id=$1', [admin.account_id]);
       if (campaigns.rows.some((row) => !row.title.startsWith(`QA-${id}-`))) {
@@ -125,8 +142,9 @@ async function resetSharedPromotionUiFixture(id: string, databaseUrl: string) {
            AND (requested_by_account_id<>ALL($3::uuid[]) OR
              (decided_by_account_id IS NOT NULL AND decided_by_account_id<>ALL($3::uuid[])))) AS shipping,
           (SELECT count(*)::int FROM seller_shipping_policies WHERE seller_id=ANY($2::uuid[])
-           AND approved_by_account_id<>ALL($3::uuid[])) AS policy`,
-        [optionIds, sellerIds, accountIds]);
+           AND (approved_by_account_id<>ALL($3::uuid[]) OR
+             approved_request_id<>ALL($4::uuid[]))) AS policy`,
+        [optionIds, sellerIds, accountIds, shippingRequestIds]);
       if (Object.values(outsideOperations.rows[0]).some((count) => count !== 0)) {
         throw new Error('QA stock or shipping history involves accounts outside QA accounts');
       }

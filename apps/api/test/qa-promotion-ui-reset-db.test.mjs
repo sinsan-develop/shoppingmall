@@ -187,3 +187,37 @@ test('shared reset refuses a duplicate-name seller in its QA category', {
     await pool.end();
   }
 });
+
+test('shared reset refuses a foreign product reviewer or publisher', {
+  skip: !enabled,
+}, async () => {
+  const pool = new Pool({ connectionString: databaseUrl });
+  let seeded = false;
+  let foreignAccountId;
+  try {
+    await runQaCatalogFixture('seed', runId, databaseUrl, 'test-only-shared-reset-password');
+    seeded = true;
+    foreignAccountId = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    const adminId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+      [`qa+${runId}-admin@example.invalid`])).rows[0].account_id;
+    const revisionId = (await pool.query('SELECT id FROM product_revisions WHERE title=$1',
+      [`qa-${runId}-고추`])).rows[0].id;
+    await pool.query('UPDATE product_revisions SET reviewed_by_account_id=$1 WHERE id=$2',
+      [foreignAccountId, revisionId]);
+    await assert.rejects(resetPromotionUiFixture(runId, databaseUrl), /product ownership/);
+    assert.equal((await pool.query('SELECT reviewed_by_account_id FROM product_revisions WHERE id=$1',
+      [revisionId])).rows[0].reviewed_by_account_id, foreignAccountId);
+    await pool.query('UPDATE product_revisions SET reviewed_by_account_id=$1 WHERE id=$2', [adminId, revisionId]);
+    await pool.query('UPDATE product_publications SET published_by_account_id=$1 WHERE revision_id=$2',
+      [foreignAccountId, revisionId]);
+    await assert.rejects(resetPromotionUiFixture(runId, databaseUrl), /publication ownership/);
+    assert.equal((await pool.query('SELECT published_by_account_id FROM product_publications WHERE revision_id=$1',
+      [revisionId])).rows[0].published_by_account_id, foreignAccountId);
+    await pool.query('UPDATE product_publications SET published_by_account_id=$1 WHERE revision_id=$2',
+      [adminId, revisionId]);
+  } finally {
+    if (foreignAccountId) await pool.query('DELETE FROM accounts WHERE id=$1', [foreignAccountId]);
+    if (seeded) await resetPromotionUiFixture(runId, databaseUrl);
+    await pool.end();
+  }
+});
