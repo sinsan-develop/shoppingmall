@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-04 S3.3 Task 6 공유 개발 DB 적용 승인
+
+- 담당 어울, 기존 단일 writer `codex/s31-checkout-reservation-plan@81ac9ac34fe607b2fe3a1e7784842b48b313c3a7`. 신산님이 `WSL-server`의 `local-postgres/shoppingmall`에 검증된 `0012_s3_orders`만 적용하도록 별도 승인했다. PG·Oracle·실결제·운영 DB는 범위 밖이다.
+- 적용 전 읽기 전용 확인: WSL 지정 checkout은 같은 SHA/clean, SQL SHA-256 `efe1d8848186d4b74c202241d20cc0a80a4417078e469aa3b082a294b8d267fa`, 공유 DB 이력 12건·신규 주문 테이블 부재·계정/상품/예약 0건. `local-postgres` 외 비슷한 이름의 다른 DB 컨테이너는 대상이 아니다.
+- 사전 QA/복구 자원 계획: `local-postgres` 내부 `/tmp/shoppingmall-s33-0012-pre-20261004.dump`에 custom-format 전체 백업을 만들고 WSL 호스트 `/tmp/shoppingmall-s33-0012-pre-20261004.dump`로 복사해 형식·목록·해시를 확인한다. 0012만 적용하고 이력 13건/신규 5관계/기존 행 불변을 대조한다. 실패 시 임의 역마이그레이션·DB 초기화 없이 적용을 멈추고 백업을 보존하여 별도 복구 결정을 받는다. 성공 후 정식 공유 DB QA에는 고유 가상 계정/상품/주문만 쓰고 정확한 ID의 데이터·임시 컨테이너/포트/터널을 정리한다. 백업은 적용·QA 확인 전 제거하지 않는다.
+- 미검증: 공유 DB 적용 결과, 공유 DB 순차 회귀·실제 Chrome 3발송/멱등/권한/390px·키보드, PG·Oracle·사용자 인수. 동일 근본 원인 연속 오류 0회.
+- 적용·검증 결과: 지정 WSL clean checkout과 로컬 작업 기준은 `81ac9ac34fe607b2fe3a1e7784842b48b313c3a7`, SQL 해시는 위 값으로 일치했다. 기존 백업 경로 부재를 확인하고 `local-postgres/shoppingmall` 전체 custom-format 덤프를 생성해 형식·목록, 호스트 파일 0600/106,542바이트, 컨테이너·호스트 동일 SHA-256 `6f25730321c21727b46e8b81e9738f3208752b0ce771ddf7a0f2f83bae235d2c`를 확인했다. 읽기 전용 미리보기는 적용 12/대기 0012 한 건·32문장·SQL 해시 일치. 같은 SHA의 Drizzle migrator가 exit 0으로 0012를 적용했다. 사후 이력 13건/마지막 해시 일치·기존 계정/상품/예약 0건 불변·신규 주문 관계 5개 각 0건, 사후 미리보기 대기 0.
+- 정식 공유 DB 회귀의 **첫 시도는 `DATABASE_URL`을 전달하지 않아 302건 중 80건이 DB 환경 skip**이었다. 이는 실DB 검증으로 세지 않았다. DB URL을 명시한 목표 주문 스키마 시험 1 pass/0 skip, 전체 순차 회귀 **303건/289 pass/14 skip/0 fail**, 종료 0. 격리 DB 고유 ID가 필요한 전역 배송정책 변이 시험은 공유 DB에서 실행하지 않았고, 나머지 환경 skip도 PASS로 승격하지 않는다. 사후 계정/판매자/상품/배송지/예약/예약품목/주문/발송/발송품목/혜택배분/주문상태/캠페인/혜택사용/감사/세션 15범주 모두 0; 지정 일회용 Node 컨테이너 잔류 0. 같은 근본 원인 연속 오류 1회(시험 DB URL 누락), 수정 후 재검증 성공.
+- 임시 전체 덤프는 공유 DB의 실제 Chrome 주문 QA가 남아 있어 호스트 `/tmp/shoppingmall-s33-0012-pre-20261004.dump`와 `local-postgres` 내부 같은 경로에 보존한다. 다른 백업은 건드리지 않았다. 다음은 공유 DB의 정확한 가상 ID fixture/안전 reset 계획과 실제 Chrome 3발송·멱등·권한·390px/키보드 시험이다. 브라우저·PG·Oracle·UAT는 아직 PASS 아님.
+
 ## 진행 중 — 2026-10-04 S3.3 영속 주문 구현 승인
 
 - 담당: 어울, 단일 writer. 신산님이 `S3_ORDER_CONTRACT_DRAFT.md`의 고객 API 2개와 `0012` 신규 관계 5개의 **구현**을 승인했다. 공유 `WSL-server`의 `local-postgres/shoppingmall` 적용, PG·Oracle 연동/배포는 승인 범위 밖이다.
