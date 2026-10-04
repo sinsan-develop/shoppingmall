@@ -552,6 +552,7 @@ export const checkoutOrders = pgTable('checkout_orders', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   endedAt: timestamp('ended_at', { withTimezone: true }),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
 }, (table) => [
   uniqueIndex('checkout_orders_account_key_uq').on(table.accountId, table.idempotencyKey),
   uniqueIndex('checkout_orders_reservation_uq').on(table.reservationId),
@@ -567,10 +568,11 @@ export const checkoutOrders = pgTable('checkout_orders', {
     AND ${table.shippingSupportWon} BETWEEN 0 AND ${table.shippingFeeWon}
     AND ${table.payableWon} = ${table.goodsWon} - ${table.goodsDiscountWon}
       + ${table.shippingFeeWon} - ${table.shippingSupportWon}`),
-  check('checkout_orders_status_ck', sql`${table.status} IN ('PENDING_PAYMENT','EXPIRED')`),
+  check('checkout_orders_status_ck', sql`${table.status} IN ('PENDING_PAYMENT','EXPIRED','PAID')`),
   check('checkout_orders_expires_ck', sql`${table.expiresAt} > ${table.createdAt}`),
-  check('checkout_orders_ended_ck', sql`(${table.status} = 'PENDING_PAYMENT' AND ${table.endedAt} IS NULL)
-    OR (${table.status} = 'EXPIRED' AND ${table.endedAt} IS NOT NULL)`),
+  check('checkout_orders_ended_ck', sql`(${table.status} = 'PENDING_PAYMENT' AND ${table.endedAt} IS NULL AND ${table.paidAt} IS NULL)
+    OR (${table.status} = 'EXPIRED' AND ${table.endedAt} IS NOT NULL AND ${table.paidAt} IS NULL)
+    OR (${table.status} = 'PAID' AND ${table.endedAt} IS NOT NULL AND ${table.paidAt} IS NOT NULL)`),
 ]);
 
 export const shipmentOrders = pgTable('shipment_orders', {
@@ -598,7 +600,7 @@ export const shipmentOrders = pgTable('shipment_orders', {
     AND ${table.shippingSupportWon} BETWEEN 0 AND ${table.shippingFeeWon}
     AND ${table.payableWon} = ${table.goodsWon} - ${table.goodsDiscountWon}
       + ${table.shippingFeeWon} - ${table.shippingSupportWon}`),
-  check('shipment_orders_status_ck', sql`${table.status} IN ('PENDING_PAYMENT','EXPIRED')`),
+  check('shipment_orders_status_ck', sql`${table.status} IN ('PENDING_PAYMENT','EXPIRED','PAID')`),
 ]);
 
 export const shipmentOrderLines = pgTable('shipment_order_lines', {
@@ -654,6 +656,58 @@ export const orderStatusEvents = pgTable('order_status_events', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index('order_status_events_checkout_created_idx').on(table.checkoutOrderId, table.createdAt),
-  check('order_status_events_status_ck', sql`${table.status} IN ('PENDING_PAYMENT','EXPIRED')`),
+  check('order_status_events_status_ck', sql`${table.status} IN ('PENDING_PAYMENT','EXPIRED','PAID')`),
   check('order_status_events_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
+]);
+
+export const paymentAttempts = pgTable('payment_attempts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  checkoutOrderId: uuid('checkout_order_id').notNull().references(() => checkoutOrders.id),
+  provider: text('provider').notNull(),
+  providerOrderId: text('provider_order_id').notNull(),
+  requestedWon: integer('requested_won').notNull(),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  requestFingerprint: text('request_fingerprint').notNull(),
+  status: text('status').notNull().default('PENDING'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('payment_attempts_checkout_key_uq').on(table.checkoutOrderId, table.idempotencyKey),
+  uniqueIndex('payment_attempts_provider_order_uq').on(table.provider, table.providerOrderId),
+  index('payment_attempts_checkout_created_idx').on(table.checkoutOrderId, table.createdAt),
+  check('payment_attempts_provider_ck', sql`${table.provider} IN ('mock','no_charge')`),
+  check('payment_attempts_provider_order_ck', sql`length(trim(${table.providerOrderId})) BETWEEN 1 AND 200`),
+  check('payment_attempts_requested_ck', sql`${table.requestedWon} >= 0`),
+  check('payment_attempts_fingerprint_ck', sql`${table.requestFingerprint} ~ '^[0-9a-f]{64}$'`),
+  check('payment_attempts_status_ck', sql`${table.status} IN ('PENDING','APPROVED','DECLINED','REVIEW_REQUIRED')`),
+  check('payment_attempts_ended_ck', sql`(${table.status} = 'PENDING' AND ${table.endedAt} IS NULL)
+    OR (${table.status} <> 'PENDING' AND ${table.endedAt} IS NOT NULL)`),
+]);
+
+export const paymentEvents = pgTable('payment_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  paymentAttemptId: uuid('payment_attempt_id').notNull().references(() => paymentAttempts.id),
+  provider: text('provider').notNull(),
+  providerEventId: text('provider_event_id').notNull(),
+  outcome: text('outcome').notNull(),
+  verifiedOrderId: uuid('verified_order_id').notNull().references(() => checkoutOrders.id),
+  providerPaymentId: text('provider_payment_id').notNull(),
+  amountWon: integer('amount_won').notNull(),
+  eventFingerprint: text('event_fingerprint').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  processingStatus: text('processing_status').notNull().default('PENDING_PROCESSING'),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('payment_events_provider_event_uq').on(table.provider, table.providerEventId),
+  index('payment_events_attempt_received_idx').on(table.paymentAttemptId, table.receivedAt),
+  index('payment_events_pending_idx').on(table.processingStatus, table.receivedAt),
+  check('payment_events_provider_ck', sql`${table.provider} IN ('mock','no_charge')`),
+  check('payment_events_provider_event_ck', sql`length(trim(${table.providerEventId})) BETWEEN 1 AND 200`),
+  check('payment_events_payment_id_ck', sql`length(trim(${table.providerPaymentId})) BETWEEN 1 AND 200`),
+  check('payment_events_outcome_ck', sql`${table.outcome} IN ('APPROVED','DECLINED')`),
+  check('payment_events_amount_ck', sql`${table.amountWon} >= 0`),
+  check('payment_events_fingerprint_ck', sql`${table.eventFingerprint} ~ '^[0-9a-f]{64}$'`),
+  check('payment_events_processing_ck', sql`${table.processingStatus} IN ('PENDING_PROCESSING','APPLIED','REVIEW_REQUIRED')`),
+  check('payment_events_processed_ck', sql`(${table.processingStatus} = 'PENDING_PROCESSING' AND ${table.processedAt} IS NULL)
+    OR (${table.processingStatus} <> 'PENDING_PROCESSING' AND ${table.processedAt} IS NOT NULL)`),
 ]);
