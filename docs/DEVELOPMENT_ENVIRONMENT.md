@@ -2,13 +2,13 @@
 
 ## 2026-10-04 S3.3 결제대기 주문 시험 경계
 
-- **공유 개발 DB 0012 최신 상태:** 신산님의 별도 승인으로 `WSL-server`의 `local-postgres/shoppingmall`에 SQL SHA-256 `efe1d8848186d4b74c202241d20cc0a80a4417078e469aa3b082a294b8d267fa`를 적용했다. Drizzle 이력 13건/대기 0, 새 주문 5관계, 기존 계정·상품·예약 행 불변이다. 정확한 전체 백업 0600은 `/tmp/shoppingmall-s33-0012-pre-20261004.dump`(WSL 호스트 및 DB 컨테이너)에 브라우저 QA 완료 전까지 보존한다. 공유 DB 순차 전체 시험 303건/289 pass/14 환경 skip/0 fail; 전역 배송정책 변이 시험은 공유 DB에서 제외했다. QA 15범주 행과 일회용 Node 컨테이너 잔류 0. 브라우저·PG·Oracle·UAT는 미검증이며 세부 증거는 `WORK_STATUS.md` 최신 항목을 따른다.
+- **공유 개발 DB 0012 최신 상태:** 신산님의 별도 승인으로 `WSL-server`의 `local-postgres/shoppingmall`에 SQL SHA-256 `efe1d8848186d4b74c202241d20cc0a80a4417078e469aa3b082a294b8d267fa`를 적용했다. Drizzle 이력 13건/대기 0, 새 주문 5관계, 기존 계정·상품·예약 행 불변이다. 최종 코드 `7b1ab1f`의 공유 DB 순차 전체 시험 **307건/290 pass/17 환경 skip/0 fail**; 전역 배송정책 변이 시험은 공유 DB에서 제외했다. 실제 Chrome에서 QA 구매자의 3발송·66,000원 결제대기 주문 생성/본인 재조회, 390px 가로 넘침 없음·키보드 주문 조회를 확인했다. 실제 HTTP는 본인 GET 200/동일 키 재시도 200/변경 본문 409/판매자 403/비로그인 401. QA 15범주 0행, 정확한 임시 API/Web·빌드 볼륨·브라우저 탭 종료, 적용 전 WSL·DB 컨테이너 임시 덤프 두 개도 확인 후 제거했다. 다른 구매자 브라우저 IDOR·자연 만료, PG·Oracle·UAT는 미검증이며 세부 증거는 `WORK_STATUS.md` 최신 항목을 따른다.
 
 - Windows 작업은 `D:\Project\shoppingmall2\.worktrees\flat-v2-prototypes`의 단일 `codex/s31-checkout-reservation-plan` 브랜치에서, WSL 시험은 SSH 별칭 `WSL-server`의 `/home/daon/deploy/shopping`에서 정확한 push SHA를 fast-forward해 진행한다. Git 원격은 `github-sinsan-develop` SSH 별칭만 사용한다.
 - `0012_s3_orders.sql`의 SHA-256은 `efe1d8848186d4b74c202241d20cc0a80a4417078e469aa3b082a294b8d267fa`다. S3.3 이전 격리 시험용 DB는 별도 private Docker 네트워크의 tmpfs PostgreSQL이었으며 외부 포트·영속 볼륨이 없었다. **공유** `local-postgres/shoppingmall`은 적용 전 12개 migration, 계정·상품·예약 0건, `checkout_orders` 부재였고, 현재 적용 결과는 이 절의 첫 항목을 따른다.
 - S3.3 실DB 시험은 먼저 주문 관계 5개 존재를 읽기 전용으로 검사한다. 관계가 없으면 QA 계정·상품을 만들기 전에 건너뛰며, 목표 검증에서는 `S3_ORDER_SCHEMA_REQUIRED=1`로 건너뛰기를 실패 처리한다. `DATABASE_URL`만 지정한 실행의 skip을 PASS로 합치지 않는다.
 - 우편번호 배송 금지 시험은 **전역 배송정책을 잠깐 변경**하므로 공유 DB에서는 실행하지 않는다. 격리 tmpfs PostgreSQL에서만 `SELECT system_identifier FROM pg_control_system()`을 읽어 해당 인스턴스의 식별자를 `S3_ORDER_MUTATION_TEST_DB_SYSTEM_ID`로 명시한다. 시험은 실제 DB의 식별자·`shoppingmall` 이름을 변경 전에 대조하고 불일치/누락이면 해당 하위 시험을 실행하지 않는다. 식별자는 컨테이너 재생성 시 다시 확인한다.
-- API/Web은 `PENDING_PAYMENT` 생성·본인 조회·만료까지만 구현한다. PG 승인/실결제·Oracle staging·공유 DB 기반 실제 Chrome 주문·사용자 인수는 아직 검증하지 않았다. 격리 및 공유 DB 회귀·사용 후 QA 행·컨테이너 정리 결과는 `WORK_STATUS.md` 최신 항목에 기록한다.
+- API/Web은 `PENDING_PAYMENT` 생성·본인 조회·만료까지만 구현한다. 공유 DB 기반 실제 Chrome 3발송 결제대기 주문은 확인했지만 PG 승인/실결제·Oracle staging·사용자 인수는 검증하지 않았다. 격리 및 공유 DB 회귀·사용 후 QA 행·컨테이너 정리 결과는 `WORK_STATUS.md` 최신 항목에 기록한다.
 - 최종 private QA 코드 SHA `ca47c67`: 전체 순차 실DB 303건/290 pass/13 환경 skip/0 fail, 로컬 302건/222 pass/80 skip/0 fail과 PR 본문 8 pass. 빌드·lint·단독 typecheck 성공(동시 빌드와의 첫 typecheck 경합 실패는 작업현황에 별도 기록). 격리 QA 12범주 행 0과 `shoppingmall-s33-pg-1004`/`shoppingmall-s33-1004` 정확한 컨테이너·네트워크 제거를 확인했다. 이 증거는 공유 DB·실제 Chrome·Oracle staging/UAT를 대신하지 않는다.
 
 ## 2026-10-04 최신 상태 — S3.2 공유 DB 실제 Chrome QA
