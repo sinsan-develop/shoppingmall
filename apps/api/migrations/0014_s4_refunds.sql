@@ -22,6 +22,8 @@ CREATE TABLE "refund_cases" (
   "completed_at" timestamp with time zone,
   "decision_by" uuid,
   "decision_reason" text,
+  "decision_idempotency_key" uuid,
+  "decision_fingerprint" text,
   CONSTRAINT "refund_cases_requester_role_ck" CHECK ("requester_role" IN ('customer','admin')),
   CONSTRAINT "refund_cases_reason_code_ck" CHECK ("reason_code" IN
     ('customer_request','quality_issue','wrong_delivery','damaged','other')),
@@ -38,25 +40,32 @@ CREATE TABLE "refund_cases" (
     ('REQUESTED','APPROVED','REJECTED','PROCESSING','REFUNDED','REVIEW_REQUIRED')),
   CONSTRAINT "refund_cases_decision_reason_ck" CHECK ("decision_reason" IS NULL
     OR length(trim("decision_reason")) BETWEEN 1 AND 500),
+  CONSTRAINT "refund_cases_decision_fingerprint_ck" CHECK ("decision_fingerprint" IS NULL
+    OR "decision_fingerprint" ~ '^[0-9a-f]{64}$'),
   CONSTRAINT "refund_cases_state_ck" CHECK (
     ("status" = 'REQUESTED' AND "decided_at" IS NULL AND "completed_at" IS NULL
       AND "decision_by" IS NULL AND "decision_reason" IS NULL
+      AND "decision_idempotency_key" IS NULL AND "decision_fingerprint" IS NULL
       AND "pre_shipment_evidence" IS NULL AND "pre_shipment_confirmed_by" IS NULL
       AND "pre_shipment_confirmed_at" IS NULL
       AND "goods_refund_won" = 0 AND "shipping_refund_won" = 0 AND "total_refund_won" = 0)
     OR ("status" IN ('APPROVED','PROCESSING') AND "decided_at" IS NOT NULL
       AND "completed_at" IS NULL AND "decision_by" IS NOT NULL AND "decision_reason" IS NOT NULL
+      AND "decision_idempotency_key" IS NOT NULL AND "decision_fingerprint" IS NOT NULL
       AND "pre_shipment_evidence" = 'ADMIN_CONFIRMED_NOT_DISPATCHED'
       AND "pre_shipment_confirmed_by" IS NOT NULL AND "pre_shipment_confirmed_at" IS NOT NULL)
     OR ("status" = 'REJECTED' AND "decided_at" IS NOT NULL AND "completed_at" IS NOT NULL
       AND "decision_by" IS NOT NULL AND "decision_reason" IS NOT NULL
+      AND "decision_idempotency_key" IS NOT NULL AND "decision_fingerprint" IS NOT NULL
       AND "goods_refund_won" = 0 AND "shipping_refund_won" = 0 AND "total_refund_won" = 0)
     OR ("status" = 'REFUNDED' AND "decided_at" IS NOT NULL
       AND "completed_at" IS NOT NULL AND "decision_by" IS NOT NULL AND "decision_reason" IS NOT NULL
+      AND "decision_idempotency_key" IS NOT NULL AND "decision_fingerprint" IS NOT NULL
       AND "pre_shipment_evidence" = 'ADMIN_CONFIRMED_NOT_DISPATCHED'
       AND "pre_shipment_confirmed_by" IS NOT NULL AND "pre_shipment_confirmed_at" IS NOT NULL)
     OR ("status" = 'REVIEW_REQUIRED' AND "decided_at" IS NOT NULL
       AND "completed_at" IS NULL AND "decision_by" IS NOT NULL AND "decision_reason" IS NOT NULL
+      AND "decision_idempotency_key" IS NOT NULL AND "decision_fingerprint" IS NOT NULL
       AND "pre_shipment_evidence" = 'ADMIN_CONFIRMED_NOT_DISPATCHED'
       AND "pre_shipment_confirmed_by" IS NOT NULL AND "pre_shipment_confirmed_at" IS NOT NULL)
   )

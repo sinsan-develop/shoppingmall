@@ -29,6 +29,8 @@ test('0014 exposes six constrained refund ledger relations', {
     assert.match(definitions.get('refund_cases_status_ck') ?? '', /REQUESTED.*APPROVED.*REJECTED.*PROCESSING.*REFUNDED.*REVIEW_REQUIRED/i);
     const stateDefinition = definitions.get('refund_cases_state_ck') ?? '';
     assert.match(stateDefinition, /pre_shipment_evidence.*ADMIN_CONFIRMED_NOT_DISPATCHED/i);
+    assert.match(stateDefinition, /decision_idempotency_key.*decision_fingerprint/i,
+      'every final decision must retain its idempotency identity');
     assert.match(stateDefinition, /status.*=.*'REVIEW_REQUIRED'.*completed_at IS NULL/i,
       'manual review must not claim that the refund completed');
     assert.match(definitions.get('refund_case_lines_restock_ck') ?? '', /restock_mode.*none.*on_hand_only/i);

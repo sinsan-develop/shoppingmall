@@ -1,9 +1,17 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S4.2 Task 3 환불 처리 core
+
+- 담당 어울, 단일 writer. 기준 Task 2 `9a0363b`. `createRefundCase`, `decideRefundCase`, `recordVerifiedRefundEvent`, `processVerifiedRefundEvent`, 권한 제한 조회와 mock/no-charge adapter를 구현했다. 고객/관리자 요청과 결정의 UUID 멱등키·64자 지문, 주문→발송→품목→사례 잠금, 누적 floor 차액, 마지막 전량 사례의 실제 납부 배송비 1회, 공급자 사건/충돌 보존, `on_hand_only` 보유재고 1회 복원과 판매가능재고 불변을 적용했다.
+- 계약 보정: 승인된 결정 API의 멱등성을 실제 저장하기 위해 아직 공유 DB에 미적용인 0014 `refund_cases`에 nullable 결정 멱등키·결정 지문과 상태 연동 check를 추가했다. 신규 관계나 공개 API는 늘리지 않았다. 현 0014 SHA-256 `fe1328de61502e1d19a7ade992862c9bd508667f432f0ac29de1df87a9c75181`, 공유 DB 읽기 전용 미리보기 14 적용/1 대기·35문장·SQL 적용 0이다.
+- TDD: 처리 모듈 부재 RED 0 pass/1 fail에서 시작했다. 전용 격리 DB fresh 0000~0014에서 순차 1개+2개 환불의 상품액 3,333원+6,667원, 실제 배송비 2,000원 1회, 총 12,000원, 원 주문/발송/품목 snapshot 불변, 사건 중복·다른 지문 충돌 2건, 보유재고만 2개 복원, 판매중지 복원 거부를 확인했다. 병렬 2개+2개 승인은 한 건만 성공해 점유 2개, 0원은 no-charge 검증 사건으로 완료, 검증된 실패는 `REVIEW_REQUIRED`·완료시각 없음이다. 목표 DB **4 pass/0 fail**(schema 1+처리 3), 전체 **326 total/235 pass/91 환경 skip/0 fail**, PR 본문 8 pass, API typecheck·lint 종료 0이다.
+- 오류 기록: 첫 처리 시험은 fixture의 판매자 계정 ID와 판매자 ID 이름 충돌로 FK 실패 1회였고 전용 DB fresh 재생성으로 잔류를 제거했다. 다음 시험은 집계 query에 허용되지 않는 `FOR UPDATE`를 붙여 1회 실패했다. 승인 거래 잠금을 주문→발송→원품목→사례 순서로 분리해 보정했다. 같은 근본 원인 3회 연속 없음.
+- 정리/미검증: 각 실DB 시험의 정확한 주문·환불·계정 행을 `finally`로 제거했고 전용 DB의 환불 사례/시도/사건/충돌/주문/계정 6범주 모두 0이다. 격리 DB 자체는 후속 Task 4~6에 재사용한다. 최신 commit/SHA의 WSL full DB 회귀, 고객·관리자 HTTP/화면, 실제 브라우저, 공유 DB 0014, 실제 PG, Oracle/UAT는 아직 미검증이다.
+
 ## 진행 중 — 2026-10-05 S4.2 Task 2 환불 원장 구조
 
 - 담당 어울, 단일 writer. 기준 branch `codex/s4-payment-refund`, Task 1 commit `5f8a7d8`. 승인된 범위 안에서 새 `0014_s4_refunds.sql`과 환불 사례·품목·시도·공급자 사건·사건 충돌·상태 이력의 6관계만 추가했다. 기존 주문·결제·프로모션 금액 snapshot과 0000~0013 SQL은 변경하지 않았다.
-- TDD: 공유 개발 DB의 관계 부재를 먼저 확인해 구조 시험 0 pass/1 fail RED를 만들었고, 전용 격리 DB `shoppingmall_s42_1005_5f8a7d8`에 0000~0014를 적용한 뒤 구조·제약·고유 인덱스 목표 시험 1 pass/0 fail GREEN을 확인했다. 커밋 전 계약 대조에서 `REVIEW_REQUIRED`가 완료시각을 요구해 환불 완료처럼 보이는 문제를 추가 RED로 고정했고, `REFUNDED`만 완료시각 필수·수동 검토는 완료시각 없음으로 보정한 fresh apply 뒤 다시 1 pass/0 fail이다. 격리 DB migration 이력 15건, 공유 `shoppingmall`은 읽기 전용 미리보기 14 적용/0014 1 대기·35문장, 최종 0014 SHA-256 `8d92d378eee29db3dde3b3eac0b070a83130c99b54bc55d587a35143136864ea`이다. 공유 DB에는 적용하지 않았다.
+- TDD: 공유 개발 DB의 관계 부재를 먼저 확인해 구조 시험 0 pass/1 fail RED를 만들었고, 전용 격리 DB `shoppingmall_s42_1005_5f8a7d8`에 0000~0014를 적용한 뒤 구조·제약·고유 인덱스 목표 시험 1 pass/0 fail GREEN을 확인했다. 커밋 전 계약 대조에서 `REVIEW_REQUIRED`가 완료시각을 요구해 환불 완료처럼 보이는 문제를 추가 RED로 고정했고, `REFUNDED`만 완료시각 필수·수동 검토는 완료시각 없음으로 보정한 fresh apply 뒤 다시 1 pass/0 fail이다. Task 2 커밋 당시 0014 SHA-256은 `8d92d378eee29db3dde3b3eac0b070a83130c99b54bc55d587a35143136864ea`였으며, 후속 Task 3의 결정 멱등 필드 추가로 현 해시는 위 Task 3 기록을 따른다. 공유 DB에는 적용하지 않았다.
 - 마이그레이션 이력 오류 1회: Windows working tree의 기존 SQL이 CRLF로 변환되어 공유 DB의 LF 적용 해시와 달랐다. 기존 SQL 내용을 바꾸지 않고 `.gitattributes`에 migration LF 규칙을 추가·renormalize했으며, 0000~0013의 적용 해시 회귀시험을 저장소 루트와 `apps/api` 작업 위치 양쪽에서 각 3 pass로 확인했다.
 - 시험 환경 오류 1회: 격리 DB에서 API 전체 회귀를 실행했으나 기존 QA fixture가 안전상 DB 이름을 정확히 `shoppingmall`로 제한하여 178 total/129 pass/31 fail/18 skip이었다. 제품/schema 회귀로 판정하지 않고 해당 안전장치를 유지했다. Task 2는 전용 구조 시험만 격리 DB에서 실행하고, 전체 회귀는 DB 미설정 경로로 **323 total/235 pass/88 환경 skip/0 fail**, PR 본문 검사 8 pass, API typecheck·프로젝트 lint·`git diff --check` 종료 0을 확인했다.
 - 격리 DB 재생성 도구 오류 2회: 첫 존재 확인 SQL은 원격 인용부호가 깨져 보호 확인에서 중단돼 DB 무변경, 두 번째는 정확한 전용 DB를 재생성했으나 migrator를 저장소 루트에서 실행해 journal 상대경로를 찾지 못했다. 빈 전용 DB에 `apps/api` 기준으로 다시 실행해 0000~0014 적용과 목표 GREEN을 확인했다. 공유 DB와 제품 데이터 영향은 없다.

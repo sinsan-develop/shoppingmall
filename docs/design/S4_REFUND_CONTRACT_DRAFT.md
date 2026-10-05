@@ -24,7 +24,7 @@
 
 | 신규 관계 | 필수 열·제약 |
 | --- | --- |
-| `refund_cases` | UUID PK; 원 `checkout_order_id`, `shipment_order_id` FK 및 동일 통합 주문 복합 FK; 요청자 account/역할, 사유 코드·설명, 출고 전 근거(`ADMIN_CONFIRMED_NOT_DISPATCHED`만 우선 허용)와 확인 관리자/시각, 정책 코드/버전, UUID 요청 멱등키·64자 지문, 승인 시 확정하는 `goods_refund_won`/`shipping_refund_won`/`total_refund_won`(합계·비음수 check), `REQUESTED/APPROVED/REJECTED/PROCESSING/REFUNDED/REVIEW_REQUIRED` 상태, 요청/결정/완료 시각과 결정 관리자/사유. 요청자+원주문+멱등키 unique, 결정/완료 시각과 상태 check, 사유 길이 check. 출고 전 확인이 없으면 승인할 수 없다. |
+| `refund_cases` | UUID PK; 원 `checkout_order_id`, `shipment_order_id` FK 및 동일 통합 주문 복합 FK; 요청자 account/역할, 사유 코드·설명, 출고 전 근거(`ADMIN_CONFIRMED_NOT_DISPATCHED`만 우선 허용)와 확인 관리자/시각, 정책 코드/버전, UUID 요청 멱등키·64자 지문, 별도 관리자 결정 UUID 멱등키·64자 지문, 승인 시 확정하는 `goods_refund_won`/`shipping_refund_won`/`total_refund_won`(합계·비음수 check), `REQUESTED/APPROVED/REJECTED/PROCESSING/REFUNDED/REVIEW_REQUIRED` 상태, 요청/결정/완료 시각과 결정 관리자/사유. 요청자+원주문+멱등키 unique, 결정/완료 시각과 상태 check, 사유 길이 check. 출고 전 확인이 없으면 승인할 수 없다. |
 | `refund_case_lines` | 사례 FK, 원 `shipment_order_id+option_id` 복합 FK, 정수 취소 수량>0, 승인 시 고정한 원 상품 실결제 환급 원화 정수>=0, 관리자 지정 `restock_mode` 및 완료 시 복원 수량(0~취소 수량), PK(사례, 옵션). 원 품목 수량 초과·여러 사례 간 누적 초과는 잠금 거래로 막는다. |
 | `refund_attempts` | UUID PK, 사례 FK, 원 승인 `payment_attempt_id` FK(0원은 `no_charge`), 공급자 코드, 공급자 환불 ID/요청 금액, UUID 실행 멱등키, `PENDING/SUCCEEDED/FAILED/REVIEW_REQUIRED`, 생성/종료 시각. 사례+실행키·공급자+환불 ID unique. 한 사례의 불명확한 시도가 남은 동안 새 실행 금지. |
 | `refund_events` | UUID PK, 시도 FK, 공급자+사건 ID unique, 정규화 검증된 원 결제 ID·환불 ID·원화 금액/결과·사건 지문, 수신/처리 시각, `PENDING_PROCESSING/APPLIED/REVIEW_REQUIRED`. 공급자 원문·카드·민감 개인정보 비저장. 동일 사건 ID 다른 지문은 성공으로 처리하지 않고 별도 충돌/검토 근거를 남긴다. |

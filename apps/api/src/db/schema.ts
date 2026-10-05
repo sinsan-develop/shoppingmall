@@ -749,6 +749,8 @@ export const refundCases = pgTable('refund_cases', {
   completedAt: timestamp('completed_at', { withTimezone: true }),
   decisionBy: uuid('decision_by').references(() => accounts.id),
   decisionReason: text('decision_reason'),
+  decisionIdempotencyKey: uuid('decision_idempotency_key'),
+  decisionFingerprint: text('decision_fingerprint'),
 }, (table) => [
   foreignKey({ name: 'refund_cases_shipment_fk',
     columns: [table.checkoutOrderId, table.shipmentOrderId],
@@ -774,32 +776,39 @@ export const refundCases = pgTable('refund_cases', {
     ('REQUESTED','APPROVED','REJECTED','PROCESSING','REFUNDED','REVIEW_REQUIRED')`),
   check('refund_cases_decision_reason_ck', sql`${table.decisionReason} IS NULL
     OR length(trim(${table.decisionReason})) BETWEEN 1 AND 500`),
+  check('refund_cases_decision_fingerprint_ck', sql`${table.decisionFingerprint} IS NULL
+    OR ${table.decisionFingerprint} ~ '^[0-9a-f]{64}$'`),
   check('refund_cases_state_ck', sql`(
     ${table.status} = 'REQUESTED' AND ${table.decidedAt} IS NULL
       AND ${table.completedAt} IS NULL AND ${table.decisionBy} IS NULL
       AND ${table.decisionReason} IS NULL AND ${table.preShipmentEvidence} IS NULL
+      AND ${table.decisionIdempotencyKey} IS NULL AND ${table.decisionFingerprint} IS NULL
       AND ${table.preShipmentConfirmedBy} IS NULL AND ${table.preShipmentConfirmedAt} IS NULL
       AND ${table.goodsRefundWon} = 0 AND ${table.shippingRefundWon} = 0
       AND ${table.totalRefundWon} = 0)
     OR (${table.status} IN ('APPROVED','PROCESSING') AND ${table.decidedAt} IS NOT NULL
       AND ${table.completedAt} IS NULL AND ${table.decisionBy} IS NOT NULL
       AND ${table.decisionReason} IS NOT NULL
+      AND ${table.decisionIdempotencyKey} IS NOT NULL AND ${table.decisionFingerprint} IS NOT NULL
       AND ${table.preShipmentEvidence} = 'ADMIN_CONFIRMED_NOT_DISPATCHED'
       AND ${table.preShipmentConfirmedBy} IS NOT NULL
       AND ${table.preShipmentConfirmedAt} IS NOT NULL)
     OR (${table.status} = 'REJECTED' AND ${table.decidedAt} IS NOT NULL
       AND ${table.completedAt} IS NOT NULL AND ${table.decisionBy} IS NOT NULL
       AND ${table.decisionReason} IS NOT NULL AND ${table.goodsRefundWon} = 0
+      AND ${table.decisionIdempotencyKey} IS NOT NULL AND ${table.decisionFingerprint} IS NOT NULL
       AND ${table.shippingRefundWon} = 0 AND ${table.totalRefundWon} = 0)
     OR (${table.status} = 'REFUNDED' AND ${table.decidedAt} IS NOT NULL
       AND ${table.completedAt} IS NOT NULL AND ${table.decisionBy} IS NOT NULL
       AND ${table.decisionReason} IS NOT NULL
+      AND ${table.decisionIdempotencyKey} IS NOT NULL AND ${table.decisionFingerprint} IS NOT NULL
       AND ${table.preShipmentEvidence} = 'ADMIN_CONFIRMED_NOT_DISPATCHED'
       AND ${table.preShipmentConfirmedBy} IS NOT NULL
       AND ${table.preShipmentConfirmedAt} IS NOT NULL)
     OR (${table.status} = 'REVIEW_REQUIRED' AND ${table.decidedAt} IS NOT NULL
       AND ${table.completedAt} IS NULL AND ${table.decisionBy} IS NOT NULL
       AND ${table.decisionReason} IS NOT NULL
+      AND ${table.decisionIdempotencyKey} IS NOT NULL AND ${table.decisionFingerprint} IS NOT NULL
       AND ${table.preShipmentEvidence} = 'ADMIN_CONFIRMED_NOT_DISPATCHED'
       AND ${table.preShipmentConfirmedBy} IS NOT NULL
       AND ${table.preShipmentConfirmedAt} IS NOT NULL)`),
