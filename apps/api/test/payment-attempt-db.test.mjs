@@ -54,6 +54,15 @@ test('payment attempt belongs to its buyer and an idempotency key cannot change 
     const rows = await pool.query('SELECT count(*)::int AS n FROM payment_events WHERE payment_attempt_id=$1',
       [first.id]);
     assert.equal(rows.rows[0].n, 1);
+    const unknownOrder = await recordVerifiedPaymentEvent(pool, first.id,
+      { ...verified, eventId: `mock:event:${randomUUID()}`, orderId: randomUUID() });
+    assert.equal(unknownOrder.processingStatus, 'REVIEW_REQUIRED');
+    const wrongAmount = await recordVerifiedPaymentEvent(pool, first.id,
+      { ...verified, eventId: `mock:event:${randomUUID()}`, amountWon: 13001 });
+    assert.equal(wrongAmount.processingStatus, 'REVIEW_REQUIRED');
+    const reviewed = await pool.query(`SELECT count(*)::int AS n FROM payment_events
+      WHERE payment_attempt_id=$1 AND processing_status='REVIEW_REQUIRED'`, [first.id]);
+    assert.equal(reviewed.rows[0].n, 2);
     assert.equal((await pool.query('SELECT status FROM checkout_orders WHERE id=$1', [ids.order])).rows[0].status,
       'PENDING_PAYMENT');
   } finally {
