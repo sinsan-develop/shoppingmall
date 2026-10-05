@@ -6,7 +6,9 @@
 - 계약 보정: 승인된 결정 API의 멱등성을 실제 저장하기 위해 아직 공유 DB에 미적용인 0014 `refund_cases`에 nullable 결정 멱등키·결정 지문과 상태 연동 check를 추가했다. 신규 관계나 공개 API는 늘리지 않았다. 현 0014 SHA-256 `fe1328de61502e1d19a7ade992862c9bd508667f432f0ac29de1df87a9c75181`, 공유 DB 읽기 전용 미리보기 14 적용/1 대기·35문장·SQL 적용 0이다.
 - TDD: 처리 모듈 부재 RED 0 pass/1 fail에서 시작했다. 전용 격리 DB fresh 0000~0014에서 순차 1개+2개 환불의 상품액 3,333원+6,667원, 실제 배송비 2,000원 1회, 총 12,000원, 원 주문/발송/품목 snapshot 불변, 사건 중복·다른 지문 충돌 2건, 보유재고만 2개 복원, 판매중지 복원 거부를 확인했다. 병렬 2개+2개 승인은 한 건만 성공해 점유 2개, 0원은 no-charge 검증 사건으로 완료, 검증된 실패는 `REVIEW_REQUIRED`·완료시각 없음이다. 목표 DB **4 pass/0 fail**(schema 1+처리 3), 전체 **326 total/235 pass/91 환경 skip/0 fail**, PR 본문 8 pass, API typecheck·lint 종료 0이다.
 - 오류 기록: 첫 처리 시험은 fixture의 판매자 계정 ID와 판매자 ID 이름 충돌로 FK 실패 1회였고 전용 DB fresh 재생성으로 잔류를 제거했다. 다음 시험은 집계 query에 허용되지 않는 `FOR UPDATE`를 붙여 1회 실패했다. 승인 거래 잠금을 주문→발송→원품목→사례 순서로 분리해 보정했다. 같은 근본 원인 3회 연속 없음.
-- 정리/미검증: 각 실DB 시험의 정확한 주문·환불·계정 행을 `finally`로 제거했고 전용 DB의 환불 사례/시도/사건/충돌/주문/계정 6범주 모두 0이다. 격리 DB 자체는 후속 Task 4~6에 재사용한다. 최신 commit/SHA의 WSL full DB 회귀, 고객·관리자 HTTP/화면, 실제 브라우저, 공유 DB 0014, 실제 PG, Oracle/UAT는 아직 미검증이다.
+- WSL exact-SHA: SSH 별칭 원격으로 `ad5bd93fcd4887c2c68cd57f3774c6cb881d2a92`를 push하고 `/home/daon/deploy/shopping`을 같은 SHA로 fast-forward했다. 외부 포트·영속 mount 없는 tmpfs PostgreSQL `shoppingmall-s42-task3-pg-1005`/전용 네트워크 `shoppingmall-s42-task3-1005`, DB 이름 `shoppingmall`에 fresh 0000~0014를 적용했다. Node 22.23.2에서 API 전체 순차 **182 tests/165 pass/17 환경 skip/0 fail**. 환불 사례/시도/사건/충돌/주문/결제시도/계정/상품 8범주 각 0을 확인하고 정확한 컨테이너·네트워크만 제거해 잔류 0, WSL checkout clean을 확인했다.
+- WSL 실행 오류 2회: 첫 원격 시험 명령의 `$()`를 PowerShell이 로컬에서 먼저 해석해 시험 시작 전 실패했고, 단일 인용부호 보정 뒤에는 비대화형 PATH에 `pnpm`이 없어 migration 전 실패했다. 제품/DB 변경은 없었다. 실제 설치 Node 22 절대 경로와 기존 checkout `tsx`를 사용해 재실행했고 위 전체 PASS를 얻었다. 같은 근본 원인 3회 연속 없음.
+- 정리/미검증: Windows 전용 격리 DB `shoppingmall_s42_1005_5f8a7d8`은 후속 Task 4~6에 재사용하되 시험 행 8범주 0이다. 고객·관리자 HTTP/화면, 실제 브라우저, 공유 DB 0014, 실제 PG, Oracle/UAT는 아직 미검증이다.
 
 ## 진행 중 — 2026-10-05 S4.2 Task 2 환불 원장 구조
 
