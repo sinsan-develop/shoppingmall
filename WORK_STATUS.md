@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## GREEN 후보 — 2026-10-06 S5.1 Task5 판매자 목록·상세·전이 API
+
+- **판정·actual RED 기준:** exact base `f64820b1f28eb305c375b85bbb4941b21175105b`의 WSL fresh private PostgreSQL actual RED **7 tests / 0 pass / 7 fail / 0 skip**은 모두 seller fulfillment endpoint/controller 부재의 HTTP 404였고 harness/setup 오류는 0이었다. 이 원인만 해결하는 Task5 GREEN 최소 구현을 기존 `codex/s5-fulfillment-engagement` worktree에 적용했으며 관리자·고객 API/UI, schema/migration, 기존 금액·주문·환불 상태는 변경하지 않았다.
+- **구현:** 활성 seller session의 고정 seller scope와 checkout/shipment `PAID`를 SQL WHERE에 함께 적용한 목록·상세를 추가했다. 목록은 상태·기본20/최대50 검증, exact `paid_at DESC, shipment id DESC` keyset, server 생성 서명형 base64url cursor와 변조/형식 거부, 이름·전화 마스킹만 제공한다. 상세는 같은 owner/PAID SQL scope에서 금액 snapshot, 원/완료환불/잔여수량, 현재 출고값과 기존 주문 배송지 최소 필드만 조회하며 새 개인정보 저장은 없다.
+- **전이·권한:** 쓰기는 same-Origin, 활성 seller role, UUID idempotency key, strict body와 expectedVersion을 요구한다. shipment→fulfillment 순으로 잠그고 기존 `rules.ts`를 재사용해 승인된 네 edge만 적용하며, 같은 key+같은 deterministic fingerprint는 저장된 응답을 재사용하고 다른 본문·stale version은 409다. 상태·예상일·carrier/tracking을 즉시 반환하고 PII 없는 before/after 사건 1개와 감사 응답만 같은 transaction에 기록한다. `manage-seller-fulfillment`는 own active seller role에만 열었고 같은 계정의 admin 역할에는 공유하지 않는다.
+- **변경 파일:** 신규 `apps/api/src/fulfillment/seller.controller.ts`, `apps/api/src/fulfillment/service.ts`; 수정 `apps/api/src/fulfillment/repository.ts`, `apps/api/src/app.module.ts`, `apps/api/src/access.ts`, 이 `WORK_STATUS.md`. 기존 RED 시험·assertion은 수정하지 않았다.
+- **로컬 대상 GREEN:** `DATABASE_URL` 없이 seller HTTP+access 대상은 **6 tests / 5 pass / 1 explicit DB skip / 0 fail**이다. route/access만 GREEN이며 DB skip은 actual DB GREEN 근거가 아니다.
+- **로컬 회귀·정적 gate:** 전체 nonDB 주 시험은 **374 tests / 266 pass / 108 DB·환경 skip / 0 fail**, PR 본문은 **8/8 pass**다. root `pnpm typecheck`, `pnpm lint`, API·web `pnpm build`와 `git diff --check`는 통과했다. 첫 build는 제한된 sandbox가 `apps/web/.next/trace` 쓰기를 거부한 `EPERM` **1회**였고, 승인된 동일 build 재실행에서 API와 web 16 routes가 통과했으며 제품·DB 변경은 없었다.
+- **격리·미검증·다음:** code-writer는 shared `local-postgres/shoppingmall`, controller의 active private PostgreSQL/network, WSL/Docker/Oracle/외부 서비스에 접속하거나 변경하지 않았다. actual private DB 목표 GREEN·지정 회귀·전체 DB 회귀·잔류 0은 **미검증**이며 controller가 이 후보 exact SHA에서 실행한다. 전용 PostgreSQL/network는 그 검증까지 active 임시 자원으로 유지하고, 사용 종료 시 controller가 exact cleanup과 잔류 0을 확인해야 한다.
+
 ## 실제 RED — 2026-10-06 S5.1 Task5 판매자 목록·상세·전이 API
 
 - **판정·기준:** controller가 WSL exact SHA `1f0b53746cff8f7bf8f0218d3d79dc3ccc10e8be`에서 Task5 seller fulfillment HTTP+DB 시험의 **actual RED**를 확인했다. WSL sync와 실제 실행은 controller가 담당했으며, code-writer는 제품 구현을 시작하지 않았다.

@@ -9,6 +9,7 @@ export type AccessContext = {
 export type AccessAction =
   | 'read-customer'
   | 'read-seller-order'
+  | 'manage-seller-fulfillment'
   | 'change-stock'
   | 'request-proposal'
   | 'approve-proposal'
@@ -30,6 +31,7 @@ export function canAccess(
     case 'read-customer':
       return actor.role === 'customer' && !!resource.customerId && actor.accountId === resource.customerId;
     case 'read-seller-order':
+    case 'manage-seller-fulfillment':
     case 'change-stock':
     case 'request-proposal':
       return actor.role === 'seller' && !!resource.sellerId && !!actor.sellerId && actor.sellerId === resource.sellerId;

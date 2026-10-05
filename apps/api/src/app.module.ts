@@ -13,10 +13,12 @@ import { CustomerPromotionController } from './promotions/customer.controller.js
 import { CustomerOrderController } from './orders/customer.controller.js';
 import { AdminRefundController } from './refunds/admin.controller.js';
 import { CustomerRefundController } from './refunds/customer.controller.js';
+import { SellerFulfillmentController } from './fulfillment/seller.controller.js';
 
 @Module({ controllers: [HealthController, AuthController, CustomerController, CustomerCartController,
   CustomerReservationController, AdminReservationController, CatalogController, ShippingController,
   HomeAdminController, HomePublicController, PromotionAdminController, CustomerPromotionController,
-  CustomerOrderController, CustomerRefundController, AdminRefundController],
+  CustomerOrderController, CustomerRefundController, AdminRefundController,
+  SellerFulfillmentController],
   providers: [DatabaseService] })
 export class AppModule {}

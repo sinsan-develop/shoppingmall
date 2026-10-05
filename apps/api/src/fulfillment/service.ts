@@ -1,0 +1,228 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
+import type { Pool, PoolClient } from 'pg';
+import { canAccess, type AccessContext } from '../access.js';
+import { findSellerTransitionReplay, getSellerFulfillmentDetail,
+  insertSellerTransitionRecords, listSellerFulfillments, lockSellerFulfillment,
+  updateSellerFulfillment, type SellerFulfillmentCursor } from './repository.js';
+import { validateSellerTransition } from './rules.js';
+
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const paidAt = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.(?:\d{3}|\d{6})Z$/;
+const statuses = new Set(['READY', 'PACKING', 'DELAYED', 'SHIPPED', 'CANCELLED']);
+const transitionFields = ['targetStatus', 'expectedVersion', 'reason', 'customerMessage',
+  'expectedShipDate', 'carrierCode', 'carrierName', 'trackingNumber'] as const;
+
+type TransitionBody = Record<(typeof transitionFields)[number], unknown> & { expectedVersion: number };
+
+function invalid(): Error { return new Error('Invalid fulfillment request'); }
+
+function cursorSignature(payload: string): Buffer {
+  return createHash('sha256').update('seller-fulfillment-cursor-v1\0').update(payload).digest();
+}
+
+function encodeCursor(cursor: SellerFulfillmentCursor): string {
+  const payload = Buffer.from(JSON.stringify({ paidAt: cursor.paidAt,
+    shipmentOrderId: cursor.shipmentOrderId })).toString('base64url');
+  return Buffer.from(JSON.stringify({ payload,
+    signature: cursorSignature(payload).toString('base64url') })).toString('base64url');
+}
+
+function decodeCursor(value: unknown): SellerFulfillmentCursor {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,512}$/.test(value)) throw invalid();
+  try {
+    const envelope = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as unknown;
+    if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) throw invalid();
+    const record = envelope as Record<string, unknown>;
+    if (Object.keys(record).length !== 2 || typeof record.payload !== 'string' ||
+        typeof record.signature !== 'string') throw invalid();
+    const actual = Buffer.from(record.signature, 'base64url');
+    const expected = cursorSignature(record.payload);
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw invalid();
+    const decoded = JSON.parse(Buffer.from(record.payload, 'base64url').toString('utf8')) as unknown;
+    if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) throw invalid();
+    const cursor = decoded as Record<string, unknown>;
+    if (Object.keys(cursor).length !== 2 || typeof cursor.paidAt !== 'string' ||
+        !paidAt.test(cursor.paidAt) || !Number.isFinite(new Date(cursor.paidAt).getTime()) ||
+        typeof cursor.shipmentOrderId !== 'string' || !uuid.test(cursor.shipmentOrderId)) throw invalid();
+    return { paidAt: cursor.paidAt, shipmentOrderId: cursor.shipmentOrderId };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Invalid fulfillment request') throw error;
+    throw invalid();
+  }
+}
+
+function parseListQuery(query: Record<string, unknown>) {
+  if (Object.keys(query).some((key) => !['status', 'cursor', 'limit'].includes(key)) ||
+      Object.values(query).some((value) => typeof value !== 'string')) throw invalid();
+  if (query.status !== undefined && !statuses.has(query.status as string)) throw invalid();
+  let limit = 20;
+  if (query.limit !== undefined) {
+    if (!/^\d+$/.test(query.limit as string)) throw invalid();
+    limit = Number(query.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw invalid();
+  }
+  return {
+    status: query.status as string | undefined,
+    cursor: query.cursor === undefined ? undefined : decodeCursor(query.cursor),
+    limit,
+  };
+}
+
+function parseTransitionBody(value: unknown): TransitionBody {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid();
+  const input = value as Record<string, unknown>;
+  if (Object.keys(input).some((key) => !transitionFields.includes(
+    key as (typeof transitionFields)[number],
+  )) || typeof input.targetStatus !== 'string' || !Number.isInteger(input.expectedVersion) ||
+      (input.expectedVersion as number) < 0) throw invalid();
+  return input as TransitionBody;
+}
+
+function transitionFingerprint(shipmentOrderId: string, body: TransitionBody): string {
+  const canonical: Record<string, unknown> = { shipmentOrderId };
+  for (const key of transitionFields) {
+    if (Object.hasOwn(body, key)) canonical[key] = body[key];
+  }
+  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
+function maskName(value: string): string {
+  const characters = Array.from(value);
+  if (characters.length < 2) return '*';
+  return `${characters[0]}${'*'.repeat(Math.max(2, characters.length - 2))}${characters.at(-1)}`;
+}
+
+function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  return `***-***-${digits.slice(-4).padStart(4, '*')}`;
+}
+
+async function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await work(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export class SellerFulfillmentService {
+  private readonly sellerId: string;
+
+  constructor(private readonly pool: Pool, private readonly actor: AccessContext) {
+    if (!actor.sellerId || !canAccess(actor, 'manage-seller-fulfillment',
+      { sellerId: actor.sellerId })) throw new Error('Fulfillment forbidden');
+    this.sellerId = actor.sellerId;
+  }
+
+  async list(query: Record<string, unknown>) {
+    const input = parseListQuery(query);
+    const rows = await listSellerFulfillments(this.pool, this.sellerId, input);
+    const visible = rows.slice(0, input.limit);
+    const items = visible.map((row) => ({
+      shipmentOrderId: row.shipmentOrderId,
+      status: row.status,
+      version: row.version,
+      paidAt: row.paidAt.toISOString(),
+      expectedShipDate: row.expectedShipDate,
+      recipientName: maskName(row.recipientName),
+      phone: maskPhone(row.phone),
+      carrierCode: row.carrierCode,
+      carrierName: row.carrierName,
+      trackingNumber: row.trackingNumber,
+    }));
+    const last = visible.at(-1);
+    return {
+      items,
+      nextCursor: rows.length > input.limit && last ? encodeCursor({
+        paidAt: last.cursorPaidAt, shipmentOrderId: last.shipmentOrderId,
+      }) : null,
+    };
+  }
+
+  async detail(shipmentOrderId: string) {
+    return getSellerFulfillmentDetail(this.pool, this.sellerId, shipmentOrderId);
+  }
+
+  async transition(shipmentOrderId: string, idempotencyKey: string, value: unknown) {
+    const body = parseTransitionBody(value);
+    const fingerprint = transitionFingerprint(shipmentOrderId, body);
+    return transaction(this.pool, async (client) => {
+      const current = await lockSellerFulfillment(client, this.sellerId, shipmentOrderId);
+      if (!current) throw new Error('Fulfillment unavailable');
+      const replay = await findSellerTransitionReplay(client, shipmentOrderId,
+        this.actor.accountId, idempotencyKey);
+      if (replay) {
+        if (replay.requestFingerprint !== fingerprint) throw new Error('Fulfillment conflict');
+        if (replay.response && typeof replay.response === 'object') return replay.response;
+        return {
+          shipmentOrderId,
+          status: replay.afterSnapshot.status,
+          version: body.expectedVersion + 1,
+          expectedShipDate: replay.afterSnapshot.expectedShipDate,
+          customerMessage: replay.customerMessage,
+          carrierCode: replay.afterSnapshot.carrierCode,
+          carrierName: body.carrierName ?? null,
+          trackingNumber: replay.afterSnapshot.trackingNumber,
+        };
+      }
+      if (current.version !== body.expectedVersion) throw new Error('Fulfillment conflict');
+      const { expectedVersion, ...request } = body;
+      const validated = validateSellerTransition({
+        currentStatus: current.status,
+        currentExpectedShipDate: current.expectedShipDate,
+        currentSeoulDate: current.currentSeoulDate,
+        ...request,
+      });
+      const version = await updateSellerFulfillment(client, shipmentOrderId,
+        expectedVersion, validated);
+      if (version === undefined) throw new Error('Fulfillment conflict');
+      const customerMessage = validated.customerMessage ?? current.customerMessage;
+      const response = {
+        shipmentOrderId,
+        status: validated.status,
+        version,
+        expectedShipDate: validated.expectedShipDate,
+        customerMessage,
+        carrierCode: validated.carrierCode,
+        carrierName: validated.carrierName,
+        trackingNumber: validated.trackingNumber,
+      };
+      const action = validated.status === 'DELAYED' ? 'REPORT_DELAY'
+        : validated.status === 'SHIPPED' ? 'MARK_SHIPPED'
+          : current.status === 'DELAYED' ? 'RESUME_PACKING' : 'START_PACKING';
+      await insertSellerTransitionRecords(client, {
+        shipmentOrderId,
+        accountId: this.actor.accountId,
+        sellerId: this.sellerId,
+        idempotencyKey,
+        requestFingerprint: fingerprint,
+        action,
+        fromStatus: current.status,
+        toStatus: validated.status,
+        reason: validated.delayedReason,
+        customerMessage: validated.customerMessage,
+        beforeSnapshot: {
+          status: current.status,
+          expectedShipDate: current.expectedShipDate,
+          carrierCode: current.carrierCode,
+          trackingNumber: current.trackingNumber,
+        },
+        afterSnapshot: {
+          status: validated.status,
+          expectedShipDate: validated.expectedShipDate,
+          carrierCode: validated.carrierCode,
+          trackingNumber: validated.trackingNumber,
+        },
+        response,
+      });
+      return response;
+    });
+  }
+}
