@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import PaidOrderHistory from './paid-order-history';
 
 type CartItem = { optionId: string; productId: string; title: string; optionName: string;
   quantity: number; unitPriceWon: number | null; availability: 'available' | 'unavailable' };
@@ -49,7 +50,7 @@ type ViewProps = { items: CartItem[]; quote?: Quote; edits: Record<string, numbe
   mockOutcome?: MockOutcome; onMockOutcomeChange?: (outcome: MockOutcome) => void;
   paymentAttempt?: PaymentAttempt; refundCases?: RefundCase[]; refundBusy?: boolean;
   refundMessage?: string; onRefundRequest?: (input: RefundRequestInput) => void;
-  onRefundRefresh?: () => void };
+  onRefundRefresh?: () => void; refundOrder?: PendingOrder; refundOrderHistory?: ReactNode };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -227,8 +228,8 @@ export function CustomerRefundView({ order, cases, busy, message, onRequest, onR
   }
   return <section className="refund-customer" aria-labelledby="customer-refund-heading">
     <div className="refund-heading-row">
-      <div><h2 id="customer-refund-heading">출고 전 취소·환불</h2>
-        <p className="section-note">발송 주문별로 상품금액만 요청합니다. 배송비는 환불 대상이 아닙니다.</p></div>
+      <div><h2 id="customer-refund-heading" tabIndex={-1}>출고 전 취소·환불</h2>
+        <p className="section-note">출고 전 일부 취소는 취소 상품의 실제 결제금액을 환불합니다. 발송 주문 전체 취소는 실제 결제한 배송비도 한 번 환불하며, 일부 취소 후 새 배송비를 청구하지 않습니다.</p></div>
       <button type="button" className="secondary-button" disabled={busy} onClick={onRefresh}>내역 새로고침</button>
     </div>
     {message ? <p role="status">{message}</p> : null}
@@ -247,8 +248,6 @@ export function CustomerRefundView({ order, cases, busy, message, onRequest, onR
           <label htmlFor={`refund-reason-code-${shipment.id}`}>취소 사유</label>
           <select id={`refund-reason-code-${shipment.id}`} name="reasonCode" defaultValue="customer_request">
             <option value="customer_request">구매자 요청</option>
-            <option value="duplicate_order">중복 주문</option>
-            <option value="address_change">배송지 변경 필요</option>
             <option value="other">기타</option>
           </select>
           <label htmlFor={`refund-reason-${shipment.id}`}>상세 사유</label>
@@ -280,7 +279,8 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
   addresses = [], selectedAddressId = '', onAddressChange, onSubmitOrder, pendingOrder,
   orderPayableWon, showMockPayment = false, onMockPayment, mockOutcome = 'approve',
   onMockOutcomeChange, paymentAttempt, refundCases = [], refundBusy = false, refundMessage = '',
-  onRefundRequest, onRefundRefresh }: ViewProps) {
+  onRefundRequest, onRefundRefresh, refundOrder, refundOrderHistory }: ViewProps) {
+  const shownRefundOrder = refundOrder ?? pendingOrder;
   const active = reservation?.status === 'ACTIVE';
   const currentPendingOrder = pendingOrder?.reservationId === reservation?.id ? pendingOrder : undefined;
   const seconds = active ? Math.max(0, Math.ceil((Date.parse(reservation.expiresAt) -
@@ -392,8 +392,9 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
         <p>주문 생성은 결제 승인이나 구매 완료가 아닙니다.</p>
       </>}
     </section> : null}
-    {pendingOrder?.status === 'PAID' && onRefundRequest && onRefundRefresh ?
-      <CustomerRefundView order={pendingOrder} cases={refundCases} busy={refundBusy}
+    {refundOrderHistory}
+    {shownRefundOrder?.status === 'PAID' && onRefundRequest && onRefundRefresh ?
+      <CustomerRefundView key={shownRefundOrder.id} order={shownRefundOrder} cases={refundCases} busy={refundBusy}
         message={refundMessage} onRequest={onRefundRequest} onRefresh={onRefundRefresh} /> : null}
     {children}
   </main>;
@@ -476,6 +477,8 @@ export default function CartPage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [pendingOrder, setPendingOrder] = useState<PendingOrder>();
+  const [selectedRefundOrder, setSelectedRefundOrder] = useState<PendingOrder>();
+  const refundOrder = selectedRefundOrder ?? pendingOrder;
   const [paymentAttempt, setPaymentAttempt] = useState<PaymentAttempt>();
   const [mockOutcome, setMockOutcome] = useState<MockOutcome>('approve');
   const [refundCases, setRefundCases] = useState<RefundCase[]>([]);
@@ -631,15 +634,30 @@ export default function CartPage() {
   }, []);
 
   useEffect(() => {
-    if (pendingOrder?.status !== 'PAID') { setRefundCases([]); setRefundMessage(''); return; }
+    setRefundCases([]);
+    if (refundOrder?.status !== 'PAID') { setRefundMessage(''); return; }
     const controller = new AbortController();
     setRefundMessage('');
-    reloadRefunds(pendingOrder.id, controller.signal).catch((error: unknown) => {
+    reloadRefunds(refundOrder.id, controller.signal).catch((error: unknown) => {
       if (!controller.signal.aborted)
         setRefundMessage(error instanceof Error ? error.message : '환불 내역을 불러오지 못했습니다');
     });
     return () => controller.abort();
-  }, [pendingOrder?.id, pendingOrder?.status, reloadRefunds]);
+  }, [refundOrder?.id, refundOrder?.status, reloadRefunds]);
+
+  useEffect(() => {
+    if (selectedRefundOrder) document.getElementById('customer-refund-heading')?.focus();
+  }, [selectedRefundOrder]);
+
+  async function selectRefundOrder(id: string) {
+    if (!apiOrigin) throw new Error('주문 연결을 준비 중입니다');
+    const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(id)}`,
+      { credentials: 'include', cache: 'no-store' });
+    if (!response.ok) throw new Error('본인 주문을 다시 확인해 주세요');
+    const order = await response.json() as PendingOrder;
+    if (order.status !== 'PAID' || order.id !== id) throw new Error('결제완료 주문을 다시 선택해 주세요');
+    setRefundCases([]); setRefundMessage(''); setSelectedRefundOrder(order);
+  }
 
   async function submitOrder() {
     if (!apiOrigin || !reservation || reservation.status !== 'ACTIVE' || !selectedAddressId || busy ||
@@ -690,12 +708,12 @@ export default function CartPage() {
   }
 
   async function submitRefund(input: RefundRequestInput) {
-    if (!apiOrigin || !pendingOrder || pendingOrder.status !== 'PAID' || refundBusy) return;
+    if (!apiOrigin || !refundOrder || refundOrder.status !== 'PAID' || refundBusy) return;
     setRefundBusy(true); setRefundMessage('');
     try {
-      const result = await startRefundRequest(apiOrigin, window.sessionStorage, pendingOrder.id, input);
+      const result = await startRefundRequest(apiOrigin, window.sessionStorage, refundOrder.id, input);
       setRefundMessage(result.amountFinal ? '환불 처리가 반영됐습니다' : '환불 요청을 접수했습니다');
-      await reloadRefunds(pendingOrder.id);
+      await reloadRefunds(refundOrder.id);
     } catch (error) {
       setRefundMessage(error instanceof Error ? error.message : '환불 요청 결과를 확인하지 못했습니다');
     } finally { setRefundBusy(false); }
@@ -802,8 +820,11 @@ export default function CartPage() {
     showMockPayment={showMockPayment} onMockPayment={(outcome) => void submitMockPayment(outcome)}
     mockOutcome={mockOutcome} onMockOutcomeChange={setMockOutcome} paymentAttempt={paymentAttempt}
     refundCases={refundCases} refundBusy={refundBusy} refundMessage={refundMessage}
+    refundOrder={refundOrder}
+    refundOrderHistory={apiOrigin ? <PaidOrderHistory apiBase={apiOrigin} disabled={refundBusy || !!busy}
+      selectedId={refundOrder?.id} onSelect={selectRefundOrder} /> : null}
     onRefundRequest={(input) => void submitRefund(input)}
-    onRefundRefresh={() => { if (pendingOrder) void reloadRefunds(pendingOrder.id).catch((error: unknown) =>
+    onRefundRefresh={() => { if (refundOrder) void reloadRefunds(refundOrder.id).catch((error: unknown) =>
       setRefundMessage(error instanceof Error ? error.message : '환불 내역을 불러오지 못했습니다')); }}
     orderPayableWon={promotionQuote?.payableTotalWon ?? reservation?.quote?.totalWon}
     onReserve={() => void reserve()} onRelease={() => void release()}

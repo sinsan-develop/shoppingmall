@@ -2,6 +2,12 @@
 
 상태: **2026-10-05 PMO 경유 신산님 지시로 현 branch의 0014 추가식 6관계·고객/관리자 API·권한/금액/재고 복원 계약과 격리 구현·검증 승인**. 기준 checkout은 `codex/s4-payment-refund@ad05adc874e4ff97005f8b50f04f7a7ba5c466a1`. 근거는 [DESIGN](DESIGN.md) R06/R07, [PRD](../PRD.md) 7.5·8.2·8.4, [WORK_PLAN](../WORK_PLAN.md) S4.2 및 기존 [S4.1 결제 계약](S4_PAYMENT_CONTRACT_DRAFT.md)이다. 공유 개발 DB 0014 적용, 실제 PG, Oracle/UAT, S5.2 출고 후 정책·약관, 쿠폰 재발행·sellable 자동 증가는 승인 범위 밖이다.
 
+### Task 6 리뷰 보정 승인(2026-10-05, PMO 경유)
+
+- 추가 공개 읽기 계약 `GET /customer/checkout/orders?status=PAID&cursor=<opaque>&limit=<n>`: 세션 고객 소유의 결제완료 주문만, 기본20/최대50, `created_at,id` 내림차순 keyset. cursor는 서버가 반환한 불투명 값이며 DB timestamp의 마이크로초를 보존한다. 응답 `items[{id,status,createdAt,paidAt,payableWon,productSummary:{productName,optionName,lineCount}}],nextCursor`; 상품 표기는 불변 주문 snapshot의 첫 품목과 전체 품목 수다. 주소/연락처/공급자·계정 식별자 제외. 미인증401/타 역할403/잘못된 상태·cursor·limit400/빈 목록200. 기존 상세 GET과 환불 API로 연결한다.
+- 기존 화면은 마지막 sessionStorage 주문에 의존했다. 추가 목록에서 이전 주문을 선택해도 현재 장바구니의 결제대기 주문은 별도로 유지한다. 새 DB/schema나 인증 방식은 추가하지 않는다. rollback은 목록 GET과 선택 UI의 exact diff revert다.
+- 판매중지/재고행 부재 등으로 선택된 보유재고 복원을 실행할 수 없으면 모든 품목의 복원을 0으로 두고 `REVIEW_REQUIRED`로 전환한다. 공급자 성공 사건은 보존하고 완료시각은 비우며 관리자 확인 사유를 남긴다. 제품 잠금으로 판매중지 승인과 직렬화하고 모든 대상을 검증한 뒤 정상 품목 전체만 한 번 복원한다. 검토 상태의 외부 환불 재실행·수동 정정 기능은 이번 범위 밖이다. rollback은 processor 보정 diff만 되돌리되 사건/원거래를 삭제하지 않는다.
+
 ## 1. 범위와 권장안
 
 - S4.2는 **출고 전** 결제 완료 발송 주문의 수량 단위 일부/전량 취소, 관리자 최종 결정과 모의 환불 실행, 원거래 링크·상태 이력까지 맡는다. 고객은 자기 주문에 요청할 수 있고 관리자는 사유 있는 직권 사례를 만들 수 있다. 판매자는 환불을 최종 결정·집행하지 않는다.

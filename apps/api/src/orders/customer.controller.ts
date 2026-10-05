@@ -1,5 +1,5 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get,
-  Inject, NotFoundException, Param, Post, Req, Res, ServiceUnavailableException,
+  Inject, NotFoundException, Param, Post, Query, Req, Res, ServiceUnavailableException,
   UnauthorizedException } from '@nestjs/common';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
@@ -11,6 +11,7 @@ import { MockPaymentAdapter, NoChargePaymentAdapter } from '../payments/mock-ada
 import { getPaymentAttempt, recordVerifiedPaymentEvent,
   startPaymentAttemptWithDisposition } from '../payments/service.js';
 import { processVerifiedPaymentEvent } from '../payments/processor.js';
+import { listPaidOrders, parsePaidOrderQuery } from './paid-history.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string };
   socket?: { localAddress?: string } };
@@ -100,6 +101,15 @@ export class CustomerOrderController {
         throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
       throw error;
     }
+  }
+
+  @Get()
+  async listPaid(@Req() request: RequestHeaders, @Query() query: Record<string, unknown>) {
+    const { pool, accountId } = await this.context(request);
+    let parsed: ReturnType<typeof parsePaidOrderQuery>;
+    try { parsed = parsePaidOrderQuery(query); }
+    catch { throw new BadRequestException(); }
+    return listPaidOrders(pool, accountId, parsed);
   }
 
   @Get(':id')

@@ -55,7 +55,7 @@ export function AdminRefundsView({ cases, selected, busy, message, filters, onFi
   return <div className="refund-admin-layout">
     <section className="refund-card refund-filter-card">
       <h2>취소·환불 관리</h2>
-      <p className="section-note">결제 완료 후 출고 전 요청만 확인합니다. 고객에게는 상품금액만 환불합니다.</p>
+      <p className="section-note">출고 전 일부 취소는 실제 결제한 상품금액을 환불합니다. 발송 주문 전체 취소는 실제 결제한 배송비도 한 번 환불하며, 일부 취소 후 새 배송비를 청구하지 않습니다.</p>
       <form className="refund-filter-form" onSubmit={filter}>
         <label htmlFor="refund-status">상태</label>
         <select id="refund-status" name="status" defaultValue={filters.status ?? ''}>

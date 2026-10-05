@@ -82,12 +82,27 @@ export async function processVerifiedRefundEvent(pool: Pool, eventId: string) {
     const lines = await client.query<{ optionId: string; quantity: number; restockMode: string }>(
       `SELECT option_id AS "optionId",quantity,restock_mode AS "restockMode"
        FROM refund_case_lines WHERE refund_case_id=$1 ORDER BY option_id FOR UPDATE`, [target.id]);
-    for (const line of lines.rows.filter(({ restockMode }) => restockMode === 'on_hand_only')) {
+    const restockLines = lines.rows.filter(({ restockMode }) => restockMode === 'on_hand_only');
+    // Sale-stop approval takes these same product locks. Validate every target before
+    // restoring any stock so an unavailable line cannot leave a partly applied refund.
+    await client.query(`SELECT p.id FROM products p WHERE p.id IN (
+      SELECT r.product_id FROM product_options o JOIN product_revisions r ON r.id=o.revision_id
+      WHERE o.id=ANY($1::uuid[])) ORDER BY p.id FOR UPDATE`,
+    [restockLines.map(({ optionId }) => optionId)]);
+    for (const line of restockLines) {
       const stock = await client.query(`SELECT i.option_id FROM inventory_levels i
         JOIN product_options o ON o.id=i.option_id JOIN product_revisions r ON r.id=o.revision_id
-        WHERE i.option_id=$1 AND NOT EXISTS (SELECT 1 FROM product_sale_stop_requests s
-          WHERE s.product_id=r.product_id AND s.status='approved') FOR UPDATE OF i`, [line.optionId]);
-      if (!stock.rowCount) continue;
+        WHERE i.option_id=$1 AND i.on_hand_quantity <= 2147483647-$2
+          AND NOT EXISTS (SELECT 1 FROM product_sale_stop_requests s
+          WHERE s.product_id=r.product_id AND s.status='approved') FOR UPDATE OF i`, [line.optionId, line.quantity]);
+      if (!stock.rowCount) {
+        const result = await review(client, target.id, attempt.id, event.id,
+          'Verified refund succeeded; stock restoration requires manual review');
+        await client.query('COMMIT');
+        return result;
+      }
+    }
+    for (const line of restockLines) {
       await client.query(`UPDATE inventory_levels SET on_hand_quantity=on_hand_quantity+$2,
         updated_at=clock_timestamp() WHERE option_id=$1`, [line.optionId, line.quantity]);
       await client.query(`UPDATE refund_case_lines SET restocked_quantity=$3

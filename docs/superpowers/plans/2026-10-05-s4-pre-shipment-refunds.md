@@ -127,6 +127,8 @@
 
 ### Task 6: 격리 통합 QA·문서·독립 review
 
+2026-10-05 PMO 추가 승인: 리뷰 결함 해소를 위해 고객 본인 결제완료 주문의 목록 GET 1개와 이전 주문 선택 UI를 추가한다. 상세 계약은 `S4_REFUND_CONTRACT_DRAFT.md`의 Task 6 보정 절을 따른다. 고객/타인/역할·잘못된 cursor/limit·동일시각 페이지 경계·새 세션/다음 주문 후 이전 주문 접근을 검증한다. 승인 이후 판매중지/재고행 부재는 전체 복원0·검토상태·공급자 성공 보존·완료시각 없음으로 보정하고 판매중지와 실제 DB 잠금 경합·중복 사건을 검증한다. 사유 코드/배송비 안내는 기존 승인 계약과 일치시킨다. 새 schema·공유 DB 적용·실 PG·Oracle/S5.2는 포함하지 않는다.
+
 **Files:**
 - Create or modify only if needed: `apps/api/scripts/qa-refund-fixture.ts`, associated test
 - Modify: `WORK_STATUS.md`, `docs/DEVELOPMENT_ENVIRONMENT.md`
