@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## GREEN 후보 — 2026-10-06 S5.1 Task3 Fix Round 3A source snapshot 경합
+
+- **범위·기준:** PMO 승인 exact base `2ee880ec890b689e15d9e27717ca2f46fb46c940`, branch `codex/s5-fulfillment-engagement`, Windows worktree clean에서 시작했다. 프로젝트 root `AGENTS.md`는 실제로 없으므로 `D:\Project\PMO\AGENTS.md`, Task3 계획·brief, `docs/DEVELOPMENT_ENVIRONMENT.md`와 최신 직접 지시를 적용했다. 허용 파일은 fulfillment repository, 주문 service의 함수 rename, 고정 fulfillment-order DB 시험, 이 상태 문서뿐이다.
+- **실제 RED:** Controller가 `2ee880e` fresh private PostgreSQL에서 **4 tests/3 pass/1 fail/0 skip**, 새 동일계정 경합의 정확한 `40001`과 `order and policy transactions must both commit` assertion 실패를 확인했다. account `FOR NO KEY UPDATE` 뒤에도 REPEATABLE READ snapshot에서 변경 가능한 source 행에 `FOR SHARE`를 다시 얻으려 해 concurrent global policy commit과 serialization conflict가 발생한 것이 근본 원인이다. writer는 DB를 재실행하지 않으며 이 Controller 증거를 RED로 사용한다.
+- **최소 GREEN 후보:** REPEATABLE READ와 account `FOR NO KEY UPDATE`, sellers 및 active-owner `FOR SHARE`는 유지한다. `fulfillment_settings id=1`, `shipping_policy_global id=1`, direct seller set의 `seller_shipping_policies` 조회에서만 `FOR SHARE`를 제거하고 함수명을 lock에서 snapshot 의미로 바꿨다. 기존 3-source race 시험은 writer-block `[true,true,true]` 가정을 제거하고 주문 거래가 열린 동안 세 writer commit을 모두 회수한 뒤 기존 owool owner·global `12:00`·seller `13:00/14:00` snapshot을 검증한다. 동일계정 고정 시험은 변경하지 않았다.
+- **로컬 검증·환경:** 대상 비DB loader는 **4 tests/0 pass/4 DB 조건 skip/0 fail**로 로딩만 확인했으며 PASS로 승격하지 않는다. 전체 `pnpm test`는 주 시험 **370 tests/264 pass/106 skip/0 fail**, PR 본문 **8/8 pass**, `pnpm typecheck`·`pnpm lint`·`pnpm build`는 모두 exit 0이다. 이번 round의 새 실행 오류0이며 실제 GREEN·전체 DB gate는 Controller 후속 검증 전까지 미검증이다. writer는 WSL/Docker/private/shared DB에 접근하지 않았다.
+
 ## RED 준비 — 2026-10-06 S5.1 Task3 Fix Round 2 account lock 경합
 
 - **범위·기준:** PMO 승인에 따라 기존 `codex/s5-fulfillment-engagement` Windows worktree의 exact base `e900e16e46f933ea8a30b9a5b143e98488addc2a`·clean에서 시작했다. 이번 1차는 `apps/api/test/fulfillment-order-db.test.mjs`와 이 파일만 수정하며 제품 코드, 공개 API/schema/UI, S3 금액·배송정책 의미는 변경하지 않는다. origin/WSL/Docker/공유 DB는 사전 확인·접속·변경하지 않았다.

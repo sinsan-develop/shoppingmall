@@ -23,13 +23,13 @@ type GlobalPolicyRow = {
   lockedCutoff: boolean;
 };
 
-/** Lock every mutable source used to assign fulfillment before the order snapshot is inserted. */
-export async function lockFulfillmentAssignments(client: PoolClient,
+/** Read one repeatable-read snapshot of assignment sources while locking owner validity rows. */
+export async function snapshotFulfillmentAssignments(client: PoolClient,
   sources: FulfillmentSource[]): Promise<Map<string, FulfillmentAssignment>> {
   const pooled = sources.some((source) => source.shippingMode === 'owool_fulfillment');
   const setting = await client.query<{ owoolSellerId: string | null }>(
     `SELECT owool_seller_id AS "owoolSellerId" FROM fulfillment_settings
-     WHERE id=1 FOR SHARE`,
+     WHERE id=1`,
   );
   if (!setting.rows[0] || (pooled && !setting.rows[0].owoolSellerId)) {
     throw new Error('Fulfillment not configured');
@@ -39,7 +39,7 @@ export async function lockFulfillmentAssignments(client: PoolClient,
       cutoff_time AS "cutoffTime",blocked_postal_ranges AS "blockedPostalRanges",
       locked_fee AS "lockedFee",locked_threshold AS "lockedThreshold",
       locked_cutoff AS "lockedCutoff"
-     FROM shipping_policy_global WHERE id=1 FOR SHARE`,
+     FROM shipping_policy_global WHERE id=1`,
   );
   if (!globalResult.rows[0]) throw new Error('Fulfillment not configured');
   const globalRow = globalResult.rows[0];
@@ -70,7 +70,7 @@ export async function lockFulfillmentAssignments(client: PoolClient,
   }
   const sellerPolicies = await client.query<{ sellerId: string; policy: ShippingPolicy }>(
     `SELECT seller_id AS "sellerId",policy FROM seller_shipping_policies
-     WHERE seller_id=ANY($1::uuid[]) ORDER BY seller_id FOR SHARE`, [directSellerIds],
+     WHERE seller_id=ANY($1::uuid[]) ORDER BY seller_id`, [directSellerIds],
   );
   const policies = new Map(sellerPolicies.rows.map((row) => [row.sellerId, row.policy]));
   return new Map(sources.map((source) => {

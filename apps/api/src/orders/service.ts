@@ -5,7 +5,7 @@ import { getOrderSnapshot, insertOrderSnapshot, type OrderLineSnapshot,
   type PendingOrderSnapshot, type PendingOrderView } from './repository.js';
 import { PromotionUsageService, type PromotionSelection } from '../promotions/usage-service.js';
 import { ShippingPolicies } from '../shipping/service.js';
-import { lockFulfillmentAssignments, type FulfillmentSource } from '../fulfillment/repository.js';
+import { snapshotFulfillmentAssignments, type FulfillmentSource } from '../fulfillment/repository.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type SubmitInput = { reservationId: string; addressId: string;
@@ -101,7 +101,7 @@ export async function submitPendingOrderWithDisposition(pool: Pool, accountId: s
         : { key: 'owool_fulfillment', shippingMode: option.shippingMode, sellerId: null };
       fulfillmentSources.set(source.key, source);
     }
-    const fulfillmentAssignments = await lockFulfillmentAssignments(
+    const fulfillmentAssignments = await snapshotFulfillmentAssignments(
       client, [...fulfillmentSources.values()],
     );
     const { uses, quote, goodsRule } = await new PromotionUsageService(pool).holdForOrderInTransaction(

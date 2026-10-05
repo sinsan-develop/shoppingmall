@@ -327,7 +327,7 @@ test('unusable pooled owner rolls back order promotion hold and reservation cons
   }
 });
 
-test('order submission locks assignment and cutoff sources until its snapshot commits', {
+test('order submission snapshots assignment and cutoff sources while their writers commit', {
   skip: !process.env.DATABASE_URL || !process.env.S5_ORDER_TEST_DB_SYSTEM_ID,
 }, async (context) => {
   const { submitPendingOrder } = await import('../src/orders/service.ts');
@@ -338,14 +338,10 @@ test('order submission locks assignment and cutoff sources until its snapshot co
     if (!await requireSchemas(context, pool)) return;
     scenario = await seedOrderScenario(pool, randomBytes(4).toString('hex'));
     await configureFulfillment(pool, scenario);
-    let observedBlocks = [];
     let intercepted = false;
     const racingPool = {
       connect: async () => {
         const client = await pool.connect();
-        const orderPid = (await client.query(
-          'SELECT pg_backend_pid()::int AS pid',
-        )).rows[0].pid;
         return {
           query: async (...args) => {
             const result = await client.query(...args);
@@ -363,9 +359,7 @@ test('order submission locks assignment and cutoff sources until its snapshot co
                     approved_at=now() WHERE seller_id=ANY($1::uuid[])`,
                 [[scenario.sellerA.id, scenario.sellerB.id]]),
               ]);
-              observedBlocks = await Promise.all(
-                writers.map((writer) => waitForBlock(pool, writer.pid, orderPid)),
-              );
+              await Promise.all(writers.map((writer) => writer.done));
             }
             return result;
           },
@@ -382,7 +376,7 @@ test('order submission locks assignment and cutoff sources until its snapshot co
     });
     await Promise.all(writers.map((writer) => writer.done));
     assert.equal(intercepted, true);
-    assert.deepEqual(observedBlocks, [true, true, true]);
+    assert.equal(writers.length, 3);
     const snapshot = (await pool.query(`SELECT s.shipment_key AS key,
       f.fulfillment_seller_id AS "fulfillmentSellerId",f.cutoff_time AS "cutoffTime"
       FROM shipment_orders s JOIN shipment_fulfillments f ON f.shipment_order_id=s.id
