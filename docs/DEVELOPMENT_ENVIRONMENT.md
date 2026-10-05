@@ -1,5 +1,10 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-10-05 S4 공유 실제 브라우저 통합 검증 최신 상태
+
+- 정본 `D:\Project\shoppingmall2`의 `codex/s4-payment-refund` 제품/QA 보호 SHA `cfe1fc8f808b7d7ec7e8fdbb77f1b27a1adaf3e6`를 WSL 지정 checkout에 fast-forward 동기화했다. 공유 `local-postgres/shoppingmall`은 0014까지 15개 migration이 적용된 채 유지된다. WSL 루프백의 일회용 mock API9092/Next Web9091과 Windows 격리 Chrome을 SSH 터널로 연결해 고객 결제 거절·지연·승인 응답유실 재시도 및 고객 부분/전량 요청→운영자 승인·모의 환불을 실제 화면에서 확인했다. 전량 환불액 8,667원은 잔여 상품6,667원+실납 배송2,000원이며 앞선 부분3,333원의 배송환불은0. 390px 가로넘침0. DB 상태·보존 화면증거는 `WORK_STATUS.md` 최신 절 참조.
+- 고유 `QA_RUN_ID=e4231005`의 가상 계정3·상품1·주문2만 reset했고 14개 주요 QA 범주 모두0. WSL 체크아웃 clean, 임시 서비스/포트/빌드캐시와 Windows 터널/Chrome 프로필/시험비밀번호는 잔류0. 공유 DB·migration은 삭제하지 않았다. 실 PG·Oracle·사용자 인수·200% 확대·다른 viewport/키보드/인쇄는 이 실행에서 미검증이다. 아래의 오래된 0014 미적용·브라우저 미검증 문장은 당시 이력이며 현재 판정에는 이 절을 우선한다.
+
 ## 2026-10-05 S4.2 환불 검증 경계
 
 - 공유 자동회귀 완료: exact HEAD `cd10cbabffe1bade46245b70f2feabc565e77eaa`에서 환불/결제 목표12 pass·0skip, 루트347건/330pass17조건부skip0fail와 PR본문8 pass. 사후 public50관계 중47관계0·기존 home current/draft와 global shipping 각1, migration15, 임시runner0을 확인했다. 아래 백업은 검증 성공 후 해시/대상 확인을 거쳐 **두 사본 모두 삭제했으며 현재 잔류0**이다. 적용된 공유schema는 유지한다. 공유DB 실제 브라우저 E2E·S4 Stage 완료·실PG/Oracle/UAT와는 별도 판정이다.
