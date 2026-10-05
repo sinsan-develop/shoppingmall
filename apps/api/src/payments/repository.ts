@@ -61,3 +61,13 @@ export async function findEventByProviderKey(client: PoolClient,
     FROM payment_events WHERE provider=$1 AND provider_event_id=$2`, [provider, eventId]);
   return found.rows[0] ?? null;
 }
+
+export async function insertEventConflict(client: PoolClient, input: {
+  originalEventId: string; incomingAttemptId: string; incomingFingerprint: string;
+  reason: 'FINGERPRINT_MISMATCH' | 'ATTEMPT_MISMATCH';
+}): Promise<void> {
+  await client.query(`INSERT INTO payment_event_conflicts
+    (original_event_id,incoming_attempt_id,incoming_fingerprint,reason)
+    VALUES ($1,$2,$3,$4)`, [input.originalEventId, input.incomingAttemptId,
+    input.incomingFingerprint, input.reason]);
+}

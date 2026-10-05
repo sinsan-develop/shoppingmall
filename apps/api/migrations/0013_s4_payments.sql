@@ -89,3 +89,23 @@ CREATE INDEX "payment_events_attempt_received_idx"
 --> statement-breakpoint
 CREATE INDEX "payment_events_pending_idx"
   ON "payment_events" ("processing_status","received_at");
+--> statement-breakpoint
+CREATE TABLE "payment_event_conflicts" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "original_event_id" uuid NOT NULL,
+  "incoming_attempt_id" uuid NOT NULL,
+  "incoming_fingerprint" text NOT NULL,
+  "reason" text NOT NULL,
+  "received_at" timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+  CONSTRAINT "payment_event_conflicts_fingerprint_ck" CHECK ("incoming_fingerprint" ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT "payment_event_conflicts_reason_ck" CHECK ("reason" IN ('FINGERPRINT_MISMATCH','ATTEMPT_MISMATCH'))
+);
+--> statement-breakpoint
+ALTER TABLE "payment_event_conflicts" ADD CONSTRAINT "payment_event_conflicts_original_fk"
+  FOREIGN KEY ("original_event_id") REFERENCES "public"."payment_events"("id");
+--> statement-breakpoint
+ALTER TABLE "payment_event_conflicts" ADD CONSTRAINT "payment_event_conflicts_attempt_fk"
+  FOREIGN KEY ("incoming_attempt_id") REFERENCES "public"."payment_attempts"("id");
+--> statement-breakpoint
+CREATE INDEX "payment_event_conflicts_original_received_idx"
+  ON "payment_event_conflicts" ("original_event_id","received_at");

@@ -711,3 +711,16 @@ export const paymentEvents = pgTable('payment_events', {
   check('payment_events_processed_ck', sql`(${table.processingStatus} = 'PENDING_PROCESSING' AND ${table.processedAt} IS NULL)
     OR (${table.processingStatus} <> 'PENDING_PROCESSING' AND ${table.processedAt} IS NOT NULL)`),
 ]);
+
+export const paymentEventConflicts = pgTable('payment_event_conflicts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  originalEventId: uuid('original_event_id').notNull().references(() => paymentEvents.id),
+  incomingAttemptId: uuid('incoming_attempt_id').notNull().references(() => paymentAttempts.id),
+  incomingFingerprint: text('incoming_fingerprint').notNull(),
+  reason: text('reason').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('payment_event_conflicts_original_received_idx').on(table.originalEventId, table.receivedAt),
+  check('payment_event_conflicts_fingerprint_ck', sql`${table.incomingFingerprint} ~ '^[0-9a-f]{64}$'`),
+  check('payment_event_conflicts_reason_ck', sql`${table.reason} IN ('FINGERPRINT_MISMATCH','ATTEMPT_MISMATCH')`),
+]);

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
 import { resolvePaymentMode, type LocalOutcome, type VerifiedPayment } from './adapter.js';
 import { MockPaymentAdapter, NoChargePaymentAdapter } from './mock-adapter.js';
-import { findAttemptByKey, findAttemptForUpdate, findEventByProviderKey,
+import { findAttemptByKey, findAttemptForUpdate, findEventByProviderKey, insertEventConflict,
   findOwnedAttempt, insertAttempt, type PaymentAttemptView, type PaymentEventView } from './repository.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -81,6 +81,7 @@ export async function recordVerifiedPaymentEvent(pool: Pool, attemptId: string,
     providerOrderId: verified.providerOrderId, eventId: verified.eventId,
     paymentId: verified.paymentId, orderId: verified.orderId,
     amountWon: verified.amountWon, outcome: verified.outcome }));
+  const persisted = await (async (): Promise<PaymentEventView | null> => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -88,8 +89,13 @@ export async function recordVerifiedPaymentEvent(pool: Pool, attemptId: string,
     if (!attempt || attempt.provider !== verified.provider) throw new Error('Payment unavailable');
     const prior = await findEventByProviderKey(client, verified.provider, verified.eventId);
     if (prior) {
-      if (prior.paymentAttemptId !== attemptId || prior.eventFingerprint !== fingerprint)
-        throw new Error('Payment event conflict');
+      if (prior.paymentAttemptId !== attemptId || prior.eventFingerprint !== fingerprint) {
+        await insertEventConflict(client, { originalEventId: prior.id, incomingAttemptId: attemptId,
+          incomingFingerprint: fingerprint,
+          reason: prior.paymentAttemptId === attemptId ? 'FINGERPRINT_MISMATCH' : 'ATTEMPT_MISMATCH' });
+        await client.query('COMMIT');
+        return null;
+      }
       await client.query('COMMIT');
       return { id: prior.id, processingStatus: prior.processingStatus };
     }
@@ -106,8 +112,14 @@ export async function recordVerifiedPaymentEvent(pool: Pool, attemptId: string,
       verified.orderId, verified.paymentId, verified.amountWon, fingerprint, status]);
     if (!inserted.rows[0]) {
       const raced = await findEventByProviderKey(client, verified.provider, verified.eventId);
-      if (!raced || raced.paymentAttemptId !== attemptId || raced.eventFingerprint !== fingerprint)
-        throw new Error('Payment event conflict');
+      if (!raced) throw new Error('Payment event conflict');
+      if (raced.paymentAttemptId !== attemptId || raced.eventFingerprint !== fingerprint) {
+        await insertEventConflict(client, { originalEventId: raced.id, incomingAttemptId: attemptId,
+          incomingFingerprint: fingerprint,
+          reason: raced.paymentAttemptId === attemptId ? 'FINGERPRINT_MISMATCH' : 'ATTEMPT_MISMATCH' });
+        await client.query('COMMIT');
+        return null;
+      }
       await client.query('COMMIT');
       return { id: raced.id, processingStatus: raced.processingStatus };
     }
@@ -117,4 +129,7 @@ export async function recordVerifiedPaymentEvent(pool: Pool, attemptId: string,
     return { id: inserted.rows[0].id, processingStatus: status };
   } catch (error) { await client.query('ROLLBACK'); throw error; }
   finally { client.release(); }
+  })();
+  if (!persisted) throw new Error('Payment event conflict');
+  return persisted;
 }
