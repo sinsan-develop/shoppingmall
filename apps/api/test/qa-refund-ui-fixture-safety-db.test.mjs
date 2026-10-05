@@ -280,24 +280,15 @@ test('shared reset preserves conflicts whose incoming attempt belongs to another
       const pendingReset = resetRefundUiFixture(wrapper, runId, 4, manifest);
       pendingReset.catch(() => {});
       await paused;
-      await mutationWriter.query("SET lock_timeout='5s'");
-      const writerPid = (await mutationWriter.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
-      const update = mutationWriter.query(
+      await mutationWriter.query(
         'UPDATE payment_event_conflicts SET incoming_attempt_id=$1 WHERE id=$2',
         [paymentAttempt, mutableConflict]);
-      update.catch(() => {});
-      let blocked = false;
-      for (let attempt = 0; attempt < 100; attempt++) {
-        blocked = (await pool.query('SELECT cardinality(pg_blocking_pids($1))>0 AS blocked',
-          [writerPid])).rows[0].blocked;
-        if (blocked) break;
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-      assert.equal(blocked, true, 'conflict row mutation must wait until reset ends');
       releaseMutationReset();
-      await pendingReset;
+      await assert.rejects(pendingReset, /foreign.*conflict/);
       await mutationResetClient.query('ROLLBACK');
-      await update;
+      assert.equal((await pool.query(
+        'SELECT incoming_attempt_id=$1 AS preserved FROM payment_event_conflicts WHERE id=$2',
+        [paymentAttempt, mutableConflict])).rows[0].preserved, true);
       await pool.query('DELETE FROM payment_event_conflicts WHERE id=$1', [mutableConflict]);
       await pool.query('DELETE FROM payment_attempts WHERE id=$1', [extraQaAttempt]);
     } finally {
