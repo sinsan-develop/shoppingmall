@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## RED 후보 — 2026-10-06 S5.1 Task4 결제 승인→READY·잠정 예상일
+
+- **판정·범위:** 신산님/PMO 승인 exact base `cfd8719d21bf8e475ca27be249da130bd918b872`, 기존 `codex/s5-fulfillment-engagement`·기존 worktree에서 Task4 **RED 시험만** 작성했다. 제품 구현, 공개 API/UI/schema, 새 branch/worktree, shared DB·WSL·Oracle·외부 서비스 변경은 0이다.
+- **RED 계약:** fresh migration 0000~0015(16건)와 명시한 private PostgreSQL system identifier가 모두 맞을 때만 기존 fixture 계약의 가상 `qa-<8hex-run-id>` 자료를 만든다. 검증된 승인과 같은 처리에서 세 발송 출고행 `READY`·server `paid_at`/Asia-Seoul/cutoff 기반 잠정일·`PAYMENT_CONFIRMED` 사건을 각 1회 기록하고, 원 payment event UUID를 `system:payment` 멱등키로 사용해야 한다. 같은 승인 재처리는 status/version/event를 다시 바꾸지 않는다. decline/unconfirmed/review는 `PAYMENT_PENDING`을 열지 않는다. 출고행 일부 누락과 직접발송 담당자 충돌은 각각 주문·발송·예약·재고·출고행/사건 부분 적용 0, payment event/attempt `REVIEW_REQUIRED` 경계여야 한다.
+- **변경 파일:** 신규 `apps/api/test/fulfillment-payment-db.test.mjs`; 최소 회귀 호환으로 `apps/api/test/payment-processing-db.test.mjs` cleanup에 불변 출고사건 선삭제 추가; 이 `WORK_STATUS.md`. 그 외 파일과 제품 코드는 수정하지 않았다.
+- **예상 actual private DB RED:** 현재 `apps/api/src/payments/processor.ts`는 승인 경로에서 `shipment_fulfillments`/`shipment_fulfillment_events`를 조회·잠금·변경하지 않는다. 따라서 정상 승인·재처리 시험은 출고행이 `PAYMENT_PENDING/version 0`, 사건 0이라 실패하고, 누락/담당자 충돌 시험은 이를 감지하지 못한 채 payment/order를 `APPLIED/PAID`로 바꿔 review/partial-0 assertion이 실패할 예정이다. decline/unconfirmed/review non-transition은 기존 의미를 보호하는 회귀 시나리오다.
+- **로컬 실행:** 대상 `node --import tsx --test apps/api/test/fulfillment-payment-db.test.mjs apps/api/test/payment-processing-db.test.mjs`는 DB 환경변수 없음으로 **2 tests/0 pass/2 skip/0 fail**. 전체 `pnpm test`는 주 시험 **371 tests/264 pass/107 DB·환경 skip/0 fail**, PR 본문 **8/8 pass**, `pnpm --filter @shoppingmall/api typecheck`·`pnpm lint`·`git diff --check`는 exit 0이다. DB skip은 RED 또는 DB PASS가 아니며 모듈 로딩·비DB 회귀·정적 검사 근거로만 기록한다.
+- **도구 오류 1회:** 첫 `git add`는 제품 worktree 밖의 공용 Git index lock에 대한 sandbox 권한 거부로 실행 전 실패했다. 파일·index 변경 0을 확인하고 승인된 동일 3파일만 권한 보정해 stage했으며 제품·DB·시험 결과 영향은 없다.
+- **QA·정리:** 시험은 run ID가 소유한 주문/예약/결제/출고사건/출고행/정책 요청·배송지·카트와 fixture만 정확한 FK 순서로 정리하고 singleton 설정·전역 정책을 원값으로 복원한다. shared `local-postgres/shoppingmall`은 조회도 하지 않았고 접속·seed·migration·행 변경 0이다.
+- **다음 조치:** RED-only commit/push 뒤 controller가 WSL exact SHA의 fresh private tmpfs PostgreSQL 0000~0015에서 `S5_PAYMENT_TEST_DB_SYSTEM_ID`를 실제 `pg_control_system()` 값으로 명시해 목표 시험을 실행하고, 예상 실패가 제품 기능 부재 때문인지와 cleanup 잔류 0을 확인한다. 그 전에는 GREEN 제품 구현을 시작하지 않는다.
+
 ## 완료 checkpoint — 2026-10-06 S5.1 Task3 주문 fulfillment 담당자·cutoff snapshot
 
 - **판정·범위:** 제품·시험 검증 SHA `bb1a389d65f2bbf16e013fbf624a5ed283a7f0fc`에서 **S5.1 Task3 완료**다. 직접발송은 shipment seller와 그 판매자의 승인된 유효 cutoff, 공동출고는 설정된 owool seller와 전역 cutoff를 같은 주문 거래에서 snapshot한다. 미설정·존재하지 않음·활성 seller grant 없음은 주문·출고·프로모션 사용·예약 소비 전체를 rollback하며, 같은 주문 멱등 재시도는 fulfillment 행을 추가하지 않는다. 이 판정은 Task3에만 한정하며 S5 전체 완료가 아니다.
