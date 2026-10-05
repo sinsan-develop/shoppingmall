@@ -27,9 +27,9 @@ export type PendingOrderSnapshot = OrderAmounts & {
   shipments: ShipmentOrderSnapshot[];
 };
 export type PendingOrderView = OrderAmounts & {
-  id: string; status: 'PENDING_PAYMENT' | 'EXPIRED'; createdAt: Date;
-  expiresAt: Date; endedAt: Date | null; address: OrderAddress;
-  shipments: (ShipmentOrderSnapshot & { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' })[];
+  id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID'; createdAt: Date;
+  expiresAt: Date; endedAt: Date | null; paidAt: Date | null; address: OrderAddress;
+  shipments: (ShipmentOrderSnapshot & { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID' })[];
 };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -165,10 +165,10 @@ export async function getOrderSnapshot(client: PoolClient, accountId: string,
   if (!uuid.test(accountId) || !uuid.test(id)) return null;
   const order = await client.query<OrderAmounts & {
     id: string; status: PendingOrderView['status']; createdAt: Date;
-    expiresAt: Date; endedAt: Date | null; addressId: string;
+    expiresAt: Date; endedAt: Date | null; paidAt: Date | null; addressId: string;
     recipientName: string; phone: string; postalCode: string; line1: string; line2: string;
   }>(`SELECT id,status,created_at AS "createdAt",expires_at AS "expiresAt",
-    ended_at AS "endedAt",address_id AS "addressId",recipient_name AS "recipientName",
+    ended_at AS "endedAt",paid_at AS "paidAt",address_id AS "addressId",recipient_name AS "recipientName",
     phone,postal_code AS "postalCode",line1,line2,goods_won AS "goodsWon",
     goods_discount_won AS "goodsDiscountWon",shipping_fee_won AS "shippingFeeWon",
     shipping_support_won AS "shippingSupportWon",payable_won AS "payableWon"
@@ -198,7 +198,7 @@ export async function getOrderSnapshot(client: PoolClient, accountId: string,
   }
   return {
     id: row.id, status: row.status, createdAt: row.createdAt, expiresAt: row.expiresAt,
-    endedAt: row.endedAt,
+    endedAt: row.endedAt, paidAt: row.paidAt,
     address: { id: row.addressId, recipientName: row.recipientName, phone: row.phone,
       postalCode: row.postalCode, line1: row.line1, line2: row.line2 },
     goodsWon: row.goodsWon, goodsDiscountWon: row.goodsDiscountWon,

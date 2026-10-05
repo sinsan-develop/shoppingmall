@@ -68,8 +68,10 @@ test('0012 keeps existing rows and constrains pending order money, grouping and 
       50000, 1000, 3000, 1000, 51000], '23514');
     await rejects(shipmentSql, [orderId, 'bad-money', 'owool_fulfillment', null,
       50000, 1000, 3000, 1000, 51001], '23514');
+    await client.query(`INSERT INTO order_status_events (checkout_order_id,status,reason)
+      VALUES ($1,'PAID','Verified payment')`, [orderId]);
     await rejects(`INSERT INTO order_status_events (checkout_order_id,status,reason)
-      VALUES ($1,'PAID','not allowed before PG')`, [orderId], '23514');
+      VALUES ($1,'UNKNOWN','not an order state')`, [orderId], '23514');
     await client.query('ROLLBACK');
     const after = (await client.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n;
     assert.equal(after, before);
