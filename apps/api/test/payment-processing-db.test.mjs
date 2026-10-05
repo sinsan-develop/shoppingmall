@@ -8,7 +8,7 @@ import { CheckoutReservations } from '../src/checkout/reservation-service.ts';
 import { submitPendingOrder } from '../src/orders/service.ts';
 import { getOrderSnapshotConsistent } from '../src/orders/repository.ts';
 import { expirePendingOrders } from '../src/orders/expiry.ts';
-import { MockPaymentAdapter } from '../src/payments/mock-adapter.ts';
+import { MockPaymentAdapter, NoChargePaymentAdapter } from '../src/payments/mock-adapter.ts';
 import { recordVerifiedPaymentEvent, startPaymentAttempt } from '../src/payments/service.ts';
 import { processVerifiedPaymentEvent } from '../src/payments/processor.ts';
 
@@ -17,8 +17,8 @@ test('one verified approval pays its shipment, reservation, coupon and stock onl
 }, async (context) => {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 6 });
   const runId = randomBytes(4).toString('hex');
-  const reservations = []; const orders = [];
-  let seeded = false; let addressId; let campaignId;
+  const reservations = []; const orders = []; const campaignIds = [];
+  let seeded = false; let addressId;
   try {
     const ready = await pool.query(`SELECT to_regclass('public.payment_events') IS NOT NULL AS ready`);
     if (!ready.rows[0].ready) {
@@ -42,9 +42,10 @@ test('one verified approval pays its shipment, reservation, coupon and stock onl
       (account_id,label,recipient_name,phone,postal_code,line1)
       VALUES ($1,'시험','받는 분','01000000000','12345','시험 주소') RETURNING id`,
     [buyerId])).rows[0].id;
-    campaignId = (await pool.query(`INSERT INTO promotion_campaigns
+    const campaignId = (await pool.query(`INSERT INTO promotion_campaigns
       (title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
       VALUES ($1,'goods_discount',2,2,$2) RETURNING id`, [`QA-${runId}`, adminId])).rows[0].id;
+    campaignIds.push(campaignId);
     const versionId = (await pool.query(`INSERT INTO promotion_versions
       (campaign_id,version,scope,starts_at,ends_at,amount_kind,amount_value,created_by_account_id)
       VALUES ($1,1,'all',now()-interval '1 hour',now()+interval '1 day','fixed',5000,$2)
@@ -155,6 +156,52 @@ test('one verified approval pays its shipment, reservation, coupon and stock onl
       FROM inventory_levels WHERE option_id=$1`, [optionId])).rows[0];
     assert.equal(stoppedStock.on_hand_quantity, after.on_hand_quantity - 1);
     assert.equal(stoppedStock.sellable_quantity, 0);
+
+    await pool.query(`UPDATE inventory_levels SET sellable_quantity=on_hand_quantity
+      WHERE option_id=$1`, [optionId]);
+    const couponGrants = {};
+    for (const [kind, amount] of [['goods_discount', 23000], ['shipping_support', 3000]]) {
+      const couponCampaignId = (await pool.query(`INSERT INTO promotion_campaigns
+        (title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
+        VALUES ($1,$2,2,2,$3) RETURNING id`, [`QA-zero-${kind}-${runId}`, kind, adminId])).rows[0].id;
+      campaignIds.push(couponCampaignId);
+      const couponVersionId = (await pool.query(`INSERT INTO promotion_versions
+        (campaign_id,version,scope,starts_at,ends_at,amount_kind,amount_value,created_by_account_id)
+        VALUES ($1,1,'all',now()-interval '1 hour',now()+interval '1 day','fixed',$2,$3)
+        RETURNING id`, [couponCampaignId, amount, adminId])).rows[0].id;
+      couponGrants[kind] = (await pool.query(`INSERT INTO promotion_grants
+        (account_id,version_id,source,issued_by_account_id,idempotency_key,reason)
+        VALUES ($1,$2,'direct',$3,$4,'QA zero payment') RETURNING id`,
+      [buyerId, couponVersionId, adminId, randomUUID()])).rows[0].id;
+    }
+    const zeroHold = await new CheckoutReservations(pool).start(buyerId, randomUUID(), true);
+    reservations.push(zeroHold.id);
+    assert.equal(zeroHold.quote.totalWon, 26000);
+    const zeroOrder = await submitPendingOrder(pool, buyerId, {
+      reservationId: zeroHold.id, addressId, expectedPayableWon: 0,
+      selections: { goodsCoupon: { grantId: couponGrants.goods_discount },
+        shippingCoupons: [{ shipmentKey: zeroHold.quote.shipments[0].key,
+          selector: { grantId: couponGrants.shipping_support } }] },
+      idempotencyKey: randomUUID(),
+    });
+    orders.push(zeroOrder.id);
+    assert.equal(zeroOrder.payableWon, 0);
+    const zeroAttempt = await startPaymentAttempt(pool, buyerId, zeroOrder.id, randomUUID(),
+      'approve', { APP_ENV: 'development', PAYMENT_MODE: 'mock' });
+    const zeroProvider = (await pool.query(`SELECT provider,provider_order_id AS "providerOrderId"
+      FROM payment_attempts WHERE id=$1`, [zeroAttempt.id])).rows[0];
+    assert.equal(zeroProvider.provider, 'no_charge');
+    const zeroEvent = await recordVerifiedPaymentEvent(pool, zeroAttempt.id,
+      new NoChargePaymentAdapter().verify(zeroProvider.providerOrderId, 'approve'));
+    const zeroBefore = (await pool.query('SELECT on_hand_quantity FROM inventory_levels WHERE option_id=$1',
+      [optionId])).rows[0].on_hand_quantity;
+    assert.equal((await processVerifiedPaymentEvent(pool, zeroEvent.id)).processingStatus, 'APPLIED');
+    assert.equal((await processVerifiedPaymentEvent(pool, zeroEvent.id)).processingStatus, 'APPLIED');
+    assert.equal((await getOrderSnapshotConsistent(pool, buyerId, zeroOrder.id)).status, 'PAID');
+    assert.equal((await pool.query('SELECT on_hand_quantity FROM inventory_levels WHERE option_id=$1',
+      [optionId])).rows[0].on_hand_quantity, zeroBefore - 1);
+    assert.equal((await pool.query(`SELECT count(*)::int AS n FROM promotion_uses
+      WHERE reservation_id=$1 AND status='USED'`, [zeroHold.id])).rows[0].n, 2);
   } finally {
     for (const id of orders) {
       await pool.query(`DELETE FROM payment_events WHERE payment_attempt_id IN
@@ -172,7 +219,7 @@ test('one verified approval pays its shipment, reservation, coupon and stock onl
       await pool.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=$1', [id]);
       await pool.query('DELETE FROM checkout_reservations WHERE id=$1', [id]);
     }
-    if (campaignId) {
+    for (const campaignId of campaignIds) {
       await pool.query(`DELETE FROM promotion_grants WHERE version_id IN
         (SELECT id FROM promotion_versions WHERE campaign_id=$1)`, [campaignId]);
       await pool.query('DELETE FROM promotion_versions WHERE campaign_id=$1', [campaignId]);
