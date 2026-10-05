@@ -5,6 +5,7 @@
 - PMO 승인 기준: 기존 `codex/s5-fulfillment-engagement@19d32068ecc84e951ed340096dfa10854c4c3381`, Windows·승인 SSH origin branch·WSL exact SHA 일치와 양 checkout clean을 확인했다. 새 단일 code-writer 1명이 `apps/api/src/fulfillment/repository.ts`, `apps/api/test/fulfillment-order-db.test.mjs`를 만들고 `apps/api/src/orders/repository.ts`, `apps/api/src/orders/service.ts`, `apps/api/test/order-submit-db.test.mjs`, `WORK_STATUS.md`만 수정한다. 새 branch/worktree는 만들지 않는다.
 - 계약·완료 조건: 기존 주문 snapshot 거래 안에서 직접발송은 원 `shipment_orders.seller_id`, 공동출고는 명시 설정된 `fulfillment_settings.owool_seller_id`를 담당자로 고정한다. 직접발송 cutoff는 해당 판매자의 승인된 유효 정책, 공동출고 cutoff는 기존 S3 전역 정책을 사용한다. 공동출고 담당 미설정·삭제/비활성 판매자면 주문·출고행·프로모션 사용·예약 소비 전체 rollback, 설정/정책 경합의 일관된 snapshot, 같은 주문 멱등 재시도 출고행 추가0을 private PostgreSQL RED→GREEN으로 입증한다. S3 금액·정책 선택, 공개 API/UI, 결제 Task4, 공유 DB, 외부서비스는 변경하지 않는다.
 - 격리 시험 자원: WSL-server의 internal network `shoppingmall-s51-order-1006`, tmpfs PostgreSQL `shoppingmall-s51-order-pg-1006`, 일회용 Node 접두 `shoppingmall-s51-order-node-1006`만 사용한다. 외부 port·영속 volume·실사용 자료는0이며 Task3 RED→GREEN·목표/회귀/전체 gate까지만 유지한다. 성공·실패·중단 모두 정확한 자원만 제거하고 container/network/Node/시험행 잔류0을 확인한다. 착수 전 동명 container/network 충돌0이며 공유 `local-postgres/shoppingmall`은 미접속·미변경이다.
+- 첫 writer 실행 오류1회: RED 시험 파일을 한 번의 큰 `apply_patch` 입력으로 만들려다 Windows 명령 길이 제한에서 실행 전 실패했다. 파일·Git·DB 변경0, `fulfillment-order-db.test.mjs` 부재, 지정 Task3 container/network/volume/Node0, 공유 DB 미접속을 재확인했다. 같은 writer는 작은 패치 단위로 시험을 작성해 승인 범위 안에서 재개한다.
 
 ## 검증 완료 — 2026-10-06 S5.1 Task2 0015 schema·migration
 
