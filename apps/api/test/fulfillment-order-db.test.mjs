@@ -249,7 +249,7 @@ test('order submission snapshots direct and pooled owners and cutoffs exactly on
         status: 'PAYMENT_PENDING',
         timezone: 'Asia/Seoul',
       },
-    ]);
+    ].sort((left, right) => left.key.localeCompare(right.key)));
 
     const retried = await submitPendingOrder(pool, scenario.buyerId, input);
     assert.deepEqual(retried, saved);
@@ -379,7 +379,7 @@ test('order submission locks assignment and cutoff sources until its snapshot co
       ['owool_fulfillment', scenario.owool.id, '12:00'],
       [`seller_direct:${scenario.sellerA.id}`, scenario.sellerA.id, '13:00'],
       [`seller_direct:${scenario.sellerB.id}`, scenario.sellerB.id, '14:00'],
-    ]);
+    ].sort((left, right) => left[0].localeCompare(right[0])));
   } finally {
     await Promise.all(writers.map((writer) => writer.done.catch(() => {})));
     await cleanupScenario(pool, scenario);

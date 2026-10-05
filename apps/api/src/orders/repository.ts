@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { insertPendingFulfillment, type FulfillmentAssignment } from '../fulfillment/repository.js';
 
 export type OrderAmounts = {
   goodsWon: number; goodsDiscountWon: number; shippingFeeWon: number;
@@ -117,8 +118,13 @@ function validate(input: PendingOrderSnapshot): void {
 
 /** Insert the whole immutable snapshot on the caller's already-open transaction. */
 export async function insertOrderSnapshot(client: PoolClient,
-  input: PendingOrderSnapshot): Promise<PendingOrderView> {
+  input: PendingOrderSnapshot,
+  fulfillmentAssignments?: ReadonlyMap<string, FulfillmentAssignment>): Promise<PendingOrderView> {
   validate(input);
+  if (fulfillmentAssignments && (fulfillmentAssignments.size !== input.shipments.length ||
+      input.shipments.some((shipment) => !fulfillmentAssignments.has(shipment.key)))) {
+    throw invalid();
+  }
   const order = await client.query<{ id: string }>(`INSERT INTO checkout_orders
     (account_id,reservation_id,idempotency_key,request_fingerprint,address_id,
       recipient_name,phone,postal_code,line1,line2,goods_won,goods_discount_won,
@@ -138,6 +144,8 @@ export async function insertOrderSnapshot(client: PoolClient,
       shipment.goodsDiscountWon, shipment.shippingFeeWon, shipment.shippingSupportWon,
       shipment.payableWon]);
     const shipmentId = inserted.rows[0].id;
+    const fulfillment = fulfillmentAssignments?.get(shipment.key);
+    if (fulfillment) await insertPendingFulfillment(client, shipmentId, fulfillment);
     for (const line of shipment.lines) await client.query(`INSERT INTO shipment_order_lines
       (shipment_order_id,product_id,option_id,seller_id,product_name,option_name,
         unit_price_won,quantity,goods_discount_won,goods_payable_won)
