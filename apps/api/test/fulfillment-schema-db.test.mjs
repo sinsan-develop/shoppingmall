@@ -4,6 +4,67 @@ import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { assertOrderMutationQaTarget, skipWithoutFulfillmentSchema } from './order-schema-guard.mjs';
 
+test('0015 snapshot values reject nested PII and enforce the existing scalar domains', {
+  skip: !process.env.S5_SCHEMA_TEST_DB_SYSTEM_ID,
+}, async (t) => {
+  const pool = new Pool();
+  const db = await pool.connect();
+  try {
+    await assertOrderMutationQaTarget(db, process.env.S5_SCHEMA_TEST_DB_SYSTEM_ID);
+    await skipWithoutFulfillmentSchema(t, db, true);
+    await db.query('BEGIN');
+    await db.query('CREATE TEMP TABLE qa_snapshot_event (LIKE shipment_fulfillment_events INCLUDING ALL) ON COMMIT DROP');
+    await db.query(`INSERT INTO qa_snapshot_event(shipment_order_id,action,from_status,to_status,
+      before_snapshot,after_snapshot,idempotency_scope,idempotency_key,request_fingerprint)
+      VALUES($1,'PAYMENT_CONFIRMED','PAYMENT_PENDING','READY','{}','{}','system:payment',$2,$3)`,
+    [randomUUID(), randomUUID(), 'a'.repeat(64)]);
+    const invalid = {
+      status: [null, '', 'UNKNOWN', 'ready', 'READY\n'],
+      expectedShipDate: ['', 'not-a-date', '2026-1-01', '2026-00-01', '2026-13-01',
+        '2026-01-00', '2026-02-29', '1900-02-29', '2026-02-30', '2026-04-31',
+        '2026-01-01T00:00:00Z', '2026-01-01\n'],
+      carrierCode: ['', 'unknown', 'CJ_LOGISTICS', 'cj_logistics\n'],
+      trackingNumber: ['', 'A-123', ' ABC123', 'ABC123 ', 'ABC\n', '가123', 'A'.repeat(51)],
+    };
+    for (const column of ['before_snapshot', 'after_snapshot']) {
+      for (const [key, scalars] of Object.entries(invalid)) {
+        await t.test(`${column}.${key} rejects objects, arrays and invalid scalars`, async () => {
+          const accepted = [];
+          for (const value of [{ phone: 'fixture-only' }, ['fixture-only'], [], 123, true, false, ...scalars]) {
+            await db.query('SAVEPOINT snapshot_value');
+            try {
+              await db.query(`UPDATE qa_snapshot_event SET ${column}=$1::jsonb`, [JSON.stringify({ [key]: value })]);
+              accepted.push(value);
+            } catch (error) {
+              assert.equal(error.code, '23514');
+              assert.equal(error.constraint, 'shipment_fulfillment_events_snapshot_ck');
+            } finally {
+              await db.query('ROLLBACK TO SAVEPOINT snapshot_value');
+            }
+          }
+          assert.deepEqual(accepted, [], `${column}.${key} must reject every invalid value`);
+        });
+      }
+    }
+    await t.test('both snapshots accept absent keys and only contract strings or permitted nulls', async () => {
+      const valid = [ {}, { expectedShipDate: null, carrierCode: null, trackingNumber: null },
+        ...['PAYMENT_PENDING','READY','PACKING','DELAYED','SHIPPED','CANCELLED'].map(status => ({ status })),
+        ...['0000-02-29','2000-02-29','2024-02-29','2026-02-28','2026-04-30','2026-12-31'].map(expectedShipDate => ({ expectedShipDate })),
+        ...['cj_logistics','korea_post','hanjin','lotte','other'].map(carrierCode => ({ carrierCode })),
+        ...['A','0','aB123','A'.repeat(50)].map(trackingNumber => ({ trackingNumber })),
+        { status: 'SHIPPED', expectedShipDate: '2026-10-06', carrierCode: 'cj_logistics', trackingNumber: 'ABC123' },
+      ];
+      for (const value of valid) {
+        await db.query('UPDATE qa_snapshot_event SET before_snapshot=$1::jsonb,after_snapshot=$1::jsonb', [JSON.stringify(value)]);
+      }
+    });
+  } finally {
+    await db.query('ROLLBACK');
+    db.release();
+    await pool.end();
+  }
+});
+
 // 전용 인스턴스 확인 후 한 거래에서 시험하며 성공/실패 모두 rollback한다.
 test('0015 fulfillment relations enforce settings, state, actor and idempotency contracts', {
   skip: !process.env.S5_SCHEMA_TEST_DB_SYSTEM_ID,

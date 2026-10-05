@@ -1,6 +1,11 @@
 # 어울몰 작업현황
 
-## 검증 완료 — 2026-10-06 S5.1 Task2 0015 schema·migration RED/GREEN
+## I1 미해결·재검증 대기 — 2026-10-06 S5.1 Task2 Fix Round 1
+
+- **현재 판정 NOT APPROVED:** 독립 리뷰 Important1은 snapshot CHECK가 최상위 키만 제한해 `{"status":{"phone":"..."}}` 같은 중첩 PII를 허용한다는 결함이다. 과거 `DONE_WITH_CONCERNS` 및 `ffbd1a8`은 Task2 최종 PASS가 아니며 아래 기록은 그 시점의 검증 이력으로만 보존한다. PMO 승인 Fix Round 1에서 단일 writer 어울이 실제 PG 반례 RED→snapshot CHECK 최소 보정→fresh/upgrade·전체 gate·self-review·cleanup을 수행한다. 재리뷰 및 승인 판정은 controller가 별도 reviewer로 수행한다.
+- 기준: Windows/remote/WSL `ffbd1a84735cd7c43adf81caeecd18baff1afa4d`, 기존 branch/worktree만 사용. 허용 변경은 fulfillment-schema-db 시험, 0015 SQL/Drizzle의 snapshot CHECK, WORK_STATUS 및 ignored 보고서다. rules.ts·계약·기존 migration·API/UI/Task3+는 변경하지 않는다. 자원은 기존 사전 계획과 같은 internal `shoppingmall-s51-schema-1006`, tmpfs `shoppingmall-s51-schema-pg-1006`, 일회용 Node 접두 `shoppingmall-s51-schema-node-1006`만 재생성한다. 생성 전 충돌0·기존 images를 확인하고 성공/실패 모두 외부 port/영속 mount/시험행을 확인 후 정확한 자원만 제거한다. shared DB 미접속·미변경을 유지한다.
+
+## 이전 검증 이력 — 독립 리뷰 I1로 최종 승인되지 않음
 
 - **최종 판정 DONE_WITH_CONCERNS:** 제품·시험 검증 SHA `6a1b8132f106e665a5270cd8b6bd75cec83c4b2a`. 아래 과거 BLOCKED는 승인된 한 줄 보정과 검증 환경 보정으로 해소됐다. WSL private fresh 및 upgrade 목표 각 **7/7 pass·0 skip**, 로컬 전체 **365/264 pass·101 skip·0 fail**, WSL 전체 **365/265 pass·100 skip·0 fail**, 양쪽 PR 본문 **8/8 pass·0 skip**. 양쪽 API/Web/Mobile/contracts typecheck·lint·API/Web build 성공, SQL hash 불변·diff check 성공. WSL은 Node24의 지정 checkout 읽기 전용 mount와 일회용 tmpfs 검증 복사본에서 package scripts와 같은 명령을 실행했다. 이 최종 기록 commit은 검증 SHA 대비 WORK_STATUS만 바꾸며 제품·시험·migration 내용은 동일하게 유지한다.
 - **최종 cleanup0:** 사후 public 관계 전체 행수를 확인해 기존 home_content_current/home_content_draft/shipping_policy_global 및 새 fulfillment_settings만 각1, 나머지는 모두0이었다. migration16, 출고/사건/qa 임시관계0. PG 영속 mount0·외부 port0·tmpfs만1, Node 잔류0 확인 후 정확한 private PG `shoppingmall-s51-schema-pg-1006`와 internal network `shoppingmall-s51-schema-1006`를 제거했다. 모든 Task2 접두 container/network/Node 잔류0, tmpfs 검증 복사본도 컨테이너와 함께 폐기됐다. 공유 `local-postgres/shoppingmall`은 **미접속·미변경**.
