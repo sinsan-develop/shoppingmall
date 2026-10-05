@@ -63,6 +63,8 @@ test('payment attempt belongs to its buyer and an idempotency key cannot change 
     const reviewed = await pool.query(`SELECT count(*)::int AS n FROM payment_events
       WHERE payment_attempt_id=$1 AND processing_status='REVIEW_REQUIRED'`, [first.id]);
     assert.equal(reviewed.rows[0].n, 2);
+    assert.equal((await getPaymentAttempt(pool, ids.owner, ids.order, first.id)).status,
+      'REVIEW_REQUIRED');
     assert.equal((await pool.query('SELECT status FROM checkout_orders WHERE id=$1', [ids.order])).rows[0].status,
       'PENDING_PAYMENT');
   } finally {

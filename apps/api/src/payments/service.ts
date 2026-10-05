@@ -85,7 +85,8 @@ export async function recordVerifiedPaymentEvent(pool: Pool, attemptId: string,
       await client.query('COMMIT');
       return { id: prior.id, processingStatus: prior.processingStatus };
     }
-    const mismatch = attempt.providerOrderId !== verified.providerOrderId;
+    const mismatch = attempt.providerOrderId !== verified.providerOrderId ||
+      attempt.checkoutOrderId !== verified.orderId || attempt.requestedWon !== verified.amountWon;
     const status = mismatch ? 'REVIEW_REQUIRED' : 'PENDING_PROCESSING';
     const inserted = await client.query<{ id: string }>(`INSERT INTO payment_events
       (payment_attempt_id,provider,provider_event_id,outcome,verified_order_id,
@@ -102,6 +103,8 @@ export async function recordVerifiedPaymentEvent(pool: Pool, attemptId: string,
       await client.query('COMMIT');
       return { id: raced.id, processingStatus: raced.processingStatus };
     }
+    if (mismatch && attempt.status === 'PENDING') await client.query(`UPDATE payment_attempts
+      SET status='REVIEW_REQUIRED',ended_at=clock_timestamp() WHERE id=$1`, [attemptId]);
     await client.query('COMMIT');
     return { id: inserted.rows[0].id, processingStatus: status };
   } catch (error) { await client.query('ROLLBACK'); throw error; }

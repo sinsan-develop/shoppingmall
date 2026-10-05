@@ -81,9 +81,6 @@ CREATE TABLE "payment_events" (
 ALTER TABLE "payment_events" ADD CONSTRAINT "payment_events_attempt_fk"
   FOREIGN KEY ("payment_attempt_id") REFERENCES "public"."payment_attempts"("id");
 --> statement-breakpoint
-ALTER TABLE "payment_events" ADD CONSTRAINT "payment_events_checkout_fk"
-  FOREIGN KEY ("verified_order_id") REFERENCES "public"."checkout_orders"("id");
---> statement-breakpoint
 CREATE UNIQUE INDEX "payment_events_provider_event_uq"
   ON "payment_events" ("provider","provider_event_id");
 --> statement-breakpoint

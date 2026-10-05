@@ -690,7 +690,7 @@ export const paymentEvents = pgTable('payment_events', {
   provider: text('provider').notNull(),
   providerEventId: text('provider_event_id').notNull(),
   outcome: text('outcome').notNull(),
-  verifiedOrderId: uuid('verified_order_id').notNull().references(() => checkoutOrders.id),
+  verifiedOrderId: uuid('verified_order_id').notNull(),
   providerPaymentId: text('provider_payment_id').notNull(),
   amountWon: integer('amount_won').notNull(),
   eventFingerprint: text('event_fingerprint').notNull(),
