@@ -100,7 +100,53 @@ CREATE TABLE "shipment_fulfillment_events" (
   CONSTRAINT "shipment_fulfillment_events_snapshot_ck" CHECK
     (jsonb_typeof("before_snapshot") = 'object' AND jsonb_typeof("after_snapshot") = 'object'
       AND ("before_snapshot" - ARRAY['status','expectedShipDate','carrierCode','trackingNumber']::text[]) = '{}'::jsonb
-      AND ("after_snapshot" - ARRAY['status','expectedShipDate','carrierCode','trackingNumber']::text[]) = '{}'::jsonb),
+      AND ("after_snapshot" - ARRAY['status','expectedShipDate','carrierCode','trackingNumber']::text[]) = '{}'::jsonb
+      AND (NOT ("before_snapshot" ? 'status') OR
+        (jsonb_typeof("before_snapshot"->'status') = 'string' AND "before_snapshot"->>'status' IN
+          ('PAYMENT_PENDING','READY','PACKING','DELAYED','SHIPPED','CANCELLED')))
+      AND (NOT ("before_snapshot" ? 'expectedShipDate') OR "before_snapshot"->'expectedShipDate' = 'null'::jsonb OR
+        CASE WHEN jsonb_typeof("before_snapshot"->'expectedShipDate') = 'string'
+          AND length("before_snapshot"->>'expectedShipDate') = 10
+          AND "before_snapshot"->>'expectedShipDate' ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+        THEN substring("before_snapshot"->>'expectedShipDate',9,2)::integer <=
+          CASE WHEN substring("before_snapshot"->>'expectedShipDate',6,2) = '02'
+            THEN 28 + CASE WHEN substring("before_snapshot"->>'expectedShipDate',1,4)::integer % 400 = 0
+              OR (substring("before_snapshot"->>'expectedShipDate',1,4)::integer % 4 = 0
+                AND substring("before_snapshot"->>'expectedShipDate',1,4)::integer % 100 <> 0)
+              THEN 1 ELSE 0 END
+            WHEN substring("before_snapshot"->>'expectedShipDate',6,2) IN ('04','06','09','11') THEN 30
+            ELSE 31 END
+        ELSE false END)
+      AND (NOT ("before_snapshot" ? 'carrierCode') OR "before_snapshot"->'carrierCode' = 'null'::jsonb OR
+        (jsonb_typeof("before_snapshot"->'carrierCode') = 'string' AND "before_snapshot"->>'carrierCode' IN
+          ('cj_logistics','korea_post','hanjin','lotte','other')))
+      AND (NOT ("before_snapshot" ? 'trackingNumber') OR "before_snapshot"->'trackingNumber' = 'null'::jsonb OR
+        (jsonb_typeof("before_snapshot"->'trackingNumber') = 'string'
+          AND length("before_snapshot"->>'trackingNumber') BETWEEN 1 AND 50
+          AND "before_snapshot"->>'trackingNumber' !~ '[^A-Za-z0-9]'))
+      AND (NOT ("after_snapshot" ? 'status') OR
+        (jsonb_typeof("after_snapshot"->'status') = 'string' AND "after_snapshot"->>'status' IN
+          ('PAYMENT_PENDING','READY','PACKING','DELAYED','SHIPPED','CANCELLED')))
+      AND (NOT ("after_snapshot" ? 'expectedShipDate') OR "after_snapshot"->'expectedShipDate' = 'null'::jsonb OR
+        CASE WHEN jsonb_typeof("after_snapshot"->'expectedShipDate') = 'string'
+          AND length("after_snapshot"->>'expectedShipDate') = 10
+          AND "after_snapshot"->>'expectedShipDate' ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+        THEN substring("after_snapshot"->>'expectedShipDate',9,2)::integer <=
+          CASE WHEN substring("after_snapshot"->>'expectedShipDate',6,2) = '02'
+            THEN 28 + CASE WHEN substring("after_snapshot"->>'expectedShipDate',1,4)::integer % 400 = 0
+              OR (substring("after_snapshot"->>'expectedShipDate',1,4)::integer % 4 = 0
+                AND substring("after_snapshot"->>'expectedShipDate',1,4)::integer % 100 <> 0)
+              THEN 1 ELSE 0 END
+            WHEN substring("after_snapshot"->>'expectedShipDate',6,2) IN ('04','06','09','11') THEN 30
+            ELSE 31 END
+        ELSE false END)
+      AND (NOT ("after_snapshot" ? 'carrierCode') OR "after_snapshot"->'carrierCode' = 'null'::jsonb OR
+        (jsonb_typeof("after_snapshot"->'carrierCode') = 'string' AND "after_snapshot"->>'carrierCode' IN
+          ('cj_logistics','korea_post','hanjin','lotte','other')))
+      AND (NOT ("after_snapshot" ? 'trackingNumber') OR "after_snapshot"->'trackingNumber' = 'null'::jsonb OR
+        (jsonb_typeof("after_snapshot"->'trackingNumber') = 'string'
+          AND length("after_snapshot"->>'trackingNumber') BETWEEN 1 AND 50
+          AND "after_snapshot"->>'trackingNumber' !~ '[^A-Za-z0-9]'))),
   CONSTRAINT "shipment_fulfillment_events_fingerprint_ck" CHECK ("request_fingerprint" ~ '^[0-9a-f]{64}$')
 );
 --> statement-breakpoint

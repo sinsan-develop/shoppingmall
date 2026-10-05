@@ -1033,6 +1033,52 @@ export const shipmentFulfillmentEvents = pgTable('shipment_fulfillment_events', 
   check('shipment_fulfillment_events_snapshot_ck', sql`
     jsonb_typeof(${table.beforeSnapshot}) = 'object' AND jsonb_typeof(${table.afterSnapshot}) = 'object'
     AND (${table.beforeSnapshot} - ARRAY['status','expectedShipDate','carrierCode','trackingNumber']::text[]) = '{}'::jsonb
-    AND (${table.afterSnapshot} - ARRAY['status','expectedShipDate','carrierCode','trackingNumber']::text[]) = '{}'::jsonb`),
+    AND (${table.afterSnapshot} - ARRAY['status','expectedShipDate','carrierCode','trackingNumber']::text[]) = '{}'::jsonb
+      AND (NOT (${table.beforeSnapshot} ? 'status') OR
+        (jsonb_typeof(${table.beforeSnapshot}->'status') = 'string' AND ${table.beforeSnapshot}->>'status' IN
+          ('PAYMENT_PENDING','READY','PACKING','DELAYED','SHIPPED','CANCELLED')))
+      AND (NOT (${table.beforeSnapshot} ? 'expectedShipDate') OR ${table.beforeSnapshot}->'expectedShipDate' = 'null'::jsonb OR
+        CASE WHEN jsonb_typeof(${table.beforeSnapshot}->'expectedShipDate') = 'string'
+          AND length(${table.beforeSnapshot}->>'expectedShipDate') = 10
+          AND ${table.beforeSnapshot}->>'expectedShipDate' ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+        THEN substring(${table.beforeSnapshot}->>'expectedShipDate',9,2)::integer <=
+          CASE WHEN substring(${table.beforeSnapshot}->>'expectedShipDate',6,2) = '02'
+            THEN 28 + CASE WHEN substring(${table.beforeSnapshot}->>'expectedShipDate',1,4)::integer % 400 = 0
+              OR (substring(${table.beforeSnapshot}->>'expectedShipDate',1,4)::integer % 4 = 0
+                AND substring(${table.beforeSnapshot}->>'expectedShipDate',1,4)::integer % 100 <> 0)
+              THEN 1 ELSE 0 END
+            WHEN substring(${table.beforeSnapshot}->>'expectedShipDate',6,2) IN ('04','06','09','11') THEN 30
+            ELSE 31 END
+        ELSE false END)
+      AND (NOT (${table.beforeSnapshot} ? 'carrierCode') OR ${table.beforeSnapshot}->'carrierCode' = 'null'::jsonb OR
+        (jsonb_typeof(${table.beforeSnapshot}->'carrierCode') = 'string' AND ${table.beforeSnapshot}->>'carrierCode' IN
+          ('cj_logistics','korea_post','hanjin','lotte','other')))
+      AND (NOT (${table.beforeSnapshot} ? 'trackingNumber') OR ${table.beforeSnapshot}->'trackingNumber' = 'null'::jsonb OR
+        (jsonb_typeof(${table.beforeSnapshot}->'trackingNumber') = 'string'
+          AND length(${table.beforeSnapshot}->>'trackingNumber') BETWEEN 1 AND 50
+          AND ${table.beforeSnapshot}->>'trackingNumber' !~ '[^A-Za-z0-9]'))
+      AND (NOT (${table.afterSnapshot} ? 'status') OR
+        (jsonb_typeof(${table.afterSnapshot}->'status') = 'string' AND ${table.afterSnapshot}->>'status' IN
+          ('PAYMENT_PENDING','READY','PACKING','DELAYED','SHIPPED','CANCELLED')))
+      AND (NOT (${table.afterSnapshot} ? 'expectedShipDate') OR ${table.afterSnapshot}->'expectedShipDate' = 'null'::jsonb OR
+        CASE WHEN jsonb_typeof(${table.afterSnapshot}->'expectedShipDate') = 'string'
+          AND length(${table.afterSnapshot}->>'expectedShipDate') = 10
+          AND ${table.afterSnapshot}->>'expectedShipDate' ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+        THEN substring(${table.afterSnapshot}->>'expectedShipDate',9,2)::integer <=
+          CASE WHEN substring(${table.afterSnapshot}->>'expectedShipDate',6,2) = '02'
+            THEN 28 + CASE WHEN substring(${table.afterSnapshot}->>'expectedShipDate',1,4)::integer % 400 = 0
+              OR (substring(${table.afterSnapshot}->>'expectedShipDate',1,4)::integer % 4 = 0
+                AND substring(${table.afterSnapshot}->>'expectedShipDate',1,4)::integer % 100 <> 0)
+              THEN 1 ELSE 0 END
+            WHEN substring(${table.afterSnapshot}->>'expectedShipDate',6,2) IN ('04','06','09','11') THEN 30
+            ELSE 31 END
+        ELSE false END)
+      AND (NOT (${table.afterSnapshot} ? 'carrierCode') OR ${table.afterSnapshot}->'carrierCode' = 'null'::jsonb OR
+        (jsonb_typeof(${table.afterSnapshot}->'carrierCode') = 'string' AND ${table.afterSnapshot}->>'carrierCode' IN
+          ('cj_logistics','korea_post','hanjin','lotte','other')))
+      AND (NOT (${table.afterSnapshot} ? 'trackingNumber') OR ${table.afterSnapshot}->'trackingNumber' = 'null'::jsonb OR
+        (jsonb_typeof(${table.afterSnapshot}->'trackingNumber') = 'string'
+          AND length(${table.afterSnapshot}->>'trackingNumber') BETWEEN 1 AND 50
+          AND ${table.afterSnapshot}->>'trackingNumber' !~ '[^A-Za-z0-9]'))`),
   check('shipment_fulfillment_events_fingerprint_ck', sql`${table.requestFingerprint} ~ '^[0-9a-f]{64}$'`),
 ]);

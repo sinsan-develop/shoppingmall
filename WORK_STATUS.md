@@ -2,6 +2,8 @@
 
 ## I1 미해결·재검증 대기 — 2026-10-06 S5.1 Task2 Fix Round 1
 
+- Fix Round 1 RED 증거: 선행 시험 commit `ca6e48e586e2eb52b6ae4cc9bb821cb8dc895130`을 지정 origin에 push→WSL clean fetch/ff-only exact SHA에 맞췄다. private PG에 기존0015 fresh 적용 후 schema 시험은 **11건/2 pass/9 fail/0 skip**; 두 snapshot×4키의 invalid 값 거부 8그룹과 부모시험이 실패했고 정상값 수락·기존 제약 시험은 통과했다. 시험행/임시관계 사후0. 반례104개(중첩 객체/배열/number/boolean/잘못된 문자열·날짜·운송장)와 정상24쌍을 고정했다. 이는 예상 RED이며 새로운 실행 오류가 아니다.
+- 최소 GREEN 후보: SQL/Drizzle의 기존 snapshot CHECK에만 동일한 타입·값 검사를 추가했다. status는 기존6상태 문자열, 날짜는 기존 YYYY-MM-DD 실제 달력(월별 일수·윤년 포함) 문자열/null, carrier는 기존5코드 문자열/null, tracking은 ASCII 영숫자1~50문자/null; 네 키 모두 부재를 허용한다. 새 값·규칙·열·관계·API 변경0. 새 SQL SHA-256 `ec41e1ff8281ff53c4fc424245d5f9601f04d001df024b4fa4e111d42f1d19ee`. preview/guard6/6·API typecheck·diff check 통과, 실제 GREEN·전체 gate는 후속 검증 대기다.
 - **현재 판정 NOT APPROVED:** 독립 리뷰 Important1은 snapshot CHECK가 최상위 키만 제한해 `{"status":{"phone":"..."}}` 같은 중첩 PII를 허용한다는 결함이다. 과거 `DONE_WITH_CONCERNS` 및 `ffbd1a8`은 Task2 최종 PASS가 아니며 아래 기록은 그 시점의 검증 이력으로만 보존한다. PMO 승인 Fix Round 1에서 단일 writer 어울이 실제 PG 반례 RED→snapshot CHECK 최소 보정→fresh/upgrade·전체 gate·self-review·cleanup을 수행한다. 재리뷰 및 승인 판정은 controller가 별도 reviewer로 수행한다.
 - 기준: Windows/remote/WSL `ffbd1a84735cd7c43adf81caeecd18baff1afa4d`, 기존 branch/worktree만 사용. 허용 변경은 fulfillment-schema-db 시험, 0015 SQL/Drizzle의 snapshot CHECK, WORK_STATUS 및 ignored 보고서다. rules.ts·계약·기존 migration·API/UI/Task3+는 변경하지 않는다. 자원은 기존 사전 계획과 같은 internal `shoppingmall-s51-schema-1006`, tmpfs `shoppingmall-s51-schema-pg-1006`, 일회용 Node 접두 `shoppingmall-s51-schema-node-1006`만 재생성한다. 생성 전 충돌0·기존 images를 확인하고 성공/실패 모두 외부 port/영속 mount/시험행을 확인 후 정확한 자원만 제거한다. shared DB 미접속·미변경을 유지한다.
 
