@@ -166,6 +166,8 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
       'SELECT id,account_id FROM checkout_reservations WHERE account_id=ANY($1::uuid[])',
       [sharedManifest.accountIds]);
     ownedReservationIds = reservations.rows.map((row) => row.id);
+    await client.query('SELECT id FROM checkout_reservations WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+      [ownedReservationIds]);
     const reservationLines = await client.query<{ reservation_id: string; option_id: string }>(
       'SELECT reservation_id,option_id FROM checkout_reservation_lines WHERE reservation_id=ANY($1::uuid[])',
       [ownedReservationIds]);
@@ -267,7 +269,7 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
       id: string; checkout_order_id: string; seller_id: string | null;
       shipping_mode: string; shipment_key: string;
     }>(`SELECT id,checkout_order_id,seller_id,shipping_mode,shipment_key
-      FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[])`, [orderIds]);
+      FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[]) ORDER BY id FOR UPDATE`, [orderIds]);
     const shipmentIds = shipments.rows.map((row) => row.id);
     const shipmentLines = await client.query<{
       shipment_order_id: string; product_id: string; option_id: string; seller_id: string;
