@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S5 Stage 착수·S4 병합 정합
+
+- 판정·기준선: PMO가 S4 개발/mock 범위 완료 보고를 접수했다. PR [#12](https://github.com/sinsan-develop/shoppingmall/pull/12)는 승인된 최종 branch head `ccf52a4a9d3d18aeb6c47e8a3e8486c996e03c5e`와 같은 tree `f0ed96717f3787a44b28d35ecda780bb22338054`로 `main@94af5e853b1019130ea9fc043519f8f91b07297b`에 squash 병합됐다. 원격/Windows/WSL의 S4 branch·요청 tag와 Windows S4 worktree를 정리했고, Windows·WSL checkout은 같은 `main@94af5e8`이다.
+- S4 최종 증거: exact PR head에서 로컬 355건/255 pass·100 환경 skip·0 fail, WSL 공유 DB 356건/336 pass·20 조건부 skip·0 fail, 양쪽 PR 본문 8/8·typecheck/lint/build 성공, 독립 리뷰 Critical0/Important0/Minor0. merged main 재검증은 Windows 전체 358건/258 pass·100 환경 skip·0 fail 및 PR 본문8/8, typecheck 성공, WSL Node24 핵심7/7이다. 공유 `local-postgres/shoppingmall` 시험 자료 14범주0, migration15와 기존 home current/draft·global shipping singleton 각1을 유지한다. 실제 PG·Oracle/UAT·200% 확대와 최종 fixture 보정 뒤 브라우저 재실행은 미검증이다.
+- 정리 중 환경 보정: Windows main checkout의 과거 migration 0000~0012가 `.gitattributes` 도입 전 CRLF로 남아 해시 시험1건이 실패했다. Git HEAD archive의 LF blob 해시를 확인해 작업 파일만 동일 원본으로 재전개하고 추적 diff0·전체 시험0 fail을 확인했다. 코드·DB 변경은 없다. S4 worktree의 사용자 소유 미추적 `apps/web/AGENTS.md`·`CLAUDE.md`는 정본 root에 해시 동일 보존했다. 기존 `legacy-onedrive/`와 함께 임의 커밋·삭제하지 않는다.
+- S5 작업 위치·기준선: 최신 `origin/main@94af5e8`에서 단일 branch `codex/s5-fulfillment-engagement`, 격리 worktree `D:\Project\shoppingmall2\.worktrees\s5-fulfillment-engagement`를 만들었다. root `AGENTS.md`는 존재하지 않아 PMO `AGENTS.md`와 승인된 `docs/design/DESIGN.md`, `docs/WORK_PLAN.md`, 이 파일, `docs/DEVELOPMENT_ENVIRONMENT.md`를 적용한다. 잠금파일 설치는 다운로드0·재사용643으로 완료했고 기준선 `pnpm test`는 355건/255 pass·100 환경 skip·0 fail, PR 본문8/8이다.
+- 첫 절편 S5.1: S4의 `PAID` 주문/발송 snapshot을 선행 입력으로 판매자 담당 주문 상태 필터, 포장·출고, 택배사·운송장, 마감 후 다음 출고 가능일, 지연 안내, 관리자 사유 있는 정정을 구현한다. 타 판매자 출고 거부·운송장 고객 즉시 표시·정정 전후/안내를 RED→GREEN으로 고정한다. 자동 택배사 동기화·실제 발송·실 문자/메일/푸시·Oracle/UAT는 이번 개발 PASS 밖이다.
+- 승인 경계·다음 조치: 아직 S5 제품 코드·DB·공유 QA 자료·외부 서비스는 변경하지 않았다. 현행 주문/API/schema와 S5.1 계약을 대조하고 무상태 RED를 먼저 작성한다. 신규 공개 API·schema/migration·고객정보/증빙 저장·권한·알림 credential/실비용은 정확한 계약·영향·검증·rollback을 PMO에 보고해 별도 승인받은 뒤 적용한다. fixture는 별도 private tmpfs PostgreSQL·가상 운송장만 사용하고 이름·수명·정리 대상을 생성 전에 기록한다.
+
 ## 검증 완료·PR 진행 — 2026-10-05 S4 QA 후발 결제사건 경합 보정
 
 - 담당 어울/단일 writer, `codex/s4-payment-refund` 기존 worktree만 사용. 최종 후보 **`b04d3824a312c8f44ec4bf3f247dad240a43e930`**은 공유 QA reset의 첫 문장에 `READ COMMITTED`를 고정하고, 비결제 fixture 정리 뒤 `payment_events` 잠금을 payment row 잠금보다 먼저 얻는다. 잠금 아래 교차 주문 conflict·외부 payment event 역참조를 다시 검사하고 이상 시 전체 rollback한다. 새 공개 API/schema·공유 DB seed·실 PG·Oracle·S5.2 없음. `apps/web/AGENTS.md`·`CLAUDE.md` 소유 불명 untracked 보존.
