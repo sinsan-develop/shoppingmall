@@ -6,6 +6,7 @@ import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 import { CheckoutReservations } from '../src/checkout/reservation-service.ts';
 import {
+  assertOrderMutationQaTarget,
   skipWithoutFulfillmentSchema,
   skipWithoutOrderSchema,
 } from './order-schema-guard.mjs';
@@ -13,6 +14,7 @@ import {
 async function requireSchemas(context, pool) {
   if (await skipWithoutOrderSchema(context, pool)) return false;
   if (await skipWithoutFulfillmentSchema(context, pool)) return false;
+  await assertOrderMutationQaTarget(pool, process.env.S5_ORDER_TEST_DB_SYSTEM_ID);
   return true;
 }
 
@@ -90,6 +92,39 @@ async function configureFulfillment(pool, scenario) {
     version=version+1,updated_at=now() WHERE id=1`, [scenario.owool.id, scenario.adminId]);
 }
 
+async function addPromotion(pool, scenario) {
+  scenario.campaignId = (await pool.query(`INSERT INTO promotion_campaigns
+    (title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
+    VALUES ($1,'goods_discount',10,10,$2) RETURNING id`, [
+    `QA-${scenario.runId}`, scenario.adminId,
+  ])).rows[0].id;
+  const versionId = (await pool.query(`INSERT INTO promotion_versions
+    (campaign_id,version,scope,starts_at,ends_at,amount_kind,amount_value,
+      created_by_account_id)
+    VALUES ($1,1,'all',now()-interval '1 hour',now()+interval '1 day',
+      'fixed',5000,$2) RETURNING id`, [scenario.campaignId, scenario.adminId])).rows[0].id;
+  scenario.grantId = (await pool.query(`INSERT INTO promotion_grants
+    (account_id,version_id,source,issued_by_account_id,idempotency_key,reason)
+    VALUES ($1,$2,'direct',$3,$4,'QA fulfillment order') RETURNING id`, [
+    scenario.buyerId, versionId, scenario.adminId, randomUUID(),
+  ])).rows[0].id;
+}
+
+async function assertSubmissionRollback(pool, scenario) {
+  const row = (await pool.query(`SELECT
+    (SELECT count(*)::int FROM checkout_orders WHERE reservation_id=$1) AS orders,
+    (SELECT count(*)::int FROM promotion_uses WHERE reservation_id=$1) AS promotions,
+    (SELECT status FROM checkout_reservations WHERE id=$1) AS reservation,
+    (SELECT count(*)::int FROM checkout_reservation_lines WHERE reservation_id=$1) AS lines`,
+  [scenario.reservationId])).rows[0];
+  assert.deepEqual(row, {
+    orders: 0,
+    promotions: 0,
+    reservation: 'ACTIVE',
+    lines: 3,
+  });
+}
+
 async function cleanupScenario(pool, scenario) {
   if (!scenario) return;
   await pool.query(`UPDATE fulfillment_settings SET owool_seller_id=$1,updated_by=$2,
@@ -121,15 +156,23 @@ async function cleanupScenario(pool, scenario) {
     await pool.query('DELETE FROM shipment_orders WHERE checkout_order_id=$1', [id]);
     await pool.query('DELETE FROM checkout_orders WHERE id=$1', [id]);
   }
+  await pool.query('DELETE FROM promotion_uses WHERE reservation_id=$1',
+    [scenario.reservationId]);
   await pool.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=$1',
     [scenario.reservationId]);
   await pool.query('DELETE FROM checkout_reservations WHERE id=$1', [scenario.reservationId]);
+  if (scenario.campaignId) {
+    await pool.query(`DELETE FROM promotion_grants WHERE version_id IN
+      (SELECT id FROM promotion_versions WHERE campaign_id=$1)`, [scenario.campaignId]);
+    await pool.query('DELETE FROM promotion_versions WHERE campaign_id=$1', [scenario.campaignId]);
+    await pool.query('DELETE FROM promotion_campaigns WHERE id=$1', [scenario.campaignId]);
+  }
   await pool.query('DELETE FROM customer_addresses WHERE id=$1', [scenario.addressId]);
   await runQaCatalogFixture('reset', scenario.runId, process.env.DATABASE_URL);
 }
 
 test('order submission snapshots direct and pooled owners and cutoffs exactly once', {
-  skip: !process.env.DATABASE_URL,
+  skip: !process.env.DATABASE_URL || !process.env.S5_ORDER_TEST_DB_SYSTEM_ID,
 }, async (context) => {
   const { submitPendingOrder } = await import('../src/orders/service.ts');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 8 });
@@ -183,6 +226,59 @@ test('order submission snapshots direct and pooled owners and cutoffs exactly on
     assert.equal((await pool.query(`SELECT count(*)::int AS n
       FROM shipment_fulfillments f JOIN shipment_orders s ON s.id=f.shipment_order_id
       WHERE s.checkout_order_id=$1`, [saved.id])).rows[0].n, 3);
+  } finally {
+    await cleanupScenario(pool, scenario);
+    await pool.end();
+  }
+});
+
+test('unusable pooled owner rolls back order promotion hold and reservation consumption', {
+  skip: !process.env.DATABASE_URL || !process.env.S5_ORDER_TEST_DB_SYSTEM_ID,
+}, async (context) => {
+  const { submitPendingOrder } = await import('../src/orders/service.ts');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 8 });
+  let scenario;
+  try {
+    if (!await requireSchemas(context, pool)) return;
+    scenario = await seedOrderScenario(pool, randomBytes(4).toString('hex'));
+    await addPromotion(pool, scenario);
+    const request = () => submitPendingOrder(pool, scenario.buyerId, {
+      reservationId: scenario.reservationId,
+      addressId: scenario.addressId,
+      selections: { goodsCoupon: { grantId: scenario.grantId } },
+      expectedPayableWon: 61000,
+      idempotencyKey: randomUUID(),
+    });
+
+    await pool.query(`UPDATE fulfillment_settings SET owool_seller_id=NULL,
+      updated_by=NULL,version=version+1,updated_at=now() WHERE id=1`);
+    await assert.rejects(request, /Fulfillment not configured/);
+    await assertSubmissionRollback(pool, scenario);
+
+    await pool.query(`UPDATE fulfillment_settings SET owool_seller_id=$1,
+      updated_by=$2,version=version+1,updated_at=now() WHERE id=1`,
+    [scenario.owool.id, scenario.adminId]);
+    const removed = await pool.query(`DELETE FROM account_roles
+      WHERE account_id=$1 AND role='seller' AND seller_id=$2 RETURNING account_id`,
+    [scenario.owool.accountId, scenario.owool.id]);
+    assert.equal(removed.rowCount, 1);
+    try {
+      await assert.rejects(request, /Fulfillment seller unavailable/);
+      await assertSubmissionRollback(pool, scenario);
+    } finally {
+      await pool.query(`INSERT INTO account_roles(account_id,role,seller_id)
+        VALUES ($1,'seller',$2)`, [scenario.owool.accountId, scenario.owool.id]);
+    }
+
+    await pool.query('UPDATE accounts SET disabled_at=now() WHERE id=$1',
+      [scenario.owool.accountId]);
+    try {
+      await assert.rejects(request, /Fulfillment seller unavailable/);
+      await assertSubmissionRollback(pool, scenario);
+    } finally {
+      await pool.query('UPDATE accounts SET disabled_at=NULL WHERE id=$1',
+        [scenario.owool.accountId]);
+    }
   } finally {
     await cleanupScenario(pool, scenario);
     await pool.end();
