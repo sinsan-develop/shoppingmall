@@ -125,6 +125,36 @@ async function assertSubmissionRollback(pool, scenario) {
   });
 }
 
+async function startConcurrentUpdate(pool, sql, params) {
+  const client = await pool.connect();
+  await client.query('BEGIN');
+  const pid = (await client.query('SELECT pg_backend_pid()::int AS pid')).rows[0].pid;
+  const done = (async () => {
+    try {
+      await client.query(sql, params);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  })();
+  return { pid, done };
+}
+
+async function waitForBlock(pool, writerPid, orderPid) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const result = await pool.query(
+      'SELECT $1::int=ANY(pg_blocking_pids($2::int)) AS blocked',
+      [orderPid, writerPid],
+    );
+    if (result.rows[0].blocked) return true;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return false;
+}
+
 async function cleanupScenario(pool, scenario) {
   if (!scenario) return;
   await pool.query(`UPDATE fulfillment_settings SET owool_seller_id=$1,updated_by=$2,
@@ -280,6 +310,78 @@ test('unusable pooled owner rolls back order promotion hold and reservation cons
         [scenario.owool.accountId]);
     }
   } finally {
+    await cleanupScenario(pool, scenario);
+    await pool.end();
+  }
+});
+
+test('order submission locks assignment and cutoff sources until its snapshot commits', {
+  skip: !process.env.DATABASE_URL || !process.env.S5_ORDER_TEST_DB_SYSTEM_ID,
+}, async (context) => {
+  const { submitPendingOrder } = await import('../src/orders/service.ts');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 12 });
+  let scenario;
+  let writers = [];
+  try {
+    if (!await requireSchemas(context, pool)) return;
+    scenario = await seedOrderScenario(pool, randomBytes(4).toString('hex'));
+    await configureFulfillment(pool, scenario);
+    let observedBlocks = [];
+    let intercepted = false;
+    const racingPool = {
+      connect: async () => {
+        const client = await pool.connect();
+        const orderPid = (await client.query(
+          'SELECT pg_backend_pid()::int AS pid',
+        )).rows[0].pid;
+        return {
+          query: async (...args) => {
+            const result = await client.query(...args);
+            if (!intercepted && typeof args[0] === 'string' &&
+                args[0].includes('INSERT INTO checkout_orders')) {
+              intercepted = true;
+              writers = await Promise.all([
+                startConcurrentUpdate(pool, `UPDATE fulfillment_settings
+                  SET owool_seller_id=$1,version=version+1,updated_at=now() WHERE id=1`,
+                [scenario.sellerA.id]),
+                startConcurrentUpdate(pool, `UPDATE shipping_policy_global
+                  SET cutoff_time='22:00',updated_at=now() WHERE id=1`, []),
+                startConcurrentUpdate(pool, `UPDATE seller_shipping_policies
+                  SET policy=jsonb_set(policy,'{cutoffTime}','"23:00"'::jsonb),
+                    approved_at=now() WHERE seller_id=ANY($1::uuid[])`,
+                [[scenario.sellerA.id, scenario.sellerB.id]]),
+              ]);
+              observedBlocks = await Promise.all(
+                writers.map((writer) => waitForBlock(pool, writer.pid, orderPid)),
+              );
+            }
+            return result;
+          },
+          release: () => client.release(),
+        };
+      },
+    };
+    const saved = await submitPendingOrder(racingPool, scenario.buyerId, {
+      reservationId: scenario.reservationId,
+      addressId: scenario.addressId,
+      selections: {},
+      expectedPayableWon: 66000,
+      idempotencyKey: randomUUID(),
+    });
+    await Promise.all(writers.map((writer) => writer.done));
+    assert.equal(intercepted, true);
+    assert.deepEqual(observedBlocks, [true, true, true]);
+    const snapshot = (await pool.query(`SELECT s.shipment_key AS key,
+      f.fulfillment_seller_id AS "fulfillmentSellerId",f.cutoff_time AS "cutoffTime"
+      FROM shipment_orders s JOIN shipment_fulfillments f ON f.shipment_order_id=s.id
+      WHERE s.checkout_order_id=$1 ORDER BY s.shipment_key`, [saved.id])).rows;
+    assert.deepEqual(snapshot.map((row) => [row.key, row.fulfillmentSellerId, row.cutoffTime]), [
+      ['owool_fulfillment', scenario.owool.id, '12:00'],
+      [`seller_direct:${scenario.sellerA.id}`, scenario.sellerA.id, '13:00'],
+      [`seller_direct:${scenario.sellerB.id}`, scenario.sellerB.id, '14:00'],
+    ]);
+  } finally {
+    await Promise.all(writers.map((writer) => writer.done.catch(() => {})));
     await cleanupScenario(pool, scenario);
     await pool.end();
   }
