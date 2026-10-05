@@ -182,6 +182,18 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
         AND actor_account_id IS NOT NULL AND NOT(actor_account_id=ANY($3::uuid[])) LIMIT 1`,
     [orderIds, sharedManifest.accountIds[0], sharedManifest.accountIds]);
     if (foreignActors.rowCount) throw new Error('Shared refund UI order contains foreign actor data');
+    const paymentCrossLinks = await client.query(`SELECT 1 FROM payment_event_conflicts c
+      JOIN payment_events e ON e.id=c.original_event_id
+      JOIN payment_attempts original_attempt ON original_attempt.id=e.payment_attempt_id
+      JOIN payment_attempts incoming_attempt ON incoming_attempt.id=c.incoming_attempt_id
+      WHERE (original_attempt.checkout_order_id=ANY($1::uuid[])) <>
+            (incoming_attempt.checkout_order_id=ANY($1::uuid[]))
+      UNION ALL SELECT 1 FROM payment_events e
+      JOIN payment_attempts a ON a.id=e.payment_attempt_id
+      WHERE a.checkout_order_id=ANY($1::uuid[]) AND NOT(e.verified_order_id=ANY($1::uuid[]))
+      LIMIT 1`, [orderIds]);
+    if (paymentCrossLinks.rowCount)
+      throw new Error('Shared refund UI foreign payment conflict or event reference');
   }
   if (found.products.length) {
     const productId = found.products[0].id;
