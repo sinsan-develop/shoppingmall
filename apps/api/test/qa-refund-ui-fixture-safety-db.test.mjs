@@ -257,6 +257,49 @@ test('shared reset preserves conflicts whose incoming attempt belongs to another
     await pool.query('DELETE FROM payment_event_conflicts WHERE id=$1', [paymentConflict]);
     paymentConflict = undefined;
 
+    const resetClient = await pool.connect();
+    const conflictWriter = await pool.connect();
+    let releaseReset;
+    try {
+      await resetClient.query('BEGIN');
+      let reachedDelete;
+      const paused = new Promise((resolve) => { reachedDelete = resolve; });
+      const resume = new Promise((resolve) => { releaseReset = resolve; });
+      const wrapper = { query: async (sql, args) => {
+        if (sql.startsWith('DELETE FROM refund_event_conflicts')) { reachedDelete(); await resume; }
+        return resetClient.query(sql, args);
+      } };
+      const pendingReset = resetRefundUiFixture(wrapper, runId, 4, manifest);
+      pendingReset.catch(() => {});
+      await paused;
+      await conflictWriter.query("SET lock_timeout='5s'");
+      const writerPid = (await conflictWriter.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      const insert = conflictWriter.query(`INSERT INTO payment_event_conflicts
+        (original_event_id,incoming_attempt_id,incoming_fingerprint,reason)
+        VALUES ($1,$2,$3,'ATTEMPT_MISMATCH') RETURNING id`,
+      [qaPaymentEvent, paymentAttempt, fp]);
+      insert.catch(() => {});
+      let blocked = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        blocked = (await pool.query('SELECT cardinality(pg_blocking_pids($1))>0 AS blocked',
+          [writerPid])).rows[0].blocked;
+        if (blocked) break;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      assert.equal(blocked, true, 'late cross-order conflict must wait on original QA event');
+      releaseReset();
+      await pendingReset;
+      await resetClient.query('ROLLBACK');
+      paymentConflict = (await insert).rows[0].id;
+      await pool.query('DELETE FROM payment_event_conflicts WHERE id=$1', [paymentConflict]);
+      paymentConflict = undefined;
+    } finally {
+      releaseReset?.();
+      await resetClient.query('ROLLBACK').catch(() => {});
+      resetClient.release();
+      conflictWriter.release();
+    }
+
     qaRefundCase = (await pool.query(`INSERT INTO refund_cases
       (checkout_order_id,shipment_order_id,requester_account_id,requester_role,
        reason_code,reason,idempotency_key,request_fingerprint)
