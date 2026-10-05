@@ -160,6 +160,22 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
     await client.query(`SELECT e.id FROM refund_events e JOIN refund_attempts a ON a.id=e.refund_attempt_id
       JOIN refund_cases c ON c.id=a.refund_case_id
       WHERE c.checkout_order_id=ANY($1::uuid[]) ORDER BY e.id FOR UPDATE OF e`, [orderIds]);
+    await client.query(`SELECT x.id FROM payment_event_conflicts x
+      JOIN payment_events e ON e.id=x.original_event_id
+      JOIN payment_attempts original_attempt ON original_attempt.id=e.payment_attempt_id
+      JOIN payment_attempts incoming_attempt ON incoming_attempt.id=x.incoming_attempt_id
+      WHERE original_attempt.checkout_order_id=ANY($1::uuid[])
+        OR incoming_attempt.checkout_order_id=ANY($1::uuid[])
+      ORDER BY x.id FOR UPDATE OF x`, [orderIds]);
+    await client.query(`SELECT x.id FROM refund_event_conflicts x
+      JOIN refund_events e ON e.id=x.original_event_id
+      JOIN refund_attempts original_attempt ON original_attempt.id=e.refund_attempt_id
+      JOIN refund_cases original_case ON original_case.id=original_attempt.refund_case_id
+      JOIN refund_attempts incoming_attempt ON incoming_attempt.id=x.incoming_attempt_id
+      JOIN refund_cases incoming_case ON incoming_case.id=incoming_attempt.refund_case_id
+      WHERE original_case.checkout_order_id=ANY($1::uuid[])
+        OR incoming_case.checkout_order_id=ANY($1::uuid[])
+      ORDER BY x.id FOR UPDATE OF x`, [orderIds]);
   }
   if (sharedManifest) {
     const reservations = await client.query<{ id: string; account_id: string }>(
@@ -211,6 +227,16 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
       LIMIT 1`, [orderIds]);
     if (paymentCrossLinks.rowCount)
       throw new Error('Shared refund UI foreign payment conflict or event reference');
+    const externalVerifiedOrder = await client.query(`SELECT 1 FROM payment_events e
+      JOIN payment_attempts a ON a.id=e.payment_attempt_id
+      WHERE e.verified_order_id=ANY($1::uuid[])
+        AND NOT(a.checkout_order_id=ANY($1::uuid[])) LIMIT 1`, [orderIds]);
+    if (externalVerifiedOrder.rowCount)
+      throw new Error('Shared refund UI foreign payment event references QA order');
+    const allocations = await client.query(
+      'SELECT 1 FROM order_promotion_allocations WHERE checkout_order_id=ANY($1::uuid[]) LIMIT 1', [orderIds]);
+    if (allocations.rowCount)
+      throw new Error('Shared refund UI promotion allocation is not owned by fixture');
     const refundCrossLinks = await client.query(`SELECT 1 FROM refund_event_conflicts x
       JOIN refund_events e ON e.id=x.original_event_id
       JOIN refund_attempts original_attempt ON original_attempt.id=e.refund_attempt_id
@@ -328,7 +354,8 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
     await client.query(`DELETE FROM payment_events WHERE payment_attempt_id IN
       (SELECT id FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
     await client.query('DELETE FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
-    await client.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
+    if (!sharedManifest)
+      await client.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
     await client.query('DELETE FROM order_status_events WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
     await client.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
       (SELECT id FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
