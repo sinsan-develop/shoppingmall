@@ -47,6 +47,19 @@ try{
   const values=await evaluate("({confirmed:document.querySelector('[name=preShipmentConfirmed]').checked,approval:document.querySelector('[name=approvalReason]').value,rejection:document.querySelector('[name=rejectionReason]').value,stock:document.querySelector('[name^=restock-]').value})");
   console.log(JSON.stringify({test:'admin-switching',values}));
   assert.deepEqual(values,{confirmed:false,approval:'',rejection:'',stock:'none'});
+ }else if(process.argv.includes('--submission')){
+  await nav('/cart');await selectOrder(fixture.orderId);await wait("document.querySelector('.refund-customer .refund-case-list')?.textContent.includes('3,333원')");
+  const other=await evaluate(`[...document.querySelectorAll('.refund-case-button')].map(b=>b.textContent.match(/[0-9a-f]{8}-[0-9a-f-]{27,}/)?.[0]).find(id=>id&&id!==${JSON.stringify(fixture.orderId)})`);assert.ok(other);
+  await evaluate(`(()=>{const send=window.fetch.bind(window);window.__qaPosts=0;window.__qaDetailHeld=null;window.fetch=async(...args)=>{if(args[1]?.method==='POST'&&String(args[0]).endsWith('/refund-cases')){window.__qaPosts++;return Response.json({}, {status:503});}const r=await send(...args);if(String(args[0]).endsWith(${JSON.stringify('/orders/'+other)}))return new Promise(resolve=>window.__qaDetailHeld=()=>resolve(r));return r;};
+   const form=document.querySelector('.refund-customer form');form.querySelector('[type=number]').value='1';form.querySelector('textarea').value='QA 선택 중 제출 차단';})()`);
+  await evaluate(`[...document.querySelectorAll('.refund-case-button')].find(b=>b.textContent.includes(${JSON.stringify(other)})).click()`);await wait('window.__qaDetailHeld');
+  const disabled=await evaluate("document.querySelector('.refund-customer [type=submit]').disabled");
+  // Explicitly dispatch to verify the handler guard as well as the disabled button.
+  await evaluate("document.querySelector('.refund-customer form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))");await delay(200);
+  const posts=await evaluate('window.__qaPosts');await evaluate('window.__qaDetailHeld()');
+  await wait("document.querySelector('.refund-customer')?.textContent.includes('접수된 환불 요청이 없습니다')");
+  console.log(JSON.stringify({test:'selection-blocks-refund-submission',disabled,posts}));
+  assert.equal(disabled,true);assert.equal(posts,0);
  }else{
   await nav('/cart');await selectOrder(fixture.orderId);await wait("document.querySelector('.refund-customer .refund-case-list')?.textContent.includes('3,333원')");
   await evaluate(`(()=>{const send=window.fetch.bind(window);window.__qaDeferred=null;window.__qaHeld=false;window.fetch=async(...args)=>{const r=await send(...args);if(String(args[0]).endsWith(${JSON.stringify('/'+fixture.orderId+'/refund-cases')})&&!window.__qaHeld){window.__qaHeld=true;return new Promise(resolve=>window.__qaDeferred=()=>resolve(r));}return r;};})()`);

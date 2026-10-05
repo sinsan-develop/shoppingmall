@@ -510,6 +510,9 @@ export default function CartPage() {
   if (refreshGate.current === null) refreshGate.current = createRefreshGate();
   const refundRefreshGate = useRef<ReturnType<typeof createRefreshGate> | null>(null);
   if (refundRefreshGate.current === null) refundRefreshGate.current = createRefreshGate();
+  const refundSelectionGate = useRef<ReturnType<typeof createRefreshGate> | null>(null);
+  if (refundSelectionGate.current === null) refundSelectionGate.current = createRefreshGate();
+  const refundInteractionBusy = useRef(false);
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!apiOrigin) throw new Error('장바구니 연결을 준비 중입니다');
     const generation = refreshGate.current!.begin();
@@ -651,13 +654,17 @@ export default function CartPage() {
 
   useEffect(() => {
     const gate = refundRefreshGate.current!;
+    const selection = refundSelectionGate.current!;
+    selection.invalidate();
     gate.invalidate();
     setRefundCases([]);
-    if (refundOrder?.status !== 'PAID') { setRefundMessage(''); return () => gate.invalidate(); }
+    if (refundOrder?.status !== 'PAID') {
+      setRefundMessage(''); return () => { gate.invalidate(); selection.invalidate(); };
+    }
     const controller = new AbortController();
     setRefundMessage('');
     void reloadRefunds(refundOrder.id, controller.signal);
-    return () => { controller.abort(); gate.invalidate(); };
+    return () => { controller.abort(); gate.invalidate(); selection.invalidate(); };
   }, [refundOrder?.id, refundOrder?.status, reloadRefunds]);
 
   useEffect(() => {
@@ -666,19 +673,24 @@ export default function CartPage() {
 
   async function selectRefundOrder(id: string) {
     if (!apiOrigin) throw new Error('주문 연결을 준비 중입니다');
+    if (refundInteractionBusy.current || busy) return;
+    refundInteractionBusy.current = true; setRefundBusy(true);
+    refundSelectionGate.current!.invalidate();
     refundRefreshGate.current!.invalidate();
-    const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(id)}`,
-      { credentials: 'include', cache: 'no-store' });
-    if (!response.ok) throw new Error('본인 주문을 다시 확인해 주세요');
-    const order = await response.json() as PendingOrder;
-    if (order.status !== 'PAID' || order.id !== id) throw new Error('결제완료 주문을 다시 선택해 주세요');
-    if (refundOrder?.id !== id) setRefundCases([]);
-    setRefundMessage(''); setSelectedRefundOrder(order);
-    if (refundOrder?.id === id) await reloadRefunds(id);
+    try {
+      const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(id)}`,
+        { credentials: 'include', cache: 'no-store' });
+      if (!response.ok) throw new Error('본인 주문을 다시 확인해 주세요');
+      const order = await response.json() as PendingOrder;
+      if (order.status !== 'PAID' || order.id !== id) throw new Error('결제완료 주문을 다시 선택해 주세요');
+      if (refundOrder?.id !== id) setRefundCases([]);
+      setRefundMessage(''); setSelectedRefundOrder(order);
+      if (refundOrder?.id === id) await reloadRefunds(id);
+    } finally { refundInteractionBusy.current = false; setRefundBusy(false); }
   }
 
   async function submitOrder() {
-    if (!apiOrigin || !reservation || reservation.status !== 'ACTIVE' || !selectedAddressId || busy ||
+    if (!apiOrigin || !reservation || reservation.status !== 'ACTIVE' || !selectedAddressId || busy || refundInteractionBusy.current ||
         pendingOrder?.reservationId === reservation.id) return;
     const shippingCoupons: ({ shipmentKey: string; grantId: string } |
       { shipmentKey: string; code: string })[] = [];
@@ -706,7 +718,7 @@ export default function CartPage() {
   }
 
   async function submitMockPayment(outcome: MockOutcome) {
-    if (!apiOrigin || !showMockPayment || !pendingOrder || pendingOrder.status !== 'PENDING_PAYMENT' || busy) return;
+    if (!apiOrigin || !showMockPayment || !pendingOrder || pendingOrder.status !== 'PENDING_PAYMENT' || busy || refundInteractionBusy.current) return;
     setBusy('payment'); setMessage('');
     try {
       const attempt = await startMockPaymentRequest(apiOrigin, window.sessionStorage,
@@ -726,15 +738,19 @@ export default function CartPage() {
   }
 
   async function submitRefund(input: RefundRequestInput) {
-    if (!apiOrigin || !refundOrder || refundOrder.status !== 'PAID' || refundBusy) return;
+    if (!apiOrigin || !refundOrder || refundOrder.status !== 'PAID' || busy || refundInteractionBusy.current) return;
+    refundInteractionBusy.current = true;
+    const generation = refundSelectionGate.current!.begin();
+    const isCurrent = () => refundSelectionGate.current!.isCurrent(generation);
     setRefundBusy(true); setRefundMessage('');
     try {
       const result = await startRefundRequest(apiOrigin, window.sessionStorage, refundOrder.id, input);
+      if (!isCurrent()) return;
       setRefundMessage(result.amountFinal ? '환불 처리가 반영됐습니다' : '환불 요청을 접수했습니다');
       await reloadRefunds(refundOrder.id);
     } catch (error) {
-      setRefundMessage(error instanceof Error ? error.message : '환불 요청 결과를 확인하지 못했습니다');
-    } finally { setRefundBusy(false); }
+      if (isCurrent()) setRefundMessage(error instanceof Error ? error.message : '환불 요청 결과를 확인하지 못했습니다');
+    } finally { refundInteractionBusy.current = false; setRefundBusy(false); }
   }
 
   async function previewPromotions() {
@@ -831,13 +847,13 @@ export default function CartPage() {
     } finally { setBusy(''); }
   }
 
-  return <CartView items={items} quote={quote} edits={edits} busy={busy} message={message} loading={loading}
+  return <CartView items={items} quote={quote} edits={edits} busy={busy || (refundBusy ? 'refund' : '')} message={message} loading={loading}
     reservation={reservation} retryAvailable={retryAvailable} nowMs={nowMs}
     addresses={addresses} selectedAddressId={selectedAddressId} onAddressChange={setSelectedAddressId}
     onSubmitOrder={() => void submitOrder()} pendingOrder={pendingOrder}
     showMockPayment={showMockPayment} onMockPayment={(outcome) => void submitMockPayment(outcome)}
     mockOutcome={mockOutcome} onMockOutcomeChange={setMockOutcome} paymentAttempt={paymentAttempt}
-    refundCases={refundCases} refundBusy={refundBusy} refundMessage={refundMessage}
+    refundCases={refundCases} refundBusy={refundBusy || !!busy} refundMessage={refundMessage}
     refundOrder={refundOrder}
     refundOrderHistory={apiOrigin ? <PaidOrderHistory apiBase={apiOrigin} disabled={refundBusy || !!busy}
       selectedId={refundOrder?.id} onSelect={selectRefundOrder} /> : null}
