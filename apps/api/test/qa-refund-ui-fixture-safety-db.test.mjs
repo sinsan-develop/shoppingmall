@@ -74,15 +74,16 @@ test('shared-fixture reset rejects foreign identity/reference and blocks a late 
       [foreignShipment])).rows[0].count, 1);
     await pool.query('DELETE FROM shipment_orders WHERE id=$1', [foreignShipment]);
 
-    const foreignLine = (await pool.query(`INSERT INTO shipment_order_lines
+    await pool.query(`INSERT INTO shipment_order_lines
       (shipment_order_id,product_id,option_id,seller_id,product_name,option_name,
        unit_price_won,quantity,goods_discount_won,goods_payable_won)
-      VALUES ($1,$2,$3,$4,'external','external',1000,1,0,1000) RETURNING id`,
-    [manifest.shipmentId, outsideProduct, outsideOption, outsideSeller])).rows[0].id;
-    await assert.rejects(runRefundUiFixture('reset', runId, url, undefined, consent, manifest), /shipment|foreign product/);
-    assert.equal((await pool.query('SELECT count(*)::int AS count FROM shipment_order_lines WHERE id=$1',
-      [foreignLine])).rows[0].count, 1);
-    await pool.query('DELETE FROM shipment_order_lines WHERE id=$1', [foreignLine]);
+      VALUES ($1,$2,$3,$4,'external','external',1000,1,0,1000)`,
+    [manifest.shipmentId, manifest.productId, outsideOption, outsideSeller]);
+    await assert.rejects(runRefundUiFixture('reset', runId, url, undefined, consent, manifest), /shipment/);
+    assert.equal((await pool.query('SELECT count(*)::int AS count FROM shipment_order_lines WHERE shipment_order_id=$1 AND option_id=$2',
+      [manifest.shipmentId, outsideOption])).rows[0].count, 1);
+    await pool.query('DELETE FROM shipment_order_lines WHERE shipment_order_id=$1 AND option_id=$2',
+      [manifest.shipmentId, outsideOption]);
 
     await pool.query('DELETE FROM product_options WHERE id=$1', [outsideOption]);
     await pool.query('DELETE FROM product_revisions WHERE id=$1', [outsideRevision]);
