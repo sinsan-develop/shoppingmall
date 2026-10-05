@@ -7,6 +7,7 @@ import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 import { CheckoutReservations } from '../src/checkout/reservation-service.ts';
 import { submitPendingOrder } from '../src/orders/service.ts';
 import { getOrderSnapshotConsistent } from '../src/orders/repository.ts';
+import { expirePendingOrders } from '../src/orders/expiry.ts';
 import { MockPaymentAdapter } from '../src/payments/mock-adapter.ts';
 import { recordVerifiedPaymentEvent, startPaymentAttempt } from '../src/payments/service.ts';
 import { processVerifiedPaymentEvent } from '../src/payments/processor.ts';
@@ -99,6 +100,61 @@ test('one verified approval pays its shipment, reservation, coupon and stock onl
       [optionId])).rows[0].on_hand_quantity, after.on_hand_quantity);
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM order_status_events
       WHERE checkout_order_id=$1 AND status='PAID'`, [order.id])).rows[0].n, 1);
+
+    const lateHold = await new CheckoutReservations(pool).start(buyerId, randomUUID());
+    reservations.push(lateHold.id);
+    const lateOrder = await submitPendingOrder(pool, buyerId, {
+      reservationId: lateHold.id, addressId, selections: {},
+      expectedPayableWon: 26000, idempotencyKey: randomUUID(),
+    });
+    orders.push(lateOrder.id);
+    const lateAttempt = await startPaymentAttempt(pool, buyerId, lateOrder.id, randomUUID(), 'approve',
+      { APP_ENV: 'development', PAYMENT_MODE: 'mock' });
+    const lateProviderOrderId = (await pool.query('SELECT provider_order_id FROM payment_attempts WHERE id=$1',
+      [lateAttempt.id])).rows[0].provider_order_id;
+    const lateEvent = await recordVerifiedPaymentEvent(pool, lateAttempt.id,
+      new MockPaymentAdapter().verify(lateProviderOrderId, 'approve'));
+    await pool.query(`UPDATE inventory_levels SET on_hand_quantity=0,sellable_quantity=0
+      WHERE option_id=$1`, [optionId]);
+    await assert.rejects(() => processVerifiedPaymentEvent(pool, lateEvent.id), /Payment stock unavailable/);
+    assert.equal((await pool.query('SELECT processing_status FROM payment_events WHERE id=$1',
+      [lateEvent.id])).rows[0].processing_status, 'PENDING_PROCESSING');
+    assert.equal((await pool.query('SELECT status FROM checkout_orders WHERE id=$1',
+      [lateOrder.id])).rows[0].status, 'PENDING_PAYMENT');
+    await pool.query(`UPDATE inventory_levels SET on_hand_quantity=$2,sellable_quantity=$3
+      WHERE option_id=$1`, [optionId, after.on_hand_quantity, after.sellable_quantity]);
+    await pool.query(`UPDATE checkout_orders SET created_at=clock_timestamp()-interval '16 minutes',
+      expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, [lateOrder.id]);
+    await pool.query(`UPDATE checkout_reservations SET created_at=clock_timestamp()-interval '16 minutes',
+      expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, [lateHold.id]);
+    const raced = await Promise.all([processVerifiedPaymentEvent(pool, lateEvent.id),
+      expirePendingOrders(pool, 10)]);
+    assert.equal(raced[0].processingStatus, 'REVIEW_REQUIRED');
+    assert.equal(raced[1], 1);
+    assert.equal((await pool.query('SELECT status FROM checkout_orders WHERE id=$1',
+      [lateOrder.id])).rows[0].status, 'EXPIRED');
+    assert.equal((await pool.query('SELECT on_hand_quantity FROM inventory_levels WHERE option_id=$1',
+      [optionId])).rows[0].on_hand_quantity, after.on_hand_quantity);
+
+    const stoppedHold = await new CheckoutReservations(pool).start(buyerId, randomUUID());
+    reservations.push(stoppedHold.id);
+    const stoppedOrder = await submitPendingOrder(pool, buyerId, {
+      reservationId: stoppedHold.id, addressId, selections: {},
+      expectedPayableWon: 26000, idempotencyKey: randomUUID(),
+    });
+    orders.push(stoppedOrder.id);
+    const stoppedAttempt = await startPaymentAttempt(pool, buyerId, stoppedOrder.id, randomUUID(),
+      'approve', { APP_ENV: 'development', PAYMENT_MODE: 'mock' });
+    const stoppedProviderOrderId = (await pool.query('SELECT provider_order_id FROM payment_attempts WHERE id=$1',
+      [stoppedAttempt.id])).rows[0].provider_order_id;
+    const stoppedEvent = await recordVerifiedPaymentEvent(pool, stoppedAttempt.id,
+      new MockPaymentAdapter().verify(stoppedProviderOrderId, 'approve'));
+    await pool.query('UPDATE inventory_levels SET sellable_quantity=0 WHERE option_id=$1', [optionId]);
+    assert.equal((await processVerifiedPaymentEvent(pool, stoppedEvent.id)).processingStatus, 'APPLIED');
+    const stoppedStock = (await pool.query(`SELECT on_hand_quantity,sellable_quantity
+      FROM inventory_levels WHERE option_id=$1`, [optionId])).rows[0];
+    assert.equal(stoppedStock.on_hand_quantity, after.on_hand_quantity - 1);
+    assert.equal(stoppedStock.sellable_quantity, 0);
   } finally {
     for (const id of orders) {
       await pool.query(`DELETE FROM payment_events WHERE payment_attempt_id IN
