@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## 완료 checkpoint — 2026-10-06 S5.1 Task4 결제 승인→READY
+
+- **판정:** 제품·시험 SHA `b48ade119cc621481df6b8a574adc8e78268a53b`에서 **S5.1 Task4 격리 검증을 완료**했다. 이는 Task4 checkpoint일 뿐이며 S5 전체, PR, `main` 병합, 배포 완료가 아니다.
+- **근거 — PostgreSQL:** fresh private PostgreSQL migration 16건에서 전체 **389 tests/370 pass/19 환경 skip/0 fail**, Task4 **9/9 pass**, 지정 회귀 **4/4 pass**이며 사후 업무 시험행은 **0**이다. 첫 전체 DB 실행은 **389 tests/369 pass/19 skip/1 fail**이었고 FK `23503`의 원인은 `payment-customer-http-db.test.mjs` cleanup이 새 child `shipment_fulfillment_events`를 부모보다 먼저 삭제하지 않은 것이었다. PMO가 승인한 exact test-only 선삭제 보정을 `b48ade1`에 적용한 뒤 fresh DB 전체가 0 fail이 됐으며 제품 코드와 assertion 변경은 없다.
+- **근거 — Windows·WSL·Git:** Windows nonDB는 **371 tests/264 pass/107 skip/0 fail**, PR body는 **8/8 pass**다. API·web·mobile·contracts **4개 typecheck**, lint, API·web build가 통과했고 web build는 **16 routes**다. WSL도 exact SHA `b48ade1`에서 같은 시험 결과와 build를 확인했으며 checkpoint 작성 전 Windows·WSL·origin은 같은 SHA로 일치하고 clean이었다.
+- **근거 — 자원 정리:** 임시 container·network·volume `shoppingmall-s51-payment*` 잔류는 모두 **0**이며 shared `local-postgres/shoppingmall`은 접촉하지 않았다.
+- **근거 — 독립 리뷰:** reviewer Herschel은 **Critical 0 / Important 0 / Minor 2**로 판정했다. Minor 2는 비 `PAYMENT_PENDING` 상태의 원자적 거부에 대한 명시적 DB 회귀 부족과 실제 PostgreSQL 동시 승인 경합 부족이다. 둘 다 **Task10 최종 gate 전** 단일 writer가 TDD로 보강하고 Critical 0 / Important 0을 재확인해야 한다.
+- **실행 오류·보정:** Task4 검증에서 전체 DB 실패 **1회**, 원인 확정 뒤 test-only cleanup 보정 **1회**가 있었다. 이 문서 checkpoint 사전 확인에서는 제한된 셸이 사용자 SSH config를 읽지 못해 `github-sinsan-develop`을 해석하지 못한 원격 조회 오류 **1회**가 있었고, 승인된 읽기 전용 `git ls-remote origin` 재실행으로 원격 branch가 exact `b48ade1`임을 확인했다. 제품·시험·DB·WSL 변경은 없었다.
+- **미검증:** 공유 개발 DB, Oracle staging, 실제 브라우저/UAT, 장시간 부하는 미검증이다.
+- **조치:** 다음 작업은 **Task5 seller 목록·상세·전이 API RED**다. Minor 2 보강은 Task10 최종 gate 전 의무로 유지하며, controller가 담당하는 WSL sync 전에는 이 문서 commit만 기존 작업 branch에 전달한다.
+
 ## NON-GREEN cleanup 보정 — 2026-10-06 S5.1 Task4 전체 DB 회귀
 
 - **실제 1차 결과:** exact `083c082b2c90c02f0d8717b60ef2c4a14a9439b8`의 fresh private DB에서 Task4 목표 **9/9 pass**, 지정 회귀 **4/4 pass**, 전체는 **389 tests/369 pass/19 skip/1 fail**이었다. 유일 실패는 `payment-customer-http-db.test.mjs`의 `finally`가 `shipment_fulfillments`보다 먼저 그 자식 `shipment_fulfillment_events`를 지우지 않아 발생한 FK `23503`이며 제품 동작 실패가 아니다.
