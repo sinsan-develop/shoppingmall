@@ -257,6 +257,56 @@ test('shared reset preserves conflicts whose incoming attempt belongs to another
     await pool.query('DELETE FROM payment_event_conflicts WHERE id=$1', [paymentConflict]);
     paymentConflict = undefined;
 
+    const extraQaAttempt = (await pool.query(`INSERT INTO payment_attempts
+      (checkout_order_id,provider,provider_order_id,requested_won,idempotency_key,request_fingerprint,status)
+      VALUES ($1,'mock',$2,12000,$3,$4,'PENDING') RETURNING id`,
+    [manifest.orderId, `mock:extra:${randomUUID()}`, randomUUID(), fp])).rows[0].id;
+    const mutableConflict = (await pool.query(`INSERT INTO payment_event_conflicts
+      (original_event_id,incoming_attempt_id,incoming_fingerprint,reason)
+      VALUES ($1,$2,$3,'ATTEMPT_MISMATCH') RETURNING id`,
+    [qaPaymentEvent, extraQaAttempt, fp])).rows[0].id;
+    const mutationResetClient = await pool.connect();
+    const mutationWriter = await pool.connect();
+    let releaseMutationReset;
+    try {
+      await mutationResetClient.query('BEGIN');
+      let reachedDelete;
+      const paused = new Promise((resolve) => { reachedDelete = resolve; });
+      const resume = new Promise((resolve) => { releaseMutationReset = resolve; });
+      const wrapper = { query: async (sql, args) => {
+        if (sql.startsWith('DELETE FROM refund_event_conflicts')) { reachedDelete(); await resume; }
+        return mutationResetClient.query(sql, args);
+      } };
+      const pendingReset = resetRefundUiFixture(wrapper, runId, 4, manifest);
+      pendingReset.catch(() => {});
+      await paused;
+      await mutationWriter.query("SET lock_timeout='5s'");
+      const writerPid = (await mutationWriter.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      const update = mutationWriter.query(
+        'UPDATE payment_event_conflicts SET incoming_attempt_id=$1 WHERE id=$2',
+        [paymentAttempt, mutableConflict]);
+      update.catch(() => {});
+      let blocked = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        blocked = (await pool.query('SELECT cardinality(pg_blocking_pids($1))>0 AS blocked',
+          [writerPid])).rows[0].blocked;
+        if (blocked) break;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      assert.equal(blocked, true, 'conflict row mutation must wait until reset ends');
+      releaseMutationReset();
+      await pendingReset;
+      await mutationResetClient.query('ROLLBACK');
+      await update;
+      await pool.query('DELETE FROM payment_event_conflicts WHERE id=$1', [mutableConflict]);
+      await pool.query('DELETE FROM payment_attempts WHERE id=$1', [extraQaAttempt]);
+    } finally {
+      releaseMutationReset?.();
+      await mutationResetClient.query('ROLLBACK').catch(() => {});
+      mutationResetClient.release();
+      mutationWriter.release();
+    }
+
     const resetClient = await pool.connect();
     const conflictWriter = await pool.connect();
     let releaseReset;
@@ -335,6 +385,43 @@ test('shared reset preserves conflicts whose incoming attempt belongs to another
       [refundConflict])).rows[0].count, 1);
     await pool.query('DELETE FROM refund_event_conflicts WHERE id=$1', [refundConflict]);
     refundConflict = undefined;
+
+    const outsidePaymentEvent = (await pool.query(`INSERT INTO payment_events
+      (payment_attempt_id,provider,provider_event_id,outcome,verified_order_id,
+       provider_payment_id,amount_won,event_fingerprint)
+      VALUES ($1,'mock',$2,'APPROVED',$3,$4,1000,$5) RETURNING id`,
+    [paymentAttempt, `mock:event:${randomUUID()}`, manifest.orderId,
+      `mock:payment:${randomUUID()}`, fp])).rows[0].id;
+    await assert.rejects(runRefundUiFixture('reset', runId, url, undefined, consent, manifest), /foreign payment event/);
+    assert.equal((await pool.query('SELECT count(*)::int AS count FROM payment_events WHERE id=$1',
+      [outsidePaymentEvent])).rows[0].count, 1);
+    await pool.query('DELETE FROM payment_events WHERE id=$1', [outsidePaymentEvent]);
+
+    const campaign = (await pool.query(`INSERT INTO promotion_campaigns
+      (title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
+      VALUES ('outside','goods_discount',10,1,$1) RETURNING id`, [outsider])).rows[0].id;
+    const version = (await pool.query(`INSERT INTO promotion_versions
+      (campaign_id,version,scope,starts_at,ends_at,amount_kind,amount_value,created_by_account_id)
+      VALUES ($1,1,'all',now()-interval '1 hour',now()+interval '1 hour','fixed',100,$2) RETURNING id`,
+    [campaign, outsider])).rows[0].id;
+    const grant = (await pool.query(`INSERT INTO promotion_grants(account_id,version_id,source)
+      VALUES ($1,$2,'code') RETURNING id`, [outsider, version])).rows[0].id;
+    const use = (await pool.query(`INSERT INTO promotion_uses
+      (account_id,campaign_id,version_id,grant_id,reservation_id,idempotency_key,expires_at)
+      VALUES ($1,$2,$3,$4,$5,$6,now()+interval '1 hour') RETURNING id`,
+    [outsider, campaign, version, grant, reservation, randomUUID()])).rows[0].id;
+    const allocation = (await pool.query(`INSERT INTO order_promotion_allocations
+      (checkout_order_id,shipment_order_id,promotion_use_id,campaign_id,version_id,kind,amount_won)
+      VALUES ($1,$2,$3,$4,$5,'goods_discount',100) RETURNING id`,
+    [manifest.orderId, manifest.shipmentId, use, campaign, version])).rows[0].id;
+    await assert.rejects(runRefundUiFixture('reset', runId, url, undefined, consent, manifest), /promotion allocation/);
+    assert.equal((await pool.query('SELECT count(*)::int AS count FROM order_promotion_allocations WHERE id=$1',
+      [allocation])).rows[0].count, 1);
+    await pool.query('DELETE FROM order_promotion_allocations WHERE id=$1', [allocation]);
+    await pool.query('DELETE FROM promotion_uses WHERE id=$1', [use]);
+    await pool.query('DELETE FROM promotion_grants WHERE id=$1', [grant]);
+    await pool.query('DELETE FROM promotion_versions WHERE id=$1', [version]);
+    await pool.query('DELETE FROM promotion_campaigns WHERE id=$1', [campaign]);
   } finally {
     for (const [table, id] of [
       ['payment_event_conflicts', paymentConflict], ['refund_event_conflicts', refundConflict],
