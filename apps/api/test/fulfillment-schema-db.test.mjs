@@ -80,7 +80,7 @@ test('0015 fulfillment relations enforce settings, state, actor and idempotency 
     const key = randomUUID();
     const event = `INSERT INTO qa_event(shipment_order_id,action,from_status,to_status,
       actor_account_id,actor_role,actor_seller_id,before_snapshot,after_snapshot,idempotency_scope,idempotency_key,request_fingerprint)
-      VALUES($1,'START_PACKING','READY','PACKING',$2,'seller',$3,'{}','{}',$2::text,$4,$5)`;
+      VALUES($1,'START_PACKING','READY','PACKING',$2,'seller',$3,'{}','{}',$2::uuid::text,$4,$5)`;
     const args = [shipment, actor, randomUUID(), key, 'a'.repeat(64)];
     await db.query(event, args);
     await rejected(event, args, '23505');
