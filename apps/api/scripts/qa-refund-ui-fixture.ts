@@ -77,6 +77,9 @@ async function findFixture(client: PoolClient, value: string) {
 export async function resetRefundUiFixture(client: PoolClient, value: string, maxOrders = 1,
   sharedManifest?: SharedRefundManifest) {
   if (sharedManifest) {
+    // The late-reference rechecks below require a fresh statement snapshot.
+    // Pin the contract instead of inheriting a database/session default.
+    await client.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
     await client.query("SET LOCAL lock_timeout = '1s'");
     await client.query("SET LOCAL statement_timeout = '3s'");
   }
@@ -151,22 +154,12 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
     // These FK parents close the preflight-to-delete race for new shipments,
     // attempts, events and conflicts from a different order.
     await client.query('SELECT id FROM checkout_orders WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [orderIds]);
-    await client.query('SELECT id FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [orderIds]);
-    await client.query(`SELECT e.id FROM payment_events e JOIN payment_attempts a ON a.id=e.payment_attempt_id
-      WHERE a.checkout_order_id=ANY($1::uuid[]) ORDER BY e.id FOR UPDATE OF e`, [orderIds]);
     await client.query('SELECT id FROM refund_cases WHERE checkout_order_id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [orderIds]);
     await client.query(`SELECT a.id FROM refund_attempts a JOIN refund_cases c ON c.id=a.refund_case_id
       WHERE c.checkout_order_id=ANY($1::uuid[]) ORDER BY a.id FOR UPDATE OF a`, [orderIds]);
     await client.query(`SELECT e.id FROM refund_events e JOIN refund_attempts a ON a.id=e.refund_attempt_id
       JOIN refund_cases c ON c.id=a.refund_case_id
       WHERE c.checkout_order_id=ANY($1::uuid[]) ORDER BY e.id FOR UPDATE OF e`, [orderIds]);
-    await client.query(`SELECT x.id FROM payment_event_conflicts x
-      JOIN payment_events e ON e.id=x.original_event_id
-      JOIN payment_attempts original_attempt ON original_attempt.id=e.payment_attempt_id
-      JOIN payment_attempts incoming_attempt ON incoming_attempt.id=x.incoming_attempt_id
-      WHERE original_attempt.checkout_order_id=ANY($1::uuid[])
-        OR incoming_attempt.checkout_order_id=ANY($1::uuid[])
-      ORDER BY x.id FOR UPDATE OF x`, [orderIds]);
     await client.query(`SELECT x.id FROM refund_event_conflicts x
       JOIN refund_events e ON e.id=x.original_event_id
       JOIN refund_attempts original_attempt ON original_attempt.id=e.refund_attempt_id
@@ -348,45 +341,32 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
     await client.query(`DELETE FROM refund_case_lines WHERE refund_case_id IN
       (SELECT id FROM refund_cases WHERE checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
     await client.query('DELETE FROM refund_cases WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
-    await client.query(`DELETE FROM payment_event_conflicts WHERE original_event_id IN
-      (SELECT e.id FROM payment_events e JOIN payment_attempts a ON a.id=e.payment_attempt_id
-       WHERE a.checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
-    await client.query(`DELETE FROM payment_events WHERE payment_attempt_id IN
-      (SELECT id FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
-    await client.query('DELETE FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
-    if (!sharedManifest)
+    if (!sharedManifest) {
+      await client.query(`DELETE FROM payment_event_conflicts WHERE original_event_id IN
+        (SELECT e.id FROM payment_events e JOIN payment_attempts a ON a.id=e.payment_attempt_id
+         WHERE a.checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
+      await client.query(`DELETE FROM payment_events WHERE payment_attempt_id IN
+        (SELECT id FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
+      await client.query('DELETE FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
       await client.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
+    }
     await client.query('DELETE FROM order_status_events WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
     await client.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
       (SELECT id FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
     await client.query('DELETE FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
-    if (sharedManifest) {
-      // verified_order_id intentionally has no FK. Close the preflight-to-delete
-      // race by blocking new event writers, then recheck immediately before the
-      // referenced QA order is removed. The caller commits as soon as reset ends.
-      await client.query("SET LOCAL statement_timeout = '500ms'");
-      await client.query('LOCK TABLE payment_events IN SHARE ROW EXCLUSIVE MODE');
-      const externalVerifiedOrder = await client.query(`SELECT 1 FROM payment_events e
-        JOIN payment_attempts a ON a.id=e.payment_attempt_id
-        WHERE e.verified_order_id=ANY($1::uuid[])
-          AND NOT(a.checkout_order_id=ANY($1::uuid[])) LIMIT 1`, [orderIds]);
-      if (externalVerifiedOrder.rowCount)
-        throw new Error('Shared refund UI foreign payment event references QA order');
-    }
-    await client.query('DELETE FROM checkout_orders WHERE id=ANY($1::uuid[])', [orderIds]);
+    if (!sharedManifest)
+      await client.query('DELETE FROM checkout_orders WHERE id=ANY($1::uuid[])', [orderIds]);
   }
   if (found.accountIds.length) {
     if (sharedManifest) {
       await client.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=ANY($1::uuid[])',
         [ownedReservationIds]);
-      await client.query('DELETE FROM checkout_reservations WHERE id=ANY($1::uuid[])',
-        [ownedReservationIds]);
     } else {
       await client.query(`DELETE FROM checkout_reservation_lines WHERE reservation_id IN
         (SELECT id FROM checkout_reservations WHERE account_id=ANY($1::uuid[]))`, [found.accountIds]);
       await client.query('DELETE FROM checkout_reservations WHERE account_id=ANY($1::uuid[])', [found.accountIds]);
+      await client.query('DELETE FROM customer_addresses WHERE account_id=ANY($1::uuid[])', [found.accountIds]);
     }
-    await client.query('DELETE FROM customer_addresses WHERE account_id=ANY($1::uuid[])', [found.accountIds]);
   }
   if (found.products.length) {
     const productIds = found.products.map((row) => row.id);
@@ -439,6 +419,53 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
       [audit.rows.map((row) => row.id), sharedManifest.accountIds]);
   } else if (found.accountIds.length) {
     await client.query('DELETE FROM audit_events WHERE actor_account_id=ANY($1::uuid[])', [found.accountIds]);
+  }
+  if (sharedManifest && orderIds.length) {
+    // verified_order_id intentionally has no FK. Acquire the table lock before
+    // payment row locks so a concurrent event insert cannot form a lock-upgrade
+    // cycle. All unrelated fixture cleanup is already done, keeping this final
+    // global write-stop bounded to payment/order parent removal and commit.
+    await client.query("SET LOCAL statement_timeout = '500ms'");
+    await client.query('LOCK TABLE payment_events IN SHARE ROW EXCLUSIVE MODE');
+    await client.query('SELECT id FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+      [orderIds]);
+    await client.query(`SELECT e.id FROM payment_events e JOIN payment_attempts a ON a.id=e.payment_attempt_id
+      WHERE a.checkout_order_id=ANY($1::uuid[]) ORDER BY e.id FOR UPDATE OF e`, [orderIds]);
+    await client.query(`SELECT x.id FROM payment_event_conflicts x
+      JOIN payment_events e ON e.id=x.original_event_id
+      JOIN payment_attempts original_attempt ON original_attempt.id=e.payment_attempt_id
+      JOIN payment_attempts incoming_attempt ON incoming_attempt.id=x.incoming_attempt_id
+      WHERE original_attempt.checkout_order_id=ANY($1::uuid[])
+        OR incoming_attempt.checkout_order_id=ANY($1::uuid[])
+      ORDER BY x.id FOR UPDATE OF x`, [orderIds]);
+    const paymentCrossLinks = await client.query(`SELECT 1 FROM payment_event_conflicts c
+      JOIN payment_events e ON e.id=c.original_event_id
+      JOIN payment_attempts original_attempt ON original_attempt.id=e.payment_attempt_id
+      JOIN payment_attempts incoming_attempt ON incoming_attempt.id=c.incoming_attempt_id
+      WHERE (original_attempt.checkout_order_id=ANY($1::uuid[])) <>
+            (incoming_attempt.checkout_order_id=ANY($1::uuid[]))
+      UNION ALL SELECT 1 FROM payment_events e
+      JOIN payment_attempts a ON a.id=e.payment_attempt_id
+      WHERE a.checkout_order_id=ANY($1::uuid[]) AND NOT(e.verified_order_id=ANY($1::uuid[]))
+      LIMIT 1`, [orderIds]);
+    if (paymentCrossLinks.rowCount)
+      throw new Error('Shared refund UI foreign payment conflict or event reference');
+    const externalVerifiedOrder = await client.query(`SELECT 1 FROM payment_events e
+      JOIN payment_attempts a ON a.id=e.payment_attempt_id
+      WHERE e.verified_order_id=ANY($1::uuid[])
+        AND NOT(a.checkout_order_id=ANY($1::uuid[])) LIMIT 1`, [orderIds]);
+    if (externalVerifiedOrder.rowCount)
+      throw new Error('Shared refund UI foreign payment event references QA order');
+    await client.query(`DELETE FROM payment_event_conflicts WHERE original_event_id IN
+      (SELECT e.id FROM payment_events e JOIN payment_attempts a ON a.id=e.payment_attempt_id
+       WHERE a.checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
+    await client.query(`DELETE FROM payment_events WHERE payment_attempt_id IN
+      (SELECT id FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
+    await client.query('DELETE FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
+    await client.query('DELETE FROM checkout_orders WHERE id=ANY($1::uuid[])', [orderIds]);
+    await client.query('DELETE FROM checkout_reservations WHERE id=ANY($1::uuid[])',
+      [ownedReservationIds]);
+    await client.query('DELETE FROM customer_addresses WHERE account_id=ANY($1::uuid[])', [found.accountIds]);
   }
   if (found.accountIds.length)
     await client.query('DELETE FROM accounts WHERE id=ANY($1::uuid[])', [found.accountIds]);

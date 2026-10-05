@@ -85,6 +85,23 @@ const manifest = {
   shipmentId: '00000000-0000-4000-8000-00000000000d',
 };
 
+test('shared reset pins read committed before any ownership query', async () => {
+  const queries = [];
+  const client = { async query(sql) {
+    queries.push(sql);
+    if (sql.includes('FROM account_identities')) return { rows: [] };
+    if (sql.includes('FROM sellers WHERE')) return { rows: [] };
+    return { rows: [], rowCount: 0 };
+  } };
+  await assert.rejects(resetRefundUiFixture(client, 'e4231005', 4,
+    validateSharedRefundManifest('e4231005', manifest)), /ownership/);
+  assert.deepEqual(queries.slice(0, 3), [
+    'SET TRANSACTION ISOLATION LEVEL READ COMMITTED',
+    "SET LOCAL lock_timeout = '1s'",
+    "SET LOCAL statement_timeout = '3s'",
+  ]);
+});
+
 test('shared reset rejects another identity attached to a QA email account before deleting', async () => {
   let deletes = 0;
   let locks = 0;

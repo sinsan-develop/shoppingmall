@@ -386,6 +386,41 @@ test('shared reset preserves conflicts whose incoming attempt belongs to another
     await pool.query('DELETE FROM refund_event_conflicts WHERE id=$1', [refundConflict]);
     refundConflict = undefined;
 
+    const eventResetClient = await pool.connect();
+    const eventWriter = await pool.connect();
+    let releaseEventReset;
+    try {
+      await eventResetClient.query('BEGIN');
+      let reachedDelete;
+      const paused = new Promise((resolve) => { reachedDelete = resolve; });
+      const resume = new Promise((resolve) => { releaseEventReset = resolve; });
+      const wrapper = { query: async (sql, args) => {
+        if (sql.startsWith('DELETE FROM refund_event_conflicts')) { reachedDelete(); await resume; }
+        return eventResetClient.query(sql, args);
+      } };
+      const pendingReset = resetRefundUiFixture(wrapper, runId, 4, manifest);
+      pendingReset.catch(() => {});
+      await paused;
+      await eventWriter.query("SET lock_timeout='300ms'");
+      const lateQaEvent = (await eventWriter.query(`INSERT INTO payment_events
+        (payment_attempt_id,provider,provider_event_id,outcome,verified_order_id,
+         provider_payment_id,amount_won,event_fingerprint)
+        VALUES ($1,'mock',$2,'APPROVED',$3,$4,12000,$5) RETURNING id`,
+      [qaPaymentAttempt, `mock:event:${randomUUID()}`, manifest.orderId,
+        `mock:payment:${randomUUID()}`, fp])).rows[0].id;
+      releaseEventReset();
+      await pendingReset;
+      await eventResetClient.query('ROLLBACK');
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM payment_events WHERE id=$1',
+        [lateQaEvent])).rows[0].count, 1);
+      await pool.query('DELETE FROM payment_events WHERE id=$1', [lateQaEvent]);
+    } finally {
+      releaseEventReset?.();
+      await eventResetClient.query('ROLLBACK').catch(() => {});
+      eventResetClient.release();
+      eventWriter.release();
+    }
+
     const outsidePaymentEvent = (await pool.query(`INSERT INTO payment_events
       (payment_attempt_id,provider,provider_event_id,outcome,verified_order_id,
        provider_payment_id,amount_won,event_fingerprint)
