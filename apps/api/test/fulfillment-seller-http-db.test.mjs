@@ -528,7 +528,7 @@ test('seller fulfillment HTTP scopes paid work, exposes minimum detail and persi
       const persistedText = JSON.stringify((await pool.query(`SELECT e.before_snapshot,e.after_snapshot,
         e.reason,e.customer_message,a.details FROM shipment_fulfillment_events e
         LEFT JOIN audit_events a ON a.actor_account_id=e.actor_account_id
-          AND a.target_id=e.shipment_order_id
+          AND a.target_id=e.shipment_order_id::text
         WHERE e.shipment_order_id=$1 ORDER BY e.occurred_at,e.id`, [shipmentId])).rows);
       assert.doesNotMatch(persistedText,
         /가상고객|01012345678|서울시 가상구|가상 101호|12345/);

@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## NON-GREEN 보정 — 2026-10-06 S5.1 Task5 actual private DB test-harness SQL
+
+- **판정·원인:** private PostgreSQL system identifier `7693320434235625514`, migration 16건의 Task5 목표시험은 **7 tests / 5 pass / 2 fail / 0 skip**이었다. 목록, 타 판매자 404·zero mutation, 상세, invalid transition은 통과했고, 마지막 persistence/PII 검증의 `audit_events.target_id(text)=shipment_fulfillment_events.shipment_order_id(uuid)` 비교가 PostgreSQL **42883**으로 실패해 부모 suite도 함께 fail했다. 제품 API assertion 실패가 아니므로 actual DB GREEN이 아니다.
+- **잔류·singleton:** 실행 뒤 업무 시험행은 전부 **0**, `fulfillment_settings=1`, `global_policy=1`이었다.
+- **보정:** 허용된 test harness SQL 한 곳만 `a.target_id=e.shipment_order_id::text`로 명시적 cast했다. assertion, 제품 계약·파일, fixture, cleanup, 다른 SQL은 변경하지 않았다.
+- **로컬 검증·다음:** 무DB 대상 loader는 **6 tests / 5 pass / 1 DB skip / 0 fail**, 전체 nonDB는 **374 tests / 266 pass / 108 DB·환경 skip / 0 fail**, PR 본문은 **8/8 pass**였다. API typecheck, lint, `git diff --check`도 exit 0이다. private PostgreSQL actual **7/7 GREEN 재검증은 controller 대기**이며, DB skip을 GREEN으로 판정하지 않는다.
+
 ## GREEN 후보 — 2026-10-06 S5.1 Task5 판매자 목록·상세·전이 API
 
 - **판정·actual RED 기준:** exact base `f64820b1f28eb305c375b85bbb4941b21175105b`의 WSL fresh private PostgreSQL actual RED **7 tests / 0 pass / 7 fail / 0 skip**은 모두 seller fulfillment endpoint/controller 부재의 HTTP 404였고 harness/setup 오류는 0이었다. 이 원인만 해결하는 Task5 GREEN 최소 구현을 기존 `codex/s5-fulfillment-engagement` worktree에 적용했으며 관리자·고객 API/UI, schema/migration, 기존 금액·주문·환불 상태는 변경하지 않았다.
