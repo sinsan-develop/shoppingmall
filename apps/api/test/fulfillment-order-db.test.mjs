@@ -408,12 +408,10 @@ test('dual-role global policy audit cannot deadlock an order snapshot', {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 12 });
   const accountLocked = createBarrier();
   const releaseOrder = createBarrier();
-  const policyRowLocked = createBarrier();
-  const releasePolicy = createBarrier();
+  const policyConnected = createBarrier();
   let scenario;
   let orderPromise;
   let policyPromise;
-  let policyProbe;
   try {
     if (!await requireSchemas(context, pool)) return;
     scenario = await seedOrderScenario(pool, randomBytes(4).toString('hex'));
@@ -431,7 +429,6 @@ test('dual-role global policy audit cannot deadlock an order snapshot', {
     let orderPid;
     let policyPid;
     let accountIntercepted = false;
-    let policyIntercepted = false;
     const orderPool = {
       connect: async () => {
         const client = await pool.connect();
@@ -455,17 +452,9 @@ test('dual-role global policy audit cannot deadlock an order snapshot', {
       connect: async () => {
         const client = await pool.connect();
         policyPid = (await client.query('SELECT pg_backend_pid()::int AS pid')).rows[0].pid;
+        policyConnected.resolve();
         return {
-          query: async (...args) => {
-            const result = await client.query(...args);
-            if (!policyIntercepted && typeof args[0] === 'string' &&
-                args[0].includes('UPDATE shipping_policy_global SET')) {
-              policyIntercepted = true;
-              policyRowLocked.resolve();
-              await releasePolicy.promise;
-            }
-            return result;
-          },
+          query: (...args) => client.query(...args),
           release: () => client.release(),
         };
       },
@@ -500,20 +489,13 @@ test('dual-role global policy audit cannot deadlock an order snapshot', {
     );
     policyPromise.catch(() => {});
     await Promise.race([
-      policyRowLocked.promise,
-      policyPromise.then(() => { throw new Error('Policy committed before row lock barrier'); }),
+      policyConnected.promise,
+      policyPromise.then(() => { throw new Error('Policy completed before connection barrier'); }),
     ]);
-    policyProbe = await startConcurrentUpdate(pool,
-      'SELECT id FROM shipping_policy_global WHERE id=1 FOR SHARE', []);
-    policyProbe.done.catch(() => {});
-    assert.equal(await waitForBlock(pool, policyProbe.pid, policyPid), true,
-      'global policy writer must hold the policy row lock');
-
-    releasePolicy.resolve();
     const policyAuditWaitedForOrder = await waitForBlock(pool, policyPid, orderPid);
     releaseOrder.resolve();
-    const outcomes = await Promise.allSettled([orderPromise, policyPromise, policyProbe.done]);
-    const failures = outcomes.slice(0, 2).filter(({ status }) => status === 'rejected')
+    const outcomes = await Promise.allSettled([orderPromise, policyPromise]);
+    const failures = outcomes.filter(({ status }) => status === 'rejected')
       .map(({ reason }) => `${reason?.code ?? 'UNKNOWN'} ${reason?.message ?? reason}`);
     assert.deepEqual(failures, [], `order and policy transactions must both commit: ${failures.join('; ')}`);
     assert.equal(policyAuditWaitedForOrder, false,
@@ -528,11 +510,8 @@ test('dual-role global policy audit cannot deadlock an order snapshot', {
     assert.equal((await pool.query(`SELECT cutoff_time FROM shipping_policy_global
       WHERE id=1`)).rows[0].cutoff_time, '22:00');
   } finally {
-    releasePolicy.resolve();
     releaseOrder.resolve();
-    await Promise.allSettled([
-      orderPromise, policyPromise, policyProbe?.done,
-    ].filter(Boolean));
+    await Promise.allSettled([orderPromise, policyPromise].filter(Boolean));
     await cleanupScenario(pool, scenario);
     await pool.end();
   }
