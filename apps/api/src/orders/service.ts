@@ -63,7 +63,7 @@ export async function submitPendingOrderWithDisposition(pool: Pool, accountId: s
   const client = await pool.connect();
   try {
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
-    const account = await client.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE', [accountId]);
+    const account = await client.query('SELECT id FROM accounts WHERE id=$1 FOR NO KEY UPDATE', [accountId]);
     if (!account.rowCount) throw new Error('Order unavailable');
     const previous = await client.query<{ id: string; requestFingerprint: string }>(
       `SELECT id,request_fingerprint AS "requestFingerprint" FROM checkout_orders
