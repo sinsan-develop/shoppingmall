@@ -155,6 +155,18 @@ test('refund HTTP keeps customer ownership and lets only admin decide and execut
     assert.equal(final.status, 'REFUNDED');
     assert.deepEqual([final.goodsRefundWon, final.shippingRefundWon, final.totalRefundWon],
       [6667, 2000, 8667]);
+    const originalOrder = (await pool.query(`SELECT goods_won AS "goodsWon",
+      goods_discount_won AS "goodsDiscountWon",shipping_fee_won AS "shippingFeeWon",
+      shipping_support_won AS "shippingSupportWon",payable_won AS "payableWon",status
+      FROM checkout_orders WHERE id=$1`, [ids.orderId])).rows[0];
+    assert.deepEqual(originalOrder, { goodsWon: 12000, goodsDiscountWon: 2000,
+      shippingFeeWon: 3000, shippingSupportWon: 1000, payableWon: 12000, status: 'PAID' });
+    const originalShipment = (await pool.query(`SELECT goods_won AS "goodsWon",
+      goods_discount_won AS "goodsDiscountWon",shipping_fee_won AS "shippingFeeWon",
+      shipping_support_won AS "shippingSupportWon",payable_won AS "payableWon",status
+      FROM shipment_orders WHERE id=$1`, [ids.shipmentId])).rows[0];
+    assert.deepEqual(originalShipment, { goodsWon: 12000, goodsDiscountWon: 2000,
+      shippingFeeWon: 3000, shippingSupportWon: 1000, payableWon: 12000, status: 'PAID' });
     const filtered = await fetch(`${adminPath}?status=REFUNDED&shipmentOrderId=${ids.shipmentId}`,
       { headers: { cookie: cookies.admin } });
     assert.equal(filtered.status, 200);

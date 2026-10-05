@@ -30,6 +30,21 @@ test('paid customer sees shipment quantities, reasons and estimated versus final
   assert.doesNotMatch(html, /providerRefundId|preShipmentEvidence|관리자 내부/);
 });
 
+test('verified refund status uses the API REFUNDED contract and shows completion', () => {
+  const completed = { id: 'case-complete', checkoutOrderId: 'order-1', shipmentOrderId: 'shipment-1',
+    requesterRole: 'customer', reasonCode: 'customer_request', reason: '취소 완료',
+    status: 'REFUNDED', goodsRefundWon: 3333, shippingRefundWon: 0, totalRefundWon: 3333,
+    amountFinal: true, estimateAvailable: true, requestedAt: '2026-10-05T00:00:00Z',
+    decidedAt: '2026-10-05T00:01:00Z', completedAt: '2026-10-05T00:02:00Z',
+    lines: [{ optionId: 'option-1', productName: '고추', optionName: '500g', quantity: 1,
+      goodsRefundWon: 3333 }], history: [{ fromStatus: 'PROCESSING', toStatus: 'REFUNDED',
+        createdAt: '2026-10-05T00:02:00Z' }] };
+  const html = renderToStaticMarkup(createElement(CustomerRefundView, { order, cases: [completed],
+    busy: false, message: '', onRequest: () => {}, onRefresh: () => {} }));
+  assert.match(html, /환불 완료/);
+  assert.match(html, /확정 환급액/);
+});
+
 test('refund request keeps one idempotency key across an unknown response and clears it after confirmation', async () => {
   const values = new Map();
   const storage = { getItem: (name) => values.get(name) ?? null,

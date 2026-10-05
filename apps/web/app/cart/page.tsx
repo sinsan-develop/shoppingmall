@@ -26,7 +26,7 @@ type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID'
   shipments: { id: string; key: string; payableWon: number; status?: string; lines: OrderLine[] }[] };
 type RefundCase = { id: string; checkoutOrderId: string; shipmentOrderId: string;
   requesterRole: 'customer' | 'admin'; reasonCode: string; reason: string;
-  status: 'REQUESTED' | 'PROCESSING' | 'COMPLETED' | 'REJECTED' | 'REVIEW_REQUIRED';
+  status: 'REQUESTED' | 'APPROVED' | 'PROCESSING' | 'REFUNDED' | 'REJECTED' | 'REVIEW_REQUIRED';
   goodsRefundWon: number; shippingRefundWon: number; totalRefundWon: number;
   amountFinal: boolean; estimateAvailable: boolean; requestedAt: string;
   decidedAt: string | null; completedAt: string | null;
@@ -206,7 +206,7 @@ export function createRefreshGate() {
 }
 
 const refundStatusLabel: Record<RefundCase['status'], string> = {
-  REQUESTED: '요청 접수', PROCESSING: '환불 처리 중', COMPLETED: '환불 완료',
+  REQUESTED: '요청 접수', APPROVED: '환불 승인', PROCESSING: '환불 처리 중', REFUNDED: '환불 완료',
   REJECTED: '요청 반려', REVIEW_REQUIRED: '운영자 확인 필요',
 };
 

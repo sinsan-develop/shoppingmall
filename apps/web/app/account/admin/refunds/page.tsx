@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
-type RefundStatus = 'REQUESTED' | 'PROCESSING' | 'COMPLETED' | 'REJECTED' | 'REVIEW_REQUIRED';
+type RefundStatus = 'REQUESTED' | 'APPROVED' | 'PROCESSING' | 'REFUNDED' | 'REJECTED' | 'REVIEW_REQUIRED';
 type RefundSummary = { id: string; checkoutOrderId: string; shipmentOrderId: string;
   requesterRole: 'customer' | 'admin'; reasonCode: string; reason: string; status: RefundStatus;
   goodsRefundWon: number; shippingRefundWon: number; totalRefundWon: number;
@@ -28,7 +28,8 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 const statusLabel: Record<RefundStatus, string> = { REQUESTED: '요청 접수', PROCESSING: '환불 처리 중',
-  COMPLETED: '환불 완료', REJECTED: '요청 반려', REVIEW_REQUIRED: '운영자 확인 필요' };
+  APPROVED: '환불 승인', REFUNDED: '환불 완료', REJECTED: '요청 반려',
+  REVIEW_REQUIRED: '운영자 확인 필요' };
 
 export function AdminRefundsView({ cases, selected, busy, message, filters, onFilter, onSelect,
   onApprove, onReject }: ViewProps) {
