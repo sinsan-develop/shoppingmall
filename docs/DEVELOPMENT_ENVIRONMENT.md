@@ -2,6 +2,8 @@
 
 ## 2026-10-05 S4.1 모의 결제 개발 경계
 
+- 2026-10-05 공유 DB 후속 승인·적용: `WSL-server/local-postgres/shoppingmall`에 정확한 SHA `849ec696401e5516bb37fdafd1ae5fc14d9f828a9`의 0013 SQL 해시 `4556376ac133b0468015a56f631b93bf5bff8dd276ee1e3777c096d35456b547`를 백업 확인 뒤 적용했다. Drizzle 이력은 **14건/대기 0**, 결제 시도·사건·충돌 3관계가 존재한다. 기존 계정·상품·예약·주문 0건 불변이고 공유 DB API 전체 순차 174건/157 pass/17 환경 skip/0 fail, 사후 QA 주요 16범주 0. 상세 백업/정리 증거는 `WORK_STATUS.md` 최신 절을 따른다. 아래 ‘공유 0013 미적용’ 문장은 적용 전 역사 기록이다. 이는 실제 PG 공급자·브라우저·Oracle/UAT 검증이 아니다.
+
 - 2026-10-05 후속: 신산님 승인으로 **공유 DB 미적용** 0013에 `payment_event_conflicts`를 추가했다. 현재 0013 SQL SHA-256은 `4556376ac133b0468015a56f631b93bf5bff8dd276ee1e3777c096d35456b547`이다. WSL 전용 tmpfs DB에서 0000~0013을 새로 적용해 결제 충돌 목표 1 pass/0 skip, API 전체 174건/157 pass/17 환경 skip/0 fail, QA 결제 시도·사건·충돌 잔류 각 0을 확인했다. 로컬 전체 318건/231 pass/87 DB·환경 skip/0 fail와 PR 본문 8 pass, typecheck/lint/build exit 0. 이는 공유 `local-postgres/shoppingmall` 적용이나 실제 브라우저 검증을 뜻하지 않는다.
 
 - 최신 exact SHA `fd12bbe9cf1b975465306de2225bab8d2009a985`에서 로컬 316건/229 pass/87 환경 skip/0 fail, WSL 전용 0013 API 173건/156 pass/17 환경 skip/0 fail, Web 대상 20 pass/0 skip이다. 가상 브라우저 fixture는 정확한 run ID로 reset했고 private QA 6범주 0·임시 컨테이너/전용 DB/네트워크 0을 확인했다. 공유 DB 이력은 13건 그대로다. Windows 브라우저 제어 도구가 ACL 초기화 실패해 실제 화면·390px·키보드 시험은 미검증이며, 자동 HTTP/Web 시험으로 대신하지 않는다. 재시도 시 새 전용 DB와 격리 fixture 자원 계획을 먼저 기록한다.

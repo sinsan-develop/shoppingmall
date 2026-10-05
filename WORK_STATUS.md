@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S4.1 공유 개발 DB 0013 적용 승인
+
+- 공유 DB 적용·검증: custom-format 전체 백업의 컨테이너/호스트 동일 SHA-256 `f256ae0643225ad1b31ce3ac9000918f86e61a596f4a012435bf5f2d0441a6a9`, 호스트 0600/127,635바이트, `pg_restore --list` 296행 확인 후 exact SHA `849ec696401e5516bb37fdafd1ae5fc14d9f828a9`의 migrator exit 0. 적용 후 Drizzle 이력 **14건**, 마지막 해시 `4556376ac133b0468015a56f631b93bf5bff8dd276ee1e3777c096d35456b547`, 읽기 전용 미리보기 **14 적용/0 대기**, 기존 계정·상품·예약·주문 각 0 불변, 신규 시도·사건·충돌 3관계 각 0. 첫 전체 회귀는 `DATABASE_URL` 누락으로 **173건/86 pass/87 환경 skip/0 fail**이었으므로 정식 DB 회귀로 계산하지 않았다(시험 환경 구성 오류 1회). 연결 비밀값을 로그·Git에 내지 않는 일회용 컨테이너의 내부 접속 주소를 구성해 목표 사건 시험 **1 pass/0 skip**, 공유 DB API 전체 순차 **174건/157 pass/17 환경 skip/0 fail**로 재실행했다. 사후 계정·판매자·상품·옵션·주소·예약·예약품목·주문·발송·발송품목·프로모션·쿠폰 사용·감사·시도·사건·충돌 **16범주 각 0**, migration 14. 일회용 Node 컨테이너 잔류 0·WSL 지정 checkout clean. 승인된 schema는 유지하며 임시 백업 두 사본은 정확한 경로·해시를 재확인한 뒤 제거 예정. 실제 브라우저/PG/Oracle/UAT와 S4.2는 미검증·미완료다.
+- 임시 백업 정리: 양쪽 `/tmp/shoppingmall-s41-0013-pre-20261005.dump`의 실경로·같은 SHA-256을 재확인하고 **그 두 파일만** 제거했다. WSL 호스트/`local-postgres` 컨테이너 양쪽 부재, 이번 Node24 일회용 컨테이너 잔류 0을 확인했다. 삭제한 것은 이번 적용 직전 생성한 임시 백업이며, DB에 적용된 0013과 기존 자료는 삭제하지 않았다. 백업 파일은 복구할 수 없고, 적용된 schema는 전진 보정이 필요한 경우 별도 판단한다.
+
+- 담당 어울, 단일 writer. 신산님이 `WSL-server/local-postgres/shoppingmall`에 정확한 `0013_s4_payments.sql` 적용을 별도 승인했다. 실제 PG/Oracle/UAT/S4.2 환불 및 임의 복원·역적용은 승인 범위 밖이다. 기준 Windows/WSL 지정 checkout `codex/s4-payment-refund@849ec696401e5516bb37fdafd1ae5fc14d9f828a9`; 양쪽 clean, SQL SHA-256 `4556376ac133b0468015a56f631b93bf5bff8dd276ee1e3777c096d35456b547` 일치.
+- 적용 전 읽기 전용 증거: 공유 DB `shoppingmall`의 이력 13건, 계정/상품/예약/주문 각 0행, 결제 시도·사건·충돌 관계 부재. Drizzle 미리보기 exit 0: 적용 13/대기 `0013_s4_payments` 1건·23문장/해시 일치. 기존 0000~0012는 변경하지 않는다.
+- 백업 자원: 정확한 `local-postgres:/tmp/shoppingmall-s41-0013-pre-20261005.dump`와 WSL 호스트 `/tmp/shoppingmall-s41-0013-pre-20261005.dump`가 모두 부재함을 확인했다. 공유 DB 전체 custom-format 백업을 먼저 컨테이너 내부에 생성해 호스트로 복사하고 형식/목록/0600 권한/크기/양쪽 해시를 검증한다. 적용 오류면 mock 시작을 끄고 DB 사건·백업을 보존해 별도 복구 결정을 요청한다. 성공 시 동일 SHA의 0013만 적용, 이력 14/기존 행 불변/신규 3관계, 정식 공유 DB 회귀·QA 행 정리 확인 후 정확한 두 임시 백업만 제거해 잔류 0을 확인한다. 일회용 Node 시험 컨테이너는 `--rm`이고 새 포트·네트워크·볼륨은 만들지 않는다.
+
 ## 진행 중 — 2026-10-05 S4.1 충돌 기록 보정 승인
 
 - 새 충돌 기록 시험은 기존 0013 private DB에서 관계 부재(`42P01`)로 RED 0 pass/1 fail/0 skip을 확인했다. 최초 RED에서는 시험 정리가 같은 부재 관계를 먼저 조회해 원인 위치를 가렸고, 정리 guard 보정 뒤 본문 54행의 기대 실패로 확인했다(시험 경로 오류 1회, 보정 성공). 이 최초 실패로 남은 private 시험 사건 1건은 해당 컨테이너가 tmpfs·무외부포트·무영속 mount·전용 네트워크의 유일 구성원임을 대조하고 정확한 컨테이너만 제거/재생성해 소멸했다. 수정 0013 fresh 적용 이력 14건, 목표 **1 pass/0 skip**, WSL private API 전체 **174 total/157 pass/17 환경 skip/0 fail**, 사후 시도/사건/충돌 각 0. Windows 전체 **318 total/231 pass/87 환경 skip/0 fail**, PR 본문 8 pass, typecheck/lint/build exit 0. SQL SHA-256 `4556376ac133b0468015a56f631b93bf5bff8dd276ee1e3777c096d35456b547`. 이 결과는 actual browser/공유 DB/실 PG/Oracle/UAT PASS가 아니다.
