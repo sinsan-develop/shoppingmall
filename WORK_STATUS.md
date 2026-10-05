@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## GREEN 후보 — 2026-10-06 S5.1 Task4 결제 승인→READY
+
+- **기준·실제 RED:** exact base `1e9fe42790e83c20bbee416106881454655ac115`, fresh migration 16, private PostgreSQL system identifier `7693301660581011496`, 실행 전후 clean에서 목표시험은 Node 집계 **9 tests/3 pass/6 fail**이었다. decline·unconfirmed·review 3계약은 통과했고, 정상 승인·replay는 세 출고행이 실제 `PAYMENT_PENDING/version 0/date null`, missing fulfillment와 direct owner conflict는 실제 `APPLIED/PAID/CONSUMED/shipments PAID`가 되어 실패했다. 그룹/중첩 집계를 제외한 의미상 제품 RED는 승인·replay·누락·담당자 충돌 4계약이며 harness error 0, 사후 모든 run-scoped 행 0과 fulfillment/global singleton 각 1이었다.
+- **최소 GREEN 후보:** 기존 검증된 승인 transaction의 account→checkout order→payment event/attempt→product→promotion use→reservation→product option→inventory 잠금 의미를 유지하고, 모든 기존 잠금 뒤에 `shipment_orders(shipment_key,id) → shipment_fulfillments(같은 shipment 순서)` 잠금을 추가했다. 결제 mutation 전에 주문의 발송행이 존재하고 각 fulfillment가 정확히 1개인지, shipment가 `PENDING_PAYMENT`, fulfillment가 `PAYMENT_PENDING`, 직접발송 담당자가 원 shipment seller와 같은지 검증한다. 공동출고 담당자는 저장 snapshot을 사용하며 현재 singleton 설정을 다시 읽거나 바꾸지 않는다.
+- **검토 경계:** 누락·상태 불일치·direct owner 충돌 등 unusable fulfillment는 결제 event/attempt만 `REVIEW_REQUIRED`로 commit하고 order/reservation/promotion/stock/shipment/fulfillment/fulfillment-event는 바꾸지 않는다. 성공 경로만 DB `clock_timestamp()`를 한 번 읽어 checkout `paid_at`/`ended_at`, fulfillment `updated_at`, 불변 사건 `occurred_at`에 같은 값을 쓰며, rollback 가능한 같은 거래에서 세 행 전체를 연다.
+- **날짜·사건:** 각 snapshot cutoff와 exact `paid_at` ISO를 기존 `calculateExpectedShipDate`에 전달해 Asia/Seoul 기준 휴무일 미반영 잠정일을 계산한다. 각 행은 `PAYMENT_PENDING→READY`, version `+1`; 사건은 actor/role/seller null, `PAYMENT_CONFIRMED`, `system:payment`+원 payment event UUID, PII 없는 고정 필드의 SHA-256 fingerprint와 before/after snapshot을 정확히 1회 insert한다. unique conflict를 멱등 성공으로 숨기지 않으며 기존 processor의 processed-event early return이 replay를 막는다.
+- **변경 파일·범위:** `apps/api/src/payments/processor.ts`, `apps/api/src/fulfillment/repository.ts`, 이 `WORK_STATUS.md`만 변경했다. RED 시험과 기존 payment-processing/payment-attempt/order-cancel-race 시험은 보정하지 않았고 공개 API/UI/schema, broad retry, 새 정책은 추가하지 않았다. 제품 변경은 승인된 Task4 GREEN에만 한정한다.
+- **로컬 검증:** DB 환경변수를 제거한 Task4/payment-processing/payment-attempt/payment-sale-stop-race/order-cancel-race 모듈은 **5 tests/0 pass/5 DB skip/0 fail**. 전체 `pnpm test`는 주 시험 **371 tests/264 pass/107 DB·환경 skip/0 fail**, PR 본문 **8/8 pass**, `pnpm --filter @shoppingmall/api typecheck`와 `pnpm lint`는 exit 0이다. skip은 모듈 로딩·비DB 회귀 근거일 뿐 실제 DB GREEN이 아니다.
+- **미검증·다음:** 실제 private DB 목표 GREEN, 전체 DB 회귀와 cleanup은 controller가 후보 exact SHA에서 재실행한다. writer는 shared WSL `local-postgres/shoppingmall`, Oracle, 외부 서비스와 실데이터에 접속·변경하지 않았다.
+
 ## RED 시험 격리 보정 — 2026-10-06 S5.1 Task4 결제 승인→READY
 
 - **실제 RED 1차 결과:** exact `bc917e0f124a22f7341b9893c90c7df43a3e25a9` private DB 실행에서 정상 승인과 승인 재처리는 각각 실제 `PAYMENT_PENDING/version 0/date null`이 기대 `READY/version 1/date`와 달라 **유효한 제품 RED 2개**였다. 반면 세 번째 계약군은 declined 주문의 `ACTIVE` 예약을 같은 buyer가 보유한 상태에서 unconfirmed 주문을 만들며 `Active reservation exists`로 중단했고, 이후 누락·담당자 충돌 계약도 같은 공유 buyer 예약 때문에 setup에서 중단해 **harness error 3개**였다. 실패한 이전 실행의 outer cleanup 완료는 근거로 간주하지 않으며 잔류 0은 controller가 별도로 확인한다.

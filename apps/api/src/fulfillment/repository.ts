@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { resolveShippingPolicy, validateShippingPolicy,
   type ShippingPolicy } from '../shipping/policy.js';
+import { calculateExpectedShipDate } from './rules.js';
 
 export type FulfillmentSource = {
   key: string;
@@ -10,6 +12,11 @@ export type FulfillmentSource = {
 
 export type FulfillmentAssignment = {
   fulfillmentSellerId: string;
+  cutoffTime: string | null;
+};
+
+export type PaymentFulfillment = {
+  shipmentOrderId: string;
   cutoffTime: string | null;
 };
 
@@ -90,4 +97,84 @@ export async function insertPendingFulfillment(client: PoolClient, shipmentOrder
     (shipment_order_id,fulfillment_seller_id,status,cutoff_time)
     VALUES ($1,$2,'PAYMENT_PENDING',$3)`,
   [shipmentOrderId, assignment.fulfillmentSellerId, assignment.cutoffTime]);
+}
+
+/** Lock order: checkout order (caller), then shipment key/id, then its fulfillment row. */
+export async function lockPaymentFulfillments(client: PoolClient,
+  checkoutOrderId: string): Promise<PaymentFulfillment[] | null> {
+  const shipments = await client.query<{
+    id: string;
+    shippingMode: string;
+    sellerId: string | null;
+    status: string;
+  }>(`SELECT id,shipping_mode AS "shippingMode",seller_id AS "sellerId",status
+    FROM shipment_orders WHERE checkout_order_id=$1
+    ORDER BY shipment_key,id FOR UPDATE`, [checkoutOrderId]);
+  if (!shipments.rows.length) return null;
+  const fulfillments = await client.query<{
+    shipmentOrderId: string;
+    fulfillmentSellerId: string;
+    status: string;
+    cutoffTime: string | null;
+  }>(`SELECT f.shipment_order_id AS "shipmentOrderId",
+      f.fulfillment_seller_id AS "fulfillmentSellerId",f.status,
+      f.cutoff_time AS "cutoffTime"
+    FROM shipment_fulfillments f JOIN shipment_orders s ON s.id=f.shipment_order_id
+    WHERE s.checkout_order_id=$1 ORDER BY s.shipment_key,s.id FOR UPDATE OF f`,
+  [checkoutOrderId]);
+  if (fulfillments.rows.length !== shipments.rows.length) return null;
+  for (let index = 0; index < shipments.rows.length; index += 1) {
+    const shipment = shipments.rows[index];
+    const fulfillment = fulfillments.rows[index];
+    if (fulfillment.shipmentOrderId !== shipment.id || shipment.status !== 'PENDING_PAYMENT' ||
+        fulfillment.status !== 'PAYMENT_PENDING') {
+      return null;
+    }
+    if (shipment.shippingMode === 'seller_direct') {
+      if (!shipment.sellerId || fulfillment.fulfillmentSellerId !== shipment.sellerId) return null;
+    } else if (shipment.shippingMode !== 'owool_fulfillment') return null;
+  }
+  return fulfillments.rows.map(({ shipmentOrderId, cutoffTime }) => ({
+    shipmentOrderId, cutoffTime,
+  }));
+}
+
+function paymentFingerprint(shipmentOrderId: string, paymentEventId: string,
+  expectedShipDate: string): string {
+  return createHash('sha256').update(JSON.stringify({
+    action: 'PAYMENT_CONFIRMED', shipmentOrderId, paymentEventId,
+    fromStatus: 'PAYMENT_PENDING', toStatus: 'READY', expectedShipDate,
+  })).digest('hex');
+}
+
+export async function openPaymentFulfillments(client: PoolClient,
+  fulfillments: PaymentFulfillment[], paymentEventId: string, paidAt: Date): Promise<void> {
+  for (const fulfillment of fulfillments) {
+    const expectedShipDate = calculateExpectedShipDate(
+      paidAt.toISOString(), fulfillment.cutoffTime,
+    );
+    const beforeSnapshot = {
+      status: 'PAYMENT_PENDING', expectedShipDate: null,
+      carrierCode: null, trackingNumber: null,
+    };
+    const afterSnapshot = {
+      status: 'READY', expectedShipDate,
+      carrierCode: null, trackingNumber: null,
+    };
+    const changed = await client.query(`UPDATE shipment_fulfillments
+      SET status='READY',expected_ship_date=$2,version=version+1,updated_at=$3
+      WHERE shipment_order_id=$1 AND status='PAYMENT_PENDING'`,
+    [fulfillment.shipmentOrderId, expectedShipDate, paidAt]);
+    if (changed.rowCount !== 1) throw new Error('Payment fulfillment conflict');
+    await client.query(`INSERT INTO shipment_fulfillment_events
+      (shipment_order_id,action,from_status,to_status,before_snapshot,after_snapshot,
+        idempotency_scope,idempotency_key,request_fingerprint,occurred_at)
+      VALUES ($1,'PAYMENT_CONFIRMED','PAYMENT_PENDING','READY',$2::jsonb,$3::jsonb,
+        'system:payment',$4,$5,$6)`, [
+      fulfillment.shipmentOrderId, JSON.stringify(beforeSnapshot), JSON.stringify(afterSnapshot),
+      paymentEventId, paymentFingerprint(
+        fulfillment.shipmentOrderId, paymentEventId, expectedShipDate,
+      ), paidAt,
+    ]);
+  }
 }
