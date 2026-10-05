@@ -82,8 +82,11 @@ test('payment attempt belongs to its buyer and an idempotency key cannot change 
       'PENDING_PAYMENT');
   } finally {
     if (ids.order) {
-      await pool.query(`DELETE FROM payment_event_conflicts WHERE incoming_attempt_id IN
-        (SELECT id FROM payment_attempts WHERE checkout_order_id=$1)`, [ids.order]);
+      const hasConflictTable = await pool.query(`SELECT to_regclass('public.payment_event_conflicts') AS relation`);
+      if (hasConflictTable.rows[0].relation) {
+        await pool.query(`DELETE FROM payment_event_conflicts WHERE incoming_attempt_id IN
+          (SELECT id FROM payment_attempts WHERE checkout_order_id=$1)`, [ids.order]);
+      }
       await pool.query(`DELETE FROM payment_events WHERE payment_attempt_id IN
         (SELECT id FROM payment_attempts WHERE checkout_order_id=$1)`, [ids.order]);
       await pool.query('DELETE FROM payment_attempts WHERE checkout_order_id=$1', [ids.order]);
