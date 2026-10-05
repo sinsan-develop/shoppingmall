@@ -66,7 +66,9 @@ export async function startMockPaymentRequest(apiBase: string,
   if (response.status === 404) throw new Error('이 주문의 모의 결제는 사용할 수 없습니다');
   if (response.status === 409) throw new Error('결제 시도와 주문 상태가 변경됐습니다. 본인 주문을 다시 확인해 주세요');
   if (!response.ok) throw new Error('모의 결제 결과를 확인하지 못했습니다. 같은 선택으로 다시 확인해 주세요');
-  return await response.json() as PaymentAttempt;
+  const attempt = await response.json() as PaymentAttempt;
+  if (attempt.status !== 'PENDING') storage.removeItem(paymentRequestKey);
+  return attempt;
 }
 
 export async function submitOrderRequest(apiBase: string,

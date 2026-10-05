@@ -29,6 +29,23 @@ test('mock payment keeps the same attempt key across an uncertain retry', async 
   assert.ok(sent[0].key);
 });
 
+test('confirmed decline starts a new attempt while an unknown response retains its key', async () => {
+  const orderId = randomUUID();
+  const values = new Map();
+  const storage = { getItem: (name) => values.get(name) ?? null,
+    setItem: (name, value) => values.set(name, value),
+    removeItem: (name) => values.delete(name) };
+  const sent = [];
+  const send = async (_url, options) => {
+    sent.push(options.headers['idempotency-key']);
+    return Response.json({ id: randomUUID(), status: 'DECLINED', amountWon: 26000,
+      mockOnly: true }, { status: 201 });
+  };
+  await startMockPaymentRequest('http://127.0.0.1:9092', storage, orderId, 'decline', send);
+  await startMockPaymentRequest('http://127.0.0.1:9092', storage, orderId, 'decline', send);
+  assert.notEqual(sent[0], sent[1]);
+});
+
 test('pending order shows an explicitly labeled mock action but paid order does not', () => {
   const base = { items: [], edits: {}, busy: '', message: '', loading: false,
     reservation: { id: 'r1', status: 'ACTIVE', expiresAt: '2026-10-05T00:00:00Z',

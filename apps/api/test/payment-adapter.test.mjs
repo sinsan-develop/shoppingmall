@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { resolvePaymentMode, assertVerifiedPayment } from '../src/payments/adapter.ts';
+import { resolvePaymentMode, assertPaymentBootConfig,
+  assertVerifiedPayment } from '../src/payments/adapter.ts';
 import { MockPaymentAdapter, NoChargePaymentAdapter } from '../src/payments/mock-adapter.ts';
 
 test('mock payment mode is explicit development-only and disabled otherwise', () => {
@@ -9,6 +10,16 @@ test('mock payment mode is explicit development-only and disabled otherwise', ()
   assert.equal(resolvePaymentMode({ APP_ENV: 'development', PAYMENT_MODE: 'mock' }), 'mock');
   assert.throws(() => resolvePaymentMode({ APP_ENV: 'production', PAYMENT_MODE: 'mock' }));
   assert.throws(() => resolvePaymentMode({ APP_ENV: 'development', PAYMENT_MODE: 'live' }));
+});
+
+test('mock payment startup refuses production and public API bindings', () => {
+  assert.equal(assertPaymentBootConfig({}), 'disabled');
+  assert.equal(assertPaymentBootConfig({ APP_ENV: 'development', PAYMENT_MODE: 'mock',
+    API_HOST: '127.0.0.1', NODE_ENV: 'development' }), 'mock');
+  assert.throws(() => assertPaymentBootConfig({ APP_ENV: 'development', PAYMENT_MODE: 'mock',
+    API_HOST: '0.0.0.0', NODE_ENV: 'development' }));
+  assert.throws(() => assertPaymentBootConfig({ APP_ENV: 'development', PAYMENT_MODE: 'mock',
+    API_HOST: '127.0.0.1', NODE_ENV: 'production' }));
 });
 
 test('mock verification derives one stable event from the server-started order and won amount', () => {

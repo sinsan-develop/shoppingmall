@@ -18,6 +18,16 @@ export function resolvePaymentMode(env: { APP_ENV?: string; PAYMENT_MODE?: strin
   throw new Error('Payment mode unavailable');
 }
 
+/** Reject an unsafe mock process before the HTTP listener can open. */
+export function assertPaymentBootConfig(env: { APP_ENV?: string; PAYMENT_MODE?: string;
+  API_HOST?: string; NODE_ENV?: string }): PaymentMode {
+  const mode = resolvePaymentMode(env);
+  if (mode === 'mock' && (env.NODE_ENV === 'production' ||
+      !['127.0.0.1', '::1', 'localhost'].includes(env.API_HOST ?? '127.0.0.1')))
+    throw new Error('Payment mode unavailable');
+  return mode;
+}
+
 /** The processor compares the provider's normalized result with immutable order data. */
 export function assertVerifiedPayment(verified: VerifiedPayment | null,
   orderId: string, payableWon: number): asserts verified is VerifiedPayment {
