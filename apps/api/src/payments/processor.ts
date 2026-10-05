@@ -117,6 +117,14 @@ export async function processVerifiedPaymentEvent(pool: Pool, eventId: string): 
       await client.query('COMMIT');
       return declined;
     }
+    // Sale-stop approval takes products before cancelling reservations. Take the same
+    // stable product locks before reservation/use locks, then recheck reservation state.
+    const products = await client.query<{ id: string }>(`SELECT DISTINCT r.product_id AS id
+      FROM checkout_reservation_lines l JOIN product_options o ON o.id=l.option_id
+      JOIN product_revisions r ON r.id=o.revision_id
+      WHERE l.reservation_id=$1 ORDER BY id`, [order.reservationId]);
+    for (const { id } of products.rows)
+      await client.query('SELECT id FROM products WHERE id=$1 FOR UPDATE', [id]);
     const uses = await client.query<{ id: string; status: string }>(`SELECT id,status FROM promotion_uses
       WHERE reservation_id=$1 ORDER BY id FOR UPDATE`, [order.reservationId]);
     const reservation = (await client.query<{ status: string; current: boolean }>(

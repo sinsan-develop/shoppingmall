@@ -43,6 +43,7 @@ export function AdminRefundsView({ cases, selected, busy, message, filters, onFi
     event.preventDefault();
     if (!selected) return;
     const data = new FormData(event.currentTarget);
+    if (data.get('preShipmentConfirmed') !== 'on') return;
     onApprove(String(data.get('approvalReason') ?? '').trim(), selected.lines.map((line) => ({
       optionId: line.optionId,
       restockMode: String(data.get(`restock-${line.optionId}`) ?? 'none') as RestockMode,
@@ -97,7 +98,7 @@ export function AdminRefundsView({ cases, selected, busy, message, filters, onFi
           <strong>{line.productName}</strong> {line.optionName} · {line.quantity}개
           {selected.amountFinal ? ` · ${won(line.goodsRefundWon)}` : ''}
         </li>)}</ul>
-        {selected.status === 'REQUESTED' ? <div className="refund-decision-grid">
+        {selected.status === 'REQUESTED' ? <div className="refund-decision-grid" key={selected.id}>
           <form className="account-form refund-approve-form" onSubmit={approve}>
             <h3>승인</h3>
             <label className="check-row"><input name="preShipmentConfirmed" type="checkbox" required />

@@ -206,6 +206,26 @@ export function createRefreshGate() {
   };
 }
 
+export async function refreshRefundHistory(apiBase: string, orderId: string,
+  gate: ReturnType<typeof createRefreshGate>, onCases: (cases: RefundCase[]) => void,
+  onError: (message: string) => void, send: typeof fetch = fetch, signal?: AbortSignal) {
+  const generation = gate.begin();
+  const isCurrent = () => !signal?.aborted && gate.isCurrent(generation);
+  try {
+    const response = await send(`${apiBase}/customer/checkout/orders/${encodeURIComponent(orderId)}/refund-cases`,
+      { credentials: 'include', signal, cache: 'no-store' });
+    if (!isCurrent()) return;
+    if (response.status === 401 || response.status === 403)
+      throw new Error('구매자 역할로 로그인해 주세요');
+    if (response.status === 404) throw new Error('본인 주문을 다시 확인해 주세요');
+    if (!response.ok) throw new Error('환불 내역을 불러오지 못했습니다');
+    const found = await response.json() as RefundCase[];
+    if (isCurrent()) onCases(found);
+  } catch (error) {
+    if (isCurrent()) onError(error instanceof Error ? error.message : '환불 내역을 불러오지 못했습니다');
+  }
+}
+
 const refundStatusLabel: Record<RefundCase['status'], string> = {
   REQUESTED: '요청 접수', APPROVED: '환불 승인', PROCESSING: '환불 처리 중', REFUNDED: '환불 완료',
   REJECTED: '요청 반려', REVIEW_REQUIRED: '운영자 확인 필요',
@@ -488,6 +508,8 @@ export default function CartPage() {
     process.env.NEXT_PUBLIC_PAYMENT_MODE === 'mock';
   const refreshGate = useRef<ReturnType<typeof createRefreshGate> | null>(null);
   if (refreshGate.current === null) refreshGate.current = createRefreshGate();
+  const refundRefreshGate = useRef<ReturnType<typeof createRefreshGate> | null>(null);
+  if (refundRefreshGate.current === null) refundRefreshGate.current = createRefreshGate();
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!apiOrigin) throw new Error('장바구니 연결을 준비 중입니다');
     const generation = refreshGate.current!.begin();
@@ -622,27 +644,20 @@ export default function CartPage() {
   }, []);
 
   const reloadRefunds = useCallback(async (orderId: string, signal?: AbortSignal) => {
-    if (!apiOrigin) throw new Error('환불 내역 연결을 준비 중입니다');
-    const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(orderId)}/refund-cases`,
-      { credentials: 'include', signal, cache: 'no-store' });
-    if (response.status === 401 || response.status === 403)
-      throw new Error('구매자 역할로 로그인해 주세요');
-    if (response.status === 404) throw new Error('본인 주문을 다시 확인해 주세요');
-    if (!response.ok) throw new Error('환불 내역을 불러오지 못했습니다');
-    const found = await response.json() as RefundCase[];
-    if (!signal?.aborted) setRefundCases(found);
+    if (!apiOrigin) { setRefundMessage('환불 내역 연결을 준비 중입니다'); return; }
+    await refreshRefundHistory(apiOrigin, orderId, refundRefreshGate.current!,
+      setRefundCases, setRefundMessage, fetch, signal);
   }, []);
 
   useEffect(() => {
+    const gate = refundRefreshGate.current!;
+    gate.invalidate();
     setRefundCases([]);
-    if (refundOrder?.status !== 'PAID') { setRefundMessage(''); return; }
+    if (refundOrder?.status !== 'PAID') { setRefundMessage(''); return () => gate.invalidate(); }
     const controller = new AbortController();
     setRefundMessage('');
-    reloadRefunds(refundOrder.id, controller.signal).catch((error: unknown) => {
-      if (!controller.signal.aborted)
-        setRefundMessage(error instanceof Error ? error.message : '환불 내역을 불러오지 못했습니다');
-    });
-    return () => controller.abort();
+    void reloadRefunds(refundOrder.id, controller.signal);
+    return () => { controller.abort(); gate.invalidate(); };
   }, [refundOrder?.id, refundOrder?.status, reloadRefunds]);
 
   useEffect(() => {
@@ -651,12 +666,15 @@ export default function CartPage() {
 
   async function selectRefundOrder(id: string) {
     if (!apiOrigin) throw new Error('주문 연결을 준비 중입니다');
+    refundRefreshGate.current!.invalidate();
     const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(id)}`,
       { credentials: 'include', cache: 'no-store' });
     if (!response.ok) throw new Error('본인 주문을 다시 확인해 주세요');
     const order = await response.json() as PendingOrder;
     if (order.status !== 'PAID' || order.id !== id) throw new Error('결제완료 주문을 다시 선택해 주세요');
-    setRefundCases([]); setRefundMessage(''); setSelectedRefundOrder(order);
+    if (refundOrder?.id !== id) setRefundCases([]);
+    setRefundMessage(''); setSelectedRefundOrder(order);
+    if (refundOrder?.id === id) await reloadRefunds(id);
   }
 
   async function submitOrder() {
@@ -824,8 +842,7 @@ export default function CartPage() {
     refundOrderHistory={apiOrigin ? <PaidOrderHistory apiBase={apiOrigin} disabled={refundBusy || !!busy}
       selectedId={refundOrder?.id} onSelect={selectRefundOrder} /> : null}
     onRefundRequest={(input) => void submitRefund(input)}
-    onRefundRefresh={() => { if (refundOrder) void reloadRefunds(refundOrder.id).catch((error: unknown) =>
-      setRefundMessage(error instanceof Error ? error.message : '환불 내역을 불러오지 못했습니다')); }}
+    onRefundRefresh={() => { if (refundOrder) void reloadRefunds(refundOrder.id); }}
     orderPayableWon={promotionQuote?.payableTotalWon ?? reservation?.quote?.totalWon}
     onReserve={() => void reserve()} onRelease={() => void release()}
     onRecheck={() => { setReservation(undefined); void refresh().catch(() =>

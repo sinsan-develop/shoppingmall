@@ -2,11 +2,14 @@
 
 ## 진행 중 — 2026-10-05 S4.2 Task 6 리뷰 보정
 
+- 후속 독립 리뷰에서 원래 Important4 해소, 새 Important3(이전 환불 응답 덮어쓰기·관리자 요청 전환 입력 잔류·결제/판매중지 잠금 역전)를 확인했다. 실제 브라우저에서 앞선 두 결함을 수정 전 재현했고, DB는 `f33e926c3d60632487271606a811320a61e90b00`에서 실제 판매중지 승인과 결제 처리의 `40P01` 교착을 재현했다. 관리자 선택 변경 시 승인/반려 폼 초기화와 체크 검증, 구매자 조회 세대 검증·동일 주문 재선택 재조회, 결제 제품 잠금 선행을 최소 보정 중이다. 웹 지연 응답 단위시험3 RED→GREEN, 웹 집중12 PASS, 실제 고객 지연응답/관리자 입력초기화 GREEN. 브라우저 재현 스크립트는 `apps/web/test-support/refund-switching-browser.mjs`로 보존한다. 브라우저 시험의 빈내역 문구 대조 실수1회는 실제 DOM 문구로 수정했으며, 제품 결함 실패와 구분한다. 최신 SHA 전체 회귀·DB GREEN·재리뷰·자원정리 전 Task6 완료가 아니다.
 - 담당 어울, 단일 writer. 기준 `8a0078dafe924b1c8af3b87c60b54c5d23af732f`, 기존 `codex/s4-payment-refund`/worktree 유지. 독립 리뷰 Important 4건은 승인 이후 판매중지 시 재고 복원 누락을 완료로 숨기는 경로, 이전 주문 환불 접근 부재, UI 사유 코드 2개 불일치, 전체 취소 배송비 안내 불일치다.
 - PMO 경유 승인: 본인 `GET /customer/checkout/orders?status=PAID&cursor=<opaque>&limit=<n>` 1개 추가, 기본20/최대50·created_at,id 내림차순 keyset·세션 고객 고정·최소 주문 snapshot 요약·기존 상세/환불 연결. 새 DB/schema 없음. 변경 전 마지막 sessionStorage 주문만 접근 → 변경 후 본인 이전 결제완료 주문 선택. rollback은 추가 GET/선택 UI exact diff revert. 공유 0014/실 PG/Oracle/S5.2는 제외.
 - 재고 판단: 현 계약의 판매중지 자동복원 금지를 유지한다. 복원 불가 시 사건 보존·수동 검토 전환으로 완료 오표시를 해소하는 안을 PMO에 보고했다. 모든 복원 대상 검증 전 재고 변경을 하지 않는다.
 - QA 예정 자원: WSL 전용 네트워크 `shoppingmall-s42-review-1005`, 외부 포트·영속 볼륨 없는 tmpfs PostgreSQL `shoppingmall-s42-review-pg-1005`, 내부 DB `shoppingmall`, 일회용 Node `shoppingmall-s42-review-node-1005`. 목적은 리뷰 회귀 RED/GREEN·전체 격리 시험이며 본 Task 종료 후 정확한 컨테이너·네트워크 제거/잔류0 확인. 공유 `local-postgres`는 대상이 아니다.
 - 기존 수정 `apps/web/next-env.d.ts`, 미추적 `apps/web/AGENTS.md`/`CLAUDE.md`, root `legacy-onedrive/`는 보존. 과거 브라우저 QA 일부 캡처는 완료 전 화면이므로 최신 완료 증거와 혼동하지 않고 재검증한다.
+- 리뷰 보정 `bb5723a45b752f23a8bf68a59e13df23d073afc1`: 로컬 342 tests/246 pass/96 환경 skip/0 fail, PR본문8 pass, typecheck/lint/build 통과. WSL 동일 SHA의 집중 DB9 pass/0 skip/0 fail. RED에서는 사유/배송비 UI2건·목록404·재고누락/제품잠금/다품목 검증3건이 각각 기대 실패했다. lint 미사용 변수1회 수정, 원격 stdin CRLF 끝줄 오류2회는 수신측 CR 제거로 해결했다.
+- 브라우저 재검증 예정: 위 격리 PG 내부 전용 DB `shoppingmall_s4_refund_ui_e4211005`, Windows 루프백15439 SSH 터널(WSL 전용 PG IP로만 연결), 웹9091/API9092, Chrome9223·정확한 프로필 `D:\tmp\shoppingmall-s42-review-chrome`. 가상3계정·1상품·최초 주문과 후속 UI 주문만 사용. 비밀번호는 프로세스 환경에서 생성·사용하고 기록하지 않는다. 종료 후 전용 DB/터널/API/Web/Chrome·프로필을 제거하고 잔류0 확인. 증거는 `D:\tmp\shoppingmall-s42-review-evidence`에 보존한다. 공유 DB는 연결하지 않는다.
 
 ## 완료 — 2026-10-05 S4.2 Task 4 고객·관리자 환불 HTTP 계약
 
