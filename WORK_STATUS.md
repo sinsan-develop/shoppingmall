@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## NON-GREEN cleanup 보정 — 2026-10-06 S5.1 Task4 전체 DB 회귀
+
+- **실제 1차 결과:** exact `083c082b2c90c02f0d8717b60ef2c4a14a9439b8`의 fresh private DB에서 Task4 목표 **9/9 pass**, 지정 회귀 **4/4 pass**, 전체는 **389 tests/369 pass/19 skip/1 fail**이었다. 유일 실패는 `payment-customer-http-db.test.mjs`의 `finally`가 `shipment_fulfillments`보다 먼저 그 자식 `shipment_fulfillment_events`를 지우지 않아 발생한 FK `23503`이며 제품 동작 실패가 아니다.
+- **잔류·환경 정리:** 실패 run에는 accounts 6, sellers 3, products 5와 reservation/order/shipment/fulfillment/fulfillment-event/address/cart 각 1, payment attempt/event 0이 남았다. controller가 exact tmpfs PostgreSQL/network를 확인한 뒤 전체 폐기했으며 shared DB는 접촉하지 않았다.
+- **승인된 test-only 보정:** 기존 orderId 결제/주문 cleanup 순서와 의미를 유지하고, 해당 orderId의 `shipment_orders.id`에 속한 `shipment_fulfillment_events`만 fulfillment 삭제 직전에 선삭제하는 query 1개를 추가했다. broad cleanup과 제품 코드 변경은 없다.
+- **변경 파일·로컬 검증:** `apps/api/test/payment-customer-http-db.test.mjs`, 이 `WORK_STATUS.md`만 변경했다. `DATABASE_URL`을 제거한 대상 시험은 **1 test/0 pass/1 DB skip/0 fail**이며 이 skip은 실제 DB 검증 근거가 아니다. 전체 nonDB는 주 시험 **371 tests/264 pass/107 skip/0 fail**, PR 본문 **8/8 pass**이고 API typecheck·lint는 exit 0이다. diff 검토와 test-only commit/push 뒤 fresh private DB 전체 재검증과 잔류 0 확인은 controller 대기다.
+
 ## GREEN 후보 — 2026-10-06 S5.1 Task4 결제 승인→READY
 
 - **기준·실제 RED:** exact base `1e9fe42790e83c20bbee416106881454655ac115`, fresh migration 16, private PostgreSQL system identifier `7693301660581011496`, 실행 전후 clean에서 목표시험은 Node 집계 **9 tests/3 pass/6 fail**이었다. decline·unconfirmed·review 3계약은 통과했고, 정상 승인·replay는 세 출고행이 실제 `PAYMENT_PENDING/version 0/date null`, missing fulfillment와 direct owner conflict는 실제 `APPLIED/PAID/CONSUMED/shipments PAID`가 되어 실패했다. 그룹/중첩 집계를 제외한 의미상 제품 RED는 승인·replay·누락·담당자 충돌 4계약이며 harness error 0, 사후 모든 run-scoped 행 0과 fulfillment/global singleton 각 1이었다.
