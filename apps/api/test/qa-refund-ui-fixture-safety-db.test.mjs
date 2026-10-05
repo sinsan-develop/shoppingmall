@@ -119,7 +119,16 @@ test('shared-fixture reset rejects foreign identity/reference and blocks a late 
       [outsider, manifest.productId])).rows[0].id;
       const pendingReset = runRefundUiFixture('reset', runId, url, undefined, consent, manifest);
       pendingReset.catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      let blocked = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        blocked = (await pool.query(`SELECT EXISTS (
+          SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+            AND wait_event_type='Lock' AND query LIKE 'LOCK TABLE audit_events%'
+        ) AS blocked`)).rows[0].blocked;
+        if (blocked) break;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      assert.equal(blocked, true, 'reset must wait for the uncommitted external audit');
       await auditWriter.query('COMMIT');
       await assert.rejects(pendingReset, /audit/);
       assert.equal((await pool.query('SELECT count(*)::int AS count FROM audit_events WHERE id=$1',
