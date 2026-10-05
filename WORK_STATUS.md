@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S4.1 충돌 기록 보정 승인
+
+- 담당 어울, 단일 writer. 신산님이 아직 공유 DB에 적용하지 않은 0013에 결제 사건 충돌 전용 관계 1개를 추가하는 범위를 승인했다. 원사건 불변·새 사건 지문/시각/사유 영속·충돌 결제 확정 차단을 목표로 TDD 보정한다. 공유 DB 0013 적용·실 PG·Oracle·S4.2는 승인에 포함되지 않는다.
+- 기준 `codex/s4-payment-refund@bc09ad13f8cfa9c82ade1eefcc917d02932e35e8`, Windows 격리 worktree clean·WSL 지정 checkout 동일 SHA/clean. 예상 변경: 0013 SQL, Drizzle schema, 결제 사건 서비스/저장소, DB 시험, 계약·환경·현황 문서. 기존 0000~0012·주문/결제 행 삭제 없음.
+- 격리 시험 자원 사전 계획: WSL의 전용 네트워크 `shoppingmall-s41-conflict-1005`, tmpfs PostgreSQL `shoppingmall-s41-conflict-pg-1005`, 일회용 Node 시험 컨테이너만 사용한다. 외부 포트·영속 볼륨 0, 수명은 이번 RED→GREEN/전체 회귀까지. 기존 이름 잔류 없음 확인. 완료·실패·중단 시 고유 시험 행을 확인하고 정확한 전용 PG·네트워크만 제거해 잔류 0을 확인한다. 공유 `local-postgres/shoppingmall`은 변경하지 않는다.
+- 실제 브라우저 검증은 이전 ACL 도구 오류로 미검증, 새 보정의 WSL 격리 DB 전체 회귀 및 공유 DB 적용도 아직 미실행이다. 동일 근본 원인 오류 연속 0회.
+
 ## 진행 중 — 2026-10-05 S4.1 결제 계약 구현 승인·착수
 
 - 보정 재리뷰/최종 현재 판정: `24301094bf21ad67b8717ace9a4c2f2c134ed063`에서 이전 Important ②와 Minor는 읽기 전용 재리뷰로 해소 확인, Important ① 충돌 영속 기록은 새 관계 승인 대기라 **Stage 병합 보류**다. WSL 지정 checkout도 같은 SHA/clean이며 별도 인터넷·DB 없는 Node24 컨테이너에서 결제 adapter/장바구니 목표 **12 pass/0 skip/0 fail**, 임시 컨테이너 잔류 0. Windows 같은 SHA 전체 318 total/231 pass/87 환경 skip/0 fail·PR 검사 8 pass·typecheck/lint/build exit 0. 앞선 실DB 전체 173/156 pass/17 skip은 보정 전 SHA `fd12bbe`의 증거이며 최신 코드의 실DB 전체 PASS로 승격하지 않는다. 공유 0013 적용·실제 브라우저·S4.2/PG/Oracle/UAT 미검증은 그대로다.

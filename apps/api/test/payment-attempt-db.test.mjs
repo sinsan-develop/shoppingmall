@@ -51,6 +51,19 @@ test('payment attempt belongs to its buyer and an idempotency key cannot change 
     assert.equal(duplicate.id, event.id);
     await assert.rejects(recordVerifiedPaymentEvent(pool, first.id,
       { ...verified, amountWon: verified.amountWon + 1 }), /Payment event conflict/);
+    const conflicts = await pool.query(`SELECT original_event_id,incoming_attempt_id,
+      incoming_fingerprint,reason,received_at FROM payment_event_conflicts
+      WHERE original_event_id=$1`, [event.id]);
+    assert.equal(conflicts.rowCount, 1);
+    assert.equal(conflicts.rows[0].original_event_id, event.id);
+    assert.equal(conflicts.rows[0].incoming_attempt_id, first.id);
+    assert.match(conflicts.rows[0].incoming_fingerprint, /^[0-9a-f]{64}$/);
+    assert.equal(conflicts.rows[0].reason, 'FINGERPRINT_MISMATCH');
+    assert.ok(conflicts.rows[0].received_at instanceof Date);
+    const original = await pool.query(`SELECT event_fingerprint,amount_won,processing_status
+      FROM payment_events WHERE id=$1`, [event.id]);
+    assert.equal(original.rows[0].amount_won, 13000);
+    assert.equal(original.rows[0].processing_status, 'PENDING_PROCESSING');
     const rows = await pool.query('SELECT count(*)::int AS n FROM payment_events WHERE payment_attempt_id=$1',
       [first.id]);
     assert.equal(rows.rows[0].n, 1);
@@ -69,6 +82,8 @@ test('payment attempt belongs to its buyer and an idempotency key cannot change 
       'PENDING_PAYMENT');
   } finally {
     if (ids.order) {
+      await pool.query(`DELETE FROM payment_event_conflicts WHERE incoming_attempt_id IN
+        (SELECT id FROM payment_attempts WHERE checkout_order_id=$1)`, [ids.order]);
       await pool.query(`DELETE FROM payment_events WHERE payment_attempt_id IN
         (SELECT id FROM payment_attempts WHERE checkout_order_id=$1)`, [ids.order]);
       await pool.query('DELETE FROM payment_attempts WHERE checkout_order_id=$1', [ids.order]);
