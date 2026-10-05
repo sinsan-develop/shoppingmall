@@ -4,6 +4,14 @@ import { Pool, type PoolClient } from 'pg';
 import { hashPassword } from '../src/auth/credentials.js';
 
 const fingerprint = 'c'.repeat(64);
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type SharedRefundManifest = {
+  runId: string; emails: string[]; accountIds: string[]; sellerId: string;
+  sellerCategoryId: string; productId: string; productCategoryId: string;
+  revisionId: string; optionId: string; addressId: string;
+  orderId: string; reservationId: string; shipmentId: string;
+};
 
 function runId(value: string) {
   if (!/^[0-9a-f]{8}$/i.test(value)) throw new Error('QA_RUN_ID must be eight hex characters');
@@ -36,6 +44,20 @@ export function validateSharedRefundUiTarget(databaseUrl: string, value: string,
   return { url, database };
 }
 
+export function validateSharedRefundManifest(value: string, candidate: unknown): SharedRefundManifest {
+  const manifest = candidate as Partial<SharedRefundManifest> | null;
+  const ids = manifest && [manifest.sellerId, manifest.sellerCategoryId, manifest.productId,
+    manifest.productCategoryId, manifest.revisionId, manifest.optionId, manifest.addressId,
+    manifest.orderId, manifest.reservationId, manifest.shipmentId];
+  if (!manifest || manifest.runId !== runId(value) ||
+      JSON.stringify(manifest.emails) !== JSON.stringify(refundUiEmails(value)) ||
+      !Array.isArray(manifest.accountIds) || manifest.accountIds.length !== 3 ||
+      !manifest.accountIds.every((id) => typeof id === 'string' && uuid.test(id)) ||
+      new Set(manifest.accountIds).size !== 3 || !ids?.every((id) => typeof id === 'string' && uuid.test(id)))
+    throw new Error('Shared refund UI reset requires exact creation manifest');
+  return manifest as SharedRefundManifest;
+}
+
 function prefix(value: string) { return `qa-${runId(value)}-refund-ui`; }
 
 async function findFixture(client: PoolClient, value: string) {
@@ -52,12 +74,88 @@ async function findFixture(client: PoolClient, value: string) {
     seller: seller.rows[0], products: products.rows };
 }
 
-export async function resetRefundUiFixture(client: PoolClient, value: string, maxOrders = 1) {
+export async function resetRefundUiFixture(client: PoolClient, value: string, maxOrders = 1,
+  sharedManifest?: SharedRefundManifest) {
   const found = await findFixture(client, value);
+  if (sharedManifest) {
+    const accountIds = refundUiEmails(value).map((email) => found.byEmail.get(email));
+    if (JSON.stringify(accountIds) !== JSON.stringify(sharedManifest.accountIds) ||
+        found.accountIds.length !== 3 || found.seller?.id !== sharedManifest.sellerId ||
+        found.seller?.category_id !== sharedManifest.sellerCategoryId || found.products.length !== 1 ||
+        found.products[0].id !== sharedManifest.productId ||
+        found.products[0].category_id !== sharedManifest.productCategoryId)
+      throw new Error('Shared refund UI fixture ownership differs from creation manifest');
+    // FK inserts acquire KEY SHARE; these locks keep late foreign references out until commit.
+    await client.query('SELECT id FROM accounts WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [accountIds]);
+    await client.query('SELECT id FROM sellers WHERE id=$1 FOR UPDATE', [sharedManifest.sellerId]);
+    await client.query('SELECT id FROM products WHERE id=$1 FOR UPDATE', [sharedManifest.productId]);
+    await client.query('SELECT id FROM product_revisions WHERE id=$1 FOR UPDATE', [sharedManifest.revisionId]);
+    await client.query('SELECT id FROM product_options WHERE id=$1 FOR UPDATE', [sharedManifest.optionId]);
+    const identities = await client.query<{ account_id: string; kind: string; identifier: string }>(
+      'SELECT account_id,kind,identifier FROM account_identities WHERE account_id=ANY($1::uuid[])', [accountIds]);
+    const roles = await client.query<{ account_id: string; role: string; seller_id: string | null }>(
+      'SELECT account_id,role,seller_id FROM account_roles WHERE account_id=ANY($1::uuid[])', [accountIds]);
+    const addresses = await client.query<{ id: string; account_id: string; label: string }>(
+      'SELECT id,account_id,label FROM customer_addresses WHERE account_id=ANY($1::uuid[])', [accountIds]);
+    const revisions = await client.query<{ id: string; proposed_by_account_id: string; reviewed_by_account_id: string }>(
+      'SELECT id,proposed_by_account_id,reviewed_by_account_id FROM product_revisions WHERE product_id=$1',
+      [sharedManifest.productId]);
+    const options = await client.query<{ id: string }>(
+      'SELECT id FROM product_options WHERE revision_id=$1', [sharedManifest.revisionId]);
+    const publications = await client.query<{ published_by_account_id: string }>(
+      'SELECT published_by_account_id FROM product_publications WHERE product_id=$1', [sharedManifest.productId]);
+    const sellerCategory = await client.query<{ name: string }>(
+      'SELECT name FROM seller_categories WHERE id=$1', [sharedManifest.sellerCategoryId]);
+    const productCategory = await client.query<{ name: string }>(
+      'SELECT name FROM product_categories WHERE id=$1', [sharedManifest.productCategoryId]);
+    const unexpected = await client.query(`SELECT 1 FROM product_images WHERE revision_id=$1
+      UNION ALL SELECT 1 FROM stock_change_requests WHERE option_id=$2
+      UNION ALL SELECT 1 FROM inventory_deferred_stock_targets WHERE option_id=$2
+      UNION ALL SELECT 1 FROM product_sale_stop_requests WHERE product_id=$3
+      UNION ALL SELECT 1 FROM seller_shipping_policies WHERE seller_id=$4
+      UNION ALL SELECT 1 FROM seller_shipping_policy_requests WHERE seller_id=$4 LIMIT 1`,
+    [sharedManifest.revisionId, sharedManifest.optionId, sharedManifest.productId, sharedManifest.sellerId]);
+    if (identities.rows.length !== 3 || identities.rows.some((row) => {
+      const index = sharedManifest.accountIds.indexOf(row.account_id);
+      return index < 0 || row.kind !== 'email' || row.identifier !== sharedManifest.emails[index];
+    }) || new Set(identities.rows.map((row) => row.account_id)).size !== 3 ||
+      roles.rows.length !== 3 || roles.rows.some((row) => {
+        const index = sharedManifest.accountIds.indexOf(row.account_id);
+        return index < 0 || row.role !== ['customer', 'seller', 'admin'][index] ||
+          row.seller_id !== (index === 1 ? sharedManifest.sellerId : null);
+      }) || new Set(roles.rows.map((row) => row.account_id)).size !== 3 ||
+      addresses.rows.length !== 1 || addresses.rows[0].id !== sharedManifest.addressId ||
+      addresses.rows[0].account_id !== sharedManifest.accountIds[0] || addresses.rows[0].label !== '환불 QA' ||
+      revisions.rows.length !== 1 || revisions.rows[0].id !== sharedManifest.revisionId ||
+      revisions.rows[0].proposed_by_account_id !== sharedManifest.accountIds[1] ||
+      revisions.rows[0].reviewed_by_account_id !== sharedManifest.accountIds[2] ||
+      options.rows.length !== 1 || options.rows[0].id !== sharedManifest.optionId ||
+      publications.rows.length !== 1 || publications.rows[0].published_by_account_id !== sharedManifest.accountIds[2] ||
+      sellerCategory.rows[0]?.name !== prefix(value) || productCategory.rows[0]?.name !== prefix(value) ||
+      unexpected.rowCount)
+      throw new Error('Shared refund UI fixture contains foreign account or product data');
+  }
   const orderIds = found.accountIds.length ? (await client.query<{ id: string }>(
     'SELECT id FROM checkout_orders WHERE account_id=ANY($1::uuid[])', [found.accountIds])).rows.map((row) => row.id) : [];
   if (orderIds.length > maxOrders || found.products.length > 1 || found.accountIds.length > 3)
     throw new Error('Refund UI fixture scope exceeds its bounded accounts, orders or product');
+  if (sharedManifest && !orderIds.includes(sharedManifest.orderId))
+    throw new Error('Shared refund UI original order differs from creation manifest');
+  if (sharedManifest && orderIds.length) {
+    const foreignActors = await client.query(`SELECT 1 FROM checkout_orders
+      WHERE id=ANY($1::uuid[]) AND account_id<>$2
+      UNION ALL SELECT 1 FROM refund_cases WHERE checkout_order_id=ANY($1::uuid[])
+        AND (NOT(requester_account_id=ANY($3::uuid[])) OR
+          (decision_by IS NOT NULL AND NOT(decision_by=ANY($3::uuid[]))) OR
+          (pre_shipment_confirmed_by IS NOT NULL AND NOT(pre_shipment_confirmed_by=ANY($3::uuid[]))))
+      UNION ALL SELECT 1 FROM refund_case_events e JOIN refund_cases c ON c.id=e.refund_case_id
+        WHERE c.checkout_order_id=ANY($1::uuid[]) AND e.actor_account_id IS NOT NULL
+          AND NOT(e.actor_account_id=ANY($3::uuid[]))
+      UNION ALL SELECT 1 FROM order_status_events WHERE checkout_order_id=ANY($1::uuid[])
+        AND actor_account_id IS NOT NULL AND NOT(actor_account_id=ANY($3::uuid[])) LIMIT 1`,
+    [orderIds, sharedManifest.accountIds[0], sharedManifest.accountIds]);
+    if (foreignActors.rowCount) throw new Error('Shared refund UI order contains foreign actor data');
+  }
   if (found.products.length) {
     const productId = found.products[0].id;
     const foreignCart = await client.query(`SELECT 1 FROM customer_cart_items i
@@ -120,13 +218,13 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
     const optionIds = (await client.query<{ id: string }>(`SELECT o.id FROM product_options o
       JOIN product_revisions r ON r.id=o.revision_id WHERE r.product_id=ANY($1::uuid[])`, [productIds])).rows
       .map((row) => row.id);
-    await client.query('DELETE FROM customer_cart_items WHERE option_id=ANY($1::uuid[])', [optionIds]);
-    await client.query('DELETE FROM restock_subscriptions WHERE product_id=ANY($1::uuid[])', [productIds]);
-    await client.query('DELETE FROM customer_favorites WHERE product_id=ANY($1::uuid[])', [productIds]);
-    await client.query('DELETE FROM inventory_deferred_stock_targets WHERE option_id=ANY($1::uuid[])', [optionIds]);
-    await client.query('DELETE FROM stock_change_requests WHERE option_id=ANY($1::uuid[])', [optionIds]);
-    await client.query('DELETE FROM product_sale_stop_requests WHERE product_id=ANY($1::uuid[])', [productIds]);
-    await client.query('DELETE FROM product_publications WHERE product_id=ANY($1::uuid[])', [productIds]);
+    await client.query('DELETE FROM customer_cart_items WHERE option_id=ANY($1::uuid[]) AND account_id=ANY($2::uuid[])', [optionIds, found.accountIds]);
+    await client.query('DELETE FROM restock_subscriptions WHERE product_id=ANY($1::uuid[]) AND account_id=ANY($2::uuid[])', [productIds, found.accountIds]);
+    await client.query('DELETE FROM customer_favorites WHERE product_id=ANY($1::uuid[]) AND account_id=ANY($2::uuid[])', [productIds, found.accountIds]);
+    await client.query('DELETE FROM inventory_deferred_stock_targets WHERE option_id=ANY($1::uuid[]) AND requested_by_account_id=ANY($2::uuid[])', [optionIds, found.accountIds]);
+    await client.query('DELETE FROM stock_change_requests WHERE option_id=ANY($1::uuid[]) AND requested_by_account_id=ANY($2::uuid[])', [optionIds, found.accountIds]);
+    await client.query('DELETE FROM product_sale_stop_requests WHERE product_id=ANY($1::uuid[]) AND requested_by_account_id=ANY($2::uuid[])', [productIds, found.accountIds]);
+    await client.query('DELETE FROM product_publications WHERE product_id=ANY($1::uuid[]) AND published_by_account_id=ANY($2::uuid[])', [productIds, found.accountIds]);
     await client.query('DELETE FROM inventory_levels WHERE option_id=ANY($1::uuid[])', [optionIds]);
     await client.query('DELETE FROM product_images WHERE revision_id IN (SELECT id FROM product_revisions WHERE product_id=ANY($1::uuid[]))', [productIds]);
     await client.query('DELETE FROM product_options WHERE id=ANY($1::uuid[])', [optionIds]);
@@ -222,22 +320,26 @@ async function seed(client: PoolClient, value: string, password: string) {
      amount_won,event_fingerprint,processing_status,processed_at)
     VALUES ($1,'mock',$2,'APPROVED',$3,$4,12000,$5,'APPLIED',now())`,
   [paymentAttemptId, `mock:event:${randomUUID()}`, orderId, `mock:payment:${randomUUID()}`, fingerprint]);
-  return { runId: runId(value), emails, orderId, reservationId, shipmentId, optionId };
+  return { runId: runId(value), emails, accountIds, sellerId, sellerCategoryId,
+    productId, productCategoryId: categoryId, revisionId, optionId, addressId,
+    orderId, reservationId, shipmentId };
 }
 
 export async function runRefundUiFixture(action: 'seed' | 'reset', value: string,
-  databaseUrl: string, password?: string, sharedConsent?: string) {
+  databaseUrl: string, password?: string, sharedConsent?: string, manifestInput?: unknown) {
   if (sharedConsent) validateSharedRefundUiTarget(databaseUrl, value, sharedConsent);
   else validateRefundUiTarget(databaseUrl, value);
+  const manifest = sharedConsent && action === 'reset' ?
+    validateSharedRefundManifest(value, manifestInput) : undefined;
   if (action === 'seed' && (!password || password.length < 12))
     throw new Error('QA_FIXTURE_PASSWORD must be set');
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     const client = await pool.connect();
     try {
-      await client.query('BEGIN');
+      await client.query(sharedConsent ? 'BEGIN ISOLATION LEVEL SERIALIZABLE' : 'BEGIN');
       const result = action === 'seed' ? await seed(client, value, password!) :
-        await resetRefundUiFixture(client, value, sharedConsent ? 4 : 1);
+        await resetRefundUiFixture(client, value, sharedConsent ? 4 : 1, manifest);
       await client.query('COMMIT');
       return result;
     } catch (error) {
@@ -251,7 +353,9 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   const action = process.argv[2];
   if (action !== 'seed' && action !== 'reset') throw new Error('usage: qa-refund-ui-fixture.ts seed|reset');
   runRefundUiFixture(action, process.env.QA_RUN_ID ?? '', process.env.DATABASE_URL ?? '',
-    process.env.QA_FIXTURE_PASSWORD, process.env.QA_SHARED_REFUND_UI).then((result) => process.stdout.write(`${JSON.stringify(result)}\n`))
+    process.env.QA_FIXTURE_PASSWORD, process.env.QA_SHARED_REFUND_UI,
+    process.env.QA_SHARED_REFUND_UI_MANIFEST ? JSON.parse(process.env.QA_SHARED_REFUND_UI_MANIFEST) : undefined)
+    .then((result) => process.stdout.write(`${JSON.stringify(result)}\n`))
     .catch((error) => { process.stderr.write(`${error instanceof Error ? error.message : 'QA fixture failed'}\n`);
       process.exitCode = 1; });
 }

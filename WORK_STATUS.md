@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S4 공유 QA reset 독립 리뷰 보정
+
+- 독립 reviewer Volta는 `3392ed4..6bb25ed`의 공유 fixture를 읽기 전용 검토해 Critical 2건(외부 계정에 QA 이메일을 붙였을 때 과도 삭제, 외부 참조 사전검사와 삭제 사이 경합)·Important 2건(해당 안전성 시험 부족, 브라우저 스크립트 단독으론 DB 대조/정리 재현 불가)을 보고했고 **병합 보류**를 권고했다. PMO에 즉시 보고했고 같은 기존 branch에서 전용 fixture 보호 보정·격리 DB 경합 시험→독립 재검토→exact SHA 전체 gate 후 병합 판단을 지시받았다. 공유 DB의 정리 후 14범주0과 기존 브라우저 PASS 기록은 당시 증거로만 보존한다.
+- 보정 중: 공유 reset은 생성 시 반환한 정확한 account/seller/product/revision/option/address/order UUID manifest가 없거나 현재 행과 다르면 삭제 전에 거부한다. QA 계정의 다른 identity·역할·주소·상품 revision/작성자·외부 환불/주문 actor를 거부하고, 계정/판매자/상품/revision/option FK 부모를 잠가 후발 외부 참조를 차단한다. 장바구니·찜·재입고 등 삭제에는 QA account 조건을 추가했다. isolated 기존 경로는 유지한다. 명세 없는 공유 DB 재시드나 새 API/schema는 없다.
+- RED: manifest 검사 export가 없어서 목표시험 실패. 보정 후 로컬 목표6/6 PASS·API typecheck PASS, 별도 private DB 외부 identity/장바구니/후발 삽입 경합 시험은 파일 작성만 했고 아직 **실DB 미실행**이다. 최종 검증·재리뷰·S4 PR/병합은 미완료. 앱/웹의 소유 불명 untracked는 보존한다.
+
 ## 진행 중 — 2026-10-05 S4 공유 개발 DB 실제 브라우저 E2E
 
 - 정식 공유 브라우저 E2E 자체 판정 **PASS**: 제품/QA 보호 SHA `cfe1fc8f808b7d7ec7e8fdbb77f1b27a1adaf3e6`에서 WSL 지정 checkout/API/Web와 Windows 루프백 Chrome을 연결했다. 고객이 기존 PAID 주문 수량1 부분 취소→관리자 모의 환불 3,333원(배송0), 잔여 수량2 전량 취소→관리자 모의 환불 8,667원(상품6,667+실납 배송2,000)을 실제 화면에서 완료했다. 원주문은 PAID/상품12,000/상품할인2,000/배송3,000/지원1,000/납부12,000 불변. 새 고객 주문은 모의 결제 거절→지연→승인 결과 응답 유실 주입 뒤 같은 버튼 재시도로 PAID가 되었고, 결제시도는 APPROVED2(원시드 포함)/DECLINED1/PENDING1·결제사건3, 주문 PAID2(원시드 포함)이다. 실제 카드/PG 승인이 아니다.
