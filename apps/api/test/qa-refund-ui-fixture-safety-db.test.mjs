@@ -50,8 +50,12 @@ test('shared-fixture reset rejects foreign identity/reference and blocks a late 
     } };
     const reset = resetRefundUiFixture(wrapper, runId, 4, manifest);
     reset.catch(() => {});
-    await Promise.race([reachedDelete, new Promise((_, reject) =>
-      setTimeout(() => reject(Error('reset did not reach first delete')), 10000))]);
+    let deadline;
+    try {
+      await Promise.race([reachedDelete, new Promise((_, reject) => {
+        deadline = setTimeout(() => reject(Error('reset did not reach first delete')), 10000);
+      })]);
+    } finally { clearTimeout(deadline); }
     inserter = await pool.connect();
     await inserter.query("SET lock_timeout='5s'");
     const insertPid = (await inserter.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
