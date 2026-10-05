@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S4 QA 정리 안전성 최종 재검증
+
+- 담당 어울/단일 writer, 기존 `codex/s4-payment-refund`와 지정 WSL checkout 유지. 새 공개 API·schema·공유 DB 재시드·실 PG·Oracle·S5.2는 범위 밖. `apps/web/AGENTS.md`·`CLAUDE.md`의 소유 불명 untracked는 보존했다.
+- 첫 독립 리뷰 Critical2를 고친 뒤 두 번째 리뷰의 Important2(시험 계정 예약에 외부 상품 옵션, 시험 작성자의 외부 대상 또는 외부 작성자의 시험 대상 감사 이력)를 확인했다. 격리 tmpfs PostgreSQL에 0000~0014를 적용해 외부 옵션 예약이 잘못 정리되는 RED 0/1을 실측했고, 매니페스트의 정확한 예약·옵션 소유권 및 양방향 감사 대상 사전검사·선별 삭제 후 GREEN 1/1을 확인했다. 외부 identity·장바구니·후발 FK 삽입 보호도 같은 시험에 포함됐다.
+- 추가 독립 리뷰는 Critical0/Important2(감사 테이블 잠금 전 트랜잭션 스냅샷 경합, 매니페스트 배송 ID·판매자/옵션 소유권 누락)를 보고했다. 다른 판매자의 배송행이 시험 주문에 붙어도 정리가 진행되는 RED 0/1을 전용 DB에서 확인했다. 잠금을 첫 DB 읽기 전에 옮기고 원래 배송 ID 및 모든 시험 주문의 발송·배송행을 상품/옵션/판매자와 대조했다. 외부 감사 작성자가 미커밋 상태인 동안 reset이 실제 `audit_events` 잠금에서 대기한 뒤 커밋을 관찰하고 거부하는 시험을 추가했다. 최종 코드 후보 `9d2c5e5`의 격리 시험 1 pass/0 skip/0 fail, 사후 계정/상품/주문/감사 4범주0. 시험 DB는 외부 포트·영속 mount 없는 정확한 `shoppingmall-s4-fixture-pg-1005`이며 아직 정리 전이다.
+- 중간 SHA `05b18c3`의 로컬 전체 352건/254 pass/98 환경 skip/0 fail·PR 본문8 pass 및 타입/린트/빌드 exit0, WSL 공유 DB 전체 353건/335 pass/18 조건부 skip/0 fail·PR본문8 pass, 사후 계정/상품/주문/환불/감사5범주0은 **그 SHA의 증거**다. 최종 후보 `9d2c5e5` 또는 이후 문서 SHA의 전체 gate 통과로 바꾸어 기록하지 않는다. 종전 공유 실제 Chrome E2E는 `cfe1fc8`의 증거이고, 환불 UI/공개 API 수정 없이 QA 정리 안전성만 보정했다.
+- 오류/수정: 잘못된 Git 원격 이름 사용 1회는 실제 `origin`이 승인된 SSH 별칭 URL임을 확인해 정상 push로 해결. 첫 RED 시험의 실패 원인을 finally FK 정리 오류가 가린 1회는 disposable DB 전용 처리로 수정하고 같은 반례의 실제 `Missing expected rejection`을 재확인했다. 배송행 시험이 존재하지 않는 `id`를 가정한 초안은 스키마 대조 뒤 복합키로 고쳤다. 제품/공유 DB 손상 확인 없음.
+- 남은 조건: 최종 문서 commit과 동일 SHA의 로컬/WSL 전체 test·typecheck·lint·build, 독립 리뷰 Critical0/Important0, 공유 DB QA 전수잔류0, 수동 안내 대조, PR 목적·영향·검증·미검증·복구 기록, 병합·merged-main smoke·안전한 branch/worktree 정리. 실제 PG·Oracle·사용자 인수/출시와 200%·키보드·인쇄는 이 Stage 증거가 아니다.
+
 ## 진행 중 — 2026-10-05 S4 공유 QA reset 독립 리뷰 보정
 
 - 로컬 최종 후보 전량 `pnpm test` **352건/254pass/98skip/0fail**와 PR본문8/8, 전체 `pnpm typecheck/lint/build` exit0. 98skip은 로컬 DB/환경97+새 private tmpfs 경합1이며 PASS로 세지 않았다. 새 경합1건은 위 WSL 전용 tmpfs 실행에서 별도로 1pass/0skip/0fail이다. 브라우저는 앞선 SHA의 실제 화면 증거이며 보정은 fixture 전용이라 제품 UI/API 공개코드는 변하지 않았다.
