@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## RED 준비 — 2026-10-06 S5.1 Task3 Fix Round 2 account lock 경합
+
+- **범위·기준:** PMO 승인에 따라 기존 `codex/s5-fulfillment-engagement` Windows worktree의 exact base `e900e16e46f933ea8a30b9a5b143e98488addc2a`·clean에서 시작했다. 이번 1차는 `apps/api/test/fulfillment-order-db.test.mjs`와 이 파일만 수정하며 제품 코드, 공개 API/schema/UI, S3 금액·배송정책 의미는 변경하지 않는다. origin/WSL/Docker/공유 DB는 사전 확인·접속·변경하지 않았다.
+- **예상 RED 계약:** customer+admin 복수 역할의 같은 account로 주문과 기존 `ShippingPolicies.updateGlobal`을 경합시킨다. 주문이 account lock을 얻은 뒤 정책 UPDATE가 전역 정책 row lock을 보유하는 것을 별도 `FOR SHARE` probe와 `pg_blocking_pids`로 확인하고, audit FK가 주문 account lock을 기다리는지 관찰한다. 구 `FOR UPDATE`에서는 account↔policy 순환 대기로 `40P01` 또는 한 거래 실패가 예상된다. 후속 승인 보정 `FOR NO KEY UPDATE`에서는 두 거래가 모두 commit하고 주문 공동출고 cutoff는 거래 snapshot 시작 시 기존 `12:00`, 전역정책은 새 `22:00`이어야 한다.
+- **시험 안전성:** sleep만으로 순서를 추측하지 않고 account 획득·policy UPDATE 완료 barrier와 실제 blocking PID를 사용한다. `finally`에서 주문·정책·probe promise를 모두 해제·회수하고, 해당 주문/출고·정책 audit·임시 admin 역할·설정/정책·QA fixture를 기존 값으로 복원한다. 기존 Task3 race test는 변경하지 않았다.
+- **현재 로컬 비DB:** 대상 파일 로더 실행은 **4 tests/0 pass/4 DB 조건 skip/0 fail**. 전체 `pnpm test`는 주 시험 **370 tests/264 pass/106 DB·환경 skip/0 fail**, PR 본문 **8/8 pass**, `pnpm lint` exit 0이다. 이는 구문·모듈 로딩과 비DB 회귀 확인일 뿐 RED 실DB 증거가 아니며 skip을 PASS에 포함하지 않는다. controller가 별도 private DB에서 RED를 확인하기 전 제품 한 줄은 변경하지 않는다.
+- **오류 1회:** 읽기 전용 기존 사용 예 검색에서 Windows 경로 와일드카드를 `rg` positional 인수로 전달해 `os error 123`이 발생했다. 파일·Git·DB 영향0이며 같은 원인을 반복하지 않고 `rg -g '*.mjs'`로 보정해 조회했다.
+
 ## NON-GREEN — 2026-10-06 S5.1 Task3 회귀시험 Fix Round 1
 
 - **현재 판정:** Windows·승인 SSH origin·WSL `ee6f8de1a731c1bf297b1b12c7b00a1e6667f3ef` exact SHA·clean, Task3 private 자원0에서 재개한다. 직전 WSL fresh 0000~0015 전체 순차 gate는 **370건/341 pass/21 skip/8 fail**이므로 Task3 목표 **3/3** 및 기존 order-submit/order-snapshot **4/4** GREEN을 최종 PASS로 승격하지 않는다. skip도 PASS에 포함하지 않는다.

@@ -155,6 +155,12 @@ async function waitForBlock(pool, writerPid, orderPid) {
   return false;
 }
 
+function createBarrier() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 async function cleanupScenario(pool, scenario) {
   if (!scenario) return;
   await pool.query(`UPDATE fulfillment_settings SET owool_seller_id=$1,updated_by=$2,
@@ -198,6 +204,12 @@ async function cleanupScenario(pool, scenario) {
     await pool.query('DELETE FROM promotion_campaigns WHERE id=$1', [scenario.campaignId]);
   }
   await pool.query('DELETE FROM customer_addresses WHERE id=$1', [scenario.addressId]);
+  await pool.query(`DELETE FROM audit_events WHERE actor_account_id=$1
+    AND action='shipping.global_update' AND target_type='shipping_policy_global'
+    AND target_id='1'`, [scenario.buyerId]);
+  if (scenario.dualRoleId) {
+    await pool.query('DELETE FROM account_roles WHERE id=$1', [scenario.dualRoleId]);
+  }
   await runQaCatalogFixture('reset', scenario.runId, process.env.DATABASE_URL);
 }
 
@@ -382,6 +394,145 @@ test('order submission locks assignment and cutoff sources until its snapshot co
     ].sort((left, right) => left[0].localeCompare(right[0])));
   } finally {
     await Promise.all(writers.map((writer) => writer.done.catch(() => {})));
+    await cleanupScenario(pool, scenario);
+    await pool.end();
+  }
+});
+
+test('dual-role global policy audit cannot deadlock an order snapshot', {
+  skip: !process.env.DATABASE_URL || !process.env.S5_ORDER_TEST_DB_SYSTEM_ID,
+  timeout: 30000,
+}, async (context) => {
+  const { submitPendingOrder } = await import('../src/orders/service.ts');
+  const { ShippingPolicies } = await import('../src/shipping/service.ts');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 12 });
+  const accountLocked = createBarrier();
+  const releaseOrder = createBarrier();
+  const policyRowLocked = createBarrier();
+  const releasePolicy = createBarrier();
+  let scenario;
+  let orderPromise;
+  let policyPromise;
+  let policyProbe;
+  try {
+    if (!await requireSchemas(context, pool)) return;
+    scenario = await seedOrderScenario(pool, randomBytes(4).toString('hex'));
+    await configureFulfillment(pool, scenario);
+    scenario.dualRoleId = (await pool.query(`INSERT INTO account_roles(account_id,role)
+      VALUES ($1,'admin') RETURNING id`, [scenario.buyerId])).rows[0].id;
+    assert.deepEqual((await pool.query(`SELECT role FROM account_roles
+      WHERE account_id=$1 ORDER BY role`, [scenario.buyerId])).rows.map(({ role }) => role),
+    ['admin', 'customer']);
+
+    const policyBefore = (await pool.query(`SELECT fee_won,free_threshold_won,cutoff_time,
+      blocked_postal_ranges,locked_fee,locked_threshold,locked_cutoff
+      FROM shipping_policy_global WHERE id=1`)).rows[0];
+    assert.equal(policyBefore.cutoff_time, '12:00');
+    let orderPid;
+    let policyPid;
+    let accountIntercepted = false;
+    let policyIntercepted = false;
+    const orderPool = {
+      connect: async () => {
+        const client = await pool.connect();
+        orderPid = (await client.query('SELECT pg_backend_pid()::int AS pid')).rows[0].pid;
+        return {
+          query: async (...args) => {
+            const result = await client.query(...args);
+            if (!accountIntercepted && typeof args[0] === 'string' &&
+                args[0].includes('SELECT id FROM accounts WHERE id=$1 FOR')) {
+              accountIntercepted = true;
+              accountLocked.resolve();
+              await releaseOrder.promise;
+            }
+            return result;
+          },
+          release: () => client.release(),
+        };
+      },
+    };
+    const policyPool = {
+      connect: async () => {
+        const client = await pool.connect();
+        policyPid = (await client.query('SELECT pg_backend_pid()::int AS pid')).rows[0].pid;
+        return {
+          query: async (...args) => {
+            const result = await client.query(...args);
+            if (!policyIntercepted && typeof args[0] === 'string' &&
+                args[0].includes('UPDATE shipping_policy_global SET')) {
+              policyIntercepted = true;
+              policyRowLocked.resolve();
+              await releasePolicy.promise;
+            }
+            return result;
+          },
+          release: () => client.release(),
+        };
+      },
+      query: (...args) => pool.query(...args),
+    };
+    orderPromise = submitPendingOrder(orderPool, scenario.buyerId, {
+      reservationId: scenario.reservationId,
+      addressId: scenario.addressId,
+      selections: {},
+      expectedPayableWon: 66000,
+      idempotencyKey: randomUUID(),
+    });
+    orderPromise.catch(() => {});
+    await Promise.race([
+      accountLocked.promise,
+      orderPromise.then(() => { throw new Error('Order committed before account lock barrier'); }),
+    ]);
+
+    policyPromise = new ShippingPolicies(policyPool).updateGlobal(
+      { accountId: scenario.buyerId, role: 'admin' },
+      {
+        feeWon: policyBefore.fee_won,
+        freeThresholdWon: policyBefore.free_threshold_won,
+        cutoffTime: '22:00',
+        blockedPostalRanges: policyBefore.blocked_postal_ranges,
+      },
+      {
+        feeWon: policyBefore.locked_fee,
+        freeThresholdWon: policyBefore.locked_threshold,
+        cutoffTime: policyBefore.locked_cutoff,
+      },
+    );
+    policyPromise.catch(() => {});
+    await Promise.race([
+      policyRowLocked.promise,
+      policyPromise.then(() => { throw new Error('Policy committed before row lock barrier'); }),
+    ]);
+    policyProbe = await startConcurrentUpdate(pool,
+      'SELECT id FROM shipping_policy_global WHERE id=1 FOR SHARE', []);
+    policyProbe.done.catch(() => {});
+    assert.equal(await waitForBlock(pool, policyProbe.pid, policyPid), true,
+      'global policy writer must hold the policy row lock');
+
+    releasePolicy.resolve();
+    const policyAuditWaitedForOrder = await waitForBlock(pool, policyPid, orderPid);
+    releaseOrder.resolve();
+    const outcomes = await Promise.allSettled([orderPromise, policyPromise, policyProbe.done]);
+    const failures = outcomes.slice(0, 2).filter(({ status }) => status === 'rejected')
+      .map(({ reason }) => `${reason?.code ?? 'UNKNOWN'} ${reason?.message ?? reason}`);
+    assert.deepEqual(failures, [], `order and policy transactions must both commit: ${failures.join('; ')}`);
+    assert.equal(policyAuditWaitedForOrder, false,
+      'policy audit FK must not wait for the order account lock');
+
+    const saved = outcomes[0].value;
+    const pooledCutoff = (await pool.query(`SELECT f.cutoff_time FROM shipment_fulfillments f
+      JOIN shipment_orders s ON s.id=f.shipment_order_id
+      WHERE s.checkout_order_id=$1 AND s.shipment_key='owool_fulfillment'`,
+    [saved.id])).rows[0]?.cutoff_time;
+    assert.equal(pooledCutoff, '12:00');
+    assert.equal((await pool.query(`SELECT cutoff_time FROM shipping_policy_global
+      WHERE id=1`)).rows[0].cutoff_time, '22:00');
+  } finally {
+    releasePolicy.resolve();
+    releaseOrder.resolve();
+    await Promise.allSettled([
+      orderPromise, policyPromise, policyProbe?.done,
+    ].filter(Boolean));
     await cleanupScenario(pool, scenario);
     await pool.end();
   }
