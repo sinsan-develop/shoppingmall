@@ -109,6 +109,7 @@ test('customer mock payment HTTP is owned, same-origin, idempotent and verifies 
       WHERE checkout_order_id=$1 AND status='PAID'`, [orderId])).rows[0].n, 1);
     process.env.API_HOST = '0.0.0.0';
     assert.equal((await post('approve', buyer, origin, randomUUID())).status, 404);
+    assert.equal((await fetch(attemptUrl, { headers: { cookie: buyer } })).status, 200);
   } finally {
     if (app) await app.close();
     for (const key of Object.keys(previous)) {
