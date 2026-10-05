@@ -7,6 +7,7 @@
 - 승인 경계: 제안은 0015 추가식 3관계, 인증 API 8개와 기존 고객 주문 상세 확장, 담당 판매자의 기존 주문 배송지 최소 노출, 주문/결제/환불 거래 결합을 포함한다. 아직 SQL·제품 코드·공유 DB·QA 자료·외부 서비스는 변경하지 않았다. 문서 checkpoint 뒤 PMO에 정확한 영향·검증·복구와 함께 격리 구현 승인을 요청한다. 공유 개발 DB 0015 적용은 SQL 해시·행수·백업/복원·정리 계획을 갖춘 별도 승인 경계로 유지한다.
 - PMO 판정: checkpoint `c4860af` 계약 범위의 **격리 구현·시험 승인**. 이어 공식 사이트를 확인해 네 택배사의 일반 배송조회 입력 페이지를 서버 고정 allowlist로 제공하는 보완안을 승인받았다. 링크에는 운송장/고객정보를 넣지 않고 `other`는 null이며, 화면은 새 창과 직접 입력 안내를 사용한다. 특정 운송장 자동조회·택배사 API는 미구현이다. 출고일은 영업일 근거가 없어 “잠정 예상일/휴무일 미반영”으로만 표시하고 완료 전에 후속 권장안을 재보고한다. 공유 DB 0015 적용·실 외부서비스·Oracle/UAT·S5.2/S6는 계속 별도 경계다.
 - 실행계획: `docs/superpowers/plans/2026-10-05-s5-fulfillment.md`에 RED→0015 private DB→주문/결제→판매자/관리자 API→고객/환불→역할별 UI→fixture/브라우저→전체 gate/review→공유 적용 별도 승인→PR/정리 순서를 고정했다. Stage 단일 code-writer와 읽기 전용 reviewer 원칙을 적용한다. 읽기 전용 연결 지도 조사에서 존재하지 않는 `apps/api/src/auth/access.ts`를 1회 요청했으나 실제 파일 `apps/api/src/access.ts`를 찾아 후속 조사했고 코드·DB 변경은 없었다.
+- 단일 writer 인수 장애: Rawls는 파일/보고/응답 없이 종료, Nash는 미추적 `apps/api/test/fulfillment-rules.test.mjs`만 작성한 뒤 응답 없이 종료, PMO가 허용한 세 번째 Confucius는 계약을 읽고 동일 RED를 재현했으나 GREEN/보고서/commit 없이 최종 상태 요청에서 BLOCKED를 반환해 종료했다. controller 확인 RED는 **6 tests/0 pass/6 fail**, 모두 승인된 `rules.ts` export 미구현 원인이다. 동일 writer 진행 장애3회로 추가 배정을 중단했고, PMO 최신 지시에 따라 controller가 제품 코드를 대신 작성하지 않는다. RED 파일은 보존, tracked 제품 코드·DB·HEAD 변경0이며 Task1/S5.1은 미완료다. 정확한 원인·영향·재배정 외 대안을 PMO에 재보고한다.
 
 ## 진행 중 — 2026-10-05 S5 Stage 착수·S4 병합 정합
 
