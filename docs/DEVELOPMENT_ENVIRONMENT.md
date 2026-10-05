@@ -1,5 +1,14 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-10-05 S4.2 환불 검증 경계
+
+- 제품 기준은 기존 작업 branch `codex/s4-payment-refund`의 `2a61f3258f441070838c78d4ff0215de7d201e95`이다. 정본은 `D:\Project\shoppingmall2`, 단일 writer는 `.worktrees\s4-payment-refund`에서 작업하고 WSL `/home/daon/deploy/shopping`은 SSH 별칭으로 push한 동일 SHA를 fast-forward한다. OneDrive나 별도 후속 branch는 사용하지 않는다.
+- 공유 `WSL-server/local-postgres/shoppingmall`은 읽기 전용 확인에서 migration **14건(0013까지)**, 계정/상품/예약/주문/결제시도/결제사건 각0이다. `0014_s4_refunds.sql` SHA-256 **fe1328de61502e1d19a7ade992862c9bd508667f432f0ac29de1df87a9c75181**의 6개 신규 환불 관계는 아직 없다. PMO에 정확한 SQL·영향·백업·복구를 보고하고 별도 지시를 받기 전 공유 DB에 적용하지 않는다.
+- 자체 QA는 전용 네트워크 `shoppingmall-s42-review-1005`의 `shoppingmall-s42-review-pg-1005`(tmpfs, 영속 mount/외부 공개 포트 없음)에 fresh 0000~0014를 적용했다. 자동회귀 DB는 `shoppingmall`, 브라우저 전용은 `shoppingmall_s4_refund_ui_e4211005`다. 이 결과는 정식 공유 DB 통합/E2E·실제 PG·Oracle/UAT를 대신하지 않는다.
+- 브라우저는 위 전용 PG로만 향하는 Windows 루프백15439 SSH 터널, API9092/Web9091, 격리 Chrome9223으로 확인했다. 전용 가상3계정/1상품/4주문이며 실제 고객·결제정보가 없다. 이전 주문 목록 복구→일부 요청→관리자 승인→3333원 환불 완료와 원주문12000원/배송지원1000원 불변을 확인했다. 고객 늦은 GET/POST·선택과 제출 경합, 관리자 사례 전환, 같은 주문 반복 Enter 및1920/430/390 화면은 별도 회귀했다.
+- 반복 가능한 브라우저 회귀: `apps/web/test-support/refund-switching-browser.mjs`의 기본/`--admin`/`--submission` 모드를 사용한다. `QA_FIXTURE_JSON`은 `qa+...@example.invalid` 전용 식별자, `QA_FIXTURE_PASSWORD`는 프로세스 환경의 시험 비밀, `QA_EVIDENCE_DIR`은 지정 증거 폴더다. 시험용 프로세스·DB·Chrome은 준비된 전용 자원에만 연결하며 실행 후 정리한다. 관리자 모드는 해당 가상 주문의 두 폼전환 요청이 없으면 만들고 이후 재실행에서는 같은 사유의 요청을 재사용한다.
+- 실제 200% 확대·인쇄·실제 PG·공유0014·Oracle·최종 사용자 인수는 미검증이다. 최종 시험 수치/조건부skip/리뷰와 임시자원 정리 결과는 `WORK_STATUS.md` 최신 Task6 기록을 따른다. 과거 아래 절의 S4.1 미적용/자원 사용 중 기록은 당시 기록이다.
+
 ## 2026-10-05 S4.1 모의 결제 개발 경계
 
 - 2026-10-05 공유 DB 후속 승인·적용: `WSL-server/local-postgres/shoppingmall`에 정확한 SHA `849ec696401e5516bb37fdafd1ae5fc14d9f828a9`의 0013 SQL 해시 `4556376ac133b0468015a56f631b93bf5bff8dd276ee1e3777c096d35456b547`를 백업 확인 뒤 적용했다. Drizzle 이력은 **14건/대기 0**, 결제 시도·사건·충돌 3관계가 존재한다. 기존 계정·상품·예약·주문 0건 불변이고 공유 DB API 전체 순차 174건/157 pass/17 환경 skip/0 fail, 사후 QA 주요 16범주 0. 상세 백업/정리 증거는 `WORK_STATUS.md` 최신 절을 따른다. 아래 ‘공유 0013 미적용’ 문장은 적용 전 역사 기록이다. 이는 실제 PG 공급자·브라우저·Oracle/UAT 검증이 아니다.

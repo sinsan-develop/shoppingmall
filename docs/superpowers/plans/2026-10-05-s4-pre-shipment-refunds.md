@@ -10,6 +10,8 @@
 
 **Spec:** `docs/design/S4_REFUND_CONTRACT_DRAFT.md`
 
+**실행 판정(2026-10-05):** 아래 체크는 Task1~6의 자체 격리 구현·검증 증거를 뜻한다. 최종 제품 `2a61f3258f441070838c78d4ff0215de7d201e95`, 로컬346/249 pass/97 skip 및 WSL 루트347/330 pass/17 skip, 실패0; 실제 브라우저와 독립 Critical0/Important0, 임시자원 잔류0. 세부 제외조건·RED/GREEN·오류·복구는 `WORK_STATUS.md`를 따른다. 공유0014 적용 승인 요청은 별도이며 정식 WSL 통합/E2E·실PG·Oracle/UAT 완료를 의미하지 않는다.
+
 ## Global Constraints
 
 - 작업 위치는 기존 `D:\Project\shoppingmall2\.worktrees\s4-payment-refund`, branch는 `codex/s4-payment-refund`; 새 branch/worktree를 만들지 않는다.
@@ -40,12 +42,12 @@
 - Produces: `allocateIncrementalRefundWon(totalPaidWon: number, originalQuantity: number, alreadyApprovedQuantity: number, requestedQuantity: number): number`
 - Produces: 확정된 7개 endpoint(POST 3, GET 4), 6관계, 상태·DTO·오류 계약.
 
-- [ ] **Step 1:** 문서의 승인 상태를 갱신하고 endpoint를 7개로 명시한다. `refund_cases` 금액·상태, 여섯 관계, `restockMode`와 출고 전 근거를 정합화한다.
-- [ ] **Step 2:** 10,000원/3개의 순차 환불이 3,333+3,333+3,334, 중간 시작·전량·0원·범위 오류를 검증하는 실패 테스트를 작성한다.
-- [ ] **Step 3:** `pnpm exec tsx --test apps/api/test/refund-allocation.test.mjs`가 모듈 부재로 실패하는지 확인한다.
-- [ ] **Step 4:** 안전 정수·비음수·수량 상한을 검사하고 누적 floor 차이를 반환하는 최소 함수를 구현한다.
-- [ ] **Step 5:** 목표 테스트와 전체 비-DB suite를 실행해 통과를 확인한다.
-- [ ] **Step 6:** `feat(refunds): define incremental refund allocation`으로 커밋하고 ledger에 결과를 기록한다.
+- [x] **Step 1:** 문서의 승인 상태를 갱신하고 endpoint를 7개로 명시한다. `refund_cases` 금액·상태, 여섯 관계, `restockMode`와 출고 전 근거를 정합화한다.
+- [x] **Step 2:** 10,000원/3개의 순차 환불이 3,333+3,333+3,334, 중간 시작·전량·0원·범위 오류를 검증하는 실패 테스트를 작성한다.
+- [x] **Step 3:** `pnpm exec tsx --test apps/api/test/refund-allocation.test.mjs`가 모듈 부재로 실패하는지 확인한다.
+- [x] **Step 4:** 안전 정수·비음수·수량 상한을 검사하고 누적 floor 차이를 반환하는 최소 함수를 구현한다.
+- [x] **Step 5:** 목표 테스트와 전체 비-DB suite를 실행해 통과를 확인한다.
+- [x] **Step 6:** `feat(refunds): define incremental refund allocation`으로 커밋하고 ledger에 결과를 기록한다.
 
 ### Task 2: 0014 추가식 데이터 계약
 
@@ -60,11 +62,11 @@
 - Consumes: Task 1의 승인 계약.
 - Produces: `refund_cases`, `refund_case_lines`, `refund_attempts`, `refund_events`, `refund_event_conflicts`, `refund_case_events`.
 
-- [ ] **Step 1:** 신규 관계 부재, FK/상태/금액/고유키/지문/복원량 제약을 검증하는 DB 테스트와 migration preview 기대값을 먼저 작성한다.
-- [ ] **Step 2:** 0013 격리 DB에서 테스트가 관계 부재로 실패하는지 확인한다.
-- [ ] **Step 3:** 0014 SQL·journal·Drizzle schema를 추가한다. 기존 테이블은 변경하지 않는다.
-- [ ] **Step 4:** fresh 격리 PostgreSQL에 0000~0014를 적용하고 schema 테스트·dry-run 15 applied/0 pending을 확인한다.
-- [ ] **Step 5:** `feat(refunds): add pre-shipment refund ledger`로 커밋하고 ledger에 결과를 기록한다.
+- [x] **Step 1:** 신규 관계 부재, FK/상태/금액/고유키/지문/복원량 제약을 검증하는 DB 테스트와 migration preview 기대값을 먼저 작성한다.
+- [x] **Step 2:** 0013 격리 DB에서 테스트가 관계 부재로 실패하는지 확인한다.
+- [x] **Step 3:** 0014 SQL·journal·Drizzle schema를 추가한다. 기존 테이블은 변경하지 않는다.
+- [x] **Step 4:** fresh 격리 PostgreSQL에 0000~0014를 적용하고 schema 테스트·dry-run 15 applied/0 pending을 확인한다.
+- [x] **Step 5:** `feat(refunds): add pre-shipment refund ledger`로 커밋하고 ledger에 결과를 기록한다.
 
 ### Task 3: 환불 도메인과 모의 공급자 사건 처리
 
@@ -80,11 +82,11 @@
 - Produces: `createRefundCase`, `decideRefundCase`, `recordVerifiedRefundEvent`, `processVerifiedRefundEvent`, 사례 조회 함수.
 - Consumes: Task 1 계산 함수와 Task 2 관계.
 
-- [ ] **Step 1:** 원 스냅샷 불변, 부분/전량 배송비, 중복·경합·충돌, 0원, 관리자 재고 `none/on_hand_only`, 판매중지 거부를 실제 DB로 검증하는 실패 테스트를 작성한다.
-- [ ] **Step 2:** 테스트가 도메인 모듈 부재/행동 미구현으로 실패하는지 확인한다.
-- [ ] **Step 3:** 요청 지문·멱등 생성, 관리자 승인/거절, 거래 잠금·상한·금액 고정, 모의 공급자 정규화 사건과 충돌 보존, 완료/재고 1회 적용을 최소 구현한다.
-- [ ] **Step 4:** 목표 DB 테스트와 기존 payment/order DB 테스트를 실행해 통과를 확인한다.
-- [ ] **Step 5:** `feat(refunds): process idempotent mock refunds`로 커밋하고 ledger에 결과를 기록한다.
+- [x] **Step 1:** 원 스냅샷 불변, 부분/전량 배송비, 중복·경합·충돌, 0원, 관리자 재고 `none/on_hand_only`, 판매중지 거부를 실제 DB로 검증하는 실패 테스트를 작성한다.
+- [x] **Step 2:** 테스트가 도메인 모듈 부재/행동 미구현으로 실패하는지 확인한다.
+- [x] **Step 3:** 요청 지문·멱등 생성, 관리자 승인/거절, 거래 잠금·상한·금액 고정, 모의 공급자 정규화 사건과 충돌 보존, 완료/재고 1회 적용을 최소 구현한다.
+- [x] **Step 4:** 목표 DB 테스트와 기존 payment/order DB 테스트를 실행해 통과를 확인한다.
+- [x] **Step 5:** `feat(refunds): process idempotent mock refunds`로 커밋하고 ledger에 결과를 기록한다.
 
 ### Task 4: 고객·관리자 환불 HTTP 계약
 
@@ -99,11 +101,11 @@
 - Produces: 고객 POST/GET list/GET detail 3개, 관리자 POST create/GET list/GET detail/POST decision 4개 endpoint.
 - Consumes: Task 3 서비스.
 
-- [ ] **Step 1:** 401/403/404/409/503, Origin, 본인 범위, 관리자 결정, 판매자 금지, 같은 키 재조회/다른 본문 충돌을 검증하는 HTTP 실패 테스트를 작성한다.
-- [ ] **Step 2:** route 부재로 기대한 404/잘못된 결과를 확인한다.
-- [ ] **Step 3:** DTO를 엄격히 검증하고 기존 세션·Origin 패턴과 mock loopback gate를 재사용하는 controller를 구현한다.
-- [ ] **Step 4:** 목표 HTTP DB 테스트와 기존 auth/payment HTTP 테스트를 실행해 통과를 확인한다.
-- [ ] **Step 5:** `feat(refunds): expose customer and admin refund APIs`로 커밋하고 ledger에 결과를 기록한다.
+- [x] **Step 1:** 401/403/404/409/503, Origin, 본인 범위, 관리자 결정, 판매자 금지, 같은 키 재조회/다른 본문 충돌을 검증하는 HTTP 실패 테스트를 작성한다.
+- [x] **Step 2:** route 부재로 기대한 404/잘못된 결과를 확인한다.
+- [x] **Step 3:** DTO를 엄격히 검증하고 기존 세션·Origin 패턴과 mock loopback gate를 재사용하는 controller를 구현한다.
+- [x] **Step 4:** 목표 HTTP DB 테스트와 기존 auth/payment HTTP 테스트를 실행해 통과를 확인한다.
+- [x] **Step 5:** `feat(refunds): expose customer and admin refund APIs`로 커밋하고 ledger에 결과를 기록한다.
 
 ### Task 5: 고객·관리자 역할 화면
 
@@ -119,11 +121,11 @@
 - Consumes: Task 4 endpoint와 상태/DTO.
 - Produces: 결제 완료 주문의 발송 주문·옵션별 수량/사유 요청, 관리자 사례 필터·상세·승인/반려·재고 복원 선택.
 
-- [ ] **Step 1:** 구매자 수량/사유·견적/상태, 관리자 금액/이력·결정·`on_hand_only`, 좁은 화면/키보드 이름을 검증하는 렌더·요청 실패 테스트를 작성한다.
-- [ ] **Step 2:** 컴포넌트/링크 부재로 실패하는지 확인한다.
-- [ ] **Step 3:** 현재 Flat v2·폰트 크기·카드 구조를 유지해 고객/관리자 화면과 안전한 불명확 결과 재조회 동작을 최소 구현한다.
-- [ ] **Step 4:** 목표 web 테스트, web typecheck/build와 기존 checkout/account 회귀를 실행한다.
-- [ ] **Step 5:** `feat(refunds): add customer and admin refund screens`으로 커밋하고 ledger에 결과를 기록한다.
+- [x] **Step 1:** 구매자 수량/사유·견적/상태, 관리자 금액/이력·결정·`on_hand_only`, 좁은 화면/키보드 이름을 검증하는 렌더·요청 실패 테스트를 작성한다.
+- [x] **Step 2:** 컴포넌트/링크 부재로 실패하는지 확인한다.
+- [x] **Step 3:** 현재 Flat v2·폰트 크기·카드 구조를 유지해 고객/관리자 화면과 안전한 불명확 결과 재조회 동작을 최소 구현한다.
+- [x] **Step 4:** 목표 web 테스트, web typecheck/build와 기존 checkout/account 회귀를 실행한다.
+- [x] **Step 5:** `feat(refunds): add customer and admin refund screens`으로 커밋하고 ledger에 결과를 기록한다.
 
 ### Task 6: 격리 통합 QA·문서·독립 review
 
@@ -137,10 +139,10 @@
 - Consumes: Tasks 1–5 전체.
 - Produces: fresh 격리 DB, local/WSL exact SHA, 실제 브라우저 가능 경로, 정리/미검증 증거.
 
-- [ ] **Step 1:** fresh 격리 PostgreSQL 0000~0014에서 실제 HTTP 고객 요청→관리자 승인→모의 사건→DB/재고/배송비/원 주문 불변을 검증한다.
-- [ ] **Step 2:** `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`을 실행하고 결과를 읽는다.
-- [ ] **Step 3:** branch를 SSH alias로 push하고 WSL 지정 checkout을 exact SHA로 맞춘 뒤 전용 격리 DB에서 같은 검증을 실행한다. 공유 `shoppingmall`에는 0014를 적용하지 않는다.
-- [ ] **Step 4:** 실제 브라우저에서 고객/관리자, 390px, 키보드 흐름을 확인한다. 도구가 막히면 자동 HTTP와 구분해 미검증으로 남기고 S4 완료를 주장하지 않는다.
-- [ ] **Step 5:** QA 계정/행/컨테이너/네트워크/포트/백업을 정확한 이름으로 정리하고 잔류를 확인한다.
-- [ ] **Step 6:** whole-branch Critical/Important review를 수행하고 발견을 RED→GREEN 한 번의 fix pass로 처리한다.
-- [ ] **Step 7:** 증거·오류·미검증·rollback을 WORK_STATUS/환경 문서에 기록하고 커밋한다. 공유 DB 0014 적용 전 최종 SQL 해시·dry-run·백업/행수·복구안을 PMO에 별도 요청한다.
+- [x] **Step 1:** fresh 격리 PostgreSQL 0000~0014에서 실제 HTTP 고객 요청→관리자 승인→모의 사건→DB/재고/배송비/원 주문 불변을 검증한다.
+- [x] **Step 2:** `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`을 실행하고 결과를 읽는다.
+- [x] **Step 3:** branch를 SSH alias로 push하고 WSL 지정 checkout을 exact SHA로 맞춘 뒤 전용 격리 DB에서 같은 검증을 실행한다. 공유 `shoppingmall`에는 0014를 적용하지 않는다.
+- [x] **Step 4:** 실제 브라우저에서 고객/관리자, 390px, 키보드 흐름을 확인한다. 도구가 막히면 자동 HTTP와 구분해 미검증으로 남기고 S4 완료를 주장하지 않는다.
+- [x] **Step 5:** QA 계정/행/컨테이너/네트워크/포트/백업을 정확한 이름으로 정리하고 잔류를 확인한다.
+- [x] **Step 6:** whole-branch Critical/Important review를 수행하고 발견을 RED→GREEN 한 번의 fix pass로 처리한다.
+- [x] **Step 7:** 증거·오류·미검증·rollback을 WORK_STATUS/환경 문서에 기록하고 커밋한다. 공유 DB 0014 적용 전 최종 SQL 해시·dry-run·백업/행수·복구안을 PMO에 별도 요청한다.
