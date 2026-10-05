@@ -211,6 +211,8 @@ test('one verified approval pays its shipment, reservation, coupon and stock onl
       await pool.query('DELETE FROM order_status_events WHERE checkout_order_id=$1', [id]);
       await pool.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
         (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [id]);
+      await pool.query(`DELETE FROM shipment_fulfillments WHERE shipment_order_id IN
+        (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [id]);
       await pool.query('DELETE FROM shipment_orders WHERE checkout_order_id=$1', [id]);
       await pool.query('DELETE FROM checkout_orders WHERE id=$1', [id]);
     }

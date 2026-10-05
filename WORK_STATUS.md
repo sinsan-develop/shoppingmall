@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## NON-GREEN — 2026-10-06 S5.1 Task3 회귀시험 Fix Round 1
+
+- **현재 판정:** Windows·승인 SSH origin·WSL `ee6f8de1a731c1bf297b1b12c7b00a1e6667f3ef` exact SHA·clean, Task3 private 자원0에서 재개한다. 직전 WSL fresh 0000~0015 전체 순차 gate는 **370건/341 pass/21 skip/8 fail**이므로 Task3 목표 **3/3** 및 기존 order-submit/order-snapshot **4/4** GREEN을 최종 PASS로 승격하지 않는다. skip도 PASS에 포함하지 않는다.
+- **근본 원인:** 주문·만료·결제 회귀 4건이 Task3에서 생성된 `shipment_fulfillments`를 지우지 않고 부모 `shipment_orders`를 삭제해 FK `23503`으로 실패했고, 남은 주문·프로모션·장바구니 행이 후속 cart/promotion 3건의 수치 실패로 연쇄됐다. 별도 refund schema 회귀 1건은 0015 전체 DB에서도 적용 migration을 15건으로 고정해 실제 16건을 거부했다.
+- **승인 보정:** PMO Fix Round 1 범위에서 지정된 주문·결제 시험 cleanup 네 곳에 해당 checkout order의 fulfillment 선삭제만 추가하고, refund schema의 전체 migration 기대만 15→16으로 바꾼다. cart/promotion 시험·제품·schema·API/UI는 수정하지 않는다. 같은 이름의 새 private tmpfs PG/network에서 fresh 전체 gate와 local/WSL exact-SHA gate를 다시 수행하며, 독립 리뷰는 controller가 별도 수행한다.
+
 ## 진행 중 — 2026-10-06 S5.1 Task3 주문 제출 담당자·cutoff snapshot
 
 - PMO 승인 기준: 기존 `codex/s5-fulfillment-engagement@19d32068ecc84e951ed340096dfa10854c4c3381`, Windows·승인 SSH origin branch·WSL exact SHA 일치와 양 checkout clean을 확인했다. 새 단일 code-writer 1명이 `apps/api/src/fulfillment/repository.ts`, `apps/api/test/fulfillment-order-db.test.mjs`를 만들고 `apps/api/src/orders/repository.ts`, `apps/api/src/orders/service.ts`, `apps/api/test/order-submit-db.test.mjs`, `WORK_STATUS.md`만 수정한다. 새 branch/worktree는 만들지 않는다.

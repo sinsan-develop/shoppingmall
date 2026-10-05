@@ -92,6 +92,8 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
       await pool.query('DELETE FROM order_status_events WHERE checkout_order_id=$1', [orderId]);
       await pool.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
         (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [orderId]);
+      await pool.query(`DELETE FROM shipment_fulfillments WHERE shipment_order_id IN
+        (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [orderId]);
       await pool.query('DELETE FROM shipment_orders WHERE checkout_order_id=$1', [orderId]);
       await pool.query('DELETE FROM checkout_orders WHERE id=$1', [orderId]);
     }
