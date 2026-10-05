@@ -3,8 +3,10 @@
 ## 진행 중 — 2026-10-05 S5.1 출고 계약 승인 준비
 
 - 현행 구조 대조 판정: 직접발송 `shipment_orders.seller_id`는 담당 판매자를 가지지만 공동출고 `owool_fulfillment`는 의도적으로 NULL이라, 표시명이나 품목 생산자를 기준으로 어울몰 판매자를 추측하면 권한 오배정이 생긴다. 현재 주문/결제 상태는 `PENDING_PAYMENT|EXPIRED|PAID`뿐이고 출고·운송장 영속 관계는 없다. 승인된 배송정책은 `cutoffTime`을 제공하지만 영업일/공휴일 달력은 없다.
-- 계약 초안: `docs/design/S5_FULFILLMENT_CONTRACT_DRAFT.md`에 관리자 지정 공동출고 담당 판매자, 주문 생성 시 담당자·마감시간 snapshot, `PAYMENT_PENDING→READY→PACKING/DELAYED→SHIPPED`와 전량 환불 `CANCELLED`, 고객 즉시 운송장 표시, 관리자 before/after·사유·고객 안내 정정, 출고 전 환불 결합을 정의했다. 주말·공휴일 미반영을 명시하고 실 택배사 자동 동기화·실 알림·S5.2는 제외했다.
+- 계약 초안: `docs/design/S5_FULFILLMENT_CONTRACT_DRAFT.md`에 관리자 지정 공동출고 담당 판매자, 주문 생성 시 담당자·마감시간 snapshot, `PAYMENT_PENDING→READY→PACKING/DELAYED→SHIPPED`와 전량 환불 `CANCELLED`, 고객 즉시 운송장 표시, 관리자 before/after·사유·고객 안내 정정, 출고 전 환불 결합을 정의했다. 직접발송은 판매자 유효정책, 공동출고는 S3와 같은 전역정책을 스냅샷하여 기존 금액·정책 선택 규칙을 바꾸지 않는다. 주말·공휴일 미반영을 명시하고 실 택배사 자동 동기화·실 알림·S5.2는 제외했다.
 - 승인 경계: 제안은 0015 추가식 3관계, 인증 API 8개와 기존 고객 주문 상세 확장, 담당 판매자의 기존 주문 배송지 최소 노출, 주문/결제/환불 거래 결합을 포함한다. 아직 SQL·제품 코드·공유 DB·QA 자료·외부 서비스는 변경하지 않았다. 문서 checkpoint 뒤 PMO에 정확한 영향·검증·복구와 함께 격리 구현 승인을 요청한다. 공유 개발 DB 0015 적용은 SQL 해시·행수·백업/복원·정리 계획을 갖춘 별도 승인 경계로 유지한다.
+- PMO 판정: checkpoint `c4860af` 계약 범위의 **격리 구현·시험 승인**. 추적 링크는 공식 URL 패턴 검증 전 미구현·미검증, 출고일은 영업일 근거가 없어 “잠정 예상일/휴무일 미반영”으로만 표시한다. 둘을 완료로 주장하지 않고 S5.1 완료 전에 보류 사유와 권장 후속안을 재보고한다. 공유 DB 0015 적용·실 외부서비스·Oracle/UAT·S5.2/S6는 계속 별도 경계다.
+- 실행계획: `docs/superpowers/plans/2026-10-05-s5-fulfillment.md`에 RED→0015 private DB→주문/결제→판매자/관리자 API→고객/환불→역할별 UI→fixture/브라우저→전체 gate/review→공유 적용 별도 승인→PR/정리 순서를 고정했다. Stage 단일 code-writer와 읽기 전용 reviewer 원칙을 적용한다. 읽기 전용 연결 지도 조사에서 존재하지 않는 `apps/api/src/auth/access.ts`를 1회 요청했으나 실제 파일 `apps/api/src/access.ts`를 찾아 후속 조사했고 코드·DB 변경은 없었다.
 
 ## 진행 중 — 2026-10-05 S5 Stage 착수·S4 병합 정합
 
