@@ -8,6 +8,7 @@
 - 변경 파일: `apps/api/src/fulfillment/rules.ts`, `apps/api/test/fulfillment-rules.test.mjs`, `WORK_STATUS.md`. 상세 기록은 git-ignored `.superpowers/sdd/2026-10-05-s5-fulfillment/task-1-report.md`.
 - 검증: 집중 시험 **7건/7 pass/0 fail/0 skip**; `pnpm --filter @shoppingmall/api typecheck` exit 0; `pnpm test` 주 시험 **362건/262 pass/0 fail/100 skip**, PR 본문 시험 **8건/8 pass/0 fail/0 skip**. skip은 PASS에 넣지 않았다.
 - 오류 횟수: 구현 중 시험·typecheck 실패 0. RED 6 fail은 의도된 선행 상태다. 미검증: Task2, schema/0015 migration, API·권한·거래 결합, private/공유 DB, 실제 브라우저·WSL·Oracle. 이 Task1 시험은 그 범위의 완료 근거가 아니다.
+- Fix Round 1 (독립 리뷰 Important 1건): 관리자 정정의 명시적 `corrected.status=null`이 기존 상태로 대체되는 결함을 확인했다. 회귀 시험 추가 후 RED **8건/7 pass/1 fail/0 skip** (`Missing expected exception`), 필드 생략만 기존 상태를 쓰도록 한 줄 보정 후 GREEN **8건/8 pass/0 fail/0 skip**. API typecheck exit 0, `pnpm test` 주 시험 **363건/263 pass/0 fail/100 skip** 및 PR 본문 **8건/8 pass/0 fail/0 skip**, `git diff --check` exit 0. skip은 PASS에 포함하지 않는다. 수정 파일은 `apps/api/src/fulfillment/rules.ts`, `apps/api/test/fulfillment-rules.test.mjs`, `WORK_STATUS.md`; Task2/DB/API/UI 검증은 여전히 미수행.
 - 다음 조치: Task1 커밋을 기준으로 후속 Task2는 별도 지시와 해당 범위에 따라 진행한다.
 
 ## 진행 중 — 2026-10-05 S5.1 출고 계약 승인 준비

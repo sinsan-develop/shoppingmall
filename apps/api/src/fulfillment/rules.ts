@@ -143,7 +143,7 @@ export function validateAdminCorrection(value: unknown) {
   const corrected = record(input.corrected, stateFields, error);
   if (Object.keys(corrected).length === 0 ||
       !['READY', 'PACKING', 'DELAYED', 'SHIPPED'].includes(current.status as string)) throw new Error(error);
-  const status = corrected.status ?? current.status;
+  const status = Object.hasOwn(corrected, 'status') ? corrected.status : current.status;
   if (!['READY', 'PACKING', 'DELAYED', 'SHIPPED'].includes(status as string)) throw new Error(error);
   const merged = { ...current, ...corrected };
   const expectedShipDate = date(merged.expectedShipDate, error);

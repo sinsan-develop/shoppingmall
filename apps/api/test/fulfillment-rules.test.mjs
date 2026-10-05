@@ -174,6 +174,17 @@ test('admin correction requires both messages and fully validates only approved 
   }), /Invalid fulfillment correction/);
 });
 
+test('admin correction rejects an explicit null status instead of treating it as omitted', () => {
+  assert.throws(() => validateAdminCorrection({
+    current: {
+      status: 'PACKING', expectedShipDate: '2026-10-05',
+      carrierCode: null, carrierName: null, trackingNumber: null,
+    },
+    corrected: { status: null, expectedShipDate: '2026-10-07' },
+    reason: '예상일 정정', customerMessage: '10월 7일 출고 예정입니다.',
+  }), /Invalid fulfillment correction/);
+});
+
 test('carrier lookup URLs are fixed official general pages and never contain tracking or caller URLs', () => {
   assert.deepEqual({
     cj_logistics: getCarrierTrackingUrl('cj_logistics'),
