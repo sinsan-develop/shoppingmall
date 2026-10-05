@@ -76,6 +76,9 @@ async function findFixture(client: PoolClient, value: string) {
 
 export async function resetRefundUiFixture(client: PoolClient, value: string, maxOrders = 1,
   sharedManifest?: SharedRefundManifest) {
+  // Acquire the table lock before the first read: SERIALIZABLE must not keep
+  // a snapshot from before a concurrent audit writer commits.
+  if (sharedManifest) await client.query('LOCK TABLE audit_events IN SHARE ROW EXCLUSIVE MODE');
   const found = await findFixture(client, value);
   let ownedReservationIds: string[] | undefined;
   let ownedAuditIds: string[] | undefined;
@@ -93,8 +96,6 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
     await client.query('SELECT id FROM products WHERE id=$1 FOR UPDATE', [sharedManifest.productId]);
     await client.query('SELECT id FROM product_revisions WHERE id=$1 FOR UPDATE', [sharedManifest.revisionId]);
     await client.query('SELECT id FROM product_options WHERE id=$1 FOR UPDATE', [sharedManifest.optionId]);
-    // Audit targets are free text, so FK row locks alone cannot freeze this preflight.
-    await client.query('LOCK TABLE audit_events IN SHARE ROW EXCLUSIVE MODE');
     const identities = await client.query<{ account_id: string; kind: string; identifier: string }>(
       'SELECT account_id,kind,identifier FROM account_identities WHERE account_id=ANY($1::uuid[])', [accountIds]);
     const roles = await client.query<{ account_id: string; role: string; seller_id: string | null }>(
@@ -207,9 +208,27 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
       throw new Error('Refund UI fixture is referenced by a foreign account or product');
   }
   if (sharedManifest) {
-    const shipmentIds = (await client.query<{ id: string }>(
-      'SELECT id FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[])', [orderIds])).rows
-      .map((row) => row.id);
+    const shipments = await client.query<{
+      id: string; checkout_order_id: string; seller_id: string | null;
+      shipping_mode: string; shipment_key: string;
+    }>(`SELECT id,checkout_order_id,seller_id,shipping_mode,shipment_key
+      FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[])`, [orderIds]);
+    const shipmentIds = shipments.rows.map((row) => row.id);
+    const shipmentLines = await client.query<{
+      shipment_order_id: string; product_id: string; option_id: string; seller_id: string;
+    }>(`SELECT shipment_order_id,product_id,option_id,seller_id
+      FROM shipment_order_lines WHERE shipment_order_id=ANY($1::uuid[])`, [shipmentIds]);
+    if (shipments.rows.length !== orderIds.length || shipmentLines.rows.length !== shipmentIds.length ||
+        !shipments.rows.some((row) => row.id === sharedManifest.shipmentId &&
+          row.checkout_order_id === sharedManifest.orderId) ||
+        shipments.rows.some((row) => row.seller_id !== sharedManifest.sellerId ||
+          row.shipping_mode !== 'seller_direct' ||
+          row.shipment_key !== `seller:${sharedManifest.sellerId}`) ||
+        shipmentLines.rows.some((row) => row.product_id !== sharedManifest.productId ||
+          row.option_id !== sharedManifest.optionId || row.seller_id !== sharedManifest.sellerId ||
+          !shipmentIds.includes(row.shipment_order_id)) ||
+        shipmentIds.some((id) => shipmentLines.rows.filter((row) => row.shipment_order_id === id).length !== 1))
+      throw new Error('Shared refund UI shipment contains foreign seller, product or option');
     const refundCaseIds = (await client.query<{ id: string }>(
       'SELECT id FROM refund_cases WHERE checkout_order_id=ANY($1::uuid[])', [orderIds])).rows
       .map((row) => row.id);
