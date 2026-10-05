@@ -77,6 +77,8 @@ async function findFixture(client: PoolClient, value: string) {
 export async function resetRefundUiFixture(client: PoolClient, value: string, maxOrders = 1,
   sharedManifest?: SharedRefundManifest) {
   const found = await findFixture(client, value);
+  let ownedReservationIds: string[] | undefined;
+  let ownedAuditIds: string[] | undefined;
   if (sharedManifest) {
     const accountIds = refundUiEmails(value).map((email) => found.byEmail.get(email));
     if (JSON.stringify(accountIds) !== JSON.stringify(sharedManifest.accountIds) ||
@@ -91,6 +93,8 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
     await client.query('SELECT id FROM products WHERE id=$1 FOR UPDATE', [sharedManifest.productId]);
     await client.query('SELECT id FROM product_revisions WHERE id=$1 FOR UPDATE', [sharedManifest.revisionId]);
     await client.query('SELECT id FROM product_options WHERE id=$1 FOR UPDATE', [sharedManifest.optionId]);
+    // Audit targets are free text, so FK row locks alone cannot freeze this preflight.
+    await client.query('LOCK TABLE audit_events IN SHARE ROW EXCLUSIVE MODE');
     const identities = await client.query<{ account_id: string; kind: string; identifier: string }>(
       'SELECT account_id,kind,identifier FROM account_identities WHERE account_id=ANY($1::uuid[])', [accountIds]);
     const roles = await client.query<{ account_id: string; role: string; seller_id: string | null }>(
@@ -141,6 +145,28 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
     throw new Error('Refund UI fixture scope exceeds its bounded accounts, orders or product');
   if (sharedManifest && !orderIds.includes(sharedManifest.orderId))
     throw new Error('Shared refund UI original order differs from creation manifest');
+  if (sharedManifest) {
+    const reservations = await client.query<{ id: string; account_id: string }>(
+      'SELECT id,account_id FROM checkout_reservations WHERE account_id=ANY($1::uuid[])',
+      [sharedManifest.accountIds]);
+    ownedReservationIds = reservations.rows.map((row) => row.id);
+    const reservationLines = await client.query<{ reservation_id: string; option_id: string }>(
+      'SELECT reservation_id,option_id FROM checkout_reservation_lines WHERE reservation_id=ANY($1::uuid[])',
+      [ownedReservationIds]);
+    const reservationSet = new Set(ownedReservationIds);
+    if (ownedReservationIds.length > 4 || !reservationSet.has(sharedManifest.reservationId) ||
+        reservations.rows.some((row) => row.account_id !== sharedManifest.accountIds[0]) ||
+        reservationLines.rows.some((row) => !reservationSet.has(row.reservation_id) ||
+          row.option_id !== sharedManifest.optionId) ||
+        !reservationLines.rows.some((row) => row.reservation_id === sharedManifest.reservationId &&
+          row.option_id === sharedManifest.optionId))
+      throw new Error('Shared refund UI reservation contains foreign product or account data');
+    const orderScope = await client.query<{ reservation_id: string; address_id: string }>(
+      'SELECT reservation_id,address_id FROM checkout_orders WHERE id=ANY($1::uuid[])', [orderIds]);
+    if (orderScope.rows.some((row) => !reservationSet.has(row.reservation_id) ||
+      row.address_id !== sharedManifest.addressId))
+      throw new Error('Shared refund UI order references foreign reservation or address');
+  }
   if (sharedManifest && orderIds.length) {
     const foreignActors = await client.query(`SELECT 1 FROM checkout_orders
       WHERE id=ANY($1::uuid[]) AND account_id<>$2
@@ -180,6 +206,45 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
         foreignRestock.rowCount || foreignOrderLine.rowCount || unrelatedLine.rowCount)
       throw new Error('Refund UI fixture is referenced by a foreign account or product');
   }
+  if (sharedManifest) {
+    const shipmentIds = (await client.query<{ id: string }>(
+      'SELECT id FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[])', [orderIds])).rows
+      .map((row) => row.id);
+    const refundCaseIds = (await client.query<{ id: string }>(
+      'SELECT id FROM refund_cases WHERE checkout_order_id=ANY($1::uuid[])', [orderIds])).rows
+      .map((row) => row.id);
+    const restockIds = (await client.query<{ id: string }>(
+      'SELECT id FROM restock_subscriptions WHERE account_id=ANY($1::uuid[]) AND product_id=$2',
+      [sharedManifest.accountIds, sharedManifest.productId])).rows.map((row) => row.id);
+    const allowedTargets = new Map<string, Set<string>>([
+      ['account', new Set(sharedManifest.accountIds)],
+      ['customer_address', new Set([sharedManifest.addressId])],
+      ['seller', new Set([sharedManifest.sellerId])],
+      ['seller_category', new Set([sharedManifest.sellerCategoryId])],
+      ['product', new Set([sharedManifest.productId])],
+      ['product_category', new Set([sharedManifest.productCategoryId])],
+      ['product_revision', new Set([sharedManifest.revisionId])],
+      ['product_option', new Set([sharedManifest.optionId])],
+      ['checkout_reservation', new Set(ownedReservationIds)],
+      ['checkout_order', new Set(orderIds)],
+      ['shipment_order', new Set(shipmentIds)],
+      ['refund_case', new Set(refundCaseIds)],
+      ['restock_subscription', new Set(restockIds)],
+    ]);
+    const audit = await client.query<{ id: string; target_type: string; target_id: string; seller_id: string | null }>(
+      'SELECT id,target_type,target_id,seller_id FROM audit_events WHERE actor_account_id=ANY($1::uuid[])',
+      [sharedManifest.accountIds]);
+    if (audit.rows.some((row) => !allowedTargets.get(row.target_type)?.has(row.target_id) ||
+      (row.seller_id !== null && row.seller_id !== sharedManifest.sellerId)))
+      throw new Error('Shared refund UI audit references a foreign target or seller');
+    ownedAuditIds = audit.rows.map((row) => row.id);
+    const externalAudit = await client.query<{ target_type: string; target_id: string; seller_id: string | null }>(
+      'SELECT target_type,target_id,seller_id FROM audit_events WHERE NOT(actor_account_id=ANY($1::uuid[]))',
+      [sharedManifest.accountIds]);
+    if (externalAudit.rows.some((row) => allowedTargets.get(row.target_type)?.has(row.target_id) ||
+      row.seller_id === sharedManifest.sellerId))
+      throw new Error('Shared refund UI target is referenced by foreign audit');
+  }
   if (orderIds.length) {
     await client.query(`DELETE FROM refund_event_conflicts WHERE original_event_id IN
       (SELECT e.id FROM refund_events e JOIN refund_attempts a ON a.id=e.refund_attempt_id
@@ -208,9 +273,16 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
     await client.query('DELETE FROM checkout_orders WHERE id=ANY($1::uuid[])', [orderIds]);
   }
   if (found.accountIds.length) {
-    await client.query(`DELETE FROM checkout_reservation_lines WHERE reservation_id IN
-      (SELECT id FROM checkout_reservations WHERE account_id=ANY($1::uuid[]))`, [found.accountIds]);
-    await client.query('DELETE FROM checkout_reservations WHERE account_id=ANY($1::uuid[])', [found.accountIds]);
+    if (sharedManifest) {
+      await client.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=ANY($1::uuid[])',
+        [ownedReservationIds]);
+      await client.query('DELETE FROM checkout_reservations WHERE id=ANY($1::uuid[])',
+        [ownedReservationIds]);
+    } else {
+      await client.query(`DELETE FROM checkout_reservation_lines WHERE reservation_id IN
+        (SELECT id FROM checkout_reservations WHERE account_id=ANY($1::uuid[]))`, [found.accountIds]);
+      await client.query('DELETE FROM checkout_reservations WHERE account_id=ANY($1::uuid[])', [found.accountIds]);
+    }
     await client.query('DELETE FROM customer_addresses WHERE account_id=ANY($1::uuid[])', [found.accountIds]);
   }
   if (found.products.length) {
@@ -234,7 +306,10 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
       [found.products.map((row) => row.category_id)]);
   }
   if (found.accountIds.length) {
-    await client.query('DELETE FROM audit_events WHERE actor_account_id=ANY($1::uuid[])', [found.accountIds]);
+    if (sharedManifest) await client.query(
+      'DELETE FROM audit_events WHERE id=ANY($1::uuid[]) AND actor_account_id=ANY($2::uuid[])',
+      [ownedAuditIds, sharedManifest.accountIds]);
+    else await client.query('DELETE FROM audit_events WHERE actor_account_id=ANY($1::uuid[])', [found.accountIds]);
     await client.query('DELETE FROM auth_sessions WHERE account_id=ANY($1::uuid[])', [found.accountIds]);
     await client.query('DELETE FROM account_roles WHERE account_id=ANY($1::uuid[])', [found.accountIds]);
     await client.query('DELETE FROM account_identities WHERE account_id=ANY($1::uuid[])', [found.accountIds]);
