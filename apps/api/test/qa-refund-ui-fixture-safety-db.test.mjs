@@ -350,3 +350,72 @@ test('shared reset preserves conflicts whose incoming attempt belongs to another
   }
   await runRefundUiFixture('reset', runId, url, undefined, consent, manifest);
 });
+
+test('shared reset blocks late foreign reservation and shipment lines', {
+  skip: !privateTarget,
+}, async () => {
+  const runId = 'e4261005';
+  const foreignRunId = 'e4271005';
+  const consent = `SHARED_S4_REFUND_UI_${runId}`;
+  const foreignConsent = `SHARED_S4_REFUND_UI_${foreignRunId}`;
+  const manifest = await runRefundUiFixture('seed', runId, url, 'virtual-test-only-123456', consent);
+  const foreign = await runRefundUiFixture('seed', foreignRunId, url, 'virtual-test-only-123456', foreignConsent);
+  const pool = new Pool({ connectionString: url, max: 5 });
+  async function assertLateInsertBlocks(insertSql, insertArgs, deleteSql, deleteArgs) {
+    const resetClient = await pool.connect();
+    const writer = await pool.connect();
+    let releaseReset;
+    try {
+      await resetClient.query('BEGIN');
+      let reachedDelete;
+      const paused = new Promise((resolve) => { reachedDelete = resolve; });
+      const resume = new Promise((resolve) => { releaseReset = resolve; });
+      const wrapper = { query: async (sql, args) => {
+        if (sql.startsWith('DELETE FROM refund_event_conflicts')) { reachedDelete(); await resume; }
+        return resetClient.query(sql, args);
+      } };
+      const pendingReset = resetRefundUiFixture(wrapper, runId, 4, manifest);
+      pendingReset.catch(() => {});
+      await paused;
+      await writer.query("SET lock_timeout='5s'");
+      const pid = (await writer.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      const insert = writer.query(insertSql, insertArgs);
+      insert.catch(() => {});
+      let blocked = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        blocked = (await pool.query('SELECT cardinality(pg_blocking_pids($1))>0 AS blocked', [pid])).rows[0].blocked;
+        if (blocked) break;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      assert.equal(blocked, true, 'late foreign line must wait on QA parent lock');
+      releaseReset();
+      await pendingReset;
+      await resetClient.query('ROLLBACK');
+      await insert;
+      await pool.query(deleteSql, deleteArgs);
+    } finally {
+      releaseReset?.();
+      await resetClient.query('ROLLBACK').catch(() => {});
+      resetClient.release();
+      writer.release();
+    }
+  }
+  try {
+    await assertLateInsertBlocks(
+      'INSERT INTO checkout_reservation_lines(reservation_id,option_id,quantity) VALUES ($1,$2,1)',
+      [manifest.reservationId, foreign.optionId],
+      'DELETE FROM checkout_reservation_lines WHERE reservation_id=$1 AND option_id=$2',
+      [manifest.reservationId, foreign.optionId]);
+    await assertLateInsertBlocks(`INSERT INTO shipment_order_lines
+      (shipment_order_id,product_id,option_id,seller_id,product_name,option_name,
+       unit_price_won,quantity,goods_discount_won,goods_payable_won)
+      VALUES ($1,$2,$3,$4,'foreign','500g',1000,1,0,1000)`,
+    [manifest.shipmentId, foreign.productId, foreign.optionId, foreign.sellerId],
+    'DELETE FROM shipment_order_lines WHERE shipment_order_id=$1 AND option_id=$2',
+    [manifest.shipmentId, foreign.optionId]);
+  } finally {
+    await pool.end();
+  }
+  await runRefundUiFixture('reset', runId, url, undefined, consent, manifest);
+  await runRefundUiFixture('reset', foreignRunId, url, undefined, foreignConsent, foreign);
+});
