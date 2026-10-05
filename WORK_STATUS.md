@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 완료 checkpoint — 2026-10-06 S5.1 Task3 주문 fulfillment 담당자·cutoff snapshot
+
+- **판정·범위:** 제품·시험 검증 SHA `bb1a389d65f2bbf16e013fbf624a5ed283a7f0fc`에서 **S5.1 Task3 완료**다. 직접발송은 shipment seller와 그 판매자의 승인된 유효 cutoff, 공동출고는 설정된 owool seller와 전역 cutoff를 같은 주문 거래에서 snapshot한다. 미설정·존재하지 않음·활성 seller grant 없음은 주문·출고·프로모션 사용·예약 소비 전체를 rollback하며, 같은 주문 멱등 재시도는 fulfillment 행을 추가하지 않는다. 이 판정은 Task3에만 한정하며 S5 전체 완료가 아니다.
+- **경합 결함과 최종 보정:** 독립 I1에서 account→policy/policy→account 잠금 순환을 실제 `40P01` RED로 확인했다. account lock을 `FOR NO KEY UPDATE`로 바꾼 1차 보정 뒤에는 실제 `40001` RED가 발생했다. PMO 승인 Fix Round 3은 REPEATABLE READ와 account `FOR NO KEY UPDATE`를 유지하고 `fulfillment_settings id=1`, `shipping_policy_global id=1`, seller set의 `seller_shipping_policies` 세 mutable source 조회에서만 `FOR SHARE`를 제거했으며, sellers 및 account_roles/accounts active-owner validity `FOR SHARE`는 유지했다.
+- **실제 PostgreSQL GREEN:** 세 source writer가 주문 거래 중 모두 commit해도 주문은 기존 owool owner, 전역 `12:00`, seller `13:00/14:00`의 한 REPEATABLE READ snapshot을 저장했고 `40P01`·`40001`은 발생하지 않았다. customer+admin 동일계정의 global policy audit도 양 거래 commit, policy account wait false, 주문 pooled cutoff 기존 `12:00`, global policy 새 `22:00`으로 무교착을 확인했다. fresh private PostgreSQL에서 Task3 목표 **4/4 pass**, 기존 order 회귀 **4/4 pass**, 전체 DB **380 tests/361 pass/19 skip/0 fail**이다.
+- **Windows·WSL gate:** Windows는 전체 **370 tests/264 pass/106 skip/0 fail**, PR 본문 **8/8 pass**, typecheck·lint·build·diff check 성공이다. WSL exact SHA는 전체 **370 tests/264 pass/106 skip/0 fail**, PR 본문 **8/8 pass**, API/web/mobile/contracts typecheck, lint, API·web build 성공이다. skip은 PASS에 포함하지 않는다. 독립 reviewer Harvey 결과는 **Critical 0 / Important 0 / Minor 0**이다.
+- **DB·자원 정리:** private DB migration은 **16**이며 시험행 accounts/sellers/products/reservations/orders/fulfillments/promotion/refund는 모두 0, `fulfillment_settings`는 singleton 1이다. `shoppingmall-s51-order-node-1006*`, `shoppingmall-s51-order-pg-1006`, `shoppingmall-s51-order-1006`과 관련 volume은 모두 cleanup0이며 외부 port 없음, 영속 mount 없음, PG는 tmpfs였다. 공유 `local-postgres/shoppingmall`은 미접촉·미변경이다.
+- **오류·미검증:** 최종 증거 수집 중 잘못된 임시 PG role/table 이름 조회와 PowerShell 인용 실패는 읽기 전용 검사 오류였고 `postgres`/`public` 및 Drizzle 정본의 exact 조회로 해결했으며 제품·DB 변경은 없었다. 앞선 EROFS·tsc path·race orchestration·role order 오류와 조치는 아래 Fix Round 기록을 따른다. 공유/실서비스 PostgreSQL, Oracle, UAT, 장시간 부하는 미검증이다.
+- **전달·다음 작업:** 원격 전달은 `git@github-sinsan-develop` SSH 별칭만 사용하며 GitHub 계정·`gh`·token을 사용하지 않는다. 다음 정확한 계획 작업은 승인된 **Task4 결제 승인 → `READY`·잠정 예상일**이며 공개 API/UI/schema/shared DB는 제외한다.
+
 ## GREEN 후보 — 2026-10-06 S5.1 Task3 Fix Round 3A source snapshot 경합
 
 - **범위·기준:** PMO 승인 exact base `2ee880ec890b689e15d9e27717ca2f46fb46c940`, branch `codex/s5-fulfillment-engagement`, Windows worktree clean에서 시작했다. 프로젝트 root `AGENTS.md`는 실제로 없으므로 `D:\Project\PMO\AGENTS.md`, Task3 계획·brief, `docs/DEVELOPMENT_ENVIRONMENT.md`와 최신 직접 지시를 적용했다. 허용 파일은 fulfillment repository, 주문 service의 함수 rename, 고정 fulfillment-order DB 시험, 이 상태 문서뿐이다.
