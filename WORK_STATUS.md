@@ -1,5 +1,18 @@
 # 어울몰 작업현황
 
+## 완료 — 2026-10-05 S4.2 공유 개발 DB 0014 적용·자동 회귀
+
+- 완료 범위는 PMO 승인 A안의 공유0014 적용·목표/전체 **자동회귀**뿐이다. exact HEAD `cd10cbabffe1bade46245b70f2feabc565e77eaa`(제품은 `2a61f32`와 동일)에서 목표 **12/12 pass·0skip·0fail**, 공유DB 연결 루트 전체 **347건/330 pass/17조건부skip/0fail**, PR본문8 pass, outer exit0을 확인했다. 17skip 내역은 아래 Task6와 같으며 새 PASS로 치환하지 않았다. 테스트의 의도한 잘못된 배송정책 입력에서 Nest 예외로그가 출력됐지만 해당 rollback 시험이 PASS였고 실제 실패0이다.
+- 최종 DB 읽기전용 전수행수: public50관계 중 **47관계0**, 기존 singleton `home_content_current`·`home_content_draft`·`shipping_policy_global`만 각1. 신규환불6관계/원주문·결제·계정·상품·세션·감사·쿠폰/QA자료0, Drizzle15이력 유지. 승인된 schema/기존서비스는 유지했다. 임시 runner0, 공개포트/새volume/상시mock서버 생성0. 검증 성공 뒤 정확한 백업 해시/경로를 재확인해 WSL·컨테이너 내부 `/tmp/shoppingmall-s42-0014-pre-20261005.dump` **두 사본만 삭제·부재 확인**했다. 이 시험용 백업은 더 이상 복구본으로 존재하지 않으며 다른 백업/자료는 변경하지 않았다.
+- 보존 증거: `D:\tmp\shoppingmall-s42-shared-target-1005.log`, `D:\tmp\shoppingmall-s42-shared-full-1005.log`, 아래 사전 백업 해시·적용이력. 제품 코드/SQL 추가 변경 없음. 정식 공유DB **실제 브라우저** 성공/실패/재시도·환불 E2E는 아직 미검증이며, 앞선 Chrome 결과는 격리DB 자체QA다. 실PG·외부비용·Oracle·S5.2·S4 Stage PR/병합·최종 사용자 인수도 미실행이다. 다음은 이 결과를 PMO에 보고하고 S4의 남은 공유 브라우저 통합/Stage 판정 실행 범위를 지시받는다.
+
+### 승인·적용 진행 이력
+
+- 적용 완료/전체 회귀 진행: exact HEAD `cd10cbabffe1bade46245b70f2feabc565e77eaa`의 정식 WSL checkout clean, running 컨테이너 `local-postgres` ID `99f3bf939d40c265f44bc330fb143675ecad96c9ab27bd517500ef04eaa2506c`, DB `shoppingmall`을 확인했다. 이력14/대기0014만/해시 일치/기존6범주0에서 전체백업을 만들었다. custom-format v1.14·TOC305·TABLE DATA45·138365bytes·0600, SHA256 **b4d86c1c36f962db526f0918ef62e556e8065d61eb5ed3398342edad2db73668**. pg_dump가 생성한 컨테이너 내부 `/tmp` 파일과 WSL `/tmp` 복사본 모두 같은 해시/0600을 확인했다. 승인된 Drizzle 적용 후 **15적용/대기0·신규6관계·기존6범주0**이며 공유 목표시험 **12/12 pass·0skip·0fail**. 전체 루트 회귀 진행 중이므로 백업 두 사본은 아직 보존한다. 적용/목표 검증 오류0, 자동 역migration/실PG/상시mock서버 없음.
+- PMO `01a054f5-c2b4-7af0-b31a-c8148ef74642`가 신산님의 권장안 승인에 따라 `local-postgres/shoppingmall`의 0014 한 건만 승인했다. 대상은 제품 `2a61f3258f441070838c78d4ff0215de7d201e95`와 제품 diff가 없는 문서 HEAD `cd10cbabffe1bade46245b70f2feabc565e77eaa`, SQL SHA-256 `fe1328de61502e1d19a7ade992862c9bd508667f432f0ac29de1df87a9c75181`다. 자체 격리 Task6 완료만 인정됐으며 S4 Stage/공유E2E/사용자 인수 완료가 아니다.
+- 예정 자원: WSL 일회용 runner `shoppingmall-s42-shared-node-1005`(기존 Node24 image, WSL 정식 checkout 읽기전용, 기존 `local-postgres` 네트워크 namespace, 공개 포트/새 volume 없음), WSL 임시백업 **`/tmp/shoppingmall-s42-0014-pre-20261005.dump`**. 백업은 승인 적용 전 전체DB custom-format·0600·크기·목록·SHA256을 확인하고 회귀 성공/가상자료정리 뒤 정확한 파일만 제거한다. 실패하면 보존·PMO 보고하며 역migration/DB덮어쓰기를 하지 않는다. runner는 실행마다 `--rm`, 별도 API/mock 서버는 상시 실행하지 않는다. 공유 기존 데이터와 서비스는 유지한다.
+- 실행 순서: 컨테이너/DB·이력14·대기0014만·SQL해시·기존6범주 재확인 → 전체 백업검증 → 정확한 migration → 이력15/대기0·6신규관계·기존행수불변 → 목표/전체 공유DB 회귀 → QA/runner/백업 잔류0. preflight 불일치/적용·검증 실패는 다음 변경을 중단하고 원사건을 보존해 PMO에 보고한다. 실PG·외부비용·Oracle·S5.2·새branch·Stage병합은 제외한다.
+
 ## 검증 완료·PMO 판정 요청 — 2026-10-05 S4.2 Task 6 격리 QA
 
 - 담당 어울/단일 writer, 최종 제품 SHA **`2a61f3258f441070838c78d4ff0215de7d201e95`**, `codex/s4-payment-refund`; Windows/원격/WSL 동일 SHA. 다음 문서 커밋은 제품 diff가 없는 증거·체크리스트 갱신이다. `main` 병합/PR 자동병합 태그/공유0014/실PG/Oracle/UAT/S5.2는 하지 않았다.

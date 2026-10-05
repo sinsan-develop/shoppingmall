@@ -2,6 +2,8 @@
 
 ## 2026-10-05 S4.2 환불 검증 경계
 
+- 공유 자동회귀 완료: exact HEAD `cd10cbabffe1bade46245b70f2feabc565e77eaa`에서 환불/결제 목표12 pass·0skip, 루트347건/330pass17조건부skip0fail와 PR본문8 pass. 사후 public50관계 중47관계0·기존 home current/draft와 global shipping 각1, migration15, 임시runner0을 확인했다. 아래 백업은 검증 성공 후 해시/대상 확인을 거쳐 **두 사본 모두 삭제했으며 현재 잔류0**이다. 적용된 공유schema는 유지한다. 공유DB 실제 브라우저 E2E·S4 Stage 완료·실PG/Oracle/UAT와는 별도 판정이다.
+- 공유 적용 후속: PMO가 신산님의 권장안 승인을 전달한 뒤 WSL exact HEAD `cd10cbabffe1bade46245b70f2feabc565e77eaa`에서 아래 정확한0014를 적용했다. 공유DB는 현재 **15적용/대기0**, 신규 환불6관계 존재·기존 주요6범주0 불변이다. 사전 전체 custom-format 백업은 `/tmp/shoppingmall-s42-0014-pre-20261005.dump`(WSL과 컨테이너 안의 두 사본), 138365bytes·0600·TOC305·TABLE DATA45·SHA256 `b4d86c1c36f962db526f0918ef62e556e8065d61eb5ed3398342edad2db73668`. 공유 목표12/12 pass 후 전체 회귀 중이므로 백업은 아직 보존한다. 임시 runner `shoppingmall-s42-shared-node-1005`만 기존DB network namespace를 사용하고 새 공개포트/volume/상시mock서비스는 없다. 아래14건/미적용 문장은 이 승인·적용 전 기록이다.
 - 제품 기준은 기존 작업 branch `codex/s4-payment-refund`의 `2a61f3258f441070838c78d4ff0215de7d201e95`이다. 정본은 `D:\Project\shoppingmall2`, 단일 writer는 `.worktrees\s4-payment-refund`에서 작업하고 WSL `/home/daon/deploy/shopping`은 SSH 별칭으로 push한 동일 SHA를 fast-forward한다. OneDrive나 별도 후속 branch는 사용하지 않는다.
 - 공유 `WSL-server/local-postgres/shoppingmall`은 읽기 전용 확인에서 migration **14건(0013까지)**, 계정/상품/예약/주문/결제시도/결제사건 각0이다. `0014_s4_refunds.sql` SHA-256 **fe1328de61502e1d19a7ade992862c9bd508667f432f0ac29de1df87a9c75181**의 6개 신규 환불 관계는 아직 없다. PMO에 정확한 SQL·영향·백업·복구를 보고하고 별도 지시를 받기 전 공유 DB에 적용하지 않는다.
 - 자체 QA는 전용 네트워크 `shoppingmall-s42-review-1005`의 `shoppingmall-s42-review-pg-1005`(tmpfs, 영속 mount/외부 공개 포트 없음)에 fresh 0000~0014를 적용했다. 자동회귀 DB는 `shoppingmall`, 브라우저 전용은 `shoppingmall_s4_refund_ui_e4211005`다. 이 결과는 정식 공유 DB 통합/E2E·실제 PG·Oracle/UAT를 대신하지 않는다.
