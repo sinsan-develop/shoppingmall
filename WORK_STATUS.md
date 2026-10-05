@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S4 공유 개발 DB 실제 브라우저 E2E
+
+- 담당 어울/단일 writer, 기존 `codex/s4-payment-refund`와 WSL 지정 checkout `3392ed42aacad64f3f08cc8133ac826e795df93b` 동일·clean. PMO 지시는 S4 공유 브라우저 결제 성공/거절/미확정 재시도와 관리자 출고 전 부분·전량 환불을 확인하고 필수 회귀·독립 리뷰·매뉴얼 확인까지 진행하는 것이다. S5.2·새 API/schema·실 PG·Oracle·새 branch는 제외한다.
+- 가상 QA ID `e4231005`: `qa+e4231005-refund-{customer,seller,admin}@example.invalid` 3계정, `qa-e4231005-refund-ui` 판매자/판매자분류/상품분류, 고추 상품 1개·옵션1개·초기 PAID 주문1개를 생성한다. 고객 UI 결제 주문은 합계 최대 4개까지만 허용하며, 다른 계정이 QA 상품·주문을 참조하면 reset을 거부한다. 상품명/계정은 재사용하지 않고 종료 즉시 해당 ID의 시험 행만 트랜잭션으로 정리한다. 생성 전 공유 DB 계정0 확인. 비밀번호·DB URL은 Git/문서/출력에 남기지 않는다.
+- 공유 fixture 보호: 기존 격리 DB 전용 경로는 유지하고 정확한 `shoppingmall` DB와 run ID 일치 opt-in만 별도 허용했다. 보호검사 구현 전 RED(내보낸 함수 없음), 구현 후 2/2 PASS, API typecheck PASS. 이 결과만으로 공유 DB/브라우저 E2E를 통과했다고 하지 않는다. 기존 `apps/web/AGENTS.md`·`CLAUDE.md`는 소유 불명 untracked로 보존한다.
+- 다음: reset의 외부 참조 거부를 격리 DB에서 검증 → WSL exact SHA에서 임시 API/Web 실행 → 공유 DB 시험자료 생성·실제 Chrome 고객/관리자 시나리오 → 금액·상태·잔존자료 대조 및 선택적 정리 → 전량 회귀·독립 리뷰. 오류 횟수: 초기 시험 명령 로더 누락1회(정상 로더 재실행), WSL 읽기전용 inspect 출력 필드 불일치1회(계정0 확인, 서비스 주소 재조회 필요), 기능 실패0.
+
 ## 완료 — 2026-10-05 S4.2 공유 개발 DB 0014 적용·자동 회귀
 
 - 완료 범위는 PMO 승인 A안의 공유0014 적용·목표/전체 **자동회귀**뿐이다. exact HEAD `cd10cbabffe1bade46245b70f2feabc565e77eaa`(제품은 `2a61f32`와 동일)에서 목표 **12/12 pass·0skip·0fail**, 공유DB 연결 루트 전체 **347건/330 pass/17조건부skip/0fail**, PR본문8 pass, outer exit0을 확인했다. 17skip 내역은 아래 Task6와 같으며 새 PASS로 치환하지 않았다. 테스트의 의도한 잘못된 배송정책 입력에서 Nest 예외로그가 출력됐지만 해당 rollback 시험이 PASS였고 실제 실패0이다.

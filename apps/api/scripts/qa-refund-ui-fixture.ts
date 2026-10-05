@@ -28,6 +28,14 @@ export function validateRefundUiTarget(databaseUrl: string, value: string) {
   return { url, database };
 }
 
+export function validateSharedRefundUiTarget(databaseUrl: string, value: string, consent?: string) {
+  const url = new URL(databaseUrl);
+  const database = decodeURIComponent(url.pathname.slice(1));
+  if (database !== 'shoppingmall' || consent !== `SHARED_S4_REFUND_UI_${runId(value)}`)
+    throw new Error('Shared refund UI fixture requires exact shoppingmall DB and run-bound opt-in');
+  return { url, database };
+}
+
 function prefix(value: string) { return `qa-${runId(value)}-refund-ui`; }
 
 async function findFixture(client: PoolClient, value: string) {
@@ -44,12 +52,36 @@ async function findFixture(client: PoolClient, value: string) {
     seller: seller.rows[0], products: products.rows };
 }
 
-async function reset(client: PoolClient, value: string) {
+export async function resetRefundUiFixture(client: PoolClient, value: string, maxOrders = 1) {
   const found = await findFixture(client, value);
   const orderIds = found.accountIds.length ? (await client.query<{ id: string }>(
     'SELECT id FROM checkout_orders WHERE account_id=ANY($1::uuid[])', [found.accountIds])).rows.map((row) => row.id) : [];
-  if (orderIds.length > 1 || found.products.length > 1)
-    throw new Error('Refund UI fixture scope differs from one order and one product');
+  if (orderIds.length > maxOrders || found.products.length > 1 || found.accountIds.length > 3)
+    throw new Error('Refund UI fixture scope exceeds its bounded accounts, orders or product');
+  if (found.products.length) {
+    const productId = found.products[0].id;
+    const foreignCart = await client.query(`SELECT 1 FROM customer_cart_items i
+      JOIN product_options o ON o.id=i.option_id JOIN product_revisions r ON r.id=o.revision_id
+      WHERE r.product_id=$1 AND NOT(i.account_id=ANY($2::uuid[])) LIMIT 1`, [productId, found.accountIds]);
+    const foreignReservation = await client.query(`SELECT 1 FROM checkout_reservation_lines l
+      JOIN checkout_reservations x ON x.id=l.reservation_id
+      JOIN product_options o ON o.id=l.option_id JOIN product_revisions r ON r.id=o.revision_id
+      WHERE r.product_id=$1 AND NOT(x.account_id=ANY($2::uuid[])) LIMIT 1`, [productId, found.accountIds]);
+    const foreignFavorite = await client.query(`SELECT 1 FROM customer_favorites
+      WHERE product_id=$1 AND NOT(account_id=ANY($2::uuid[])) LIMIT 1`, [productId, found.accountIds]);
+    const foreignRestock = await client.query(`SELECT 1 FROM restock_subscriptions
+      WHERE product_id=$1 AND NOT(account_id=ANY($2::uuid[])) LIMIT 1`, [productId, found.accountIds]);
+    const foreignOrderLine = await client.query(`SELECT 1 FROM shipment_order_lines l
+      JOIN shipment_orders s ON s.id=l.shipment_order_id
+      JOIN checkout_orders x ON x.id=s.checkout_order_id
+      WHERE l.product_id=$1 AND NOT(x.account_id=ANY($2::uuid[])) LIMIT 1`, [productId, found.accountIds]);
+    const unrelatedLine = orderIds.length ? await client.query(`SELECT 1 FROM shipment_order_lines l
+      JOIN shipment_orders s ON s.id=l.shipment_order_id
+      WHERE s.checkout_order_id=ANY($1::uuid[]) AND l.product_id<>$2 LIMIT 1`, [orderIds, productId]) : { rowCount: 0 };
+    if (foreignCart.rowCount || foreignReservation.rowCount || foreignFavorite.rowCount ||
+        foreignRestock.rowCount || foreignOrderLine.rowCount || unrelatedLine.rowCount)
+      throw new Error('Refund UI fixture is referenced by a foreign account or product');
+  }
   if (orderIds.length) {
     await client.query(`DELETE FROM refund_event_conflicts WHERE original_event_id IN
       (SELECT e.id FROM refund_events e JOIN refund_attempts a ON a.id=e.refund_attempt_id
@@ -194,8 +226,9 @@ async function seed(client: PoolClient, value: string, password: string) {
 }
 
 export async function runRefundUiFixture(action: 'seed' | 'reset', value: string,
-  databaseUrl: string, password?: string) {
-  validateRefundUiTarget(databaseUrl, value);
+  databaseUrl: string, password?: string, sharedConsent?: string) {
+  if (sharedConsent) validateSharedRefundUiTarget(databaseUrl, value, sharedConsent);
+  else validateRefundUiTarget(databaseUrl, value);
   if (action === 'seed' && (!password || password.length < 12))
     throw new Error('QA_FIXTURE_PASSWORD must be set');
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
@@ -203,7 +236,8 @@ export async function runRefundUiFixture(action: 'seed' | 'reset', value: string
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const result = action === 'seed' ? await seed(client, value, password!) : await reset(client, value);
+      const result = action === 'seed' ? await seed(client, value, password!) :
+        await resetRefundUiFixture(client, value, sharedConsent ? 4 : 1);
       await client.query('COMMIT');
       return result;
     } catch (error) {
@@ -217,7 +251,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   const action = process.argv[2];
   if (action !== 'seed' && action !== 'reset') throw new Error('usage: qa-refund-ui-fixture.ts seed|reset');
   runRefundUiFixture(action, process.env.QA_RUN_ID ?? '', process.env.DATABASE_URL ?? '',
-    process.env.QA_FIXTURE_PASSWORD).then((result) => process.stdout.write(`${JSON.stringify(result)}\n`))
+    process.env.QA_FIXTURE_PASSWORD, process.env.QA_SHARED_REFUND_UI).then((result) => process.stdout.write(`${JSON.stringify(result)}\n`))
     .catch((error) => { process.stderr.write(`${error instanceof Error ? error.message : 'QA fixture failed'}\n`);
       process.exitCode = 1; });
 }
