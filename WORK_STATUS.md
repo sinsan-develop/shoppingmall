@@ -2,6 +2,9 @@
 
 ## 진행 중 — 2026-10-05 S4.1 충돌 기록 보정 승인
 
+- 새 충돌 기록 시험은 기존 0013 private DB에서 관계 부재(`42P01`)로 RED 0 pass/1 fail/0 skip을 확인했다. 최초 RED에서는 시험 정리가 같은 부재 관계를 먼저 조회해 원인 위치를 가렸고, 정리 guard 보정 뒤 본문 54행의 기대 실패로 확인했다(시험 경로 오류 1회, 보정 성공). 이 최초 실패로 남은 private 시험 사건 1건은 해당 컨테이너가 tmpfs·무외부포트·무영속 mount·전용 네트워크의 유일 구성원임을 대조하고 정확한 컨테이너만 제거/재생성해 소멸했다. 수정 0013 fresh 적용 이력 14건, 목표 **1 pass/0 skip**, WSL private API 전체 **174 total/157 pass/17 환경 skip/0 fail**, 사후 시도/사건/충돌 각 0. Windows 전체 **318 total/231 pass/87 환경 skip/0 fail**, PR 본문 8 pass, typecheck/lint/build exit 0. SQL SHA-256 `4556376ac133b0468015a56f631b93bf5bff8dd276ee1e3777c096d35456b547`. 이 결과는 actual browser/공유 DB/실 PG/Oracle/UAT PASS가 아니다.
+- 격리 시험 후 전용 네트워크 구성원은 전용 PG 1개뿐, 해당 PG의 영속 mount/포트 바인딩 각 0, 시도·사건·충돌 각 0을 확인했다. 정확한 `shoppingmall-s41-conflict-pg-1005`와 `shoppingmall-s41-conflict-1005`를 제거하고 두 이름의 잔류 0을 확인했다. 공유 `local-postgres/shoppingmall` 읽기 전용 재확인은 migration **13건**, `payment_event_conflicts` 부재였다. 따라서 0013 공유 적용은 여전히 별도 승인 필요.
+
 - 담당 어울, 단일 writer. 신산님이 아직 공유 DB에 적용하지 않은 0013에 결제 사건 충돌 전용 관계 1개를 추가하는 범위를 승인했다. 원사건 불변·새 사건 지문/시각/사유 영속·충돌 결제 확정 차단을 목표로 TDD 보정한다. 공유 DB 0013 적용·실 PG·Oracle·S4.2는 승인에 포함되지 않는다.
 - 기준 `codex/s4-payment-refund@bc09ad13f8cfa9c82ade1eefcc917d02932e35e8`, Windows 격리 worktree clean·WSL 지정 checkout 동일 SHA/clean. 예상 변경: 0013 SQL, Drizzle schema, 결제 사건 서비스/저장소, DB 시험, 계약·환경·현황 문서. 기존 0000~0012·주문/결제 행 삭제 없음.
 - 격리 시험 자원 사전 계획: WSL의 전용 네트워크 `shoppingmall-s41-conflict-1005`, tmpfs PostgreSQL `shoppingmall-s41-conflict-pg-1005`, 일회용 Node 시험 컨테이너만 사용한다. 외부 포트·영속 볼륨 0, 수명은 이번 RED→GREEN/전체 회귀까지. 기존 이름 잔류 없음 확인. 완료·실패·중단 시 고유 시험 행을 확인하고 정확한 전용 PG·네트워크만 제거해 잔류 0을 확인한다. 공유 `local-postgres/shoppingmall`은 변경하지 않는다.

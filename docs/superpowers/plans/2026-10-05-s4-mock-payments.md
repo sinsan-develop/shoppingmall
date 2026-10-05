@@ -38,7 +38,7 @@
 
 **Interfaces:**
 - Consumes: 0012의 `checkout_orders`, `shipment_orders`, `order_status_events`, 예약·쿠폰 관계.
-- Produces: `payment_attempts`, `payment_events`, `PAID` 주문/발송/상태 사건, `paid_at`; Task 3/4의 SQL 정본.
+- Produces: `payment_attempts`, `payment_events`, 후속 승인된 `payment_event_conflicts`, `PAID` 주문/발송/상태 사건, `paid_at`; Task 3/4의 SQL 정본.
 
 - [ ] **Step 1: 실패하는 실제 DB 시험 작성.** 0012까지 적용한 격리 DB에서 두 결제 테이블 부재, 0013 후 테이블/유일키/금액·상태 제약, 기존 만료 행 보존, `PAID` 행 수용을 검사한다. 시험명은 위 변경에 따라 실패하는 행위를 드러낸다.
 - [ ] **Step 2: RED 확인.** 격리 PostgreSQL에서 `node --import tsx --test apps/api/test/payment-schema-db.test.mjs`; 기대: 0013 전 새 관계 부재로 목표 실패, 환경 skip 0.
@@ -74,7 +74,7 @@
 
 - [ ] **Step 1: 실패하는 DB 시험 작성.** 소유자 전용 접근, 동일 키·입력 재조회/다른 입력 충돌, 공급자 사건 ID 중복은 한 행, 같은 ID의 다른 지문은 거부, 사건은 처리 전 `PENDING_PROCESSING`으로 남음을 확인.
 - [ ] **Step 2: RED 실행.** 격리 DB에서 목표 시험, skip 0/예상 실패 확인.
-- [ ] **Step 3: 최소 영속 로직 작성.** 계정→주문 순서 잠금, 저장된 `payable_won` 사용, SHA-256 요청/사건 지문, 원문/카드/PII 비저장.
+- [ ] **Step 3: 최소 영속 로직 작성.** 계정→주문 순서 잠금, 저장된 `payable_won` 사용, SHA-256 요청/사건 지문, 원문/카드/PII 비저장. 후속 승인에 따라 동일 공급자 사건 ID의 내용 충돌은 원사건을 바꾸지 않고 별도 충돌 행을 커밋한 뒤 거부한다.
 - [ ] **Step 4: GREEN 및 기존 주문 DB 회귀.** 목표·전체 관련 DB 시험 pass/skip 0.
 - [ ] **Step 5: 변경 파일만 커밋.** `feat(payment): persist verified payment attempts and events`.
 

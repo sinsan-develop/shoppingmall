@@ -2,6 +2,8 @@
 
 ## 2026-10-05 S4.1 모의 결제 개발 경계
 
+- 2026-10-05 후속: 신산님 승인으로 **공유 DB 미적용** 0013에 `payment_event_conflicts`를 추가했다. 현재 0013 SQL SHA-256은 `4556376ac133b0468015a56f631b93bf5bff8dd276ee1e3777c096d35456b547`이다. WSL 전용 tmpfs DB에서 0000~0013을 새로 적용해 결제 충돌 목표 1 pass/0 skip, API 전체 174건/157 pass/17 환경 skip/0 fail, QA 결제 시도·사건·충돌 잔류 각 0을 확인했다. 로컬 전체 318건/231 pass/87 DB·환경 skip/0 fail와 PR 본문 8 pass, typecheck/lint/build exit 0. 이는 공유 `local-postgres/shoppingmall` 적용이나 실제 브라우저 검증을 뜻하지 않는다.
+
 - 최신 exact SHA `fd12bbe9cf1b975465306de2225bab8d2009a985`에서 로컬 316건/229 pass/87 환경 skip/0 fail, WSL 전용 0013 API 173건/156 pass/17 환경 skip/0 fail, Web 대상 20 pass/0 skip이다. 가상 브라우저 fixture는 정확한 run ID로 reset했고 private QA 6범주 0·임시 컨테이너/전용 DB/네트워크 0을 확인했다. 공유 DB 이력은 13건 그대로다. Windows 브라우저 제어 도구가 ACL 초기화 실패해 실제 화면·390px·키보드 시험은 미검증이며, 자동 HTTP/Web 시험으로 대신하지 않는다. 재시도 시 새 전용 DB와 격리 fixture 자원 계획을 먼저 기록한다.
 - 현재 작업 브랜치/Windows worktree는 `codex/s4-payment-refund` / `D:\Project\shoppingmall2\.worktrees\s4-payment-refund`다. WSL 지정 checkout `/home/daon/deploy/shopping`은 `github-sinsan-develop` 별칭으로 push한 exact SHA를 `git pull --ff-only`해 시험한다. 이전 S3 경로·브랜치 표기는 그 시점의 기록이며 현재 명령표가 아니다.
 - 결제 기본 모드는 `disabled`다. 모의 API POST를 시험할 때만 API 프로세스에 `APP_ENV=development`, `PAYMENT_MODE=mock`, `API_HOST=127.0.0.1`을 명시한다. 실제 연결도 루프백이어야 하며 `NODE_ENV=production`에서는 닫힌다. Web 개발 화면의 모의 버튼은 별도로 `NEXT_PUBLIC_PAYMENT_MODE=mock`과 개발 빌드일 때만 표시한다. 이 플래그는 **화면 표시용**이고 서버 접근 허가가 아니다. 카드정보·실제 PG·Oracle 공개 URL에는 사용하지 않는다.
