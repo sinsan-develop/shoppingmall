@@ -111,6 +111,16 @@ test('shared-fixture reset rejects foreign identity/reference and blocks a late 
       [foreignActorAudit])).rows[0].count, 1);
     await pool.query('DELETE FROM audit_events WHERE id=$1', [foreignActorAudit]);
 
+    await pool.query(`INSERT INTO audit_events
+      (actor_account_id,active_role,action,target_type,target_id)
+      SELECT $1,'admin','qa.excess','account',$2 FROM generate_series(1,101)`,
+    [manifest.accountIds[2], manifest.accountIds[0]]);
+    await assert.rejects(runRefundUiFixture('reset', runId, url, undefined, consent, manifest), /audit/);
+    assert.equal((await pool.query("SELECT count(*)::int AS count FROM audit_events WHERE action='qa.excess'",
+      [])).rows[0].count, 101);
+    await pool.query("DELETE FROM audit_events WHERE action='qa.excess' AND actor_account_id=$1",
+      [manifest.accountIds[2]]);
+
     const auditWriter = await pool.connect();
     try {
       await auditWriter.query('BEGIN');

@@ -76,9 +76,6 @@ async function findFixture(client: PoolClient, value: string) {
 
 export async function resetRefundUiFixture(client: PoolClient, value: string, maxOrders = 1,
   sharedManifest?: SharedRefundManifest) {
-  // Acquire the table lock before the first read: SERIALIZABLE must not keep
-  // a snapshot from before a concurrent audit writer commits.
-  if (sharedManifest) await client.query('LOCK TABLE audit_events IN SHARE ROW EXCLUSIVE MODE');
   const found = await findFixture(client, value);
   let ownedReservationIds: string[] | undefined;
   let ownedAuditIds: string[] | undefined;
@@ -194,6 +191,34 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
       LIMIT 1`, [orderIds]);
     if (paymentCrossLinks.rowCount)
       throw new Error('Shared refund UI foreign payment conflict or event reference');
+    const refundCrossLinks = await client.query(`SELECT 1 FROM refund_event_conflicts x
+      JOIN refund_events e ON e.id=x.original_event_id
+      JOIN refund_attempts original_attempt ON original_attempt.id=e.refund_attempt_id
+      JOIN refund_cases original_case ON original_case.id=original_attempt.refund_case_id
+      JOIN refund_attempts incoming_attempt ON incoming_attempt.id=x.incoming_attempt_id
+      JOIN refund_cases incoming_case ON incoming_case.id=incoming_attempt.refund_case_id
+      WHERE (original_case.checkout_order_id=ANY($1::uuid[])) <>
+            (incoming_case.checkout_order_id=ANY($1::uuid[]))
+      UNION ALL SELECT 1 FROM refund_attempts a
+      JOIN refund_cases c ON c.id=a.refund_case_id
+      JOIN payment_attempts p ON p.id=a.payment_attempt_id
+      WHERE (c.checkout_order_id=ANY($1::uuid[])) <>
+            (p.checkout_order_id=ANY($1::uuid[]))
+      UNION ALL SELECT 1 FROM refund_events e
+      JOIN refund_attempts a ON a.id=e.refund_attempt_id
+      JOIN refund_cases c ON c.id=a.refund_case_id
+      WHERE (c.checkout_order_id=ANY($1::uuid[])) <>
+            (e.verified_order_id=ANY($1::uuid[]))
+      UNION ALL SELECT 1 FROM refund_case_events ce
+      JOIN refund_cases c ON c.id=ce.refund_case_id
+      JOIN refund_events e ON e.id=ce.refund_event_id
+      JOIN refund_attempts a ON a.id=e.refund_attempt_id
+      JOIN refund_cases event_case ON event_case.id=a.refund_case_id
+      WHERE (c.checkout_order_id=ANY($1::uuid[])) <>
+            (event_case.checkout_order_id=ANY($1::uuid[]))
+      LIMIT 1`, [orderIds]);
+    if (refundCrossLinks.rowCount)
+      throw new Error('Shared refund UI foreign refund conflict or event reference');
   }
   if (found.products.length) {
     const productId = found.products[0].id;
@@ -262,18 +287,25 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
       ['refund_case', new Set(refundCaseIds)],
       ['restock_subscription', new Set(restockIds)],
     ]);
+    // Shared reset uses READ COMMITTED: take the write-blocking audit lock only
+    // after all other preflight checks, then read a fresh committed snapshot.
+    // If the small QA cleanup cannot acquire/finish promptly, roll back intact.
+    await client.query("SET LOCAL lock_timeout = '1s'");
+    await client.query("SET LOCAL statement_timeout = '3s'");
+    await client.query('LOCK TABLE audit_events IN SHARE ROW EXCLUSIVE MODE');
     const audit = await client.query<{ id: string; target_type: string; target_id: string; seller_id: string | null }>(
-      'SELECT id,target_type,target_id,seller_id FROM audit_events WHERE actor_account_id=ANY($1::uuid[])',
+      'SELECT id,target_type,target_id,seller_id FROM audit_events WHERE actor_account_id=ANY($1::uuid[]) LIMIT 101',
       [sharedManifest.accountIds]);
-    if (audit.rows.some((row) => !allowedTargets.get(row.target_type)?.has(row.target_id) ||
+    if (audit.rows.length > 100 || audit.rows.some((row) => !allowedTargets.get(row.target_type)?.has(row.target_id) ||
       (row.seller_id !== null && row.seller_id !== sharedManifest.sellerId)))
       throw new Error('Shared refund UI audit references a foreign target or seller');
     ownedAuditIds = audit.rows.map((row) => row.id);
-    const externalAudit = await client.query<{ target_type: string; target_id: string; seller_id: string | null }>(
-      'SELECT target_type,target_id,seller_id FROM audit_events WHERE NOT(actor_account_id=ANY($1::uuid[]))',
-      [sharedManifest.accountIds]);
-    if (externalAudit.rows.some((row) => allowedTargets.get(row.target_type)?.has(row.target_id) ||
-      row.seller_id === sharedManifest.sellerId))
+    const targetIds = Object.fromEntries([...allowedTargets].map(([kind, ids]) => [kind, [...ids]]));
+    const externalAudit = await client.query(`SELECT 1 FROM audit_events
+      WHERE NOT(actor_account_id=ANY($1::uuid[]))
+        AND (seller_id=$2 OR (($3::jsonb ? target_type) AND (($3::jsonb -> target_type) ? target_id)))
+      LIMIT 1`, [sharedManifest.accountIds, sharedManifest.sellerId, JSON.stringify(targetIds)]);
+    if (externalAudit.rowCount)
       throw new Error('Shared refund UI target is referenced by foreign audit');
   }
   if (orderIds.length) {
@@ -443,7 +475,7 @@ export async function runRefundUiFixture(action: 'seed' | 'reset', value: string
   try {
     const client = await pool.connect();
     try {
-      await client.query(sharedConsent ? 'BEGIN ISOLATION LEVEL SERIALIZABLE' : 'BEGIN');
+      await client.query(sharedConsent && action === 'seed' ? 'BEGIN ISOLATION LEVEL SERIALIZABLE' : 'BEGIN');
       const result = action === 'seed' ? await seed(client, value, password!) :
         await resetRefundUiFixture(client, value, sharedConsent ? 4 : 1, manifest);
       await client.query('COMMIT');
