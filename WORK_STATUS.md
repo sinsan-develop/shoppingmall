@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-06 S5.1 Task1 순수 계약 GREEN
+
+- 담당: 어울, 단일 복구 code-writer. 기준 `codex/s5-fulfillment-engagement@505132945ff9fe1d6f422ceb1a702ed2e5a954e3`; Task1만 수행. 이전 writer의 미추적 RED 파일을 보존·인수하고 Windows 모듈 URL을 `rulesPath.href`로 보정했다.
+- RED checkpoint: 집중 시험 6건/0 pass/6 fail/0 skip. 실패는 승인된 `rules.ts` export 미구현이며 `file:///D:/D:/...` 경로 오류는 없었다.
+- GREEN: DB/외부 상태 없는 `apps/api/src/fulfillment/rules.ts`에 판매자 전이, 관리자 정정, 서울 기준 잠정 예상일, 운송장 정규화, 고정 택배사 일반 조회 URL을 구현했다. 입력 허용 필드·상태별 필수/금지값, 문구 길이, 날짜를 검증하고 방어 경계 시험 1건을 추가했다.
+- 변경 파일: `apps/api/src/fulfillment/rules.ts`, `apps/api/test/fulfillment-rules.test.mjs`, `WORK_STATUS.md`. 상세 기록은 git-ignored `.superpowers/sdd/2026-10-05-s5-fulfillment/task-1-report.md`.
+- 검증: 집중 시험 **7건/7 pass/0 fail/0 skip**; `pnpm --filter @shoppingmall/api typecheck` exit 0; `pnpm test` 주 시험 **362건/262 pass/0 fail/100 skip**, PR 본문 시험 **8건/8 pass/0 fail/0 skip**. skip은 PASS에 넣지 않았다.
+- 오류 횟수: 구현 중 시험·typecheck 실패 0. RED 6 fail은 의도된 선행 상태다. 미검증: Task2, schema/0015 migration, API·권한·거래 결합, private/공유 DB, 실제 브라우저·WSL·Oracle. 이 Task1 시험은 그 범위의 완료 근거가 아니다.
+- 다음 조치: Task1 커밋을 기준으로 후속 Task2는 별도 지시와 해당 범위에 따라 진행한다.
+
 ## 진행 중 — 2026-10-05 S5.1 출고 계약 승인 준비
 
 - 현행 구조 대조 판정: 직접발송 `shipment_orders.seller_id`는 담당 판매자를 가지지만 공동출고 `owool_fulfillment`는 의도적으로 NULL이라, 표시명이나 품목 생산자를 기준으로 어울몰 판매자를 추측하면 권한 오배정이 생긴다. 현재 주문/결제 상태는 `PENDING_PAYMENT|EXPIRED|PAID`뿐이고 출고·운송장 영속 관계는 없다. 승인된 배송정책은 `cutoffTime`을 제공하지만 영업일/공휴일 달력은 없다.
