@@ -7,8 +7,13 @@ import { DatabaseService } from '../db/service.js';
 import { getOrderSnapshotConsistent } from './repository.js';
 import { submitPendingOrderWithDisposition } from './service.js';
 import type { PromotionSelection } from '../promotions/usage-service.js';
+import { MockPaymentAdapter, NoChargePaymentAdapter } from '../payments/mock-adapter.js';
+import { getPaymentAttempt, recordVerifiedPaymentEvent,
+  startPaymentAttemptWithDisposition } from '../payments/service.js';
+import { processVerifiedPaymentEvent } from '../payments/processor.js';
 
-type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string } };
+type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string };
+  socket?: { localAddress?: string } };
 type StatusReply = { status: (code: number) => unknown };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -47,6 +52,16 @@ function parseBody(value: unknown) {
 @Controller('customer/checkout/orders')
 export class CustomerOrderController {
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  private requireLocalMock(request: RequestHeaders) {
+    const host = process.env.API_HOST ?? '127.0.0.1';
+    const actual = request.socket?.localAddress;
+    if (process.env.NODE_ENV === 'production' || process.env.APP_ENV !== 'development' ||
+        process.env.PAYMENT_MODE !== 'mock' ||
+        !['127.0.0.1', '::1', 'localhost'].includes(host) ||
+        !actual || !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(actual))
+      throw new NotFoundException();
+  }
 
   private async context(request: RequestHeaders) {
     const token = readToken(request.headers.cookie);
@@ -94,5 +109,61 @@ export class CustomerOrderController {
     const view = await getOrderSnapshotConsistent(pool, accountId, id);
     if (!view) throw new NotFoundException();
     return view;
+  }
+
+  @Post(':id/payment-attempts')
+  async startPayment(@Req() request: RequestHeaders, @Param('id') id: string,
+    @Body() body: unknown, @Res({ passthrough: true }) reply: StatusReply) {
+    this.requireLocalMock(request);
+    requireOrigin(request);
+    const { pool, accountId } = await this.context(request);
+    const idempotencyKey = request.headers['idempotency-key'];
+    if (!uuid.test(id) || !idempotencyKey || !uuid.test(idempotencyKey) ||
+        !body || typeof body !== 'object' || Array.isArray(body)) throw new BadRequestException();
+    const testOutcome = (body as Record<string, unknown>).testOutcome;
+    if (!['approve', 'decline', 'delay'].includes(String(testOutcome)) ||
+        Object.keys(body).some((key) => key !== 'testOutcome')) throw new BadRequestException();
+    try {
+      const result = await startPaymentAttemptWithDisposition(pool, accountId, id,
+        idempotencyKey, testOutcome as 'approve' | 'decline' | 'delay');
+      if (testOutcome !== 'delay') {
+        const saved = await pool.query<{ provider: string; providerOrderId: string }>(
+          `SELECT provider,provider_order_id AS "providerOrderId" FROM payment_attempts
+           WHERE id=$1 AND checkout_order_id=$2`, [result.view.id, id]);
+        const internal = saved.rows[0];
+        if (!internal) throw new Error('Payment unavailable');
+        const adapter = internal.provider === 'no_charge'
+          ? new NoChargePaymentAdapter() : new MockPaymentAdapter();
+        const verified = adapter.verify(internal.providerOrderId, testOutcome as 'approve' | 'decline');
+        if (!verified) throw new Error('Payment verification unavailable');
+        const event = await recordVerifiedPaymentEvent(pool, result.view.id, verified);
+        await processVerifiedPaymentEvent(pool, event.id);
+      }
+      const current = await getPaymentAttempt(pool, accountId, id, result.view.id);
+      if (!current) throw new Error('Payment unavailable');
+      reply.status(result.created ? 201 : 200);
+      return { ...current, mockOnly: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message === 'Invalid payment request') throw new BadRequestException();
+      if (message === 'Payment conflict' || message === 'Payment event conflict')
+        throw new ConflictException({ status: 'payment_conflict' });
+      if (message === 'Payment unavailable' || message === 'Payment mode unavailable')
+        throw new NotFoundException();
+      if (error && typeof error === 'object' && 'code' in error && error.code === '42P01')
+        throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+      throw error;
+    }
+  }
+
+  @Get(':id/payment-attempts/:attemptId')
+  async getPayment(@Req() request: RequestHeaders, @Param('id') id: string,
+    @Param('attemptId') attemptId: string) {
+    this.requireLocalMock(request);
+    const { pool, accountId } = await this.context(request);
+    if (!uuid.test(id) || !uuid.test(attemptId)) throw new BadRequestException();
+    const attempt = await getPaymentAttempt(pool, accountId, id, attemptId);
+    if (!attempt) throw new NotFoundException();
+    return { ...attempt, mockOnly: true };
   }
 }

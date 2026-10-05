@@ -12,6 +12,14 @@ const hash = (value: string) => createHash('sha256').update(value).digest('hex')
 export async function startPaymentAttempt(pool: Pool, accountId: string, orderId: string,
   idempotencyKey: string, testOutcome: LocalOutcome,
   env: { APP_ENV?: string; PAYMENT_MODE?: string } = process.env): Promise<PaymentAttemptView> {
+  return (await startPaymentAttemptWithDisposition(pool, accountId, orderId,
+    idempotencyKey, testOutcome, env)).view;
+}
+
+export async function startPaymentAttemptWithDisposition(pool: Pool, accountId: string, orderId: string,
+  idempotencyKey: string, testOutcome: LocalOutcome,
+  env: { APP_ENV?: string; PAYMENT_MODE?: string } = process.env): Promise<{
+    view: PaymentAttemptView; created: boolean }> {
   if (!uuid.test(accountId) || !uuid.test(orderId) || !uuid.test(idempotencyKey) ||
       !['approve', 'decline', 'delay'].includes(testOutcome)) throw new Error('Invalid payment request');
   if (resolvePaymentMode(env) !== 'mock') throw new Error('Payment mode unavailable');
@@ -31,7 +39,7 @@ export async function startPaymentAttempt(pool: Pool, accountId: string, orderId
     if (prior) {
       if (prior.requestFingerprint !== requestFingerprint) throw new Error('Payment conflict');
       await client.query('COMMIT');
-      return { id: prior.id, status: prior.status, amountWon: prior.requestedWon };
+      return { view: { id: prior.id, status: prior.status, amountWon: prior.requestedWon }, created: false };
     }
     if (order.status !== 'PENDING_PAYMENT' || !order.current) throw new Error('Payment unavailable');
     const adapter = order.payableWon === 0 ? new NoChargePaymentAdapter() : new MockPaymentAdapter();
@@ -41,7 +49,7 @@ export async function startPaymentAttempt(pool: Pool, accountId: string, orderId
       provider: order.payableWon === 0 ? 'no_charge' : 'mock', providerOrderId,
       requestedWon: order.payableWon, idempotencyKey, requestFingerprint });
     await client.query('COMMIT');
-    return view;
+    return { view, created: true };
   } catch (error) {
     await client.query('ROLLBACK');
     if (error && typeof error === 'object' && 'code' in error && error.code === '23505')
