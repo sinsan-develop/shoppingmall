@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## 실제 RED — 2026-10-06 S5.1 Task5 판매자 목록·상세·전이 API
+
+- **판정·기준:** controller가 WSL exact SHA `1f0b53746cff8f7bf8f0218d3d79dc3ccc10e8be`에서 Task5 seller fulfillment HTTP+DB 시험의 **actual RED**를 확인했다. WSL sync와 실제 실행은 controller가 담당했으며, code-writer는 제품 구현을 시작하지 않았다.
+- **격리 PostgreSQL:** fresh private PostgreSQL `18.4`, migration 16건, system identifier `7693320434235625514`였다. 외부 port와 영속 mount 없이 tmpfs를 사용했으며 shared 자원과 분리했다.
+- **실제 목표시험:** `node --import tsx --test apps/api/test/fulfillment-seller-http-db.test.mjs`는 **7 tests / 0 pass / 7 fail / 0 skip**이었다. 모든 실패는 계획된 endpoint/controller 부재에 따른 HTTP 404 제품 RED다. DB unavailable route는 503, 미인증 목록은 401, own scoped 목록·상세·전이는 200 등을 기대했으나 현재 route가 없어 404였고, harness/setup 오류는 **0**이다.
+- **사후 잔류:** 실패 후 `accounts / roles / identities / sessions / sellers / products / addresses / cart / reservations / orders / shipments / fulfillments / fulfillment_events / refund_cases / refund_lines / audit` 순서의 count는 모두 **0**이었다. singleton은 `fulfillment_settings=1`, `global_policy=1`이었다.
+- **검사 명령 오류·보정:** PowerShell glob read-only 검사 오류 **1회**와 첫 잔류 SQL label quote 오류 **1회**는 검사 명령 오류이며 제품·DB 변경은 없다. 올바른 `-g` 필터와 단일 row subquery로 보정해 위 결과를 확인했다.
+- **환경 경계:** shared `local-postgres/shoppingmall`은 접촉하지 않았고 Oracle·외부 서비스도 접촉하지 않았다. 제품 코드·시험·DB·WSL 수정은 이 기록 작업 범위에 없다.
+- **임시자원:** 전용 PostgreSQL과 network는 다음 GREEN 검증에도 계속 사용할 **active 임시 자원**이다. 사용 종료 시 exact 대상을 cleanup하고 잔류 여부를 확인할 예정이다.
+- **미검증·다음:** actual GREEN과 전체 회귀는 **미검증**이다. 다음 작업은 승인된 **Task5 GREEN 최소 구현**이며, 이 actual RED 기록 commit/push 전에는 시작하지 않는다.
+
 ## RED 후보 — 2026-10-06 S5.1 Task5 판매자 목록·상세·전이 API
 
 - **판정·범위:** 신산님이 지정한 exact base `c1255d87eede29f191a4b7ab5128fe565d74727d`, 기존 `codex/s5-fulfillment-engagement`·기존 worktree의 clean 상태와 실제 origin branch 동일 SHA를 확인한 뒤 Task5 **RED 시험만** 작성했다. 제품 controller/service/repository/module/access 구현, 공개 고객 API, UI, schema, 새 branch/worktree, shared DB·WSL·Docker·Oracle·외부 서비스 변경은 0이다.
