@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-06 S5.1 Task3 주문 제출 담당자·cutoff snapshot
+
+- PMO 승인 기준: 기존 `codex/s5-fulfillment-engagement@19d32068ecc84e951ed340096dfa10854c4c3381`, Windows·승인 SSH origin branch·WSL exact SHA 일치와 양 checkout clean을 확인했다. 새 단일 code-writer 1명이 `apps/api/src/fulfillment/repository.ts`, `apps/api/test/fulfillment-order-db.test.mjs`를 만들고 `apps/api/src/orders/repository.ts`, `apps/api/src/orders/service.ts`, `apps/api/test/order-submit-db.test.mjs`, `WORK_STATUS.md`만 수정한다. 새 branch/worktree는 만들지 않는다.
+- 계약·완료 조건: 기존 주문 snapshot 거래 안에서 직접발송은 원 `shipment_orders.seller_id`, 공동출고는 명시 설정된 `fulfillment_settings.owool_seller_id`를 담당자로 고정한다. 직접발송 cutoff는 해당 판매자의 승인된 유효 정책, 공동출고 cutoff는 기존 S3 전역 정책을 사용한다. 공동출고 담당 미설정·삭제/비활성 판매자면 주문·출고행·프로모션 사용·예약 소비 전체 rollback, 설정/정책 경합의 일관된 snapshot, 같은 주문 멱등 재시도 출고행 추가0을 private PostgreSQL RED→GREEN으로 입증한다. S3 금액·정책 선택, 공개 API/UI, 결제 Task4, 공유 DB, 외부서비스는 변경하지 않는다.
+- 격리 시험 자원: WSL-server의 internal network `shoppingmall-s51-order-1006`, tmpfs PostgreSQL `shoppingmall-s51-order-pg-1006`, 일회용 Node 접두 `shoppingmall-s51-order-node-1006`만 사용한다. 외부 port·영속 volume·실사용 자료는0이며 Task3 RED→GREEN·목표/회귀/전체 gate까지만 유지한다. 성공·실패·중단 모두 정확한 자원만 제거하고 container/network/Node/시험행 잔류0을 확인한다. 착수 전 동명 container/network 충돌0이며 공유 `local-postgres/shoppingmall`은 미접속·미변경이다.
+
 ## 검증 완료 — 2026-10-06 S5.1 Task2 0015 schema·migration
 
 - **최신 판정: Task2 승인 조건 충족.** 검증 코드 `c488b56f66a7f300e02e5c793b9e1d593e960aad`; RED commit `ca6e48e586e2eb52b6ae4cc9bb821cb8dc895130` 보존. 실제 RED **11/2 pass/9 fail/0 skip** → fresh·upgrade 목표 각각 **17/17 pass/0 fail/0 skip**. 반례104개 거부 및 정상24쌍 수락을 두 snapshot에서 확인했다. writer 로컬 전체 **366/264 pass/102 skip/0 fail**, WSL 전체 **375/275 pass/100 skip/0 fail**, 양쪽 PR본문8/8·0 skip, 전체 typecheck·lint·API/Web build·diff check 성공. WSL 전체는 package scripts와 동등한 명령을 Node24 tmpfs 복사본에서 실행했다. 새 실행 오류0·계약 밖 변경0. skip은 PASS가 아니다.
