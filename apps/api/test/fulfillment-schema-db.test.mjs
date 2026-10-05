@@ -90,7 +90,8 @@ test('0015 fulfillment relations enforce settings, state, actor and idempotency 
     await db.query(event, [shipment, other, args[2], key, args[4]]);
     for (const column of ['idempotency_scope','idempotency_key','request_fingerprint','before_snapshot','after_snapshot'])
       await rejected(`UPDATE qa_event SET ${column}=NULL`, [], '23502');
-    for (const change of ["before_snapshot='[]'", "after_snapshot='null'", "request_fingerprint='bad'",
+    for (const change of ["before_snapshot='[]'", "after_snapshot='null'", "before_snapshot='{\"phone\":\"fake\"}'",
+      "after_snapshot='{\"address\":\"fake\"}'", "request_fingerprint='bad'",
       "idempotency_scope=''", "actor_account_id=NULL", "actor_seller_id=NULL", "actor_role='customer'",
       "from_status='BAD'", "to_status='BAD'", "action='BAD'", "reason=''", "customer_message=repeat('x',501)"])
       await rejected('UPDATE qa_event SET ' + change);
