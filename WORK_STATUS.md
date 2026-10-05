@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## RED 후보 — 2026-10-06 S5.1 Task5 판매자 목록·상세·전이 API
+
+- **판정·범위:** 신산님이 지정한 exact base `c1255d87eede29f191a4b7ab5128fe565d74727d`, 기존 `codex/s5-fulfillment-engagement`·기존 worktree의 clean 상태와 실제 origin branch 동일 SHA를 확인한 뒤 Task5 **RED 시험만** 작성했다. 제품 controller/service/repository/module/access 구현, 공개 고객 API, UI, schema, 새 branch/worktree, shared DB·WSL·Docker·Oracle·외부 서비스 변경은 0이다.
+- **RED 계약:** 활성 seller role과 SQL 담당자 scope, checkout/shipment `PAID`, 허용 상태 filter, 불투명 `(paid_at, shipment id)` keyset 내림차순, 기본20/최대50·중복/누락 없는 paging, 목록 이름 `가**객`/전화 `***-***-5678` 마스킹과 주소 미노출을 고정했다. 상세는 담당 PAID 발송의 주문 금액·품목 원/완료환불/잔여수량·현재 출고값과 기존 배송지 최소 범위만 허용한다. 타 판매자 직접발송/공동출고 담당 주문은 목록 미노출·ID/전이 404·DB 변화 0이어야 한다.
+- **쓰기·고객 조회 경계:** seller 전이는 활성 세션, 동일 Origin, UUID `Idempotency-Key`, `expectedVersion`, 기존 `rules.ts` 상태/payload 검증을 요구한다. 같은 key+본문은 같은 응답과 사건 1개, 같은 key+다른 본문과 stale version은 409, invalid payload는 400이다. `READY→PACKING→DELAYED→PACKING→SHIPPED` 직후 한 DB snapshot에서 status/잠정일/최근 고객안내/carrier/tracking이 함께 조회되고 event/audit details에는 가상 PII가 없어야 한다. 실제 고객 API 확장이나 Task7 제품 코드는 시험하지 않는다.
+- **식별 fixture·안전장치:** 매 run `qa-<8hex>` 가상 계정·판매자 A/B·공동출고 담당자, 가상 이름/전화/주소와 판매자 A PAID 23건을 만든다. seed 전에 `S5_PAYMENT_TEST_DB_SYSTEM_ID`와 `pg_control_system()`·DB명 `shoppingmall`·fresh migration 16건을 fail-closed 대조한다. setup/assertion 실패도 `finally`에서 run 소유 환불→출고사건→출고→주문→예약→주소→catalog/account를 FK 순서로 정리하고 `fulfillment_settings`와 global shipping singleton을 원값으로 복원한다.
+- **변경 파일:** 신규 `apps/api/test/fulfillment-seller-http-db.test.mjs`, Task5 접근 계약 RED만 추가한 `apps/api/test/access.test.mjs`, 이 `WORK_STATUS.md`. 기존 시험 assertion과 제품 파일은 수정하지 않았다.
+- **현재 비DB RED:** `DATABASE_URL`을 제거한 대상 HTTP+access 실행은 **6 tests/3 pass/2 expected fail/1 DB skip**이다. 실패는 own seller의 새 `manage-seller-fulfillment` access가 현재 false인 계약 부재와 seller fulfillment route가 현재 404여서 DB-unavailable 503 계약에 미달한 두 건이다. DB skip은 RED/PASS 증거가 아니며 새 파일 loader와 비DB 경계만 확인한다.
+- **로컬 gate:** 전체 nonDB 주 시험은 **374 tests/264 pass/2 expected fail/108 DB·환경 skip**이며 위의 access/route 계약 두 건만 실패했다. PR 본문은 **8/8 pass**, `pnpm --filter @shoppingmall/api typecheck`, `pnpm lint`, `git diff --check`는 exit 0이다. 첫 실제 origin 조회는 제한된 셸이 SSH alias를 해석하지 못해 실패 1회였고 승인된 동일 `git ls-remote` 재실행으로 origin branch가 exact base와 일치함을 확인했다. 제품·DB·시험 자료 변경은 없었다.
+- **예상 actual private DB RED·미검증·다음:** 현재 seller controller/service/module route와 access action이 없으므로 actual private DB에서도 목록·상세·전이 HTTP 404와 own-seller access false의 Task5 제품 RED가 예상된다. private DB fixture setup·전체 assertion·cleanup 실행/잔류 0은 미검증이며 코드에 정의된 cleanup을 실행 증거로 승격하지 않는다. test-only commit/push 뒤 controller가 exact SHA의 actual private DB에서 예상 제품 RED, harness error 0, singleton 원복과 run 소유 행 잔류 0을 확인해야 한다. 그 확인·별도 배정 전 GREEN 구현을 시작하지 않는다.
+
 ## 완료 checkpoint — 2026-10-06 S5.1 Task4 결제 승인→READY
 
 - **판정:** 제품·시험 SHA `b48ade119cc621481df6b8a574adc8e78268a53b`에서 **S5.1 Task4 격리 검증을 완료**했다. 이는 Task4 checkpoint일 뿐이며 S5 전체, PR, `main` 병합, 배포 완료가 아니다.

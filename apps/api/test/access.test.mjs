@@ -33,3 +33,11 @@ test('same account may act separately as seller or admin, with separate request 
   assert.equal(canApproveProposal(sellerA, { id: 'request-1', requestedBy: 'seller-person' }), false);
   assert.equal(canApproveProposal(admin, { id: 'request-1', requestedBy: 'seller-person' }), true);
 });
+
+test('seller fulfillment remains closed to public and every non-own active seller role', () => {
+  assert.equal(canAccess(undefined, 'manage-seller-fulfillment', { sellerId: 'farm-a' }), false);
+  assert.equal(canAccess(customer, 'manage-seller-fulfillment', { sellerId: 'farm-a' }), false);
+  assert.equal(canAccess(admin, 'manage-seller-fulfillment', { sellerId: 'farm-a' }), false);
+  assert.equal(canAccess(sellerB, 'manage-seller-fulfillment', { sellerId: 'farm-a' }), false);
+  assert.equal(canAccess(sellerA, 'manage-seller-fulfillment', { sellerId: 'farm-a' }), true);
+});
