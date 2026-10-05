@@ -12,6 +12,7 @@ test('customer IDOR and unauthenticated operations are denied', () => {
   assert.equal(canAccess(customer, 'read-customer', { customerId: 'buyer-b' }), false);
   assert.equal(canAccess(customer, 'read-customer', { customerId: 'buyer-a' }), true);
   assert.equal(canAccess(customer, 'approve-proposal', { sellerId: 'farm-a' }), false);
+  assert.equal(canAccess(customer, 'decide-refund', { sellerId: 'farm-a' }), false);
 });
 
 test('seller belongs only to its own seller and cannot elevate to admin', () => {

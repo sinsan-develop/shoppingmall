@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { allocateIncrementalRefundWon } from './allocation.js';
 import { providerRefundId, resolveRefundMode, type VerifiedRefund } from './adapter.js';
-import { readRefundCase, type RefundCaseView } from './repository.js';
+import { listRefundCaseSummaries, readAdminRefundCase, readCustomerRefundCase,
+  readRefundCase, type RefundCaseView } from './repository.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -38,9 +39,9 @@ async function requireRole(client: PoolClient, accountId: string, role: Role) {
   if (!found.rowCount) throw new Error('Refund unavailable');
 }
 
-export async function createRefundCase(pool: Pool, input: { actorAccountId: string; actorRole: Role;
+export async function createRefundCaseWithDisposition(pool: Pool, input: { actorAccountId: string; actorRole: Role;
   checkoutOrderId: string; shipmentOrderId: string; lines: RequestLine[]; reasonCode: string;
-  reason: string; idempotencyKey: string }): Promise<RefundCaseView> {
+  reason: string; idempotencyKey: string }): Promise<{ view: RefundCaseView; created: boolean }> {
   if (![input.actorAccountId, input.checkoutOrderId, input.shipmentOrderId, input.idempotencyKey]
       .every((value) => uuid.test(value)) || !['customer', 'admin'].includes(input.actorRole) ||
       !reasonCodes.has(input.reasonCode) || !validText(input.reason)) throw new Error('Invalid refund request');
@@ -65,7 +66,7 @@ export async function createRefundCase(pool: Pool, input: { actorAccountId: stri
       if (prior.requestFingerprint !== requestFingerprint) throw new Error('Refund conflict');
       const view = await readRefundCase(client, prior.id);
       await client.query('COMMIT');
-      return view!;
+      return { view: view!, created: false };
     }
     const shipment = (await client.query<{ status: string }>(
       `SELECT status FROM shipment_orders WHERE id=$1 AND checkout_order_id=$2 FOR UPDATE`,
@@ -94,9 +95,13 @@ export async function createRefundCase(pool: Pool, input: { actorAccountId: stri
     [caseId, input.actorAccountId, input.actorRole]);
     const view = await readRefundCase(client, caseId);
     await client.query('COMMIT');
-    return view!;
+    return { view: view!, created: true };
   } catch (error) { await client.query('ROLLBACK'); throw error; }
   finally { client.release(); }
+}
+
+export async function createRefundCase(pool: Pool, input: Parameters<typeof createRefundCaseWithDisposition>[1]) {
+  return (await createRefundCaseWithDisposition(pool, input)).view;
 }
 
 export async function getRefundCase(pool: Pool, accountId: string, role: Role,
@@ -111,6 +116,62 @@ export async function getRefundCase(pool: Pool, accountId: string, role: Role,
       JOIN checkout_orders o ON o.id=c.checkout_order_id WHERE c.id=$1
       AND ($2='admin' OR o.account_id=$3)`, [caseId, role, accountId]);
     return owned.rowCount ? await readRefundCase(client, caseId) : null;
+  } finally { client.release(); }
+}
+
+export async function listCustomerRefundCases(pool: Pool, accountId: string, checkoutOrderId: string) {
+  if (![accountId, checkoutOrderId].every((value) => uuid.test(value))) return null;
+  const client = await pool.connect();
+  try {
+    const owned = await client.query(`SELECT 1 FROM checkout_orders o JOIN account_roles r
+      ON r.account_id=o.account_id AND r.role='customer'
+      WHERE o.id=$1 AND o.account_id=$2`, [checkoutOrderId, accountId]);
+    if (!owned.rowCount) return null;
+    const summaries = await listRefundCaseSummaries(client, { accountId, checkoutOrderId });
+    return Promise.all(summaries.map((summary) => readCustomerRefundCase(client, summary.id)));
+  } finally { client.release(); }
+}
+
+export async function getCustomerRefundCase(pool: Pool, accountId: string,
+  checkoutOrderId: string, caseId: string) {
+  if (![accountId, checkoutOrderId, caseId].every((value) => uuid.test(value))) return null;
+  const client = await pool.connect();
+  try {
+    const owned = await client.query(`SELECT 1 FROM refund_cases c JOIN checkout_orders o
+      ON o.id=c.checkout_order_id JOIN account_roles r ON r.account_id=o.account_id AND r.role='customer'
+      WHERE c.id=$1 AND c.checkout_order_id=$2 AND o.account_id=$3`,
+    [caseId, checkoutOrderId, accountId]);
+    return owned.rowCount ? readCustomerRefundCase(client, caseId) : null;
+  } finally { client.release(); }
+}
+
+const refundStatuses = new Set(['REQUESTED', 'APPROVED', 'REJECTED', 'PROCESSING',
+  'REFUNDED', 'REVIEW_REQUIRED']);
+
+export async function listAdminRefundCases(pool: Pool, adminAccountId: string, filters: {
+  status?: string; shipmentOrderId?: string; from?: string; to?: string;
+}) {
+  if (!uuid.test(adminAccountId) || (filters.status && !refundStatuses.has(filters.status)) ||
+      (filters.shipmentOrderId && !uuid.test(filters.shipmentOrderId))) throw new Error('Invalid refund request');
+  const from = filters.from ? new Date(filters.from) : undefined;
+  const to = filters.to ? new Date(filters.to) : undefined;
+  if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime())) ||
+      (from && to && from >= to)) throw new Error('Invalid refund request');
+  const client = await pool.connect();
+  try {
+    await requireRole(client, adminAccountId, 'admin');
+    return listRefundCaseSummaries(client, { status: filters.status,
+      shipmentOrderId: filters.shipmentOrderId, from, to });
+  } finally { client.release(); }
+}
+
+export async function getAdminRefundCase(pool: Pool, adminAccountId: string, caseId: string) {
+  if (![adminAccountId, caseId].every((value) => uuid.test(value))) return null;
+  const client = await pool.connect();
+  try {
+    const allowed = await client.query(`SELECT 1 FROM account_roles r JOIN accounts a ON a.id=r.account_id
+      WHERE r.account_id=$1 AND r.role='admin' AND a.disabled_at IS NULL`, [adminAccountId]);
+    return allowed.rowCount ? readAdminRefundCase(client, caseId) : null;
   } finally { client.release(); }
 }
 
@@ -287,6 +348,8 @@ export async function recordVerifiedRefundEvent(pool: Pool, attemptId: string,
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',
+        [`${verified.provider}:${verified.eventId}`]);
       const attempt = (await client.query<{ id: string; caseId: string; provider: string;
         providerRefundId: string; requestedWon: number; orderId: string }>(`SELECT a.id,
         a.refund_case_id AS "caseId",a.provider,a.provider_refund_id AS "providerRefundId",
