@@ -397,6 +397,38 @@ test('shared reset preserves conflicts whose incoming attempt belongs to another
       [outsidePaymentEvent])).rows[0].count, 1);
     await pool.query('DELETE FROM payment_events WHERE id=$1', [outsidePaymentEvent]);
 
+    const reverseResetClient = await pool.connect();
+    let releaseReverseReset;
+    try {
+      await reverseResetClient.query('BEGIN');
+      let reachedDelete;
+      const paused = new Promise((resolve) => { reachedDelete = resolve; });
+      const resume = new Promise((resolve) => { releaseReverseReset = resolve; });
+      const wrapper = { query: async (sql, args) => {
+        if (sql.startsWith('DELETE FROM refund_event_conflicts')) { reachedDelete(); await resume; }
+        return reverseResetClient.query(sql, args);
+      } };
+      const pendingReset = resetRefundUiFixture(wrapper, runId, 4, manifest);
+      pendingReset.catch(() => {});
+      await paused;
+      const lateOutsideEvent = (await pool.query(`INSERT INTO payment_events
+        (payment_attempt_id,provider,provider_event_id,outcome,verified_order_id,
+         provider_payment_id,amount_won,event_fingerprint)
+        VALUES ($1,'mock',$2,'APPROVED',$3,$4,1000,$5) RETURNING id`,
+      [paymentAttempt, `mock:event:${randomUUID()}`, manifest.orderId,
+        `mock:payment:${randomUUID()}`, fp])).rows[0].id;
+      releaseReverseReset();
+      await assert.rejects(pendingReset, /foreign payment event/);
+      await reverseResetClient.query('ROLLBACK');
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM payment_events WHERE id=$1',
+        [lateOutsideEvent])).rows[0].count, 1);
+      await pool.query('DELETE FROM payment_events WHERE id=$1', [lateOutsideEvent]);
+    } finally {
+      releaseReverseReset?.();
+      await reverseResetClient.query('ROLLBACK').catch(() => {});
+      reverseResetClient.release();
+    }
+
     const campaign = (await pool.query(`INSERT INTO promotion_campaigns
       (title,kind,total_use_limit,per_account_use_limit,created_by_account_id)
       VALUES ('outside','goods_discount',10,1,$1) RETURNING id`, [outsider])).rows[0].id;
