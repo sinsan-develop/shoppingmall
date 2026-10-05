@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 완료 — 2026-10-05 S4.2 Task 4 고객·관리자 환불 HTTP 계약
+
+- 담당 어울, 단일 writer. 기준 `codex/s4-payment-refund@162cb9d3dcba6ce70107317dd28857bd110361f8`. 승인된 고객 POST/GET 목록/GET 상세와 관리자 POST 생성/GET 목록/GET 상세/POST 결정의 7개 endpoint를 기존 세션·활성 역할·동일 Origin·UUID 멱등키·loopback mock gate에 연결했다. 판매자는 생성·조회·결정이 거부되고 타 고객 주문은 404로 숨긴다. 고객 응답은 관리자 내부 판단·공급자 식별자를 제외하며, 관리자 상세만 품목 복원·결정·시도·검증 사건·상태 이력을 제공한다.
+- 금액·멱등: 요청 직후에는 누적 승인 수량을 반영한 조회 시점 견적과 `amountFinal:false`를 반환하고, 경합으로 요청 수량 승인이 불가능해지면 500 대신 `estimateAvailable:false`·0원 견적으로 표시한다. 승인 시 Task 3 거래가 금액을 고정한다. 모의 사건 ID는 공급자 환불 ID에서 결정적으로 만들고 공급자+사건 ID advisory transaction lock을 추가해 재시작·동시 재호출도 사건 1건으로 수렴한다. 승인 재시도는 기존 사건을 재처리할 뿐 새 환불·재고 복원을 만들지 않는다.
+- TDD·로컬: DB 미연결 경로가 404인 RED 0 pass/1 fail에서 시작해 503 GREEN을 확인했다. Windows 전용 DB `shoppingmall_s42_1005_5f8a7d8`에서 schema 1+처리 3+HTTP 2 **6 pass/0 fail/0 skip**, 사후 환불 사례·시도·사건·충돌·주문·결제시도·계정·상품·세션 9범주 0. DB 미설정 전체 **328 total/236 pass/92 환경 skip/0 fail**, PR 본문 **8 pass**, 전체 typecheck·lint·build exit 0이다. 이 결과는 공유 DB나 실제 PG 검증이 아니다.
+- WSL exact-SHA: 승인 SSH 별칭으로 `/home/daon/deploy/shopping`을 `162cb9d3...`에 clean fast-forward했다. 외부 포트·영속 mount 없는 fresh tmpfs PostgreSQL에 0000~0014 **15 migration**을 적용한 API 전체 순차 실행은 **184 tests/167 pass/17 조건부 skip/0 fail**이었다. 별도 fresh DB의 목표 환불 재실행은 **6 pass/0 fail/0 skip, outer exit 0**, 사후 migration 15와 위 9범주 0. 정확한 Task 4 컨테이너 2개·네트워크 2개는 trap으로 제거 후 이름 부재, WSL checkout 동일 SHA·clean을 확인했다.
+- 오류 기록: Windows 절대 경로 patch 전달을 처음 표준입력으로 시도해 UTF-8 인자 오류 1회, 긴 명령 인자 제한 1회가 발생했고 제품 파일은 바뀌지 않았다. native absolute `apply_patch`로 전환했다. DB 대상 미지정 시험 요청은 안전 검토에서 실행 전 1회 거부돼 공유 DB 무변경이며, 정확한 전용 DB 이름을 명시해 실행했다. WSL 입력 orchestration은 로컬 변수 선해석 1회, 닫힌 stdin 1회, 사용할 수 없는 JS 인코더 2회, TTY 종료문자 결합 1회가 있었고 각 경우 제품/공유 DB 변경은 없었다. TTY 실행의 Node 전체 suite 자체는 fail 0·잔류 0까지 끝났으나 외부 셸만 종료문자 때문에 exit 1이어서, 다른 전송 방식의 목표 6건을 fresh DB에서 outer exit 0으로 재검증했다. 비밀값은 출력·파일·Git에 남기지 않았다.
+- 미검증/다음: 고객·관리자 Flat v2 화면과 실제 브라우저/390px/키보드, 공유 `local-postgres/shoppingmall` 0014 적용, 실제 PG, Oracle/UAT는 미검증이다. Task 5에서 현재 7개 endpoint를 소비하는 역할별 화면을 TDD로 구현한다. 공유 DB 0014는 최종 SQL 해시·dry-run·백업·행수·rollback 계획을 PMO에 별도 보고해 승인받기 전 적용하지 않는다.
+
 ## 진행 중 — 2026-10-05 S4.2 Task 3 환불 처리 core
 
 - 담당 어울, 단일 writer. 기준 Task 2 `9a0363b`. `createRefundCase`, `decideRefundCase`, `recordVerifiedRefundEvent`, `processVerifiedRefundEvent`, 권한 제한 조회와 mock/no-charge adapter를 구현했다. 고객/관리자 요청과 결정의 UUID 멱등키·64자 지문, 주문→발송→품목→사례 잠금, 누적 floor 차액, 마지막 전량 사례의 실제 납부 배송비 1회, 공급자 사건/충돌 보존, `on_hand_only` 보유재고 1회 복원과 판매가능재고 불변을 적용했다.
