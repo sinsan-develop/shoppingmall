@@ -40,7 +40,9 @@ test('checked-out historical SQL keeps the hashes already applied to the shared 
     '75675ca05c8e55e3f0d8ecc7cba5ada64c304372adbde9d1bface5e82850c330',
     'efe1d8848186d4b74c202241d20cc0a80a4417078e469aa3b082a294b8d267fa',
     '4556376ac133b0468015a56f631b93bf5bff8dd276ee1e3777c096d35456b547',
+    'fe1328de61502e1d19a7ade992862c9bd508667f432f0ac29de1df87a9c75181',
   ];
   const migrations = readMigrationFiles({ migrationsFolder });
   assert.deepEqual(migrations.slice(0, expected.length).map((item) => item.hash), expected);
+  assert.equal(migrations.length, 16, '0015 must append to immutable 0000~0014');
 });

@@ -14,6 +14,20 @@ export async function skipWithoutOrderSchema(context, pool,
   return true;
 }
 
+/** S5 readiness is independent of S3 so older order tests retain their contract. */
+export async function skipWithoutFulfillmentSchema(context, pool,
+  strict = process.env.S5_FULFILLMENT_SCHEMA_REQUIRED === '1') {
+  const result = await pool.query(`SELECT
+    to_regclass('public.fulfillment_settings') IS NOT NULL AND
+    to_regclass('public.shipment_fulfillments') IS NOT NULL AND
+    to_regclass('public.shipment_fulfillment_events') IS NOT NULL AS ready`);
+  if (result.rows[0]?.ready) return false;
+  const reason = 'S5 fulfillment migration 0015 not applied';
+  if (strict) throw new Error(reason);
+  context.skip(reason);
+  return true;
+}
+
 /** A policy-changing QA test must target one explicitly identified disposable server. */
 export async function assertOrderMutationQaTarget(pool, expectedSystemId) {
   if (!/^\d{10,}$/.test(expectedSystemId ?? '')) throw new Error('Expected isolated S3 QA database');
