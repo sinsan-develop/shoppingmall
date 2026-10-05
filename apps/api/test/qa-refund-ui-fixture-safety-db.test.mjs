@@ -136,7 +136,9 @@ test('shared-fixture reset rejects foreign identity/reference and blocks a late 
     inserter?.release();
     if (outsider) {
       await pool.query('DELETE FROM customer_cart_items WHERE account_id=$1', [outsider]);
-      await pool.query('DELETE FROM accounts WHERE id=$1', [outsider]);
+      await pool.query('DELETE FROM accounts WHERE id=$1', [outsider]).catch(() => {
+        // A RED assertion can leave foreign rows in this throwaway tmpfs database.
+      });
     }
     await pool.end();
   }
