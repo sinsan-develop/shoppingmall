@@ -9,8 +9,9 @@ type Address = {
   postalCode: string; line1: string; line2: string; isDefault: boolean;
 };
 type Preferences = { marketingEmail: boolean; marketingSms: boolean; push: boolean };
-type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED'; payableWon: number;
-  expiresAt: string; shipments: { id: string; key: string; payableWon: number }[] };
+type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID'; payableWon: number;
+  expiresAt: string; paidAt?: string | null;
+  shipments: { id: string; key: string; payableWon: number; status?: string }[] };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -173,7 +174,7 @@ export default function CustomerProfilePage() {
             </form>
           </section>
           <section className="account-card profile-card" aria-labelledby="pending-order-title">
-            <h2 id="pending-order-title">결제대기 주문 조회</h2>
+            <h2 id="pending-order-title">내 주문 조회</h2>
             <form className="account-form" onSubmit={loadOrder}>
               <label htmlFor="pending-order-id">주문 번호</label>
               <input id="pending-order-id" value={orderId} onChange={(event) => setOrderId(event.currentTarget.value)}
@@ -182,11 +183,12 @@ export default function CustomerProfilePage() {
             </form>
             {orderMessage ? <p role="alert">{orderMessage}</p> : null}
             {order ? <div role="status">
-              <p>{order.status === 'EXPIRED' ? '기한 만료' : '결제대기'} · 서버 확정 금액 {order.payableWon.toLocaleString('ko-KR')}원</p>
+              <p>{order.status === 'EXPIRED' ? '기한 만료' : order.status === 'PAID' ? '결제 확인 완료' : '결제대기'} · 서버 확정 금액 {order.payableWon.toLocaleString('ko-KR')}원</p>
+              {order.status === 'PAID' && order.paidAt ? <p>결제 확인 시각 {new Date(order.paidAt).toLocaleString('ko-KR')}</p> : null}
               <p>만료 시각 {new Date(order.expiresAt).toLocaleString('ko-KR')}</p>
               <ul>{order.shipments.map((shipment) => <li key={shipment.id}>
                 발송 주문 {shipment.key} · {shipment.payableWon.toLocaleString('ko-KR')}원</li>)}</ul>
-              <p>결제는 아직 완료되지 않았습니다</p>
+              <p>{order.status === 'PAID' ? '결제가 확인됐습니다' : '결제는 아직 완료되지 않았습니다'}</p>
             </div> : null}
           </section>
           <div>

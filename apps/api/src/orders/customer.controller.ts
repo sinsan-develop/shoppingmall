@@ -159,7 +159,6 @@ export class CustomerOrderController {
   @Get(':id/payment-attempts/:attemptId')
   async getPayment(@Req() request: RequestHeaders, @Param('id') id: string,
     @Param('attemptId') attemptId: string) {
-    this.requireLocalMock(request);
     const { pool, accountId } = await this.context(request);
     if (!uuid.test(id) || !uuid.test(attemptId)) throw new BadRequestException();
     const attempt = await getPaymentAttempt(pool, accountId, id, attemptId);

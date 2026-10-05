@@ -19,16 +19,22 @@ type Reservation = { id: string; status: 'ACTIVE' | 'EXPIRED' | 'RELEASED' | 'CA
   expiresAt: string; endReason: string | null; lines: { optionId: string; quantity: number }[];
   quote?: Quote };
 type Address = { id: string; label: string; recipientName?: string; line1?: string };
-type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED'; payableWon: number;
-  expiresAt: string; reservationId?: string;
-  shipments: { id: string; key: string; payableWon: number }[] };
+type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID'; payableWon: number;
+  expiresAt: string; paidAt?: string | null; reservationId?: string;
+  shipments: { id: string; key: string; payableWon: number; status?: string }[] };
+type PaymentAttempt = { id: string; status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'REVIEW_REQUIRED';
+  amountWon: number; mockOnly: true };
+type MockOutcome = 'approve' | 'decline' | 'delay';
 type ViewProps = { items: CartItem[]; quote?: Quote; edits: Record<string, number>;
   busy: string; message: string; loading: boolean; onEdit: (id: string, quantity: number) => void;
   onSave: (id: string) => void; onRemove: (id: string) => void;
   reservation?: Reservation; nowMs?: number; onReserve?: () => void; onRelease?: () => void;
   onRecheck?: () => void; retryAvailable?: boolean; children?: ReactNode;
   addresses?: Address[]; selectedAddressId?: string; onAddressChange?: (id: string) => void;
-  onSubmitOrder?: () => void; pendingOrder?: PendingOrder; orderPayableWon?: number };
+  onSubmitOrder?: () => void; pendingOrder?: PendingOrder; orderPayableWon?: number;
+  showMockPayment?: boolean; onMockPayment?: (outcome: MockOutcome) => void;
+  mockOutcome?: MockOutcome; onMockOutcomeChange?: (outcome: MockOutcome) => void;
+  paymentAttempt?: PaymentAttempt };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -39,6 +45,29 @@ const orderStorageKey = 'owool-checkout-order-id';
 const orderReservationKey = 'owool-checkout-order-reservation-id';
 const orderRequestKey = 'owool-checkout-order-key';
 const orderInputKey = 'owool-checkout-order-input';
+const paymentRequestKey = 'owool-checkout-payment-key';
+const paymentInputKey = 'owool-checkout-payment-input';
+
+export async function startMockPaymentRequest(apiBase: string,
+  storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>,
+  orderId: string, testOutcome: MockOutcome, send: typeof fetch = fetch): Promise<PaymentAttempt> {
+  const signature = JSON.stringify({ orderId, testOutcome });
+  if (storage.getItem(paymentInputKey) !== signature) storage.removeItem(paymentRequestKey);
+  storage.setItem(paymentInputKey, signature);
+  const key = storage.getItem(paymentRequestKey) ?? crypto.randomUUID();
+  storage.setItem(paymentRequestKey, key);
+  const response = await send(`${apiBase}/customer/checkout/orders/${encodeURIComponent(orderId)}/payment-attempts`, {
+    method: 'POST', credentials: 'include', headers: {
+      'content-type': 'application/json', 'idempotency-key': key,
+    }, body: JSON.stringify({ testOutcome }),
+  });
+  if (response.status === 401 || response.status === 403)
+    throw new Error('구매자 역할로 로그인해 주세요');
+  if (response.status === 404) throw new Error('이 주문의 모의 결제는 사용할 수 없습니다');
+  if (response.status === 409) throw new Error('결제 시도와 주문 상태가 변경됐습니다. 본인 주문을 다시 확인해 주세요');
+  if (!response.ok) throw new Error('모의 결제 결과를 확인하지 못했습니다. 같은 선택으로 다시 확인해 주세요');
+  return await response.json() as PaymentAttempt;
+}
 
 export async function submitOrderRequest(apiBase: string,
   storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>,
@@ -136,7 +165,8 @@ export function createRefreshGate() {
 export function CartView({ items, quote, edits, busy, message, loading, onEdit, onSave, onRemove,
   reservation, nowMs, onReserve, onRelease, onRecheck, retryAvailable, children,
   addresses = [], selectedAddressId = '', onAddressChange, onSubmitOrder, pendingOrder,
-  orderPayableWon }: ViewProps) {
+  orderPayableWon, showMockPayment = false, onMockPayment, mockOutcome = 'approve',
+  onMockOutcomeChange, paymentAttempt }: ViewProps) {
   const active = reservation?.status === 'ACTIVE';
   const currentPendingOrder = pendingOrder?.reservationId === reservation?.id ? pendingOrder : undefined;
   const seconds = active ? Math.max(0, Math.ceil((Date.parse(reservation.expiresAt) -
@@ -157,10 +187,13 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
       <p role="status">서버 만료 시각 {new Date(reservation.expiresAt).toLocaleString('ko-KR')} · 남은 시간 {Math.floor(seconds / 60)}분 {seconds % 60}초</p>
       <p>예약 해제 후 수량을 수정하거나 상품을 제거할 수 있습니다. 결제·주문은 아직 확정되지 않았습니다.</p>
       <button type="button" className="secondary-button" disabled={!!busy || !!currentPendingOrder} onClick={onRelease}>예약 해제</button>
-    </section> : reservation && reservation.status !== 'RELEASED' ? <section className="cart-quote" aria-label="종료된 예약 상태">
+    </section> : reservation && reservation.status !== 'RELEASED' &&
+      !(reservation.status === 'CONSUMED' && pendingOrder?.status === 'PAID') ?
+      <section className="cart-quote" aria-label="종료된 예약 상태">
       <h2>예약을 다시 확인해 주세요</h2>
       <p>예약 번호 {reservation.id}</p>
-      <p>{reservation.status === 'CANCELLED' ? '운영자가 예약을 취소했습니다' : '예약 시간이 끝났습니다'}
+      <p>{reservation.status === 'CANCELLED' ? '운영자가 예약을 취소했습니다' :
+        reservation.status === 'CONSUMED' ? '예약 상품의 결제 확인이 완료됐습니다' : '예약 시간이 끝났습니다'}
         {reservation.endReason ? ` · 사유: ${reservation.endReason}` : ''}</p>
       <p>상품 상태와 금액을 재견적한 뒤 새 예약을 진행해 주세요.</p>
       <button type="button" className="secondary-button" disabled={!!busy} onClick={onRecheck}>상품·금액 재견적</button>
@@ -204,15 +237,32 @@ export function CartView({ items, quote, edits, busy, message, loading, onEdit, 
           onClick={onReserve}>{retryAvailable ? '이전 예약 결과 다시 확인' : '결제 준비 · 15분 재고 예약'}</button> : null}
         <p className="section-note">결제 기능은 준비 중입니다. 이 금액은 결제 확정 금액이 아닙니다.</p>
       </>}
-    {pendingOrder && !currentPendingOrder ? <p role="status">이전 주문 {pendingOrder.id} ·
-      {pendingOrder.status === 'EXPIRED' ? '기한 만료' : '결제대기'} ·
+    {pendingOrder && !currentPendingOrder ? <p role="status">{pendingOrder.status === 'PAID' ? '완료된 주문' : '이전 주문'} {pendingOrder.id} ·
+      {pendingOrder.status === 'EXPIRED' ? '기한 만료' : pendingOrder.status === 'PAID' ? '결제 확인 완료' : '결제대기'} ·
       <a href="/account/customer">본인 주문 확인</a></p> : null}
     {active && onSubmitOrder ? <section className="cart-quote" aria-labelledby="pending-order-heading">
       <h2 id="pending-order-heading">결제대기 주문</h2>
       {currentPendingOrder ? <div role="status">
-        <p>주문 번호 {currentPendingOrder.id} · {currentPendingOrder.status === 'EXPIRED' ? '기한 만료' : '결제대기'}</p>
+        <p>주문 번호 {currentPendingOrder.id} · {currentPendingOrder.status === 'EXPIRED' ? '기한 만료' :
+          currentPendingOrder.status === 'PAID' ? '결제 확인 완료' : '결제대기'}</p>
         <p>서버 확정 금액 {won(currentPendingOrder.payableWon)} · 만료 시각 {new Date(currentPendingOrder.expiresAt).toLocaleString('ko-KR')}</p>
-        <p>발송 주문 {currentPendingOrder.shipments.length}건 · 결제는 아직 완료되지 않았습니다.</p>
+        <p>발송 주문 {currentPendingOrder.shipments.length}건 · {currentPendingOrder.status === 'PAID' ?
+          currentPendingOrder.paidAt ?
+            `결제 확인 시각 ${new Date(currentPendingOrder.paidAt).toLocaleString('ko-KR')}` :
+            '결제 확인 완료' : '결제는 아직 완료되지 않았습니다.'}</p>
+        {showMockPayment && currentPendingOrder.status === 'PENDING_PAYMENT' && onMockPayment ? <div>
+          <p>개발 시험 전용 모의 결제입니다. 카드 결제나 실제 청구는 발생하지 않습니다.</p>
+          <label htmlFor="mock-payment-outcome">시험 결과</label>
+          <select id="mock-payment-outcome" value={mockOutcome} disabled={!!busy}
+            onChange={(event) => onMockOutcomeChange?.(event.currentTarget.value as MockOutcome)}>
+            <option value="approve">승인</option><option value="decline">거절</option>
+            <option value="delay">지연</option>
+          </select>
+          <button type="button" className="primary-button" disabled={!!busy}
+            onClick={() => onMockPayment(mockOutcome)}>모의 결제 {mockOutcome === 'approve' ? '승인' :
+              mockOutcome === 'decline' ? '거절' : '지연'} 시험</button>
+          {paymentAttempt ? <p role="status">모의 결제 시도 {paymentAttempt.status} · {won(paymentAttempt.amountWon)}</p> : null}
+        </div> : null}
       </div> : <>
         <label htmlFor="checkout-address">받는 분 배송지</label>
         <select id="checkout-address" value={selectedAddressId} disabled={!!busy}
@@ -309,6 +359,10 @@ export default function CartPage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [pendingOrder, setPendingOrder] = useState<PendingOrder>();
+  const [paymentAttempt, setPaymentAttempt] = useState<PaymentAttempt>();
+  const [mockOutcome, setMockOutcome] = useState<MockOutcome>('approve');
+  const showMockPayment = process.env.NODE_ENV !== 'production' &&
+    process.env.NEXT_PUBLIC_PAYMENT_MODE === 'mock';
   const refreshGate = useRef<ReturnType<typeof createRefreshGate> | null>(null);
   if (refreshGate.current === null) refreshGate.current = createRefreshGate();
   const refresh = useCallback(async (signal?: AbortSignal) => {
@@ -472,6 +526,26 @@ export default function CartPage() {
     } finally { setBusy(''); }
   }
 
+  async function submitMockPayment(outcome: MockOutcome) {
+    if (!apiOrigin || !showMockPayment || !pendingOrder || pendingOrder.status !== 'PENDING_PAYMENT' || busy) return;
+    setBusy('payment'); setMessage('');
+    try {
+      const attempt = await startMockPaymentRequest(apiOrigin, window.sessionStorage,
+        pendingOrder.id, outcome);
+      setPaymentAttempt(attempt);
+      const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(pendingOrder.id)}`,
+        { credentials: 'include', cache: 'no-store' });
+      if (!response.ok) throw new Error('결제 시도는 기록됐지만 주문 상태를 다시 확인하지 못했습니다');
+      const order = await response.json() as PendingOrder;
+      if (order.id === pendingOrder.id) setPendingOrder({ ...order, reservationId: pendingOrder.reservationId });
+      setMessage(order.status === 'PAID' ? '모의 결제 승인과 주문 확정을 확인했습니다' :
+        attempt.status === 'DECLINED' ? '모의 결제가 거절됐습니다. 새 시도로 다시 시험할 수 있습니다' :
+          '모의 결제 확인이 지연 중입니다. 본인 주문 상태를 다시 확인해 주세요');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '모의 결제 결과를 확인하지 못했습니다');
+    } finally { setBusy(''); }
+  }
+
   async function previewPromotions() {
     if (!apiOrigin || !reservation || reservation.status !== 'ACTIVE' || promotionBusy) return;
     setPromotionBusy(true); setPromotionMessage(''); setPromotionQuote(undefined);
@@ -570,6 +644,8 @@ export default function CartPage() {
     reservation={reservation} retryAvailable={retryAvailable} nowMs={nowMs}
     addresses={addresses} selectedAddressId={selectedAddressId} onAddressChange={setSelectedAddressId}
     onSubmitOrder={() => void submitOrder()} pendingOrder={pendingOrder}
+    showMockPayment={showMockPayment} onMockPayment={(outcome) => void submitMockPayment(outcome)}
+    mockOutcome={mockOutcome} onMockOutcomeChange={setMockOutcome} paymentAttempt={paymentAttempt}
     orderPayableWon={promotionQuote?.payableTotalWon ?? reservation?.quote?.totalWon}
     onReserve={() => void reserve()} onRelease={() => void release()}
     onRecheck={() => { setReservation(undefined); void refresh().catch(() =>

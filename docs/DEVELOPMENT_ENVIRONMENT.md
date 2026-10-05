@@ -1,5 +1,12 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-10-05 S4.1 모의 결제 개발 경계
+
+- 현재 작업 브랜치/Windows worktree는 `codex/s4-payment-refund` / `D:\Project\shoppingmall2\.worktrees\s4-payment-refund`다. WSL 지정 checkout `/home/daon/deploy/shopping`은 `github-sinsan-develop` 별칭으로 push한 exact SHA를 `git pull --ff-only`해 시험한다. 이전 S3 경로·브랜치 표기는 그 시점의 기록이며 현재 명령표가 아니다.
+- 결제 기본 모드는 `disabled`다. 모의 API POST를 시험할 때만 API 프로세스에 `APP_ENV=development`, `PAYMENT_MODE=mock`, `API_HOST=127.0.0.1`을 명시한다. 실제 연결도 루프백이어야 하며 `NODE_ENV=production`에서는 닫힌다. Web 개발 화면의 모의 버튼은 별도로 `NEXT_PUBLIC_PAYMENT_MODE=mock`과 개발 빌드일 때만 표시한다. 이 플래그는 **화면 표시용**이고 서버 접근 허가가 아니다. 카드정보·실제 PG·Oracle 공개 URL에는 사용하지 않는다.
+- 0013은 현재 전용 private tmpfs PostgreSQL `shoppingmall-s41-private-pg-1005`(비공개 네트워크 `shoppingmall-s41-private-1005`, 외부 포트/영속 볼륨 없음)에만 적용했다. 공유 `local-postgres/shoppingmall`은 0012까지 13건 이력으로 유지한다. 0013 공유 적용에는 별도 승인이 필요하다. private 자원은 S4.1 HTTP/브라우저 시험 후 정확한 이름만 정리하고 잔류 0을 확인한다.
+- 격리 DB에서 S4.1 결제확정·0원·만료/재고 경계와 구매자 HTTP를 시험했다. Windows의 DB skip은 통과 증거가 아니다. 실제 PG 공급자 callback, 공유 DB 결제 UI, Oracle/UAT는 미검증이며 최신 SHA·시험/정리 수치는 `WORK_STATUS.md`를 따른다.
+
 ## 2026-10-04 S3.3 결제대기 주문 시험 경계
 
 - **공유 개발 DB 0012 최신 상태:** 신산님의 별도 승인으로 `WSL-server`의 `local-postgres/shoppingmall`에 SQL SHA-256 `efe1d8848186d4b74c202241d20cc0a80a4417078e469aa3b082a294b8d267fa`를 적용했다. Drizzle 이력 13건/대기 0, 새 주문 5관계, 기존 계정·상품·예약 행 불변이다. 최종 코드 `7b1ab1f`의 공유 DB 순차 전체 시험 **307건/290 pass/17 환경 skip/0 fail**; 전역 배송정책 변이 시험은 공유 DB에서 제외했다. 실제 Chrome에서 QA 구매자의 3발송·66,000원 결제대기 주문 생성/본인 재조회, 390px 가로 넘침 없음·키보드 주문 조회를 확인했다. 실제 HTTP는 본인 GET 200/동일 키 재시도 200/변경 본문 409/판매자 403/비로그인 401. QA 15범주 0행, 정확한 임시 API/Web·빌드 볼륨·브라우저 탭 종료, 적용 전 WSL·DB 컨테이너 임시 덤프 두 개도 확인 후 제거했다. 다른 구매자 브라우저 IDOR·자연 만료, PG·Oracle·UAT는 미검증이며 세부 증거는 `WORK_STATUS.md` 최신 항목을 따른다.

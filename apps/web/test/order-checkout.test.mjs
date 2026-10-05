@@ -3,7 +3,47 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CartView, restorePendingOrderRequest, submitOrderRequest } from '../app/cart/page.tsx';
+import { CartView, restorePendingOrderRequest, startMockPaymentRequest,
+  submitOrderRequest } from '../app/cart/page.tsx';
+
+test('mock payment keeps the same attempt key across an uncertain retry', async () => {
+  const orderId = randomUUID();
+  const values = new Map();
+  const storage = { getItem: (name) => values.get(name) ?? null,
+    setItem: (name, value) => values.set(name, value),
+    removeItem: (name) => values.delete(name) };
+  const sent = [];
+  const send = async (_url, options) => {
+    sent.push({ key: options.headers['idempotency-key'], body: options.body });
+    return sent.length === 1 ? Response.json({}, { status: 503 }) :
+      Response.json({ id: randomUUID(), status: 'APPROVED', amountWon: 26000,
+        mockOnly: true }, { status: 200 });
+  };
+  await assert.rejects(() => startMockPaymentRequest('http://127.0.0.1:9092', storage,
+    orderId, 'approve', send));
+  const result = await startMockPaymentRequest('http://127.0.0.1:9092', storage,
+    orderId, 'approve', send);
+  assert.equal(result.status, 'APPROVED');
+  assert.equal(sent[0].key, sent[1].key);
+  assert.equal(sent[0].body, sent[1].body);
+  assert.ok(sent[0].key);
+});
+
+test('pending order shows an explicitly labeled mock action but paid order does not', () => {
+  const base = { items: [], edits: {}, busy: '', message: '', loading: false,
+    reservation: { id: 'r1', status: 'ACTIVE', expiresAt: '2026-10-05T00:00:00Z',
+      lines: [], quote: { shipments: [], goodsWon: 23000, shippingWon: 3000, totalWon: 26000 } },
+    onEdit() {}, onSave() {}, onRemove() {}, onSubmitOrder() {}, onMockPayment() {},
+    showMockPayment: true };
+  const pending = { id: 'o1', reservationId: 'r1', status: 'PENDING_PAYMENT',
+    payableWon: 26000, expiresAt: '2026-10-05T00:00:00Z', shipments: [] };
+  const html = renderToStaticMarkup(createElement(CartView, { ...base, pendingOrder: pending }));
+  assert.match(html, /모의 결제 승인 시험/);
+  const paid = renderToStaticMarkup(createElement(CartView,
+    { ...base, pendingOrder: { ...pending, status: 'PAID' } }));
+  assert.match(paid, /결제 확인 완료/);
+  assert.doesNotMatch(paid, /모의 결제 승인 시험/);
+});
 
 test('pending order request keeps its key for safe retry and never claims payment', async () => {
   const key = randomUUID();
