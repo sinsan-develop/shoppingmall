@@ -360,6 +360,19 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
     await client.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
       (SELECT id FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[]))`, [orderIds]);
     await client.query('DELETE FROM shipment_orders WHERE checkout_order_id=ANY($1::uuid[])', [orderIds]);
+    if (sharedManifest) {
+      // verified_order_id intentionally has no FK. Close the preflight-to-delete
+      // race by blocking new event writers, then recheck immediately before the
+      // referenced QA order is removed. The caller commits as soon as reset ends.
+      await client.query("SET LOCAL statement_timeout = '500ms'");
+      await client.query('LOCK TABLE payment_events IN SHARE ROW EXCLUSIVE MODE');
+      const externalVerifiedOrder = await client.query(`SELECT 1 FROM payment_events e
+        JOIN payment_attempts a ON a.id=e.payment_attempt_id
+        WHERE e.verified_order_id=ANY($1::uuid[])
+          AND NOT(a.checkout_order_id=ANY($1::uuid[])) LIMIT 1`, [orderIds]);
+      if (externalVerifiedOrder.rowCount)
+        throw new Error('Shared refund UI foreign payment event references QA order');
+    }
     await client.query('DELETE FROM checkout_orders WHERE id=ANY($1::uuid[])', [orderIds]);
   }
   if (found.accountIds.length) {
