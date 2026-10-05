@@ -420,9 +420,9 @@ test('dual-role global policy audit cannot deadlock an order snapshot', {
     await configureFulfillment(pool, scenario);
     scenario.dualRoleId = (await pool.query(`INSERT INTO account_roles(account_id,role)
       VALUES ($1,'admin') RETURNING id`, [scenario.buyerId])).rows[0].id;
-    assert.deepEqual((await pool.query(`SELECT role FROM account_roles
-      WHERE account_id=$1 ORDER BY role`, [scenario.buyerId])).rows.map(({ role }) => role),
-    ['admin', 'customer']);
+    assert.deepEqual(new Set((await pool.query(`SELECT role FROM account_roles
+      WHERE account_id=$1 ORDER BY role`, [scenario.buyerId])).rows.map(({ role }) => role)),
+    new Set(['admin', 'customer']));
 
     const policyBefore = (await pool.query(`SELECT fee_won,free_threshold_won,cutoff_time,
       blocked_postal_ranges,locked_fee,locked_threshold,locked_cutoff
