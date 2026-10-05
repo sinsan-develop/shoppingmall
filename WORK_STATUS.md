@@ -1,6 +1,12 @@
 # 어울몰 작업현황
 
-## 진행 중 — 2026-10-06 S5.1 Task1 순수 계약 GREEN
+## 진행 중 — 2026-10-06 S5.1 Task2 0015 schema·migration RED/GREEN
+
+- 기준·범위: Task1 최종 `7f04eb9692df4eae583184b00d2f5ebacd430407`에서 PMO가 Task2 전용 새 단일 code-writer 1명 배정을 승인했다. 계획의 `0015_s5_fulfillment.sql`, journal, Drizzle schema, fulfillment schema DB 시험, migration preview/order schema guard와 `WORK_STATUS.md`만 수정한다. 승인된 추가식 3관계·FK/check/unique/index·빈 singleton seed·nullable 담당자·version·PII 비저장/멱등 제약만 구현하며 Task3 이후·API/UI·공유 DB 쓰기·외부 서비스는 제외한다.
+- 격리 시험 자원 사전 계획: `WSL-server` Docker의 기존 `pgvector/pgvector:0.8.2-pg15`와 `node:24-bookworm-slim` 이미지만 사용한다. 전용 비공개 네트워크 `shoppingmall-s51-schema-1006`, tmpfs PostgreSQL `shoppingmall-s51-schema-pg-1006`, 일회용 Node 접두 `shoppingmall-s51-schema-node-1006`, 내부 DB `shoppingmall`을 사용한다. 외부 공개 포트·영속 볼륨·실사용 자료는 0이며, 수명은 Task2 RED→GREEN·fresh 0000~0015·0000~0014→0015·전체 목표 회귀까지다. 완료·실패·중단 시 정확한 컨테이너·네트워크만 제거하고 이름·mount·공개 포트·시험행 잔류 0을 확인한다. 공유 `local-postgres/shoppingmall`은 적용·QA 쓰기 대상이 아니다.
+- 환경 사전 확인: Windows에는 `docker` 명령이 없고, 승인 SSH 별칭 밖 첫 sandbox 조회는 alias를 읽지 못해 1회 실패했다. 승인된 `ssh WSL-server`로 재확인한 Docker Server는 29.1.3이며 위 접두 컨테이너·네트워크와 임시 포트 55435 점유는 0이다. 동일 근본 원인 반복은 없다.
+
+## 검증 완료 — 2026-10-06 S5.1 Task1 순수 계약 GREEN
 
 - 담당: 어울, 단일 복구 code-writer. 기준 `codex/s5-fulfillment-engagement@505132945ff9fe1d6f422ceb1a702ed2e5a954e3`; Task1만 수행. 이전 writer의 미추적 RED 파일을 보존·인수하고 Windows 모듈 URL을 `rulesPath.href`로 보정했다.
 - RED checkpoint: 집중 시험 6건/0 pass/6 fail/0 skip. 실패는 승인된 `rules.ts` export 미구현이며 `file:///D:/D:/...` 경로 오류는 없었다.
