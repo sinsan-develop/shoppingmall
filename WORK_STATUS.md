@@ -1,10 +1,20 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S4.2 Task 2 환불 원장 구조
+
+- 담당 어울, 단일 writer. 기준 branch `codex/s4-payment-refund`, Task 1 commit `5f8a7d8`. 승인된 범위 안에서 새 `0014_s4_refunds.sql`과 환불 사례·품목·시도·공급자 사건·사건 충돌·상태 이력의 6관계만 추가했다. 기존 주문·결제·프로모션 금액 snapshot과 0000~0013 SQL은 변경하지 않았다.
+- TDD: 공유 개발 DB의 관계 부재를 먼저 확인해 구조 시험 0 pass/1 fail RED를 만들었고, 전용 격리 DB `shoppingmall_s42_1005_5f8a7d8`에 0000~0014를 적용한 뒤 구조·제약·고유 인덱스 목표 시험 1 pass/0 fail GREEN을 확인했다. 커밋 전 계약 대조에서 `REVIEW_REQUIRED`가 완료시각을 요구해 환불 완료처럼 보이는 문제를 추가 RED로 고정했고, `REFUNDED`만 완료시각 필수·수동 검토는 완료시각 없음으로 보정한 fresh apply 뒤 다시 1 pass/0 fail이다. 격리 DB migration 이력 15건, 공유 `shoppingmall`은 읽기 전용 미리보기 14 적용/0014 1 대기·35문장, 최종 0014 SHA-256 `8d92d378eee29db3dde3b3eac0b070a83130c99b54bc55d587a35143136864ea`이다. 공유 DB에는 적용하지 않았다.
+- 마이그레이션 이력 오류 1회: Windows working tree의 기존 SQL이 CRLF로 변환되어 공유 DB의 LF 적용 해시와 달랐다. 기존 SQL 내용을 바꾸지 않고 `.gitattributes`에 migration LF 규칙을 추가·renormalize했으며, 0000~0013의 적용 해시 회귀시험을 저장소 루트와 `apps/api` 작업 위치 양쪽에서 각 3 pass로 확인했다.
+- 시험 환경 오류 1회: 격리 DB에서 API 전체 회귀를 실행했으나 기존 QA fixture가 안전상 DB 이름을 정확히 `shoppingmall`로 제한하여 178 total/129 pass/31 fail/18 skip이었다. 제품/schema 회귀로 판정하지 않고 해당 안전장치를 유지했다. Task 2는 전용 구조 시험만 격리 DB에서 실행하고, 전체 회귀는 DB 미설정 경로로 **323 total/235 pass/88 환경 skip/0 fail**, PR 본문 검사 8 pass, API typecheck·프로젝트 lint·`git diff --check` 종료 0을 확인했다.
+- 격리 DB 재생성 도구 오류 2회: 첫 존재 확인 SQL은 원격 인용부호가 깨져 보호 확인에서 중단돼 DB 무변경, 두 번째는 정확한 전용 DB를 재생성했으나 migrator를 저장소 루트에서 실행해 journal 상대경로를 찾지 못했다. 빈 전용 DB에 `apps/api` 기준으로 다시 실행해 0000~0014 적용과 목표 GREEN을 확인했다. 공유 DB와 제품 데이터 영향은 없다.
+- 이력 출력 도구 오류 1회: 일회성 TypeScript 명령의 내부 따옴표가 PowerShell에서 제거되어 코드 변환 전에 실패했다. DB 영향 없음. 임시 스크립트를 만들지 않고 구조 회귀시험에 Drizzle 이력 15건 검증을 추가했다.
+- 미검증/다음: 공유 DB 0014 적용, 실제 PG, 실제 브라우저, Oracle/UAT는 미검증이다. 격리 DB는 후속 Task 3 거래 시험에 재사용하며 전용 fixture와 정확한 DB 대상 guard를 사용한다. S4.2 종료 때 시험 행과 DB를 정리한다.
+
 ## 진행 중 — 2026-10-05 S4.2 계약 검토·PMO 보고 경로
 
 - 구현 승인: PMO가 신산님 지시 경로로 `docs/design/S4_REFUND_CONTRACT_DRAFT.md`의 0014 추가식 6관계, 고객/관리자 API 7개, 권한·금액·멱등·충돌·사건 이력, 관리자 명시 `on_hand_only` 재고 복원의 **현 branch 격리 구현·검증**을 승인했다. 공유 DB 0014, 실제 PG, Oracle/UAT, S5.2 후출고 정책, 쿠폰 재발행·sellable 자동 증가는 제외다. `docs/superpowers/plans/2026-10-05-s4-pre-shipment-refunds.md`에 6 Task TDD 계획을 기록했다.
 - 실행 도구 오류 누적 3회: Superpowers의 `sdd-workspace`를 Windows 경로, Git Bash형 `/c` 경로, WSL `/mnt/c` 경로로 실행했으나 각각 스크립트 경로 미해석 2회와 Windows Git worktree의 gitdir 경로 혼합 1회로 실패했다. 제품 파일·Git·DB 영향 없음. 동일 원인 반복을 중단하고 같은 형식의 plan-scoped git-ignored ledger를 `.superpowers/sdd/2026-10-05-s4-pre-shipment-refunds/progress.md`에 직접 만들었다.
-- Task 1 진행: 변경 전 `pnpm test` 318 total/231 pass/87 DB·환경 skip/0 fail. 수량별 환급 RED는 `allocation.ts` 모듈 부재로 0 pass/1 fail을 확인했고, 누적 floor 차이를 BigInt로 계산하는 최소 구현 뒤 목표 3 pass/0 fail을 확인했다. 전체 회귀·커밋 전이다.
+- Task 1 완료: 변경 전 `pnpm test` 318 total/231 pass/87 DB·환경 skip/0 fail. 수량별 환급 RED는 `allocation.ts` 모듈 부재로 0 pass/1 fail을 확인했고, 누적 floor 차이를 BigInt로 계산하는 최소 구현 뒤 목표 3 pass/0 fail을 확인했다. 전체 회귀 321 total/234 pass/87 skip/0 fail과 typecheck를 거쳐 `5f8a7d8`로 커밋했다.
 - 담당 어울, 단일 writer. 신산님 직접 지시에 따라 앞으로 보고·승인 요청은 지정 PMO 채팅 `01a054f5-c2b4-7af0-b31a-c8148ef74642`으로 보내고 그 지시를 확인한다. PMO를 통해 수량 단위 부분 취소, 관리자 최종 결정, 남은 주문 배송비 재부과 없음과 위 현 branch 격리 구현 범위가 전달·승인됐다. 공유 DB 적용 등 제외 범위는 여전히 별도 승인 전이다.
 - 현재 로컬 `codex/s4-payment-refund@ad05adc874e4ff97005f8b50f04f7a7ba5c466a1` clean, WSL 지정 checkout도 같은 SHA·clean. WSL 공유 `local-postgres/shoppingmall` 읽기 전용 조회에서 migration 14건. `WORK_PLAN` S4.2, `DESIGN` R06/R07, `PRD` 7.5·8.2, 현행 DB schema·주문/결제 API를 대조해 환불 사례·품목·시도·사건·이력, 금액/배송비 규칙, 권한·멱등·검증/복구 계약안을 PMO에 보고했다. 실제 코드·DB 변경 없음.
 - 의존성·승인된 계획 보정: 현행 주문 상태에는 출고 사건이 없으나 S4.2에 후출고 심사/증빙이 있고, 출고·클레임은 후속 S5.1/S5.2에 있었다. PMO가 신산님 지시 경로로 **S4.2는 출고 전 환불 core로 완료하고, 후출고 사유별 증빙·시험 정책 심사/환불 연결을 S5.2 완료조건으로 이동**하는 한 방향의 Stage 귀속 보정을 승인했다. `docs/WORK_PLAN.md`의 해당 S4/S5 문구만 최소 수정하고 DESIGN R07의 미확정 약관 경계는 유지했다. S4 Stage PR 병합·smoke·정리 전 S5 branch를 만들지 않는다. 이번 승인은 0014 schema/API 구현이나 공유 DB 적용 승인이 아니다. 실제 PG·브라우저/390px/키보드/인쇄·Oracle/UAT는 미검증.

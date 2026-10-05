@@ -724,3 +724,204 @@ export const paymentEventConflicts = pgTable('payment_event_conflicts', {
   check('payment_event_conflicts_fingerprint_ck', sql`${table.incomingFingerprint} ~ '^[0-9a-f]{64}$'`),
   check('payment_event_conflicts_reason_ck', sql`${table.reason} IN ('FINGERPRINT_MISMATCH','ATTEMPT_MISMATCH')`),
 ]);
+
+export const refundCases = pgTable('refund_cases', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  checkoutOrderId: uuid('checkout_order_id').notNull().references(() => checkoutOrders.id),
+  shipmentOrderId: uuid('shipment_order_id').notNull(),
+  requesterAccountId: uuid('requester_account_id').notNull().references(() => accounts.id),
+  requesterRole: text('requester_role').notNull(),
+  reasonCode: text('reason_code').notNull(),
+  reason: text('reason').notNull(),
+  preShipmentEvidence: text('pre_shipment_evidence'),
+  preShipmentConfirmedBy: uuid('pre_shipment_confirmed_by').references(() => accounts.id),
+  preShipmentConfirmedAt: timestamp('pre_shipment_confirmed_at', { withTimezone: true }),
+  policyCode: text('policy_code').notNull().default('PRE_SHIPMENT_V1'),
+  policyVersion: integer('policy_version').notNull().default(1),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  requestFingerprint: text('request_fingerprint').notNull(),
+  goodsRefundWon: integer('goods_refund_won').notNull().default(0),
+  shippingRefundWon: integer('shipping_refund_won').notNull().default(0),
+  totalRefundWon: integer('total_refund_won').notNull().default(0),
+  status: text('status').notNull().default('REQUESTED'),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  decisionBy: uuid('decision_by').references(() => accounts.id),
+  decisionReason: text('decision_reason'),
+}, (table) => [
+  foreignKey({ name: 'refund_cases_shipment_fk',
+    columns: [table.checkoutOrderId, table.shipmentOrderId],
+    foreignColumns: [shipmentOrders.checkoutOrderId, shipmentOrders.id] }),
+  uniqueIndex('refund_cases_request_key_uq')
+    .on(table.requesterAccountId, table.checkoutOrderId, table.idempotencyKey),
+  uniqueIndex('refund_cases_id_shipment_uq').on(table.id, table.shipmentOrderId),
+  index('refund_cases_checkout_requested_idx').on(table.checkoutOrderId, table.requestedAt),
+  index('refund_cases_status_requested_idx').on(table.status, table.requestedAt),
+  check('refund_cases_requester_role_ck', sql`${table.requesterRole} IN ('customer','admin')`),
+  check('refund_cases_reason_code_ck', sql`${table.reasonCode} IN
+    ('customer_request','quality_issue','wrong_delivery','damaged','other')`),
+  check('refund_cases_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
+  check('refund_cases_evidence_ck', sql`${table.preShipmentEvidence} IS NULL
+    OR ${table.preShipmentEvidence} = 'ADMIN_CONFIRMED_NOT_DISPATCHED'`),
+  check('refund_cases_policy_ck', sql`length(trim(${table.policyCode})) BETWEEN 1 AND 100
+    AND ${table.policyVersion} > 0`),
+  check('refund_cases_fingerprint_ck', sql`${table.requestFingerprint} ~ '^[0-9a-f]{64}$'`),
+  check('refund_cases_amount_ck', sql`${table.goodsRefundWon} >= 0
+    AND ${table.shippingRefundWon} >= 0
+    AND ${table.totalRefundWon} = ${table.goodsRefundWon} + ${table.shippingRefundWon}`),
+  check('refund_cases_status_ck', sql`${table.status} IN
+    ('REQUESTED','APPROVED','REJECTED','PROCESSING','REFUNDED','REVIEW_REQUIRED')`),
+  check('refund_cases_decision_reason_ck', sql`${table.decisionReason} IS NULL
+    OR length(trim(${table.decisionReason})) BETWEEN 1 AND 500`),
+  check('refund_cases_state_ck', sql`(
+    ${table.status} = 'REQUESTED' AND ${table.decidedAt} IS NULL
+      AND ${table.completedAt} IS NULL AND ${table.decisionBy} IS NULL
+      AND ${table.decisionReason} IS NULL AND ${table.preShipmentEvidence} IS NULL
+      AND ${table.preShipmentConfirmedBy} IS NULL AND ${table.preShipmentConfirmedAt} IS NULL
+      AND ${table.goodsRefundWon} = 0 AND ${table.shippingRefundWon} = 0
+      AND ${table.totalRefundWon} = 0)
+    OR (${table.status} IN ('APPROVED','PROCESSING') AND ${table.decidedAt} IS NOT NULL
+      AND ${table.completedAt} IS NULL AND ${table.decisionBy} IS NOT NULL
+      AND ${table.decisionReason} IS NOT NULL
+      AND ${table.preShipmentEvidence} = 'ADMIN_CONFIRMED_NOT_DISPATCHED'
+      AND ${table.preShipmentConfirmedBy} IS NOT NULL
+      AND ${table.preShipmentConfirmedAt} IS NOT NULL)
+    OR (${table.status} = 'REJECTED' AND ${table.decidedAt} IS NOT NULL
+      AND ${table.completedAt} IS NOT NULL AND ${table.decisionBy} IS NOT NULL
+      AND ${table.decisionReason} IS NOT NULL AND ${table.goodsRefundWon} = 0
+      AND ${table.shippingRefundWon} = 0 AND ${table.totalRefundWon} = 0)
+    OR (${table.status} = 'REFUNDED' AND ${table.decidedAt} IS NOT NULL
+      AND ${table.completedAt} IS NOT NULL AND ${table.decisionBy} IS NOT NULL
+      AND ${table.decisionReason} IS NOT NULL
+      AND ${table.preShipmentEvidence} = 'ADMIN_CONFIRMED_NOT_DISPATCHED'
+      AND ${table.preShipmentConfirmedBy} IS NOT NULL
+      AND ${table.preShipmentConfirmedAt} IS NOT NULL)
+    OR (${table.status} = 'REVIEW_REQUIRED' AND ${table.decidedAt} IS NOT NULL
+      AND ${table.completedAt} IS NULL AND ${table.decisionBy} IS NOT NULL
+      AND ${table.decisionReason} IS NOT NULL
+      AND ${table.preShipmentEvidence} = 'ADMIN_CONFIRMED_NOT_DISPATCHED'
+      AND ${table.preShipmentConfirmedBy} IS NOT NULL
+      AND ${table.preShipmentConfirmedAt} IS NOT NULL)`),
+]);
+
+export const refundCaseLines = pgTable('refund_case_lines', {
+  refundCaseId: uuid('refund_case_id').notNull(),
+  shipmentOrderId: uuid('shipment_order_id').notNull(),
+  optionId: uuid('option_id').notNull(),
+  quantity: integer('quantity').notNull(),
+  goodsRefundWon: integer('goods_refund_won').notNull().default(0),
+  restockMode: text('restock_mode').notNull().default('none'),
+  restockedQuantity: integer('restocked_quantity').notNull().default(0),
+}, (table) => [
+  primaryKey({ columns: [table.refundCaseId, table.optionId], name: 'refund_case_lines_pk' }),
+  foreignKey({ name: 'refund_case_lines_case_fk',
+    columns: [table.refundCaseId, table.shipmentOrderId],
+    foreignColumns: [refundCases.id, refundCases.shipmentOrderId] }),
+  foreignKey({ name: 'refund_case_lines_order_line_fk',
+    columns: [table.shipmentOrderId, table.optionId],
+    foreignColumns: [shipmentOrderLines.shipmentOrderId, shipmentOrderLines.optionId] }),
+  index('refund_case_lines_option_idx').on(table.optionId),
+  check('refund_case_lines_quantity_ck', sql`${table.quantity} > 0`),
+  check('refund_case_lines_money_ck', sql`${table.goodsRefundWon} >= 0`),
+  check('refund_case_lines_restock_ck', sql`(${table.restockMode} = 'none'
+      AND ${table.restockedQuantity} = 0)
+    OR (${table.restockMode} = 'on_hand_only'
+      AND ${table.restockedQuantity} BETWEEN 0 AND ${table.quantity})`),
+]);
+
+export const refundAttempts = pgTable('refund_attempts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  refundCaseId: uuid('refund_case_id').notNull().references(() => refundCases.id),
+  paymentAttemptId: uuid('payment_attempt_id').notNull().references(() => paymentAttempts.id),
+  provider: text('provider').notNull(),
+  providerRefundId: text('provider_refund_id').notNull(),
+  requestedWon: integer('requested_won').notNull(),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  requestFingerprint: text('request_fingerprint').notNull(),
+  status: text('status').notNull().default('PENDING'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('refund_attempts_case_key_uq').on(table.refundCaseId, table.idempotencyKey),
+  uniqueIndex('refund_attempts_provider_refund_uq').on(table.provider, table.providerRefundId),
+  index('refund_attempts_case_created_idx').on(table.refundCaseId, table.createdAt),
+  check('refund_attempts_provider_ck', sql`${table.provider} IN ('mock','no_charge')`),
+  check('refund_attempts_provider_id_ck',
+    sql`length(trim(${table.providerRefundId})) BETWEEN 1 AND 200`),
+  check('refund_attempts_requested_ck', sql`${table.requestedWon} >= 0`),
+  check('refund_attempts_fingerprint_ck', sql`${table.requestFingerprint} ~ '^[0-9a-f]{64}$'`),
+  check('refund_attempts_status_ck',
+    sql`${table.status} IN ('PENDING','SUCCEEDED','FAILED','REVIEW_REQUIRED')`),
+  check('refund_attempts_ended_ck', sql`(${table.status} = 'PENDING' AND ${table.endedAt} IS NULL)
+    OR (${table.status} <> 'PENDING' AND ${table.endedAt} IS NOT NULL)`),
+]);
+
+export const refundEvents = pgTable('refund_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  refundAttemptId: uuid('refund_attempt_id').notNull().references(() => refundAttempts.id),
+  provider: text('provider').notNull(),
+  providerEventId: text('provider_event_id').notNull(),
+  outcome: text('outcome').notNull(),
+  verifiedOrderId: uuid('verified_order_id').notNull().references(() => checkoutOrders.id),
+  providerPaymentId: text('provider_payment_id').notNull(),
+  providerRefundId: text('provider_refund_id').notNull(),
+  amountWon: integer('amount_won').notNull(),
+  eventFingerprint: text('event_fingerprint').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  processingStatus: text('processing_status').notNull().default('PENDING_PROCESSING'),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('refund_events_provider_event_uq').on(table.provider, table.providerEventId),
+  index('refund_events_attempt_received_idx').on(table.refundAttemptId, table.receivedAt),
+  index('refund_events_pending_idx').on(table.processingStatus, table.receivedAt),
+  check('refund_events_provider_ck', sql`${table.provider} IN ('mock','no_charge')`),
+  check('refund_events_ids_ck', sql`length(trim(${table.providerEventId})) BETWEEN 1 AND 200
+    AND length(trim(${table.providerPaymentId})) BETWEEN 1 AND 200
+    AND length(trim(${table.providerRefundId})) BETWEEN 1 AND 200`),
+  check('refund_events_outcome_ck', sql`${table.outcome} IN ('SUCCEEDED','FAILED')`),
+  check('refund_events_amount_ck', sql`${table.amountWon} >= 0`),
+  check('refund_events_fingerprint_ck', sql`${table.eventFingerprint} ~ '^[0-9a-f]{64}$'`),
+  check('refund_events_processing_ck',
+    sql`${table.processingStatus} IN ('PENDING_PROCESSING','APPLIED','REVIEW_REQUIRED')`),
+  check('refund_events_processed_ck',
+    sql`(${table.processingStatus} = 'PENDING_PROCESSING' AND ${table.processedAt} IS NULL)
+      OR (${table.processingStatus} <> 'PENDING_PROCESSING' AND ${table.processedAt} IS NOT NULL)`),
+]);
+
+export const refundEventConflicts = pgTable('refund_event_conflicts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  originalEventId: uuid('original_event_id').notNull().references(() => refundEvents.id),
+  incomingAttemptId: uuid('incoming_attempt_id').notNull().references(() => refundAttempts.id),
+  incomingFingerprint: text('incoming_fingerprint').notNull(),
+  reason: text('reason').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('refund_event_conflicts_original_received_idx').on(table.originalEventId, table.receivedAt),
+  check('refund_event_conflicts_fingerprint_ck',
+    sql`${table.incomingFingerprint} ~ '^[0-9a-f]{64}$'`),
+  check('refund_event_conflicts_reason_ck',
+    sql`${table.reason} IN ('FINGERPRINT_MISMATCH','ATTEMPT_MISMATCH')`),
+]);
+
+export const refundCaseEvents = pgTable('refund_case_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  refundCaseId: uuid('refund_case_id').notNull().references(() => refundCases.id),
+  fromStatus: text('from_status'),
+  toStatus: text('to_status').notNull(),
+  actorAccountId: uuid('actor_account_id').references(() => accounts.id),
+  actorRole: text('actor_role').notNull(),
+  reason: text('reason').notNull(),
+  refundEventId: uuid('refund_event_id').references(() => refundEvents.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('refund_case_events_case_created_idx').on(table.refundCaseId, table.createdAt),
+  check('refund_case_events_from_ck', sql`${table.fromStatus} IS NULL OR ${table.fromStatus} IN
+    ('REQUESTED','APPROVED','REJECTED','PROCESSING','REFUNDED','REVIEW_REQUIRED')`),
+  check('refund_case_events_to_ck', sql`${table.toStatus} IN
+    ('REQUESTED','APPROVED','REJECTED','PROCESSING','REFUNDED','REVIEW_REQUIRED')`),
+  check('refund_case_events_actor_ck', sql`(${table.actorRole} IN ('customer','admin')
+      AND ${table.actorAccountId} IS NOT NULL)
+    OR (${table.actorRole} = 'system' AND ${table.actorAccountId} IS NULL)`),
+  check('refund_case_events_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
+]);
