@@ -313,25 +313,15 @@ test('shared reset preserves conflicts whose incoming attempt belongs to another
       const pendingReset = resetRefundUiFixture(wrapper, runId, 4, manifest);
       pendingReset.catch(() => {});
       await paused;
-      await conflictWriter.query("SET lock_timeout='5s'");
-      const writerPid = (await conflictWriter.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
-      const insert = conflictWriter.query(`INSERT INTO payment_event_conflicts
+      paymentConflict = (await conflictWriter.query(`INSERT INTO payment_event_conflicts
         (original_event_id,incoming_attempt_id,incoming_fingerprint,reason)
         VALUES ($1,$2,$3,'ATTEMPT_MISMATCH') RETURNING id`,
-      [qaPaymentEvent, paymentAttempt, fp]);
-      insert.catch(() => {});
-      let blocked = false;
-      for (let attempt = 0; attempt < 100; attempt++) {
-        blocked = (await pool.query('SELECT cardinality(pg_blocking_pids($1))>0 AS blocked',
-          [writerPid])).rows[0].blocked;
-        if (blocked) break;
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-      assert.equal(blocked, true, 'late cross-order conflict must wait on original QA event');
+      [qaPaymentEvent, paymentAttempt, fp])).rows[0].id;
       releaseReset();
-      await pendingReset;
+      await assert.rejects(pendingReset, /foreign.*conflict/);
       await resetClient.query('ROLLBACK');
-      paymentConflict = (await insert).rows[0].id;
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM payment_event_conflicts WHERE id=$1',
+        [paymentConflict])).rows[0].count, 1);
       await pool.query('DELETE FROM payment_event_conflicts WHERE id=$1', [paymentConflict]);
       paymentConflict = undefined;
     } finally {
