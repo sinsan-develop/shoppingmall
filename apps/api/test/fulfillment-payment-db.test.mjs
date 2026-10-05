@@ -51,10 +51,10 @@ async function approveSellerPolicy(pool, scenario, seller, cutoffTime) {
 }
 
 async function seedScenario(pool, scenario) {
+  scenario.seeded = true;
   await runQaCatalogFixture(
     'seed', scenario.runId, process.env.DATABASE_URL, 'test-only-password-12345',
   );
-  scenario.seeded = true;
   const names = qaNames(scenario.runId);
   scenario.buyerId = (await pool.query(`SELECT account_id FROM account_identities
     WHERE kind='email' AND identifier=$1`, [names.emails[0]])).rows[0].account_id;
@@ -240,116 +240,161 @@ async function cleanupScenario(pool, scenario) {
   }
 }
 
-test('verified payment opens every fulfillment once and rejects partial payment application', {
-  skip: !process.env.DATABASE_URL || !process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID,
-  timeout: 60000,
-}, async (t) => {
+function createScenario() {
+  return {
+    runId: randomBytes(4).toString('hex'),
+    seeded: false,
+    orderIds: [],
+    reservationIds: [],
+    attemptIds: [],
+    policyRequestIds: [],
+    policySellerIds: [],
+  };
+}
+
+async function withIsolatedScenario(context, callback) {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 8 });
   let scenario;
-  let approved;
   try {
-    if (!await requireFreshIsolatedSchema(t, pool)) return;
-    scenario = {
-      runId: randomBytes(4).toString('hex'),
-      seeded: false,
-      orderIds: [],
-      reservationIds: [],
-      attemptIds: [],
-      policyRequestIds: [],
-      policySellerIds: [],
-    };
+    if (!await requireFreshIsolatedSchema(context, pool)) return;
+    scenario = createScenario();
     await seedScenario(pool, scenario);
+    await callback(pool, scenario);
+  } finally {
+    await cleanupScenario(pool, scenario);
+    await pool.end();
+  }
+}
 
-    await t.test('approval stores READY, paid_at provisional dates and system events for all shipments', async () => {
+async function assertFulfillmentRemainsPending(pool, order) {
+  const fulfillments = await fulfillmentState(pool, order.id);
+  assert.equal(fulfillments.length, 3);
+  assert.deepEqual(fulfillments.map(({ status, version, expectedShipDate }) =>
+    ({ status, version, expectedShipDate })), Array.from({ length: 3 }, () => ({
+    status: 'PAYMENT_PENDING', version: 0, expectedShipDate: null,
+  })));
+  assert.deepEqual(await fulfillmentEvents(pool, order.id), []);
+}
+
+test('verified payment opens every fulfillment once and rejects partial payment application', {
+  skip: !process.env.DATABASE_URL || !process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID,
+  timeout: 120000,
+}, async (t) => {
+  await t.test('approval and replay share one isolated payment scenario', async (approvalGroup) => {
+    await withIsolatedScenario(approvalGroup, async (pool, scenario) => {
+      let approved;
+      await approvalGroup.test(
+        'approval stores READY, paid_at provisional dates and system events for all shipments',
+        async () => {
+          const order = await createPendingOrder(pool, scenario);
+          const payment = await createPaymentEvent(pool, scenario, order);
+          approved = { order, payment };
+          const applied = await processVerifiedPaymentEvent(pool, payment.event.id);
+          const fulfillments = await fulfillmentState(pool, order.id);
+          const events = await fulfillmentEvents(pool, order.id);
+          assert.equal(applied.processingStatus, 'APPLIED');
+          assert.equal(fulfillments.length, 3);
+          assert.deepEqual(fulfillments.map(({
+            status, version, expectedShipDate, expectedFromPaidAt,
+          }) => ({ status, version, expectedShipDate, expectedFromPaidAt })),
+          fulfillments.map(({ expectedFromPaidAt }) => ({
+            status: 'READY', version: 1,
+            expectedShipDate: expectedFromPaidAt, expectedFromPaidAt,
+          })));
+          assert.equal(events.length, 3);
+          for (const event of events) {
+            const fulfillment = fulfillments.find(({ shipmentOrderId }) =>
+              shipmentOrderId === event.shipmentOrderId);
+            assert.deepEqual({
+              action: event.action,
+              fromStatus: event.fromStatus,
+              toStatus: event.toStatus,
+              beforeSnapshot: event.beforeSnapshot,
+              afterSnapshot: event.afterSnapshot,
+              idempotencyScope: event.idempotencyScope,
+              idempotencyKey: event.idempotencyKey,
+            }, {
+              action: 'PAYMENT_CONFIRMED',
+              fromStatus: 'PAYMENT_PENDING',
+              toStatus: 'READY',
+              beforeSnapshot: {
+                status: 'PAYMENT_PENDING', expectedShipDate: null,
+                carrierCode: null, trackingNumber: null,
+              },
+              afterSnapshot: {
+                status: 'READY', expectedShipDate: fulfillment.expectedShipDate,
+                carrierCode: null, trackingNumber: null,
+              },
+              idempotencyScope: 'system:payment',
+              idempotencyKey: payment.event.id,
+            });
+            assert.match(event.requestFingerprint, /^[0-9a-f]{64}$/);
+          }
+        },
+      );
+
+      await approvalGroup.test(
+        'replaying the original approval does not change status, version or event count again',
+        async () => {
+          assert.ok(approved);
+          const before = await fulfillmentState(pool, approved.order.id);
+          const beforeEvents = await fulfillmentEvents(pool, approved.order.id);
+          assert.deepEqual(before.map(({ status, version }) => ({ status, version })),
+            Array.from({ length: 3 }, () => ({ status: 'READY', version: 1 })));
+          assert.equal(beforeEvents.length, 3);
+          assert.equal((await processVerifiedPaymentEvent(
+            pool, approved.payment.event.id,
+          )).processingStatus, 'APPLIED');
+          const replayed = await recordVerifiedPaymentEvent(
+            pool, approved.payment.attempt.id, approved.payment.verified,
+          );
+          assert.equal(replayed.id, approved.payment.event.id);
+          assert.equal((await processVerifiedPaymentEvent(pool, replayed.id)).processingStatus,
+            'APPLIED');
+          assert.deepEqual(await fulfillmentState(pool, approved.order.id), before);
+          assert.deepEqual(await fulfillmentEvents(pool, approved.order.id), beforeEvents);
+        },
+      );
+    });
+  });
+
+  await t.test('declined payment leaves fulfillment pending in its own scenario', async (scenarioTest) => {
+    await withIsolatedScenario(scenarioTest, async (pool, scenario) => {
       const order = await createPendingOrder(pool, scenario);
-      const payment = await createPaymentEvent(pool, scenario, order);
-      approved = { order, payment };
-      const applied = await processVerifiedPaymentEvent(pool, payment.event.id);
-      const fulfillments = await fulfillmentState(pool, order.id);
-      const events = await fulfillmentEvents(pool, order.id);
-      assert.equal(applied.processingStatus, 'APPLIED');
-      assert.equal(fulfillments.length, 3);
-      assert.deepEqual(fulfillments.map(({ status, version, expectedShipDate, expectedFromPaidAt }) =>
-        ({ status, version, expectedShipDate, expectedFromPaidAt })), fulfillments.map(({ expectedFromPaidAt }) => ({
-        status: 'READY', version: 1, expectedShipDate: expectedFromPaidAt, expectedFromPaidAt,
-      })));
-      assert.equal(events.length, 3);
-      for (const event of events) {
-        const fulfillment = fulfillments.find(({ shipmentOrderId }) =>
-          shipmentOrderId === event.shipmentOrderId);
-        assert.deepEqual({
-          action: event.action,
-          fromStatus: event.fromStatus,
-          toStatus: event.toStatus,
-          beforeSnapshot: event.beforeSnapshot,
-          afterSnapshot: event.afterSnapshot,
-          idempotencyScope: event.idempotencyScope,
-          idempotencyKey: event.idempotencyKey,
-        }, {
-          action: 'PAYMENT_CONFIRMED',
-          fromStatus: 'PAYMENT_PENDING',
-          toStatus: 'READY',
-          beforeSnapshot: {
-            status: 'PAYMENT_PENDING', expectedShipDate: null,
-            carrierCode: null, trackingNumber: null,
-          },
-          afterSnapshot: {
-            status: 'READY', expectedShipDate: fulfillment.expectedShipDate,
-            carrierCode: null, trackingNumber: null,
-          },
-          idempotencyScope: 'system:payment',
-          idempotencyKey: payment.event.id,
-        });
-        assert.match(event.requestFingerprint, /^[0-9a-f]{64}$/);
-      }
-    });
-
-    await t.test('replaying the original approval does not change status, version or event count again', async () => {
-      assert.ok(approved);
-      const before = await fulfillmentState(pool, approved.order.id);
-      const beforeEvents = await fulfillmentEvents(pool, approved.order.id);
-      assert.deepEqual(before.map(({ status, version }) => ({ status, version })),
-        Array.from({ length: 3 }, () => ({ status: 'READY', version: 1 })));
-      assert.equal(beforeEvents.length, 3);
-      assert.equal((await processVerifiedPaymentEvent(pool, approved.payment.event.id)).processingStatus,
+      const declined = await createPaymentEvent(pool, scenario, order, 'DECLINED');
+      assert.equal((await processVerifiedPaymentEvent(pool, declined.event.id)).processingStatus,
         'APPLIED');
-      const replayed = await recordVerifiedPaymentEvent(pool, approved.payment.attempt.id,
-        approved.payment.verified);
-      assert.equal(replayed.id, approved.payment.event.id);
-      assert.equal((await processVerifiedPaymentEvent(pool, replayed.id)).processingStatus, 'APPLIED');
-      assert.deepEqual(await fulfillmentState(pool, approved.order.id), before);
-      assert.deepEqual(await fulfillmentEvents(pool, approved.order.id), beforeEvents);
+      await assertFulfillmentRemainsPending(pool, order);
+    });
+  });
+
+  await t.test('unconfirmed payment leaves fulfillment pending in its own scenario', async (scenarioTest) => {
+    await withIsolatedScenario(scenarioTest, async (pool, scenario) => {
+      const order = await createPendingOrder(pool, scenario);
+      const attempt = await startPaymentAttempt(
+        pool, scenario.buyerId, order.id, randomUUID(), 'delay', paymentEnv,
+      );
+      scenario.attemptIds.push(attempt.id);
+      await assertFulfillmentRemainsPending(pool, order);
+    });
+  });
+
+  await t.test('review-required payment leaves fulfillment pending in its own scenario',
+    async (scenarioTest) => {
+      await withIsolatedScenario(scenarioTest, async (pool, scenario) => {
+        const order = await createPendingOrder(pool, scenario);
+        const review = await createPaymentEvent(pool, scenario, order, 'APPROVED',
+          verified => ({ ...verified, amountWon: verified.amountWon + 1 }));
+        assert.equal(review.event.processingStatus, 'REVIEW_REQUIRED');
+        assert.equal((await processVerifiedPaymentEvent(pool, review.event.id)).processingStatus,
+          'REVIEW_REQUIRED');
+        await assertFulfillmentRemainsPending(pool, order);
+      });
     });
 
-    await t.test('declined, unconfirmed and review-required payments leave fulfillment pending', async () => {
-      const declinedOrder = await createPendingOrder(pool, scenario);
-      const declined = await createPaymentEvent(pool, scenario, declinedOrder, 'DECLINED');
-      assert.equal((await processVerifiedPaymentEvent(pool, declined.event.id)).processingStatus, 'APPLIED');
-
-      const unconfirmedOrder = await createPendingOrder(pool, scenario);
-      const unconfirmedAttempt = await startPaymentAttempt(pool, scenario.buyerId,
-        unconfirmedOrder.id, randomUUID(), 'delay', paymentEnv);
-      scenario.attemptIds.push(unconfirmedAttempt.id);
-
-      const reviewOrder = await createPendingOrder(pool, scenario);
-      const review = await createPaymentEvent(pool, scenario, reviewOrder, 'APPROVED',
-        verified => ({ ...verified, amountWon: verified.amountWon + 1 }));
-      assert.equal(review.event.processingStatus, 'REVIEW_REQUIRED');
-      assert.equal((await processVerifiedPaymentEvent(pool, review.event.id)).processingStatus,
-        'REVIEW_REQUIRED');
-
-      for (const order of [declinedOrder, unconfirmedOrder, reviewOrder]) {
-        const fulfillments = await fulfillmentState(pool, order.id);
-        assert.equal(fulfillments.length, 3);
-        assert.deepEqual(fulfillments.map(({ status, version, expectedShipDate }) =>
-          ({ status, version, expectedShipDate })), Array.from({ length: 3 }, () => ({
-          status: 'PAYMENT_PENDING', version: 0, expectedShipDate: null,
-        })));
-        assert.deepEqual(await fulfillmentEvents(pool, order.id), []);
-      }
-    });
-
-    await t.test('a missing fulfillment leaves zero partial changes and moves payment to review', async () => {
+  await t.test('a missing fulfillment leaves zero partial changes and moves payment to review',
+    async (scenarioTest) => {
+      await withIsolatedScenario(scenarioTest, async (pool, scenario) => {
       const order = await createPendingOrder(pool, scenario);
       const payment = await createPaymentEvent(pool, scenario, order);
       const missingId = (await pool.query(`SELECT f.shipment_order_id FROM shipment_fulfillments f
@@ -367,9 +412,12 @@ test('verified payment opens every fulfillment once and rejects partial payment 
         pendingShipments: 3, fulfillmentEvents: 0, fulfillmentVersions: 0,
       });
       assert.deepEqual(await stockState(pool, scenario.optionIds), stockBefore);
+      });
     });
 
-    await t.test('a conflicting fulfillment owner leaves zero partial changes and moves payment to review', async () => {
+  await t.test('a conflicting fulfillment owner leaves zero partial changes and moves payment to review',
+    async (scenarioTest) => {
+      await withIsolatedScenario(scenarioTest, async (pool, scenario) => {
       const order = await createPendingOrder(pool, scenario);
       const payment = await createPaymentEvent(pool, scenario, order);
       const direct = (await pool.query(`SELECT s.id FROM shipment_orders s
@@ -388,9 +436,6 @@ test('verified payment opens every fulfillment once and rejects partial payment 
         pendingShipments: 3, fulfillmentEvents: 0, fulfillmentVersions: 0,
       });
       assert.deepEqual(await stockState(pool, scenario.optionIds), stockBefore);
+      });
     });
-  } finally {
-    await cleanupScenario(pool, scenario);
-    await pool.end();
-  }
 });

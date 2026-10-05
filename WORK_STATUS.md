@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## RED 시험 격리 보정 — 2026-10-06 S5.1 Task4 결제 승인→READY
+
+- **실제 RED 1차 결과:** exact `bc917e0f124a22f7341b9893c90c7df43a3e25a9` private DB 실행에서 정상 승인과 승인 재처리는 각각 실제 `PAYMENT_PENDING/version 0/date null`이 기대 `READY/version 1/date`와 달라 **유효한 제품 RED 2개**였다. 반면 세 번째 계약군은 declined 주문의 `ACTIVE` 예약을 같은 buyer가 보유한 상태에서 unconfirmed 주문을 만들며 `Active reservation exists`로 중단했고, 이후 누락·담당자 충돌 계약도 같은 공유 buyer 예약 때문에 setup에서 중단해 **harness error 3개**였다. 실패한 이전 실행의 outer cleanup 완료는 근거로 간주하지 않으며 잔류 0은 controller가 별도로 확인한다.
+- **원인·시험 전용 보정:** 한 run ID/fixture/customer를 모든 계약에 공유한 것이 원인이다. 승인+재처리만 같은 독립 scenario를 공유하고, decline·unconfirmed·review·fulfillment 누락·담당자 충돌은 각각 새 run ID/fixture/customer/pool을 가진 독립 scenario로 분리했다. 각 계약은 자기 `finally`에서 run 소유 주문·예약·결제·출고·정책·배송지·카트·fixture를 exact cleanup하며, fixture seed 시도 전부터 해당 run을 cleanup 대상으로 등록해 setup/ assertion 실패도 뒤 계약을 오염시키지 않게 했다.
+- **범위·변경 파일:** `apps/api/test/fulfillment-payment-db.test.mjs`와 이 `WORK_STATUS.md`만 변경했다. 기존 `apps/api/test/payment-processing-db.test.mjs`와 모든 제품 코드는 수정하지 않았고 GREEN 구현은 시작하지 않았다. 공개 API/UI/schema/shared DB 변경은 0이다.
+- **로컬 무DB 검증:** DB 환경변수를 명시적으로 제거한 대상 두 모듈은 **2 tests/0 pass/2 skip/0 fail**로 로드됐다. 전체 `pnpm test`는 주 시험 **371 tests/264 pass/107 DB·환경 skip/0 fail**, PR 본문 **8/8 pass**, `pnpm --filter @shoppingmall/api typecheck`와 `pnpm lint`는 exit 0이다. 이 skip은 실제 DB RED/GREEN 근거가 아니다.
+- **예상 actual private DB 결과:** 정상 승인과 replay는 기존과 같은 제품 RED를 유지하고, 격리된 missing fulfillment와 owner conflict도 setup을 통과한 뒤 partial-0/review 경계에서 의도한 제품 RED가 되어야 한다. decline·unconfirmed·review는 각각 `PAYMENT_PENDING/version 0/date null`, 사건 0으로 통과해야 하며 `Active reservation exists` harness error는 없어야 한다. 다음은 controller가 보정 commit exact SHA의 fresh private DB에서 이 **제품 RED 4개 + non-transition 통과 3개**, 각 scenario cleanup 및 이전 실행 잔류 0을 확인하는 것이다.
+- **환경 경계:** writer는 shared WSL `local-postgres/shoppingmall`, Oracle, 외부 서비스와 실데이터에 접속하거나 변경하지 않았다.
+
 ## RED 후보 — 2026-10-06 S5.1 Task4 결제 승인→READY·잠정 예상일
 
 - **판정·범위:** 신산님/PMO 승인 exact base `cfd8719d21bf8e475ca27be249da130bd918b872`, 기존 `codex/s5-fulfillment-engagement`·기존 worktree에서 Task4 **RED 시험만** 작성했다. 제품 구현, 공개 API/UI/schema, 새 branch/worktree, shared DB·WSL·Oracle·외부 서비스 변경은 0이다.
