@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 진행 중 — 2026-10-05 S4.2 Task 6 리뷰 보정
+
+- 담당 어울, 단일 writer. 기준 `8a0078dafe924b1c8af3b87c60b54c5d23af732f`, 기존 `codex/s4-payment-refund`/worktree 유지. 독립 리뷰 Important 4건은 승인 이후 판매중지 시 재고 복원 누락을 완료로 숨기는 경로, 이전 주문 환불 접근 부재, UI 사유 코드 2개 불일치, 전체 취소 배송비 안내 불일치다.
+- PMO 경유 승인: 본인 `GET /customer/checkout/orders?status=PAID&cursor=<opaque>&limit=<n>` 1개 추가, 기본20/최대50·created_at,id 내림차순 keyset·세션 고객 고정·최소 주문 snapshot 요약·기존 상세/환불 연결. 새 DB/schema 없음. 변경 전 마지막 sessionStorage 주문만 접근 → 변경 후 본인 이전 결제완료 주문 선택. rollback은 추가 GET/선택 UI exact diff revert. 공유 0014/실 PG/Oracle/S5.2는 제외.
+- 재고 판단: 현 계약의 판매중지 자동복원 금지를 유지한다. 복원 불가 시 사건 보존·수동 검토 전환으로 완료 오표시를 해소하는 안을 PMO에 보고했다. 모든 복원 대상 검증 전 재고 변경을 하지 않는다.
+- QA 예정 자원: WSL 전용 네트워크 `shoppingmall-s42-review-1005`, 외부 포트·영속 볼륨 없는 tmpfs PostgreSQL `shoppingmall-s42-review-pg-1005`, 내부 DB `shoppingmall`, 일회용 Node `shoppingmall-s42-review-node-1005`. 목적은 리뷰 회귀 RED/GREEN·전체 격리 시험이며 본 Task 종료 후 정확한 컨테이너·네트워크 제거/잔류0 확인. 공유 `local-postgres`는 대상이 아니다.
+- 기존 수정 `apps/web/next-env.d.ts`, 미추적 `apps/web/AGENTS.md`/`CLAUDE.md`, root `legacy-onedrive/`는 보존. 과거 브라우저 QA 일부 캡처는 완료 전 화면이므로 최신 완료 증거와 혼동하지 않고 재검증한다.
+
 ## 완료 — 2026-10-05 S4.2 Task 4 고객·관리자 환불 HTTP 계약
 
 - 담당 어울, 단일 writer. 기준 `codex/s4-payment-refund@162cb9d3dcba6ce70107317dd28857bd110361f8`. 승인된 고객 POST/GET 목록/GET 상세와 관리자 POST 생성/GET 목록/GET 상세/POST 결정의 7개 endpoint를 기존 세션·활성 역할·동일 Origin·UUID 멱등키·loopback mock gate에 연결했다. 판매자는 생성·조회·결정이 거부되고 타 고객 주문은 404로 숨긴다. 고객 응답은 관리자 내부 판단·공급자 식별자를 제외하며, 관리자 상세만 품목 복원·결정·시도·검증 사건·상태 이력을 제공한다.

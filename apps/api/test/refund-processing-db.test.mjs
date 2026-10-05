@@ -248,6 +248,48 @@ test('sequential pre-shipment refunds preserve snapshots and refund shipping onc
   }
 });
 
+test('a sale stop after approval preserves refund evidence for review without silently skipping restock', {
+  skip: !process.env.DATABASE_URL,
+}, async () => {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+  let ids;
+  try {
+    ids = await seedPaidOrder(pool);
+    const requested = await createRefundCase(pool, { actorAccountId: ids.customerId,
+      actorRole: 'customer', checkoutOrderId: ids.orderId, shipmentOrderId: ids.shipmentId,
+      lines: [{ optionId: ids.optionId, quantity: 1 }], reasonCode: 'customer_request',
+      reason: '승인 이후 판매중지 시험', idempotencyKey: randomUUID() });
+    const decision = await decideRefundCase(pool, { adminAccountId: ids.adminId,
+      caseId: requested.id, idempotencyKey: randomUUID(), decision: 'approve', reason: '보유 확인',
+      preShipmentConfirmed: true, preShipmentEvidence: 'ADMIN_CONFIRMED_NOT_DISPATCHED',
+      lines: [{ optionId: ids.optionId, restockMode: 'on_hand_only' }] },
+    { APP_ENV: 'development', PAYMENT_MODE: 'mock' });
+    await pool.query(`INSERT INTO product_sale_stop_requests
+      (product_id,reason,requested_by_account_id,status,decided_by_account_id,decided_at)
+      VALUES ($1,'승인 이후 판매중지',$2,'approved',$2,now())`, [ids.productId, ids.adminId]);
+    const verified = new MockRefundAdapter().verify({ providerRefundId: decision.providerRefundId,
+      orderId: ids.orderId, paymentId: ids.paymentId, amountWon: decision.totalRefundWon,
+      outcome: 'SUCCEEDED' });
+    const event = await recordVerifiedRefundEvent(pool, decision.attemptId, verified);
+    for (let i = 0; i < 2; i++) assert.equal(
+      (await processVerifiedRefundEvent(pool, event.id)).processingStatus, 'REVIEW_REQUIRED');
+    assert.deepEqual((await pool.query(`SELECT status,completed_at IS NOT NULL AS completed
+      FROM refund_cases WHERE id=$1`, [requested.id])).rows[0],
+    { status: 'REVIEW_REQUIRED', completed: false });
+    assert.deepEqual((await pool.query(`SELECT on_hand_quantity,sellable_quantity
+      FROM inventory_levels WHERE option_id=$1`, [ids.optionId])).rows[0],
+    { on_hand_quantity: 7, sellable_quantity: 7 });
+    assert.equal((await pool.query(`SELECT restocked_quantity FROM refund_case_lines
+      WHERE refund_case_id=$1`, [requested.id])).rows[0].restocked_quantity, 0);
+    assert.equal((await pool.query(`SELECT outcome FROM refund_events WHERE id=$1`,
+      [event.id])).rows[0].outcome, 'SUCCEEDED');
+    const history = await pool.query(`SELECT reason FROM refund_case_events
+      WHERE refund_case_id=$1 AND to_status='REVIEW_REQUIRED'`, [requested.id]);
+    assert.equal(history.rowCount, 1);
+    assert.match(history.rows[0].reason, /stock|재고/i);
+  } finally { await cleanup(pool, ids); await pool.end(); }
+});
+
 test('parallel approvals cannot occupy more than the paid quantity', {
   skip: !process.env.DATABASE_URL,
 }, async () => {

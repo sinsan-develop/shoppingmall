@@ -37,6 +37,8 @@ test('operator filters cases and explicitly chooses stock restoration before app
   assert.match(html, /value="on_hand_only"/);
   assert.match(html, /name="approvalReason"/);
   assert.match(html, /name="rejectionReason"/);
+  assert.match(html, /전체 취소.*실제 결제한 배송비/);
+  assert.doesNotMatch(html, /고객에게는 상품금액만 환불/);
   assert.doesNotMatch(html, /자동 송금|판매자 승인/);
 });
 

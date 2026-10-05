@@ -27,6 +27,9 @@ test('paid customer sees shipment quantities, reasons and estimated versus final
     assert.match(html, new RegExp(label));
   assert.match(html, /type="number"[^>]*min="0"[^>]*max="3"/);
   assert.match(html, /value="customer_request"/);
+  assert.doesNotMatch(html, /value="(?:duplicate_order|address_change)"/);
+  assert.match(html, /전체 취소.*실제 결제한 배송비/);
+  assert.doesNotMatch(html, /배송비는 환불 대상이 아닙니다/);
   assert.doesNotMatch(html, /providerRefundId|preShipmentEvidence|관리자 내부/);
 });
 
