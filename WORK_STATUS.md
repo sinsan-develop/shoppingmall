@@ -4,6 +4,7 @@
 
 - **PMO 정정 판정:** PR #13/S5.1은 **일반 내부 Stage**이며 현재 독립 재리뷰 **Critical 0 / Important 0**이다. exact PR head의 CI 성공 조건을 충족하면 자동화 절차로 병합할 수 있다. 직전 기록의 “신산님 UAT 승인 전 PR #13 병합 금지”는 Oracle release candidate/UAT 경계를 이번 내부 Stage의 병합 gate로 잘못 분류한 것이며 PMO가 이를 정정했다.
 - **현재 기준:** local branch `codex/s5-fulfillment-engagement`의 현재 head는 `a706f341876c5ed83aeb94204859dc5358de7d9f`이고 clean에서 이 docs-only 정정을 시작했다. 제품 코드·schema·migration·API·기존 승인 범위는 변경하지 않는다.
+- **WSL sync 검증 오류·복구:** fast-forward `a706f34`→`9ab2274`는 성공했으나 Windows가 SSH 명령 안의 command substitution을 먼저 해석해 SHA test가 실행 전에 1회 실패했다. 제품·DB 변경은 없었다. 이미 같은 근본 원인이 3회 누적돼 폐기한 중첩 command substitution 전송 형식을 실수로 재사용한 것이므로 이후에는 정적 절대 명령과 출력 직접 대조만 사용한다. 재확인에서 WSL HEAD는 `9ab22742fe1d4e973072680439da066eb6499a05`, checkout은 clean, `git diff --check` PASS, PR body test **8/8 PASS**다.
 - **제품·QA 증거 불변:** 제품·QA SHA `943a8cd99307f968ca21cbeaf283f610b2e52448`의 local/WSL 각각 **415 total / 298 pass / 117 planned skip / 0 fail**, 격리 PostgreSQL 18.4 migration16 관련 DB/HTTP **38/38**, Chrome 154 고객·판매자·관리자 역할 경로와 1920/1440/430·키보드 PASS, signed reset 25관계 합계0·run 자원0 증거는 그대로다.
 - **별도 후속·미검증:** Oracle staging/release candidate와 신산님 UAT, 실제 택배·문자·메일·푸시·PG 등 Provider 연동, 실제 200% 확대는 S8 전체 개발 완료 후보 이후 별도 승인·인수 절차다. S5.2~S5.4와 상세 read snapshot M1도 미검증·미완료로 유지하며, 어느 항목도 이번 PR #13의 병합 gate가 아니다.
 - **다음 정확한 절차:** PR exact head와 CI 성공을 확인한 뒤 자동화 병합 → merged-main smoke → branch/worktree·요청 ref 정리를 수행한다. Oracle RC/UAT 패킷은 S8 전체 개발 완료 후보 이후 별도 승인 경계에서 준비한다.
