@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## Task11 승인 패킷 작성 중 · PMO A/B 결정 대기 — 2026-10-06
+
+- **판정:** 공유 `local-postgres/shoppingmall`은 읽기 전용 조회에서 migration15, `shipment_orders=0`, 신규 0015 관계0이며 기존 public 50관계 중 nonzero는 home current1·draft1·shipping global1뿐이다. backfill 중단 조건에는 해당하지 않는다. shared migration·seed·browser write는 실행하지 않았다.
+- **migration·백업:** 0015 SQL은 Windows/WSL SHA-256 `ec41e1ff8281ff53c4fc424245d5f9601f04d001df024b4fa4e111d42f1d19ee`다. 적용 전 custom backup `/tmp/shoppingmall-s51-0015-pre-20261006.dump`은 SHA-256 `90b7d634c9f629a2ddb1774a12dfde2cba0bcc85535a65401e5ed3b288f19681`, 165682 bytes, 0600, TOC348/TABLE DATA51이다. PostgreSQL15 일회용 container 실제 복원에서 migration15·발송주문0·기존 singleton1/1/1을 확인했고 복원 container 잔류0이다. backup은 Task12 최종 성공 전까지 보존한다.
+- **새 Important 불일치:** 계획·시험 안내는 공유 `/shoppingmall` actual Chrome을 요구하지만 `qa-fulfillment-ui-fixture.ts`는 정확한 `shoppingmall_s5_fulfillment_ui_<runId>`만 허용해 공유 seed/reset을 거부한다. PMO가 직접 재확인했고 A(공유 migration/회귀+격리 DB Chrome, 권장) 또는 B(shared opt-in guard TDD 추가) 결정을 신산님께 요청하기로 했다. 현재 회신은 어느 안이나 쓰기 승인이 아니다.
+- **산출물·오류:** `docs/S5_FULFILLMENT_SHARED_DB_APPLY.md`에 exact 대상·관계별 baseline·백업/복원·적용/중단·QA 생성/reset·정리·A/B 경계를 기록했다. 읽기 첫 접속은 존재하지 않는 `shoppingmall` role로 **1회** 인증 전 거부됐고 `postgres` role로 보정했다. backup TOC의 awk 인용 오류 **1회**, 복원 container 잔류 확인의 PowerShell `$()` 선해석 오류 **1회**는 단순 조회로 보정했으며 DB 자료 변경은 없다. 동일 근본 원인 3회 연속은 없다.
+- **다음 조치:** 문서 diff와 현재 clean 경계를 검증해 commit·alias push·WSL exact-SHA를 맞춘다. PMO가 신산님에게서 A/B 결정을 받아 전달하기 전에는 fixture code, shared DB, Chrome을 변경·실행하지 않는다.
+
 ## Task10 완료 — 2026-10-06 독립 리뷰 C0/I0/M0
 
 - **판정:** exact commit `1cda3fb2279c897ce349151852200ac5770e443a`의 Task10 계획·migration·안전장치·검증 증거를 독립 read-only reviewer가 재검토한 결과 **Critical 0 / Important 0 / Minor 0**이며 Task10 통과 가능 판정이다.
