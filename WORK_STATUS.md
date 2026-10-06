@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## NON-GREEN / RED 후보 — 2026-10-06 S5.1 Task6 독립리뷰 Important 4건
+
+- **판정:** Task6 GREEN 후보 `653fe8283022dcf9d93914d4a34ea796e39a8761`의 독립 정적 리뷰는 **Critical 0 / Important 4 / Minor 1**이다. PMO 승인에 따라 이번 작업은 Important 4건의 RED 시험만 추가했으며 제품 코드는 아직 보정하지 않았다. 따라서 Task6는 **NON-GREEN**이고 완료·checkpoint가 아니다.
+- **추가 RED 계약:** 관리자 목록은 기존 3글자 이상 이름 마스킹을 유지하면서 2글자 이름의 원문 두 글자를 모두 노출하지 않아야 한다. 관리자 `GET settings/list/detail` 실제 HTTP 응답은 각각 `Cache-Control`의 `private`와 `no-store`를 가져야 한다. 이미 `SHIPPED`인 `other` 택배 주문의 택배사명·운송장 정정은 기존 `shipped_at`과 `first_shipped_at`을 정확히 보존하고, `audit_events.details`에 PII 없이 `carrierName`을 포함한 before/after 전체 상태·reason·customerMessage를 남겨야 한다. `shipment_fulfillment_events`의 0015 snapshot key allowlist는 `carrierCode/expectedShipDate/status/trackingNumber`로 불변이어야 한다.
+- **변경 범위:** `apps/api/test/fulfillment-admin-http-db.test.mjs`에 기존 suite와 fixture·cleanup·system-ID/migration guard·lock assertion을 재사용하는 assertion/subtest만 추가했다. 이 `WORK_STATUS.md`에는 제품 구현 전 NON-GREEN/RED 후보만 기록했다. 새 branch/worktree, commit/push, 제품 코드, schema/migration, shared DB, WSL, Docker 변경·접근은 0이다.
+- **로컬 loader:** `DATABASE_URL`과 `S5_ADMIN_TEST_DB_SYSTEM_ID`를 제거한 로컬 실행은 **2 tests / 1 route pass / 1 expected DB skip / 0 fail**이다. 이는 문법·로딩·DB 미설정 route만 확인하며 actual RED 또는 GREEN 증거가 아니다.
+- **test-preflight 보정:** 신규 SHIPPED 정정 subtest의 운송장 준비값과 기대값을 0015 영숫자 제약·API 정규화 결과에 맞춰 `OTHERBEFORE`/`OTHERAFTER`로 일치시켰다. 이는 actual DB 제품 RED 실행 전 test harness 보정이며 제품 결함 보정이나 RED 통과 증거가 아니다.
+- **예상 actual RED 원인:** 현재 제품은 2글자 이름 `이율`을 `이**율`로 반환해 원문 두 글자를 모두 노출하고, 관리자 GET 3개에 cache 금지 헤더가 없다. 관리자 정정 감사 details는 before/after/customerMessage를 보존하지 않고 snapshot에 `carrierName`이 없으며, `SHIPPED→SHIPPED` 정정 때 `shipped_at`을 현재 시각으로 덮어쓴다. fresh private DB actual RED는 controller가 별도로 실행·기록해야 한다.
+- **미검증·다음:** actual private DB RED, fixture cleanup·잔류0, 각 신규 assertion의 실제 실패 메시지는 이번 금지 범위 때문에 미실행이다. 제품 보정·재검토는 별도 PMO 지시 전 시작하지 않는다. 독립 리뷰 Minor 1건인 상세 multi-SELECT 시점 불일치도 이번 RED 범위 밖이며 미해결이다.
+
 ## GREEN 후보 — 2026-10-06 S5.1 Task6 관리자 설정·조회·정정 API
 
 - **판정·actual RED 기준:** 신산님이 확인한 exact `c4f167a35f173f36d5461c3e9bc8da0a6dcee3a3` fresh private DB actual RED **10 tests / 0 pass / 10 route 404 / harness 0 / cleanup 0**을 기준으로, 같은 `codex/s5-fulfillment-engagement` branch/worktree에 Task6 최소 제품 구현을 적용했다. 새 branch/worktree, commit/push, schema/migration, 기존 RED 시험, 고객·환불·UI, shared DB·WSL·Docker·Oracle·외부 서비스 변경은 0이다.

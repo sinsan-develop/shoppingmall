@@ -285,6 +285,15 @@ function correct(base, shipmentId, body, cookie, key = randomUUID(), requestOrig
   });
 }
 
+function cachePolicy(response) {
+  const directives = (response.headers.get('cache-control') ?? '')
+    .split(',').map((directive) => directive.trim().toLowerCase());
+  return {
+    private: directives.includes('private'),
+    noStore: directives.includes('no-store'),
+  };
+}
+
 function promiseBarrier(parties) {
   let arrived = 0;
   let release;
@@ -455,6 +464,22 @@ test('admin fulfillment HTTP manages singleton ownership, all paid work and corr
       }
     });
 
+    await context.test('admin GET settings, list and detail prohibit private response caching', async () => {
+      const responses = await Promise.all([
+        fetch(settingsPath, { headers: { cookie: cookies.admin } }),
+        fetch(listPath, { headers: { cookie: cookies.admin } }),
+        fetch(`${listPath}/${fixture.detailOrder.shipmentId}`, {
+          headers: { cookie: cookies.admin },
+        }),
+      ]);
+      assert.deepEqual(responses.map(({ status }) => status), [200, 200, 200]);
+      assert.deepEqual(responses.map(cachePolicy), [
+        { private: true, noStore: true },
+        { private: true, noStore: true },
+        { private: true, noStore: true },
+      ]);
+    });
+
     await context.test('singleton setting requires active seller grant, version, reason and idempotency', async () => {
       const initial = (await pool.query(`SELECT owool_seller_id AS "owoolSellerId",version
         FROM fulfillment_settings WHERE id=1`)).rows[0];
@@ -594,6 +619,19 @@ test('admin fulfillment HTTP manages singleton ownership, all paid work and corr
       assert.equal((await fetch(`${listPath}?limit=50`, {
         headers: { cookie: cookies.admin },
       })).status, 200);
+
+      await pool.query(`UPDATE checkout_orders SET recipient_name='이율' WHERE id=$1`,
+        [fixture.sellerBOrder.orderId]);
+      const shortNameResponse = await fetch(
+        `${listPath}?sellerId=${fixture.sellerB.id}&limit=50`,
+        { headers: { cookie: cookies.admin } },
+      );
+      assert.equal(shortNameResponse.status, 200, await shortNameResponse.clone().text());
+      const shortName = (await shortNameResponse.json()).items[0].recipientName;
+      assert.notEqual(shortName, '이율');
+      assert.match(shortName, /\*/);
+      assert.equal(shortName.includes('이') && shortName.includes('율'), false,
+        `two-character recipient leaked both original characters: ${shortName}`);
     });
 
     await context.test('admin detail returns minimum address, current values and safe events', async () => {
@@ -734,6 +772,80 @@ test('admin fulfillment HTTP manages singleton ownership, all paid work and corr
       const persisted = JSON.stringify({ event, audit });
       assert.doesNotMatch(persisted,
         /가상고객|01012345678|서울시 가상구|가상 101호|12345/);
+    });
+
+    await context.test('SHIPPED other-carrier correction preserves ship times and complete PII-free audit', async () => {
+      const shipment = fixture.sellerAOrders.find(({ status }) => status === 'SHIPPED');
+      assert.ok(shipment);
+      const before = (await pool.query(`UPDATE shipment_fulfillments
+        SET carrier_code='other',carrier_name='기타 택배 A',tracking_number='OTHERBEFORE'
+        WHERE shipment_order_id=$1
+        RETURNING status,version,expected_ship_date::text AS "expectedShipDate",
+          carrier_code AS "carrierCode",carrier_name AS "carrierName",
+          tracking_number AS "trackingNumber",first_shipped_at AS "firstShippedAt",
+          shipped_at AS "shippedAt"`, [shipment.shipmentId])).rows[0];
+      assert.equal(before.status, 'SHIPPED');
+      assert.equal(before.version, 0);
+      assert.ok(before.firstShippedAt instanceof Date);
+      assert.ok(before.shippedAt instanceof Date);
+
+      const body = {
+        expectedVersion: 0,
+        corrected: {
+          status: 'SHIPPED', expectedShipDate: before.expectedShipDate,
+          carrierCode: 'other', carrierName: '기타 택배 B', trackingNumber: 'OTHERAFTER',
+        },
+        reason: '가상 기타 택배사·운송장 정정',
+        customerMessage: '가상 안내: 택배사와 운송장을 정정했습니다',
+      };
+      const response = await correct(base, shipment.shipmentId, body, cookies.admin);
+      assert.equal(response.status, 200, await response.clone().text());
+
+      const persisted = (await pool.query(`SELECT f.first_shipped_at AS "firstShippedAt",
+          f.shipped_at AS "shippedAt",a.details,
+          e.before_snapshot AS "eventBefore",e.after_snapshot AS "eventAfter"
+        FROM shipment_fulfillments f
+        JOIN audit_events a ON a.action='fulfillment.admin_correction'
+          AND a.target_type='shipment_order' AND a.target_id=f.shipment_order_id::text
+        JOIN shipment_fulfillment_events e ON e.shipment_order_id=f.shipment_order_id
+          AND e.action='ADMIN_CORRECT'
+        WHERE f.shipment_order_id=$1`, [shipment.shipmentId])).rows[0];
+      const piiPattern = /가상고객|01012345678|서울시 가상구|가상 101호|12345/;
+      assert.deepEqual({
+        firstShippedAt: persisted.firstShippedAt.toISOString(),
+        shippedAt: persisted.shippedAt.toISOString(),
+        audit: {
+          before: persisted.details.before,
+          after: persisted.details.after,
+          reason: persisted.details.reason,
+          customerMessage: persisted.details.customerMessage,
+        },
+        piiFree: !piiPattern.test(JSON.stringify(persisted.details)),
+        eventSnapshotKeys: {
+          before: Object.keys(persisted.eventBefore).sort(),
+          after: Object.keys(persisted.eventAfter).sort(),
+        },
+      }, {
+        firstShippedAt: before.firstShippedAt.toISOString(),
+        shippedAt: before.shippedAt.toISOString(),
+        audit: {
+          before: {
+            status: 'SHIPPED', expectedShipDate: before.expectedShipDate,
+            carrierCode: 'other', carrierName: '기타 택배 A', trackingNumber: 'OTHERBEFORE',
+          },
+          after: {
+            status: 'SHIPPED', expectedShipDate: before.expectedShipDate,
+            carrierCode: 'other', carrierName: '기타 택배 B', trackingNumber: 'OTHERAFTER',
+          },
+          reason: body.reason,
+          customerMessage: body.customerMessage,
+        },
+        piiFree: true,
+        eventSnapshotKeys: {
+          before: ['carrierCode', 'expectedShipDate', 'status', 'trackingNumber'],
+          after: ['carrierCode', 'expectedShipDate', 'status', 'trackingNumber'],
+        },
+      });
     });
 
     await context.test('concurrent different keys observe real locks and allow one version winner', async () => {
