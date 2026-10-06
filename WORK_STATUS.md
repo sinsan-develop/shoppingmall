@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## GREEN 후보 — 2026-10-06 S5.1 Task6 관리자 설정·조회·정정 API
+
+- **판정·actual RED 기준:** 신산님이 확인한 exact `c4f167a35f173f36d5461c3e9bc8da0a6dcee3a3` fresh private DB actual RED **10 tests / 0 pass / 10 route 404 / harness 0 / cleanup 0**을 기준으로, 같은 `codex/s5-fulfillment-engagement` branch/worktree에 Task6 최소 제품 구현을 적용했다. 새 branch/worktree, commit/push, schema/migration, 기존 RED 시험, 고객·환불·UI, shared DB·WSL·Docker·Oracle·외부 서비스 변경은 0이다.
+- **설정·권한:** persisted session과 활성 admin grant를 매 요청 재검사하고 role header 위조를 무시한다. 설정 조회와 PUT/PATCH는 same-Origin, UUID 멱등키, strict body, `expectedVersion`, 내부 `reason`, 요청 fingerprint를 검증한다. singleton을 잠근 뒤 활성 account+seller grant만 허용하며 같은 key+같은 body는 감사에 저장한 응답을 재사용하고 다른 body·stale version은 409다. 설정 감사 action은 `fulfillment.admin_setting`이며 기존 주문 담당자는 갱신하지 않는다.
+- **조회·정정:** 목록·상세는 PAID checkout+shipment만 조회한다. 목록은 담당 seller·category·status filter, 기본20/최대50, checksum 포함 불투명 `(paid_at, shipment id)` keyset과 마스킹된 이름·전화만 반환하고 주소를 제외한다. 상세만 기존 최소 배송지·line/category·안전한 사건을 제공하며 내부 actor·멱등키·fingerprint를 제외한다. 정정은 shipment→fulfillment 고정 순서로 잠그고 기존 `validateAdminCorrection`을 재사용해 strict version과 허용 필드를 검증하며, `ADMIN_CORRECT` 사건과 `fulfillment.admin_correction` 감사를 before/after·reason·customerMessage와 같은 transaction에 1회 기록한다. replay는 저장 응답을 그대로 재사용하며 CANCELLED·불완전 SHIPPED·낡은 version은 거부한다.
+- **변경 파일:** 신규 `apps/api/src/fulfillment/admin.controller.ts`; 수정 `apps/api/src/fulfillment/service.ts`, `apps/api/src/fulfillment/repository.ts`, `apps/api/src/app.module.ts`, 이 `WORK_STATUS.md`다.
+- **로컬 검증:** 무DB Task6 loader는 **2 tests / 1 route pass / 1 DB skip / 0 fail**, 전체 nonDB는 **376 tests / 267 pass / 109 DB·환경 skip / 0 fail**, PR 본문 검사는 **8/8 pass**다. root `typecheck`, `lint`, `build`와 대상 API typecheck·lint, `git diff --check`가 통과했다. 구현·검증 중 실패는 **0회**다.
+- **미검증·다음:** DB skip은 GREEN 근거가 아니다. exact 후보를 fresh private migration16 PostgreSQL에서 Task6 **10/10**, 실제 lock wait, event/audit 각1, replay 중복0, 실패 zero mutation, PII 미저장, 기존 주문 담당자 불변, singleton 원복과 잔류0으로 검증해야 한다. 그 actual DB 결과 전에는 Task6 완료로 판정하지 않는다.
+
 ## 실제 RED — 2026-10-06 S5.1 Task6 관리자 설정·조회·정정 API
 
 - **판정:** exact test-only SHA `889dde8d61a9b7c6831fe8f1d73deca0c902a98d`, fresh private PostgreSQL 18.4, migration 16건, system identifier `7693355074431213610`에서 Task6 목표시험은 **10 tests / 0 pass / 10 fail / 0 skip**이었다. 실패는 모두 `fulfillment/admin` 설정·목록·상세·정정 route/controller 부재의 HTTP **404**이며 fixture·앱 기동·schema guard 오류는 0이다.

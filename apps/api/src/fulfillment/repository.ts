@@ -425,3 +425,334 @@ export async function insertSellerTransitionRecords(client: PoolClient, input: {
     JSON.stringify({ idempotencyKey: input.idempotencyKey, response: input.response }),
   ]);
 }
+
+export type AdminFulfillmentCursor = { paidAt: string; shipmentOrderId: string };
+
+export async function getAdminFulfillmentSetting(pool: Pool) {
+  return (await pool.query<{ owoolSellerId: string | null; version: number }>(
+    `SELECT owool_seller_id AS "owoolSellerId",version
+     FROM fulfillment_settings WHERE id=1`,
+  )).rows[0];
+}
+
+export async function lockAdminFulfillmentSetting(client: PoolClient) {
+  return (await client.query<{ owoolSellerId: string | null; version: number }>(
+    `SELECT owool_seller_id AS "owoolSellerId",version
+     FROM fulfillment_settings WHERE id=1 FOR UPDATE`,
+  )).rows[0];
+}
+
+export async function hasActiveSellerGrant(client: PoolClient, sellerId: string): Promise<boolean> {
+  const result = await client.query(`SELECT s.id FROM sellers s
+    JOIN account_roles r ON r.seller_id=s.id AND r.role='seller'
+    JOIN accounts a ON a.id=r.account_id AND a.disabled_at IS NULL
+    WHERE s.id=$1 ORDER BY r.id LIMIT 1 FOR SHARE OF s,r,a`, [sellerId]);
+  return result.rowCount === 1;
+}
+
+export async function findAdminSettingReplay(client: PoolClient, accountId: string,
+  idempotencyKey: string) {
+  return (await client.query<{
+    requestFingerprint: string;
+    response: Record<string, unknown> | null;
+  }>(`SELECT details->>'requestFingerprint' AS "requestFingerprint",
+      details->'response' AS response
+    FROM audit_events
+    WHERE actor_account_id=$1::uuid AND active_role='admin' AND seller_id IS NULL
+      AND action='fulfillment.admin_setting' AND target_type='fulfillment_settings'
+      AND target_id='1' AND details->>'idempotencyKey'=$2::text
+    ORDER BY occurred_at,id LIMIT 1`, [accountId, idempotencyKey])).rows[0];
+}
+
+export async function updateAdminFulfillmentSetting(client: PoolClient, input: {
+  sellerId: string;
+  accountId: string;
+  expectedVersion: number;
+  reason: string;
+  idempotencyKey: string;
+  requestFingerprint: string;
+}) {
+  const changed = (await client.query<{ owoolSellerId: string; version: number }>(
+    `UPDATE fulfillment_settings SET owool_seller_id=$1,updated_by=$2,
+      version=version+1,updated_at=clock_timestamp()
+     WHERE id=1 AND version=$3
+     RETURNING owool_seller_id AS "owoolSellerId",version`,
+  [input.sellerId, input.accountId, input.expectedVersion])).rows[0];
+  if (!changed) return undefined;
+  await client.query(`INSERT INTO audit_events
+    (actor_account_id,active_role,action,target_type,target_id,details)
+    VALUES ($1,'admin','fulfillment.admin_setting','fulfillment_settings','1',$2::jsonb)`, [
+    input.accountId,
+    JSON.stringify({
+      reason: input.reason,
+      idempotencyKey: input.idempotencyKey,
+      requestFingerprint: input.requestFingerprint,
+      response: changed,
+    }),
+  ]);
+  return changed;
+}
+
+export type AdminFulfillmentListRow = {
+  shipmentOrderId: string;
+  status: string;
+  version: number;
+  paidAt: Date;
+  cursorPaidAt: string;
+  expectedShipDate: string;
+  recipientName: string;
+  phone: string;
+  fulfillmentSellerId: string;
+  fulfillmentSellerName: string;
+  categories: { id: string; name: string }[];
+  carrierCode: string | null;
+  carrierName: string | null;
+  trackingNumber: string | null;
+};
+
+export async function listAdminFulfillments(pool: Pool, input: {
+  status?: string;
+  sellerId?: string;
+  categoryId?: string;
+  cursor?: AdminFulfillmentCursor;
+  limit: number;
+}): Promise<AdminFulfillmentListRow[]> {
+  const result = await pool.query<AdminFulfillmentListRow>(`SELECT
+    s.id AS "shipmentOrderId",f.status,f.version,o.paid_at AS "paidAt",
+    to_char(o.paid_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "cursorPaidAt",
+    f.expected_ship_date::text AS "expectedShipDate",o.recipient_name AS "recipientName",
+    o.phone,f.fulfillment_seller_id AS "fulfillmentSellerId",
+    owner.display_name AS "fulfillmentSellerName",category_set.categories,
+    f.carrier_code AS "carrierCode",f.carrier_name AS "carrierName",
+    f.tracking_number AS "trackingNumber"
+    FROM shipment_orders s
+    JOIN checkout_orders o ON o.id=s.checkout_order_id
+    JOIN shipment_fulfillments f ON f.shipment_order_id=s.id
+    JOIN sellers owner ON owner.id=f.fulfillment_seller_id
+    JOIN LATERAL (
+      SELECT jsonb_agg(DISTINCT jsonb_build_object('id',category.id,'name',category.name))
+        AS categories
+      FROM shipment_order_lines line
+      JOIN products product ON product.id=line.product_id
+      JOIN product_categories category ON category.id=product.category_id
+      WHERE line.shipment_order_id=s.id
+    ) category_set ON true
+    WHERE o.status='PAID' AND s.status='PAID'
+      AND ($1::text IS NULL OR f.status=$1)
+      AND ($2::uuid IS NULL OR f.fulfillment_seller_id=$2)
+      AND ($3::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM shipment_order_lines filter_line
+        JOIN products filter_product ON filter_product.id=filter_line.product_id
+        WHERE filter_line.shipment_order_id=s.id AND filter_product.category_id=$3))
+      AND ($4::timestamptz IS NULL OR o.paid_at < $4::timestamptz
+        OR (o.paid_at=$4::timestamptz AND s.id < $5::uuid))
+    ORDER BY o.paid_at DESC,s.id DESC LIMIT $6`, [
+    input.status ?? null, input.sellerId ?? null, input.categoryId ?? null,
+    input.cursor?.paidAt ?? null, input.cursor?.shipmentOrderId ?? null, input.limit + 1,
+  ]);
+  return result.rows;
+}
+
+export async function getAdminFulfillmentDetail(pool: Pool, shipmentOrderId: string) {
+  const shipment = (await pool.query<{
+    shipmentOrderId: string;
+    status: string;
+    version: number;
+    paidAt: Date;
+    expectedShipDate: string;
+    customerMessage: string | null;
+    carrierCode: string | null;
+    carrierName: string | null;
+    trackingNumber: string | null;
+    fulfillmentSellerId: string;
+    fulfillmentSellerName: string;
+    recipientName: string;
+    phone: string;
+    postalCode: string;
+    line1: string;
+    line2: string | null;
+  }>(`SELECT s.id AS "shipmentOrderId",f.status,f.version,o.paid_at AS "paidAt",
+      f.expected_ship_date::text AS "expectedShipDate",
+      (SELECT e.customer_message FROM shipment_fulfillment_events e
+        WHERE e.shipment_order_id=s.id AND e.customer_message IS NOT NULL
+        ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1) AS "customerMessage",
+      f.carrier_code AS "carrierCode",f.carrier_name AS "carrierName",
+      f.tracking_number AS "trackingNumber",
+      f.fulfillment_seller_id AS "fulfillmentSellerId",
+      owner.display_name AS "fulfillmentSellerName",
+      o.recipient_name AS "recipientName",o.phone,o.postal_code AS "postalCode",
+      o.line1,o.line2
+    FROM shipment_orders s
+    JOIN checkout_orders o ON o.id=s.checkout_order_id
+    JOIN shipment_fulfillments f ON f.shipment_order_id=s.id
+    JOIN sellers owner ON owner.id=f.fulfillment_seller_id
+    WHERE s.id=$1 AND o.status='PAID' AND s.status='PAID'`, [shipmentOrderId])).rows[0];
+  if (!shipment) return undefined;
+  const lines = (await pool.query<{
+    productId: string;
+    optionId: string;
+    sellerId: string;
+    productName: string;
+    optionName: string;
+    quantity: number;
+    categoryId: string;
+    categoryName: string;
+  }>(`SELECT line.product_id AS "productId",line.option_id AS "optionId",
+      line.seller_id AS "sellerId",line.product_name AS "productName",
+      line.option_name AS "optionName",line.quantity,
+      category.id AS "categoryId",category.name AS "categoryName"
+    FROM shipment_order_lines line
+    JOIN products product ON product.id=line.product_id
+    JOIN product_categories category ON category.id=product.category_id
+    WHERE line.shipment_order_id=$1 ORDER BY line.option_id`, [shipmentOrderId])).rows;
+  const events = (await pool.query<{
+    action: string;
+    fromStatus: string;
+    toStatus: string;
+    reason: string | null;
+    customerMessage: string | null;
+    before: Record<string, unknown>;
+    after: Record<string, unknown>;
+    occurredAt: Date;
+  }>(`SELECT action,from_status AS "fromStatus",to_status AS "toStatus",reason,
+      customer_message AS "customerMessage",before_snapshot AS before,
+      after_snapshot AS after,occurred_at AS "occurredAt"
+    FROM shipment_fulfillment_events WHERE shipment_order_id=$1
+    ORDER BY occurred_at,id`, [shipmentOrderId])).rows;
+  return {
+    shipmentOrderId: shipment.shipmentOrderId,
+    status: shipment.status,
+    version: shipment.version,
+    paidAt: shipment.paidAt.toISOString(),
+    expectedShipDate: shipment.expectedShipDate,
+    customerMessage: shipment.customerMessage,
+    carrierCode: shipment.carrierCode,
+    carrierName: shipment.carrierName,
+    trackingNumber: shipment.trackingNumber,
+    fulfillmentSeller: {
+      id: shipment.fulfillmentSellerId,
+      displayName: shipment.fulfillmentSellerName,
+    },
+    address: {
+      recipientName: shipment.recipientName,
+      phone: shipment.phone,
+      postalCode: shipment.postalCode,
+      line1: shipment.line1,
+      line2: shipment.line2,
+    },
+    lines: lines.map((line) => ({
+      productId: line.productId,
+      optionId: line.optionId,
+      sellerId: line.sellerId,
+      productName: line.productName,
+      optionName: line.optionName,
+      quantity: line.quantity,
+      category: { id: line.categoryId, name: line.categoryName },
+    })),
+    events: events.map((event) => ({ ...event, occurredAt: event.occurredAt.toISOString() })),
+  };
+}
+
+export type LockedAdminFulfillment = {
+  shipmentOrderId: string;
+  status: string;
+  version: number;
+  expectedShipDate: string;
+  carrierCode: string | null;
+  carrierName: string | null;
+  trackingNumber: string | null;
+};
+
+export async function lockAdminFulfillment(client: PoolClient,
+  shipmentOrderId: string): Promise<LockedAdminFulfillment | undefined> {
+  const owned = await client.query(`SELECT s.id FROM shipment_orders s
+    JOIN checkout_orders o ON o.id=s.checkout_order_id
+    JOIN shipment_fulfillments f ON f.shipment_order_id=s.id
+    WHERE s.id=$1 AND o.status='PAID' AND s.status='PAID' FOR UPDATE OF s`, [shipmentOrderId]);
+  if (!owned.rows[0]) return undefined;
+  return (await client.query<LockedAdminFulfillment>(`SELECT
+      f.shipment_order_id AS "shipmentOrderId",f.status,f.version,
+      f.expected_ship_date::text AS "expectedShipDate",f.carrier_code AS "carrierCode",
+      f.carrier_name AS "carrierName",f.tracking_number AS "trackingNumber"
+    FROM shipment_fulfillments f
+    JOIN shipment_orders s ON s.id=f.shipment_order_id
+    JOIN checkout_orders o ON o.id=s.checkout_order_id
+    WHERE f.shipment_order_id=$1 AND o.status='PAID' AND s.status='PAID'
+    FOR UPDATE OF f`, [shipmentOrderId])).rows[0];
+}
+
+export async function findAdminCorrectionReplay(client: PoolClient, shipmentOrderId: string,
+  accountId: string, idempotencyKey: string) {
+  return (await client.query<{
+    requestFingerprint: string;
+    response: Record<string, unknown> | null;
+  }>(`SELECT event.request_fingerprint AS "requestFingerprint",
+      audit.details->'response' AS response
+    FROM shipment_fulfillment_events event
+    LEFT JOIN LATERAL (SELECT details FROM audit_events audit
+      WHERE audit.actor_account_id=$2::uuid AND audit.active_role='admin'
+        AND audit.seller_id IS NULL AND audit.action='fulfillment.admin_correction'
+        AND audit.target_type='shipment_order' AND audit.target_id=event.shipment_order_id::text
+        AND audit.details->>'idempotencyKey'=$3::text LIMIT 1) audit ON true
+    WHERE event.shipment_order_id=$1::uuid AND event.actor_account_id=$2::uuid
+      AND event.actor_role='admin' AND event.idempotency_scope=event.actor_account_id::text
+      AND event.idempotency_key=$3::uuid`, [shipmentOrderId, accountId, idempotencyKey])).rows[0];
+}
+
+export type AdminCorrectionUpdate = {
+  status: 'READY' | 'PACKING' | 'DELAYED' | 'SHIPPED';
+  expectedShipDate: string;
+  carrierCode: string | null;
+  carrierName: string | null;
+  trackingNumber: string | null;
+};
+
+export async function updateAdminFulfillment(client: PoolClient, shipmentOrderId: string,
+  expectedVersion: number, update: AdminCorrectionUpdate): Promise<number | undefined> {
+  return (await client.query<{ version: number }>(`UPDATE shipment_fulfillments SET
+      status=$3,expected_ship_date=$4,carrier_code=$5,carrier_name=$6,tracking_number=$7,
+      packed_at=CASE WHEN $3='PACKING' THEN COALESCE(packed_at,clock_timestamp()) ELSE packed_at END,
+      first_shipped_at=CASE WHEN $3='SHIPPED' THEN COALESCE(first_shipped_at,clock_timestamp())
+        ELSE first_shipped_at END,
+      shipped_at=CASE WHEN $3='SHIPPED' THEN clock_timestamp() ELSE NULL END,
+      version=version+1,updated_at=clock_timestamp()
+    WHERE shipment_order_id=$1 AND version=$2 RETURNING version`, [
+    shipmentOrderId, expectedVersion, update.status, update.expectedShipDate,
+    update.carrierCode, update.carrierName, update.trackingNumber,
+  ])).rows[0]?.version;
+}
+
+export async function insertAdminCorrectionRecords(client: PoolClient, input: {
+  shipmentOrderId: string;
+  accountId: string;
+  idempotencyKey: string;
+  requestFingerprint: string;
+  fromStatus: string;
+  toStatus: string;
+  reason: string;
+  customerMessage: string;
+  beforeSnapshot: object;
+  afterSnapshot: object;
+  response: object;
+}): Promise<void> {
+  await client.query(`INSERT INTO shipment_fulfillment_events
+    (shipment_order_id,action,from_status,to_status,actor_account_id,actor_role,
+      reason,customer_message,before_snapshot,after_snapshot,idempotency_scope,
+      idempotency_key,request_fingerprint)
+    VALUES ($1,'ADMIN_CORRECT',$2,$3,$4::uuid,'admin',$5,$6,$7::jsonb,$8::jsonb,
+      $4::uuid::text,$9,$10)`, [
+    input.shipmentOrderId, input.fromStatus, input.toStatus, input.accountId,
+    input.reason, input.customerMessage, JSON.stringify(input.beforeSnapshot),
+    JSON.stringify(input.afterSnapshot), input.idempotencyKey, input.requestFingerprint,
+  ]);
+  await client.query(`INSERT INTO audit_events
+    (actor_account_id,active_role,action,target_type,target_id,details)
+    VALUES ($1,'admin','fulfillment.admin_correction','shipment_order',$2,$3::jsonb)`, [
+    input.accountId, input.shipmentOrderId,
+    JSON.stringify({
+      idempotencyKey: input.idempotencyKey,
+      reason: input.reason,
+      response: input.response,
+    }),
+  ]);
+}
