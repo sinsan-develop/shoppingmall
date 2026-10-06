@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## private DB GREEN — 2026-10-06 S5.1 Task9 독립 리뷰 보정 재검증
+
+- **판정·기준:** exact commit `313095e14b0243ff52c752b2f6debffc737d4ee6`을 승인된 SSH alias로 WSL 지정 checkout에 fast-forward하고, 비공개 network `shoppingmall-s51-task9-review-1006`, tmpfs PostgreSQL 18 `shoppingmall-s51-task9-review-pg-1006`, 전용 DB `shoppingmall_s5_fulfillment_ui_f5101006`에서만 재검증했다. 공유 `local-postgres/shoppingmall`은 접속·변경하지 않았다.
+- **실제 검증:** 정식 migration runner로 **0000~0015 / 16건**을 적용했다. 정확한 database name과 새 PostgreSQL system identifier를 대조하고 wrong identifier seed 거부, foreign identity 삭제 거부·보존, manifest 밖 foreign category와 audit 삭제 거부·보존, 정상 reset을 검증해 **1 test / 1 pass / 0 fail / 0 skip**이다.
+- **잔류·정리:** 정상 reset 뒤 `drizzle migrations|accounts|sellers|seller categories|product categories|products|checkout orders|shipment orders|shipment fulfillments|audit events|fulfillment settings`는 **16|0|0|0|0|0|0|0|0|0|1**이다. 전용 PostgreSQL container·network를 제거했고 exact 이름 잔류 0, WSL checkout clean을 확인했다. 외부 공개 port·영속 volume은 만들지 않았다.
+- **오류 횟수·조치:** 첫 재검증은 migration runner를 저장소 최상위에서 실행해 `meta/_journal.json`을 찾지 못한 실행 위치 오류 1회로 중단됐다. trap 정리와 자원 잔류0을 확인한 뒤 runner의 working directory만 `apps/api`로 교정해 위 GREEN을 얻었다. 제품·DB 자료 결함이 아니며 동일 근본 원인 반복은 없다.
+- **미검증·다음:** 읽기 전용 독립 재리뷰 C0/I0와 실제 Chrome 역할별·viewport·키보드 검증은 아직 남아 있다. 재리뷰가 해소되면 PMO에 exact 실행 SHA·자원·정리 계획을 보고하고 지시를 받아 실제 browser 검증을 진행한다. 공유 DB, 실제 배송·PG·문자·메일·푸시, Oracle/UAT는 계속 제외한다.
+
 ## 로컬 GREEN — 2026-10-06 S5.1 Task9 독립 리뷰 C1/I6/M0 보정
 
 - **판정:** 독립 리뷰의 Critical 1건과 Important 6건을 시험으로 RED 고정한 뒤 격리 fixture·브라우저 실행계약을 최소 보정했다. 현재 로컬 gate는 GREEN이지만 private PostgreSQL 재검증·독립 재리뷰·실제 Chrome 검증은 아직 남아 있어 Task9 완료 판정이 아니다.
