@@ -1,12 +1,15 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException,
-  Get, Header, HttpCode, Inject, NotFoundException, Param, Post, Query, Req,
-  ServiceUnavailableException,
+  Get, Header, HttpCode, Inject, NotFoundException, Param, PayloadTooLargeException,
+  Post, Query, Req, ServiceUnavailableException, StreamableFile,
   UnauthorizedException } from '@nestjs/common';
+import type { IncomingMessage } from 'node:http';
 import type { Pool } from 'pg';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
+import { ImageQuarantine } from '../catalog/image-quarantine.js';
 import { DatabaseService } from '../db/service.js';
-import { createClaim, getClaim, listClaims, parseClaimPageQuery, replyToClaim } from './claims.js';
+import { addClaimEvidence, createClaim, getClaim, listClaims, parseClaimPageQuery,
+  readClaimEvidence, replyToClaim } from './claims.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string } };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,8 +55,23 @@ async function handle<T>(operation: () => Promise<T>): Promise<T> {
     if (message === 'Support unavailable') throw new NotFoundException();
     if (message === 'Support conflict')
       throw new ConflictException({ status: 'support_conflict' });
+    if (message === 'Support image limit')
+      throw new ConflictException({ status: 'image_limit' });
+    if (message === 'Image too large') throw new PayloadTooLargeException();
+    if (['Unsupported image','Image MIME mismatch','Invalid image container'].includes(message))
+      throw new BadRequestException({ status: 'invalid_image' });
+    if (message === 'Support evidence unavailable')
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'claim_evidence' });
     throw error;
   }
+}
+
+function localClaimStore(): ImageQuarantine | undefined {
+  if (process.env.NODE_ENV === 'production' || process.env.ENABLE_LOCAL_UPLOAD !== '1' ||
+      !['127.0.0.1','::1','localhost'].includes(process.env.API_HOST ?? '127.0.0.1') ||
+      !process.env.SHOPPINGMALL_UPLOAD_ROOT) return undefined;
+  try { return new ImageQuarantine(process.env.SHOPPINGMALL_UPLOAD_ROOT); }
+  catch { return undefined; }
 }
 
 @Controller('customer/support/claims')
@@ -89,6 +107,50 @@ export class CustomerSupportClaimController {
     const body = claimBody(value);
     return handle(() => createClaim(pool, { ...body, customerAccountId: actor.accountId,
       idempotencyKey: key }));
+  }
+
+  @Post(':claimId/evidence')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async addEvidence(@Req() request: IncomingMessage, @Param('claimId') claimId: string) {
+    requireOrigin(request);
+    const { pool, actor } = await context(this.database, request, 'customer');
+    const key = request.headers['idempotency-key'];
+    if (typeof key !== 'string' || !uuid.test(key))
+      throw new BadRequestException({ status: 'invalid_support' });
+    const store = localClaimStore();
+    if (!store) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'upload_store' });
+    const mimeType = request.headers['content-type'];
+    if (typeof mimeType !== 'string' ||
+        !['image/png','image/jpeg','image/webp'].includes(mimeType))
+      throw new BadRequestException({ status: 'invalid_image_headers' });
+    if (Number(request.headers['content-length'] ?? 0) > 5 * 1024 * 1024)
+      throw new PayloadTooLargeException();
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of request) {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += bytes.length;
+      if (size > 5 * 1024 * 1024) throw new PayloadTooLargeException();
+      chunks.push(bytes);
+    }
+    return handle(() => addClaimEvidence(pool, { claimId,
+      customerAccountId: actor.accountId, idempotencyKey: key,
+      bytes: Buffer.concat(chunks, size), mimeType, store }));
+  }
+
+  @Get(':claimId/evidence/:evidenceId')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async evidence(@Req() request: RequestHeaders, @Param('claimId') claimId: string,
+    @Param('evidenceId') evidenceId: string) {
+    const { pool, actor } = await context(this.database, request, 'customer');
+    const store = localClaimStore();
+    if (!store) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'upload_store' });
+    const bytes = await handle(() => readClaimEvidence(pool, { claimId,evidenceId,
+      actorRole: 'customer',actorAccountId: actor.accountId,store }));
+    return new StreamableFile(bytes, { type: 'image/webp' });
   }
 }
 
@@ -130,6 +192,20 @@ export class SellerSupportClaimController {
       actorAccountId: actor.accountId, body: (value as { body: string }).body,
       idempotencyKey: key }));
   }
+
+  @Get(':claimId/evidence/:evidenceId')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async evidence(@Req() request: RequestHeaders, @Param('claimId') claimId: string,
+    @Param('evidenceId') evidenceId: string) {
+    const { pool, actor } = await context(this.database, request, 'seller');
+    const store = localClaimStore();
+    if (!store) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'upload_store' });
+    const bytes = await handle(() => readClaimEvidence(pool, { claimId,evidenceId,
+      actorRole: 'seller',actorAccountId: actor.accountId,sellerId: actor.sellerId!,store }));
+    return new StreamableFile(bytes, { type: 'image/webp' });
+  }
 }
 
 @Controller('admin/support/claims')
@@ -152,5 +228,19 @@ export class AdminSupportClaimController {
       undefined, claimId));
     if (!claim) throw new NotFoundException();
     return claim;
+  }
+
+  @Get(':claimId/evidence/:evidenceId')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async evidence(@Req() request: RequestHeaders, @Param('claimId') claimId: string,
+    @Param('evidenceId') evidenceId: string) {
+    const { pool, actor } = await context(this.database, request, 'admin');
+    const store = localClaimStore();
+    if (!store) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'upload_store' });
+    const bytes = await handle(() => readClaimEvidence(pool, { claimId,evidenceId,
+      actorRole: 'admin',actorAccountId: actor.accountId,store }));
+    return new StreamableFile(bytes, { type: 'image/webp' });
   }
 }

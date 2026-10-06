@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { Pool } from 'pg';
 import type { PoolClient } from 'pg';
+import type { ImageQuarantine } from '../catalog/image-quarantine.js';
 import { parseQuestionPageQuery } from './questions.js';
 
 type Db = Pool | PoolClient;
@@ -240,4 +242,88 @@ export async function replyToClaim(db: Db, input: { claimId: string; sellerId: s
       throw new Error('Support conflict');
     throw error;
   } finally { if (ownsTransaction) client.release(); }
+}
+
+export async function addClaimEvidence(db: Db, input: { claimId: string;
+  customerAccountId: string; idempotencyKey: string; bytes: Buffer;
+  mimeType: string; store: ImageQuarantine }) {
+  if (![input.claimId,input.customerAccountId,input.idempotencyKey]
+    .every((id) => uuid.test(id)) || !Buffer.isBuffer(input.bytes) ||
+    !['image/png','image/jpeg','image/webp'].includes(input.mimeType))
+    throw new Error('Invalid support request');
+  const requestSha256 = createHash('sha256').update(input.mimeType).update('\0')
+    .update(input.bytes).digest('hex');
+  const ownsTransaction = db instanceof Pool;
+  const client = ownsTransaction ? await db.connect() : db as PoolClient;
+  let objectKey: string | undefined;
+  try {
+    if (ownsTransaction) await client.query('BEGIN');
+    const claim = (await client.query<{ status: string }>(`SELECT status FROM support_claims
+      WHERE id=$1 AND customer_account_id=$2 FOR UPDATE`,
+    [input.claimId,input.customerAccountId])).rows[0];
+    if (!claim) throw new Error('Support unavailable');
+    const prior = (await client.query<{ id: string; claimId: string; requestSha256: string;
+      mimeType: string; sizeBytes: number }>(`SELECT id,claim_id AS "claimId",
+      request_sha256 AS "requestSha256",mime_type AS "mimeType",size_bytes AS "sizeBytes"
+      FROM support_claim_evidence WHERE uploaded_by=$1 AND idempotency_key=$2`,
+    [input.customerAccountId,input.idempotencyKey])).rows[0];
+    if (prior) {
+      if (prior.claimId !== input.claimId || prior.requestSha256 !== requestSha256)
+        throw new Error('Support conflict');
+      if (ownsTransaction) await client.query('COMMIT');
+      return { id: prior.id, mimeType: prior.mimeType, sizeBytes: prior.sizeBytes };
+    }
+    if (!['REQUESTED','SELLER_REPLIED'].includes(claim.status)) throw new Error('Support conflict');
+    const count = (await client.query<{ n: number }>(`SELECT count(*)::int AS n
+      FROM support_claim_evidence WHERE claim_id=$1`, [input.claimId])).rows[0].n;
+    if (count >= 5) throw new Error('Support image limit');
+    const saved = await input.store.put(input.bytes, input.mimeType);
+    objectKey = saved.objectKey;
+    const evidence = (await client.query<{ id: string }>(`INSERT INTO support_claim_evidence
+      (claim_id,uploaded_by,object_key,mime_type,size_bytes,idempotency_key,request_sha256)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [input.claimId,input.customerAccountId,saved.objectKey,saved.mimeType,
+      saved.sizeBytes,input.idempotencyKey,requestSha256])).rows[0];
+    await client.query(`INSERT INTO support_claim_events
+      (claim_id,action,actor_account_id,actor_role,reason,before_status,after_status)
+      VALUES ($1,'EVIDENCE_ADDED',$2,'customer',$3,$4,$4)`,
+    [input.claimId,input.customerAccountId,`Evidence ${evidence.id} added`,claim.status]);
+    if (ownsTransaction) await client.query('COMMIT');
+    return { id: evidence.id, mimeType: saved.mimeType, sizeBytes: saved.sizeBytes };
+  } catch (error) {
+    if (ownsTransaction) await client.query('ROLLBACK');
+    if (objectKey) {
+      try { await input.store.remove(objectKey); }
+      catch (cleanupError) {
+        throw new AggregateError([error,cleanupError], 'Claim evidence rollback left a private file');
+      }
+    }
+    throw error;
+  } finally { if (ownsTransaction) client.release(); }
+}
+
+export async function readClaimEvidence(db: Db, input: { claimId: string;
+  evidenceId: string; actorAccountId: string; actorRole: ClaimScope;
+  sellerId?: string; store: ImageQuarantine }) {
+  if (![input.claimId,input.evidenceId,input.actorAccountId].every((id) => uuid.test(id)) ||
+      (input.actorRole === 'seller' && (!input.sellerId || !uuid.test(input.sellerId))))
+    throw new Error('Invalid support request');
+  const access = input.actorRole === 'customer' ? 'c.customer_account_id=$3' :
+    input.actorRole === 'seller' ? `c.seller_id=$4 AND EXISTS (
+      SELECT 1 FROM account_roles role_grant JOIN accounts actor
+        ON actor.id=role_grant.account_id
+      WHERE role_grant.account_id=$3 AND role_grant.role='seller'
+        AND role_grant.seller_id=c.seller_id AND actor.disabled_at IS NULL)` :
+      `EXISTS (SELECT 1 FROM account_roles role_grant JOIN accounts actor
+        ON actor.id=role_grant.account_id WHERE role_grant.account_id=$3
+          AND role_grant.role='admin' AND actor.disabled_at IS NULL)`;
+  const evidence = (await db.query<{ objectKey: string }>(`SELECT e.object_key AS "objectKey"
+    FROM support_claim_evidence e JOIN support_claims c ON c.id=e.claim_id
+    WHERE c.id=$1 AND e.id=$2 AND ${access}`,
+  input.actorRole === 'seller' ? [input.claimId,input.evidenceId,
+    input.actorAccountId,input.sellerId] : [input.claimId,input.evidenceId,
+      input.actorAccountId])).rows[0];
+  if (!evidence) throw new Error('Support unavailable');
+  try { return await input.store.read(evidence.objectKey); }
+  catch { throw new Error('Support evidence unavailable'); }
 }

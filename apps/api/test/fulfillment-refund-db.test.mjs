@@ -20,7 +20,7 @@ async function requireTask7Schema(context, pool) {
   const schema = (await pool.query(`SELECT
     (SELECT count(*)::int FROM drizzle.__drizzle_migrations) AS migrations,
     to_regclass('public.refund_cases') IS NOT NULL AS refunds`)).rows[0];
-  assert.deepEqual(schema, { migrations: 18, refunds: true });
+  assert.deepEqual(schema, { migrations: 19, refunds: true });
   return true;
 }
 

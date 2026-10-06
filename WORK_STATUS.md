@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## S5.2 비공개 클레임 증빙·0018 checkpoint — 2026-10-07
+
+- **판정/담당:** 단일 writer 어울, 기존 `codex/s52-customer-support` worktree 유지. Main이 승인 SSH alias 원격 작업 브랜치에 exact `94f4d12` push 완료(main/PR 미변경)라고 직접 보고했으며, 이 세션에서 원격 재조회는 하지 않았다. 따라서 원격 복구 ref는 **Main 보고 기준 `94f4d12`**다. 공유 DB·Oracle·실 Provider·credential·push/PR/merge 변경0.
+- **변경:** `0018_s52_claim_evidence_decisions.sql`+journal, Drizzle 선언, 클레임 service/controller, DB/HTTP 및 migration 건수 시험, 계약 문서. 0018은 증빙 요청 키·선언 MIME+원본 바이트 SHA256의 부분 UNIQUE, `EVIDENCE_ADDED` 사건, 후속 관리자 결정의 키/fingerprint/환불액 snapshot 열을 additive로 둔다. 실제 구현된 증빙은 고객 본인만 원본 5MiB 이하 PNG/JPEG/WebP를 개발 전용 quarantine에 재인코딩·비공개 저장하고 클레임당 최대 5장으로 제한한다. 같은 키·claim·MIME·원본 바이트 재시도는 같은 ID, 다른 대상/내용/MIME은 409. 고객 본인·품목 seller snapshot의 활성 grant·관리자만 `private,no-store` WebP를 읽고 공개 catalog route는 없다. 목록/상세/응답에는 object key가 없다. 0018의 관리자 결정 열은 **schema 준비만** 됐으며 결정/POST 환불 구현 증거가 아니다.
+- **RED→GREEN/검증:** 미구현 증빙 route 404 vs 기대403, 동일키 선언 MIME 변경이 200으로 잘못 성공한 RED를 관찰했다. 5장 제한·6번째 409, 타 고객/타 seller 404, 판매자 역할이 아닌 고객 업로드 403, 비로그인 GET 401, 공개 route 404, 멱등, 증빙 metadata key 비노출, seller/admin/본인 private GET을 격리 실제 DB/HTTP 거래 rollback으로 확인했다. 기존 시험용 단일 `shoppingmall-upload-s52-review-<난수>`를 같은 실행에서 재사용하고 `finally`에서 정확한 OS temp 경로 검사 후 제거·ENOENT를 확인했다. 신규 DB/container/network/listener0. 격리 목표 schema/문의/리뷰/클레임 **4/4 pass·0 skip**, 0018 전후 기존 PRE 2행 전체 row hash `0f6adf9d3a314d0f14cb6fdcc2eafed2` 불변. 로컬 전체 **427 total/305 pass/122 계획된 DB·환경 skip/0 fail**, PR 본문 **8/8**, typecheck/lint/build·diff check exit0. 동일 근본 원인 오류 3회 연속 없음.
+- **미검증/다음:** 실 ClamAV/운영 Object Storage는 검증하지 않았고 클레임 파일은 끝까지 비공개·미검사 개발용이다. 관리자 최종 결정·정책 금액 cap·POST 환불 1:1 core bridge/verified event·PRE 회귀, 3역할 Web/브라우저, signed fixture/reset, fresh 0000~0018와 CHECK 본문 동치성은 미완료. 기존 격리 PG/네트워크는 후속 slice에서 사용 후 정확히 정리한다.
+
+## S5.2 비공개 클레임 증빙 QA 자원 사전 계획 — 2026-10-07
+
+- 단일 writer 어울. 기존 격리 DB `shoppingmall_s52_schema_v6_1007`과 기존 시험의 Windows OS 임시 `shoppingmall-upload-s52-review-<난수>` 개발용 quarantine 한 곳을 **같은 단일 시험 실행 내에서 재사용**한다. 신규 DB/container/network/listener는 만들지 않는다. 이유는 고객 본인 클레임 증빙의 재인코딩 저장, 타 고객·타 seller 404, 담당 seller/관리자 비공개 읽기, object key JSON 비노출과 파일 오류 rollback을 실제 HTTP/DB로 시험하기 위해서다. 수명은 단일 시험 실행뿐이며 기존 `finally`에서 정확한 생성 경로가 OS temp 하위와 고유 prefix인지 검사한 뒤 삭제·ENOENT, DB 거래 rollback을 확인한다. 이 개발용 비공개 스토어는 운영 Object Storage나 악성코드 검사 완료를 의미하지 않는다. 공유 DB/Oracle/실 Provider 접근은 계속 금지한다.
+
 ## S5.2 Drizzle schema/catalog 정합 checkpoint — 2026-10-07
 
 - **판정/담당:** 단일 writer 어울, 기존 S5.2 worktree/branch 유지. Main이 승인 SSH alias 원격 작업 브랜치에 exact `b9fd176` push 완료(main/PR 미변경)라고 직접 보고했다. 이 세션에서 원격 재조회는 하지 않았으므로 복구 ref는 **Main 보고 기준 `b9fd176`**다. 공유 DB·Oracle·실 Provider·credential·push/PR/merge 변경0.

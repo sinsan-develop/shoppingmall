@@ -10,7 +10,7 @@ test('0014 exposes six constrained refund ledger relations', {
     const history = await pool.query(
       'SELECT count(*)::integer AS count FROM drizzle.__drizzle_migrations',
     );
-    assert.equal(history.rows[0].count, 18, 'fresh 0017 database must have 18 applied migrations');
+    assert.equal(history.rows[0].count, 19, 'fresh 0018 database must have 19 applied migrations');
 
     const expected = ['refund_cases', 'refund_case_lines', 'refund_attempts',
       'refund_events', 'refund_event_conflicts', 'refund_case_events'];

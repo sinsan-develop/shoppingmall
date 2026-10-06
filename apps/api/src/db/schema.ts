@@ -1304,6 +1304,9 @@ export const supportClaims = pgTable('support_claims', {
   decisionReason: text('decision_reason'),
   decidedAt: timestamp('decided_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  decisionIdempotencyKey: uuid('decision_idempotency_key'),
+  decisionFingerprint: text('decision_fingerprint'),
+  goodsRefundWon: integer('goods_refund_won').notNull().default(0),
 }, (table) => [
   foreignKey({ name: 'support_claims_order_fk',
     columns: [table.checkoutOrderId, table.shipmentOrderId],
@@ -1314,6 +1317,9 @@ export const supportClaims = pgTable('support_claims', {
   unique('support_claims_request_uq').on(table.customerAccountId, table.idempotencyKey),
   unique('support_claims_bridge_uq').on(table.id, table.checkoutOrderId,
     table.shipmentOrderId, table.customerAccountId),
+  uniqueIndex('support_claims_decision_author_key_uq')
+    .on(table.decisionBy, table.decisionIdempotencyKey)
+    .where(sql`${table.decisionIdempotencyKey} IS NOT NULL`),
   index('support_claims_seller_idx').on(table.sellerId, table.status, table.createdAt),
   check('support_claims_kind_ck', sql`${table.kind} IN ('CLAIM','RETURN','EXCHANGE')`),
   check('support_claims_reason_code_ck', sql`${table.reasonCode} IN
@@ -1329,6 +1335,14 @@ export const supportClaims = pgTable('support_claims', {
     OR (${table.status} NOT IN ('REQUESTED','SELLER_REPLIED')
       AND ${table.decisionBy} IS NOT NULL AND ${table.decisionReason} IS NOT NULL
       AND ${table.decidedAt} IS NOT NULL AND ${table.policyVersionId} IS NOT NULL)`),
+  check('support_claims_decision_key_ck', sql`
+    (${table.status} IN ('REQUESTED','SELLER_REPLIED')
+      AND ${table.decisionIdempotencyKey} IS NULL AND ${table.decisionFingerprint} IS NULL
+      AND ${table.goodsRefundWon} = 0)
+    OR (${table.status} NOT IN ('REQUESTED','SELLER_REPLIED')
+      AND ${table.decisionIdempotencyKey} IS NOT NULL
+      AND ${table.decisionFingerprint} ~ '^[0-9a-f]{64}$'
+      AND ${table.goodsRefundWon} >= 0)`),
 ]);
 
 export const supportClaimEvents = pgTable('support_claim_events', {
@@ -1345,7 +1359,7 @@ export const supportClaimEvents = pgTable('support_claim_events', {
 }, (table) => [
   index('support_claim_events_claim_idx').on(table.claimId, table.occurredAt),
   check('support_claim_events_action_ck', sql`${table.action} IN
-    ('REQUESTED','SELLER_REPLIED','APPROVED','REJECTED','REFUND_PROCESSING','REFUNDED','REVIEW_REQUIRED')`),
+    ('REQUESTED','SELLER_REPLIED','EVIDENCE_ADDED','APPROVED','REJECTED','REFUND_PROCESSING','REFUNDED','REVIEW_REQUIRED')`),
   check('support_claim_events_role_ck', sql`${table.actorRole} IN ('customer','seller','admin','system')`),
   check('support_claim_events_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
 ]);
@@ -1376,9 +1390,18 @@ export const supportClaimEvidence = pgTable('support_claim_evidence', {
   mimeType: text('mime_type').notNull(),
   sizeBytes: integer('size_bytes').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  idempotencyKey: uuid('idempotency_key'),
+  requestSha256: text('request_sha256'),
 }, (table) => [
   index('support_claim_evidence_claim_idx').on(table.claimId),
+  uniqueIndex('support_claim_evidence_author_key_uq')
+    .on(table.uploadedBy, table.idempotencyKey)
+    .where(sql`${table.idempotencyKey} IS NOT NULL`),
   check('support_claim_evidence_type_ck', sql`${table.mimeType} = 'image/webp'
     AND ${table.sizeBytes} BETWEEN 1 AND 5242880`),
   check('support_claim_evidence_key_ck', sql`${table.objectKey} ~ '^quarantine/[0-9a-f-]{36}\\.webp$'`),
+  check('support_claim_evidence_request_ck', sql`
+    (${table.idempotencyKey} IS NULL AND ${table.requestSha256} IS NULL)
+    OR (${table.idempotencyKey} IS NOT NULL
+      AND ${table.requestSha256} ~ '^[0-9a-f]{64}$')`),
 ]);

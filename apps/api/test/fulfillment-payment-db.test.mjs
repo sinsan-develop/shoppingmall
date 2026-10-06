@@ -25,7 +25,7 @@ async function requireFreshIsolatedSchema(context, pool) {
     (SELECT count(*)::int FROM drizzle.__drizzle_migrations) AS migrations,
     to_regclass('public.payment_attempts') IS NOT NULL AS attempts,
     to_regclass('public.payment_events') IS NOT NULL AS events`)).rows[0];
-  assert.deepEqual(schema, { migrations: 18, attempts: true, events: true });
+  assert.deepEqual(schema, { migrations: 19, attempts: true, events: true });
   return true;
 }
 

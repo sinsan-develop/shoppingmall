@@ -15,7 +15,7 @@ const isolatedDatabases = new Set([
   'shoppingmall_s52_schema_v6_1007',
 ]);
 
-test('0016/0017 create private support relations without changing existing orders', {
+test('0016~0018 create private support relations without changing existing orders', {
   skip: !systemId || !expectedDatabase,
 }, async () => {
   assert.ok(isolatedDatabases.has(expectedDatabase), 'S5.2 isolated database name required');
@@ -82,7 +82,7 @@ test('0016/0017 create private support relations without changing existing order
     assert.ok(refundConfig.checks.some(({ name }) => name === 'refund_cases_post_state_ck'));
     assert.ok(refundConfig.indexes.some((item) => item.config.name === 'refund_cases_post_claim_uq'));
     const migrationCount = (await pool.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations')).rows[0].n;
-    assert.equal(migrationCount, 18);
+    assert.equal(migrationCount, 19);
     const claimReplyKey = (await pool.query(`SELECT is_nullable FROM information_schema.columns
       WHERE table_schema='public' AND table_name='support_claim_messages'
         AND column_name='idempotency_key'`)).rows;

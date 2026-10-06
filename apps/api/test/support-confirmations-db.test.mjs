@@ -633,6 +633,46 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       assert.equal(sellerDetail.status, 'SELLER_REPLIED');
       assert.equal(sellerDetail.events.filter((event) =>
         event.action === 'SELLER_REPLIED').length, 2);
+      const evidencePath = `${claimPath}/${httpClaim.id}/evidence`;
+      const evidenceKey = randomUUID();
+      assert.equal((await upload(otherCustomer, evidencePath, png, randomUUID())).status, 404);
+      assert.equal((await upload(sellerSupportAccount, evidencePath, png, randomUUID())).status, 403);
+      const evidenceResponse = await upload(customer, evidencePath, png, evidenceKey);
+      assert.equal(evidenceResponse.status, 200);
+      const evidence = await evidenceResponse.json();
+      assert.ok(evidence.id);
+      assert.equal(JSON.stringify(evidence).includes('quarantine/'), false);
+      assert.deepEqual(await (await upload(customer, evidencePath, png, evidenceKey)).json(), evidence);
+      assert.equal((await fetch(base + evidencePath, { method: 'POST',
+        headers: { cookie: cookies.get(customer), origin: 'http://127.0.0.1:9091',
+          'content-type': 'image/jpeg', 'idempotency-key': evidenceKey }, body: png })).status,
+      409, 'same evidence retry key cannot change the declared image type');
+      assert.equal((await upload(customer, `${claimPath}/${remainingClaim.id}/evidence`,
+        png, evidenceKey)).status, 409);
+      const evidenceRead = (path, actor) => reviewRequest(actor, path, 'GET');
+      const customerEvidence = `${evidencePath}/${evidence.id}`;
+      const sellerEvidence = `/seller/support/claims/${httpClaim.id}/evidence/${evidence.id}`;
+      const adminEvidence = `/admin/support/claims/${httpClaim.id}/evidence/${evidence.id}`;
+      assert.equal((await evidenceRead(customerEvidence, otherCustomer)).status, 404);
+      assert.equal((await fetch(base + customerEvidence)).status, 401);
+      assert.equal((await fetch(base + `/catalog/products/${product}/evidence/${evidence.id}`)).status,
+        404, 'private claim evidence has no catalog route');
+      assert.equal((await evidenceRead(sellerEvidence, fulfillmentAccount)).status, 404);
+      assert.equal((await evidenceRead(sellerEvidence, sellerSupportAccount)).status, 200);
+      assert.equal((await evidenceRead(adminEvidence, productSellerAccount)).status, 200);
+      const ownEvidence = await evidenceRead(customerEvidence, customer);
+      assert.equal(ownEvidence.status, 200);
+      assert.equal(ownEvidence.headers.get('cache-control'), 'private, no-store');
+      assert.equal(ownEvidence.headers.get('content-type'), 'image/webp');
+      const withEvidence = await (await evidenceRead(customerClaimPath, customer)).json();
+      assert.ok(withEvidence.evidence.some(({ id }) => id === evidence.id));
+      assert.equal(JSON.stringify(withEvidence).includes('quarantine/'), false);
+      for (let index = 0; index < 4; index++)
+        assert.equal((await upload(customer, evidencePath, png, randomUUID())).status, 200);
+      assert.equal((await upload(customer, evidencePath, png, randomUUID())).status, 409,
+        'a sixth private claim image must be refused');
+      assert.equal((await client.query(`SELECT count(*)::int AS n FROM support_claim_evidence
+        WHERE claim_id=$1`, [httpClaim.id])).rows[0].n, 5);
     } finally {
       if (app) await app.close();
       await client.query('ROLLBACK');

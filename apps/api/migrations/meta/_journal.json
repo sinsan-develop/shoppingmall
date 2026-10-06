@@ -127,6 +127,13 @@
       "when": 1791388800000,
       "tag": "0017_s52_claim_reply_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791388801000,
+      "tag": "0018_s52_claim_evidence_decisions",
+      "breakpoints": true
     }
   ]
 }
