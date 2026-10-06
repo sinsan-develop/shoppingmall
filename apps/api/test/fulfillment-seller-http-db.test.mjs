@@ -284,6 +284,28 @@ function transition(base, shipmentId, body, cookie, key = randomUUID(), requestO
   });
 }
 
+function promiseBarrier(parties) {
+  let arrived = 0;
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  return async () => {
+    arrived += 1;
+    if (arrived === parties) release();
+    await gate;
+  };
+}
+
+async function fulfillmentWriteCounts(pool, shipmentId) {
+  return (await pool.query(`SELECT f.version,
+    (SELECT count(*)::int FROM shipment_fulfillment_events e
+      WHERE e.shipment_order_id=f.shipment_order_id) AS "eventCount",
+    (SELECT count(*)::int FROM audit_events a
+      WHERE a.action='fulfillment.seller_transition'
+        AND a.target_type='shipment_order'
+        AND a.target_id=f.shipment_order_id::text) AS "auditCount"
+    FROM shipment_fulfillments f WHERE f.shipment_order_id=$1`, [shipmentId])).rows[0];
+}
+
 async function shipmentState(pool, shipmentIds) {
   return (await pool.query(`SELECT s.id,s.status AS "shipmentStatus",o.status AS "orderStatus",
     f.fulfillment_seller_id AS "fulfillmentSellerId",f.status,f.version,
@@ -474,6 +496,47 @@ test('seller fulfillment HTTP scopes paid work, exposes minimum detail and persi
       assert.deepEqual(await shipmentState(pool, [shipmentId]), before);
     });
 
+    await context.test('concurrent different keys allow one version winner and persist one write', async () => {
+      const shipmentId = fixture.sellerAOrders[0].shipmentId;
+      const body = { targetStatus: 'PACKING', expectedVersion: 0 };
+      const keys = [randomUUID(), randomUUID()];
+      const arrive = promiseBarrier(2);
+      const results = await Promise.all(keys.map(async (key) => {
+        await arrive();
+        const response = await transition(base, shipmentId, body, cookies.sellerA, key);
+        return { status: response.status, payload: await response.json() };
+      }));
+
+      assert.deepEqual(results.map(({ status }) => status).sort((left, right) => left - right),
+        [200, 409], JSON.stringify(results));
+      const winner = results.find(({ status }) => status === 200);
+      assert.equal(winner?.payload.status, 'PACKING');
+      assert.equal(winner?.payload.version, 1);
+      assert.deepEqual(await fulfillmentWriteCounts(pool, shipmentId), {
+        version: 1, eventCount: 1, auditCount: 1,
+      });
+    });
+
+    await context.test('concurrent same-key retries reuse one result and persist one write', async () => {
+      const shipmentId = fixture.sellerAOrders[20].shipmentId;
+      const body = { targetStatus: 'PACKING', expectedVersion: 0 };
+      const key = randomUUID();
+      const arrive = promiseBarrier(2);
+      const results = await Promise.all([0, 1].map(async () => {
+        await arrive();
+        const response = await transition(base, shipmentId, body, cookies.sellerA, key);
+        return { status: response.status, payload: await response.json() };
+      }));
+
+      assert.deepEqual(results.map(({ status }) => status), [200, 200], JSON.stringify(results));
+      assert.deepEqual(results[1].payload, results[0].payload);
+      assert.equal(results[0].payload.status, 'PACKING');
+      assert.equal(results[0].payload.version, 1);
+      assert.deepEqual(await fulfillmentWriteCounts(pool, shipmentId), {
+        version: 1, eventCount: 1, auditCount: 1,
+      });
+    });
+
     await context.test('transition is versioned, idempotent and immediately forms the customer DB view', async () => {
       const shipmentId = fixture.transitionOrder.shipmentId;
       const packingKey = randomUUID();
@@ -486,7 +549,9 @@ test('seller fulfillment HTTP scopes paid work, exposes minimum detail and persi
       const replayResponse = await transition(base, shipmentId, packingBody, cookies.sellerA, packingKey);
       assert.equal(replayResponse.status, 200);
       assert.deepEqual(await replayResponse.json(), packed);
-      assert.equal((await shipmentState(pool, [shipmentId]))[0].events, 1);
+      assert.deepEqual(await fulfillmentWriteCounts(pool, shipmentId), {
+        version: 1, eventCount: 1, auditCount: 1,
+      });
 
       const delayedBody = {
         targetStatus: 'DELAYED', expectedVersion: 1, reason: '가상 포장 지연',
@@ -524,6 +589,9 @@ test('seller fulfillment HTTP scopes paid work, exposes minimum detail and persi
         status: 'SHIPPED', version: 4, expectedShipDate: '2026-10-10',
         customerMessage: '가상 안내: 10월 10일 출고 예정',
         carrierCode: 'cj_logistics', trackingNumber: '1234ABCD', eventCount: 4,
+      });
+      assert.deepEqual(await fulfillmentWriteCounts(pool, shipmentId), {
+        version: 4, eventCount: 4, auditCount: 4,
       });
       const persistedText = JSON.stringify((await pool.query(`SELECT e.before_snapshot,e.after_snapshot,
         e.reason,e.customer_message,a.details FROM shipment_fulfillment_events e
