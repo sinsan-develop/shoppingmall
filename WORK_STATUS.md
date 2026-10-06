@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## Task10 완료 — 2026-10-06 독립 리뷰 C0/I0/M0
+
+- **판정:** exact commit `1cda3fb2279c897ce349151852200ac5770e443a`의 Task10 계획·migration·안전장치·검증 증거를 독립 read-only reviewer가 재검토한 결과 **Critical 0 / Important 0 / Minor 0**이며 Task10 통과 가능 판정이다.
+- **확정 범위:** private 0000~0014→0015 upgrade, fresh 0000~0015 전체 시험, typecheck·lint·build, 업무행 잔류0, 임시자원0, local/origin/WSL exact-SHA clean까지 Task10 완료다. 실제 Chrome·shared DB·Oracle·외부서비스·PR/main은 완료 범위가 아니다.
+- **다음 조치:** Task11 공유 DB 적용 승인 패킷을 읽기 전용 현황과 정확한 migration·backup·rollback·적용 후 검증·정리 절차로 작성해 PMO에 보고한다. PMO의 명시적 승인 전에는 shared migration, fixture seed/reset, browser write를 실행하지 않는다.
+
 ## Task10 private gate GREEN · 독립 리뷰 대기 — 2026-10-06
 
 - **판정·기준:** WSL exact SHA `a063a5f43782990d736aa8b8a32ce147e6a1f7e9`와 clean checkout에서 private upgrade/fresh PostgreSQL gate, 전체 시험, typecheck·lint·build, 잔류·임시자원 정리를 모두 통과했다. 공유 `local-postgres/shoppingmall`, 실제 Chrome, 외부서비스, Oracle, PR/main은 접근·변경하지 않았다. 독립 read-only review C0/I0가 아직 남아 있으므로 Task10 최종 완료나 Task11 착수로 승격하지 않는다.
