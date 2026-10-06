@@ -45,9 +45,9 @@ export async function processVerifiedRefundEvent(pool: Pool, eventId: string) {
     await client.query(`SELECT id FROM refund_cases WHERE shipment_order_id=$1
       ORDER BY id FOR UPDATE`, [anchor.shipmentId]);
     const target = (await client.query<{ id: string; status: string; orderId: string;
-      shipmentId: string; totalWon: number; decisionBy: string | null }>(`SELECT id,status,
+      shipmentId: string; totalWon: number }>(`SELECT id,status,
       checkout_order_id AS "orderId",shipment_order_id AS "shipmentId",
-      total_refund_won AS "totalWon",decision_by AS "decisionBy"
+      total_refund_won AS "totalWon"
       FROM refund_cases WHERE id=$1`, [anchor.caseId])).rows[0];
     if (!target || target.shipmentId !== anchor.shipmentId || shipment?.status !== 'PAID' || !fulfillment)
       throw new Error('Refund unavailable');
@@ -163,13 +163,6 @@ export async function processVerifiedRefundEvent(pool: Pool, eventId: string) {
         VALUES ($1,'REFUND_CANCELLED',$2,'CANCELLED',$3::jsonb,$4::jsonb,
           'system:refund',$5,$6)`, [target.shipmentId, fulfillment.status,
         JSON.stringify(beforeSnapshot), JSON.stringify(afterSnapshot), event.id, fingerprint]);
-      if (!target.decisionBy) throw new Error('Refund conflict');
-      await client.query(`INSERT INTO audit_events
-        (actor_account_id,active_role,action,target_type,target_id,details)
-        VALUES ($1,'admin','fulfillment.refund_cancelled','shipment_order',$2,$3::jsonb)`, [
-        target.decisionBy, target.shipmentId, JSON.stringify({ refundEventId: event.id,
-          before: beforeSnapshot, after: afterSnapshot }),
-      ]);
     }
     const result = await finishEvent(client, event.id, 'APPLIED');
     await client.query(`INSERT INTO refund_case_events

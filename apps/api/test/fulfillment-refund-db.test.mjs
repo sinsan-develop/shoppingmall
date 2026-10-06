@@ -262,17 +262,19 @@ test('cumulative full refund cancels fulfillment once and replay stays idempoten
   }
 });
 
-async function waitForBothBlocked(pool, lockerPid, applicationNames) {
+async function waitForBothBlocked(pool, applicationNames) {
   for (let attempt = 0; attempt < 80; attempt += 1) {
-    const count = (await pool.query(`SELECT count(*)::int AS count FROM pg_stat_activity
-      WHERE application_name=ANY($2::text[]) AND $1=ANY(pg_blocking_pids(pid))`,
-    [lockerPid, applicationNames])).rows[0].count;
+    const count = (await pool.query(`SELECT count(DISTINCT application_name)::int AS count
+      FROM pg_stat_activity WHERE application_name=ANY($1::text[]) AND state='active'
+        AND wait_event_type='Lock' AND query LIKE '%shipment_orders%'
+        AND cardinality(pg_blocking_pids(pid))>0`, [applicationNames])).rows[0].count;
     if (count === 2) return count;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  return (await pool.query(`SELECT count(*)::int AS count FROM pg_stat_activity
-    WHERE application_name=ANY($2::text[]) AND $1=ANY(pg_blocking_pids(pid))`,
-  [lockerPid, applicationNames])).rows[0].count;
+  return (await pool.query(`SELECT count(DISTINCT application_name)::int AS count
+    FROM pg_stat_activity WHERE application_name=ANY($1::text[]) AND state='active'
+      AND wait_event_type='Lock' AND query LIKE '%shipment_orders%'
+      AND cardinality(pg_blocking_pids(pid))>0`, [applicationNames])).rows[0].count;
 }
 
 async function settleWithin(promise) {
@@ -306,7 +308,6 @@ for (const mode of ['seller', 'admin']) test(`refund and ${mode} SHIPPED race ha
     const refund = await prepareVerifiedRefund(main, ids, 3, `${mode} 출고 경합`);
     locker = await main.connect();
     await locker.query('BEGIN');
-    const lockerPid = (await locker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
     await locker.query('SELECT id FROM shipment_orders WHERE id=$1 FOR UPDATE', [ids.shipmentId]);
     const refundPromise = processVerifiedRefundEvent(refundPool, refund.event.id);
     const shipPromise = mode === 'seller'
@@ -323,7 +324,7 @@ for (const mode of ['seller', 'admin']) test(`refund and ${mode} SHIPPED race ha
         });
     const pending = Promise.allSettled([refundPromise, shipPromise]);
     try {
-      assert.equal(await waitForBothBlocked(main, lockerPid, [refundName, shipName]), 2,
+      assert.equal(await waitForBothBlocked(main, [refundName, shipName]), 2,
         'refund and ship must both wait on shipment_orders before later locks');
     } finally {
       await locker.query('COMMIT');

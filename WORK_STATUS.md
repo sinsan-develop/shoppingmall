@@ -1,10 +1,18 @@
 # 어울몰 작업현황
 
+## actual candidate NON-GREEN — 2026-10-06 S5.1 Task7 경합 preflight 보정
+
+- **판정:** controller의 actual private PostgreSQL 후보 실행은 **13 tests / 9 pass / 4 fail / 0 skip**으로 아직 GREEN·Task7 완료가 아니다. 실패 4건은 full-refund 뒤 추가 감사행이 기존 S4 fixture 계정 정리를 FK로 막은 **audit FK 2건**과, 경합 helper가 외부 locker PID의 직접 포함만 요구해 실제 잠금 대기를 놓친 **PG wait queue direct-PID 2건**이다. 이 수치는 보정 전 관찰이며 최종 수치 갱신은 controller의 actual 재검증 뒤 수행한다.
+- **현장 관찰:** refund 연결은 `transactionid`, seller/admin 출고 연결은 `tuple` 잠금을 기다렸고, 두 연결 모두 현재 query에 `shipment_orders`가 포함됐으며 `pg_blocking_pids(pid)` cardinality는 각각 **1**이었다. 따라서 특정 외부 PID 직접 포함은 잠금 대기 여부의 필요한 조건이 아니었다.
+- **승인된 좁은 보정:** PMO는 두 지정 `application_name` 각각에 대해 `state='active'`, `wait_event_type='Lock'`, 현재 query의 `shipment_orders` 포함, blocker cardinality 양수를 확인하는 test-preflight helper 보정만 승인했다. 기존 80회/25ms·fallback과 success1/reject1·40P01 없음·version/event/time 단언은 유지한다. audit FK 원인이 된 계획 밖 감사 INSERT는 앞선 보정에서 제거했으며 실제 DB 재검증 전에는 해소로 판정하지 않는다.
+- **실행 오류:** 첫 원격 PowerShell 명령은 인용 오류로 1회 실패했고 데이터 변경은 없었다. 진단 첫 관찰창은 대기 상태 진입 시점보다 빨라 1회 miss했으며, 후속 관찰에서 위 잠금 종류·query·blocker cardinality를 확인했다. 동일 근본 원인 3회 연속은 아니다.
+- **다음 조치:** 로컬 loader·lint·typecheck·diff 검증 후 controller가 같은 actual DB 범위를 재실행해 13건과 cleanup을 판정한다. 이 기록과 로컬 보정만으로 GREEN·완료·commit/push를 선언하지 않는다.
+
 ## GREEN 후보 — 2026-10-06 S5.1 Task7 고객 즉시 조회·S4 환불 결합
 
 - **판정·인수:** 신산님이 지정한 유일한 Task7 code-writer가 exact clean base `fdd86ac4e582cb247a52b6fc9ff28ed773f8c362`에서 기존 actual RED 13건(6 pass/7 fail)을 인수했다. `D:\Project\shoppingmall2\.worktrees\s5-fulfillment-engagement`의 기존 branch만 사용했고 새 branch/worktree, OneDrive, 공유 DB, WSL, Docker, commit/push는 사용하지 않았다. 이 기록은 **로컬 정적 GREEN 후보**이며 actual DB GREEN이나 Task7 완료 판정이 아니다.
 - **고객 조회 구현:** `apps/api/src/orders/repository.ts`에서 기존 repeatable-read 주문 snapshot 안에 발송 묶음별 고객용 fulfillment 상태·예상일·현재 지연사유·최신 고객안내·택배사 표시명·운송장·포장/출고/변경시각·고객용 사건을 추가했다. 내부 actor/seller ID, 멱등 범위/키, fingerprint, 관리자 내부 사유, 공급자 원문과 배송지 PII 중복은 선택하지 않는다. 주문 품목에는 `REFUNDED` 누적 `completedRefundQuantity`와 `remainingQuantity`를 추가했다.
-- **환불 승인·집행 구현:** `apps/api/src/refunds/service.ts`와 `apps/api/src/refunds/processor.ts`에서 `shipment_orders→shipment_fulfillments→refund_cases` 상대 잠금 순서를 고정했다. 신규 approve와 pending verified processor는 현재 fulfillment가 `SHIPPED`이면 거래 rollback 예외로 거부한다. verified 성공 후 현재 건까지 `REFUNDED` 수량이 발송 주문 전량일 때만 같은 거래에서 `CANCELLED`, `version+1`, `cancelled_at`과 `REFUND_CANCELLED/system:refund/원 refund event UUID` 사건 1개 및 개인정보 없는 감사 이력을 기록한다. 부분 환불과 이미 처리된 replay는 fulfillment 사건을 만들지 않는다.
+- **환불 승인·집행 구현:** `apps/api/src/refunds/service.ts`와 `apps/api/src/refunds/processor.ts`에서 `shipment_orders→shipment_fulfillments→refund_cases` 상대 잠금 순서를 고정했다. 신규 approve와 pending verified processor는 현재 fulfillment가 `SHIPPED`이면 거래 rollback 예외로 거부한다. verified 성공 후 현재 건까지 `REFUNDED` 수량이 발송 주문 전량일 때만 같은 거래에서 `CANCELLED`, `version+1`, `cancelled_at`과 `REFUND_CANCELLED/system:refund/원 refund event UUID` 사건 1개를 기록한다. 부분 환불과 이미 처리된 replay는 fulfillment 사건을 만들지 않는다.
 - **변경 파일:** `apps/api/src/orders/repository.ts`, `apps/api/src/refunds/service.ts`, `apps/api/src/refunds/processor.ts`, `WORK_STATUS.md`만 수정했다. 기존 RED 시험 3파일과 schema/migration/endpoint/계약은 수정하지 않았다.
 - **로컬 검증:** DB 환경변수를 제거한 세 대상 loader는 **13 tests / 0 pass / 0 fail / 13 explicit skip**, API `tsc --noEmit` 통과, 허용 제품 3파일 ESLint 통과, `git diff --check` 통과다. 최초 `pnpm exec eslint ...`은 Windows에서 실행 파일을 찾지 못해 1회 exit 1이었고, 저장소의 `node_modules\.bin\eslint.CMD`로 같은 3파일을 재실행해 exit 0을 확인했다. 이는 제품 오류가 아니며 파일 우회 수정은 없었다.
 - **미검증·다음 조치:** actual private PostgreSQL의 목표 13건 GREEN, seller/admin 경합의 양쪽 `shipment_orders` 대기·한쪽 성공·무교착, 전체 S4/Task6 회귀, 전체 gate, 실행 후 업무행0·singleton1/1·임시자원 cleanup0은 controller가 검증해야 한다. 실패 시 해당 실제 출력과 현재 diff를 기준으로 같은 허용 범위에서 보완하며, 그 전에는 commit/push 또는 완료 판정을 하지 않는다.
