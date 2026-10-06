@@ -1,5 +1,18 @@
 # 어울몰 작업현황
 
+## 제품 GREEN checkpoint — 2026-10-06 S5.1 Task7 고객 조회·환불·출고 경합
+
+- **판정·정확한 기준:** S5.1 Task7 제품 범위는 exact product SHA `5ef6dd5ecdade1c887c71dfb894fabe3ed3b59c5`에서 GREEN checkpoint다. 제품 검증 시점의 local `codex/s5-fulfillment-engagement`, `origin/codex/s5-fulfillment-engagement`, WSL checkout은 모두 이 exact SHA와 clean 상태로 일치했다. WSL 검증 중 생성된 `.pnpm-store`는 아래 기록대로 별도 정리했다. 이는 S5.1 Stage 전체, Oracle/UAT 또는 운영 출시 완료 판정이 아니다.
+- **fresh private DB 전체 통합:** tmpfs PostgreSQL **18.4**, migration `0000~0015` 총 **16건**, system identifier `7693400111711809581`에서 전체 통합은 **417 total / 398 pass / 0 fail / 19 planned skip**이다. 계획된 skip을 PASS로 계산하지 않았다.
+- **Windows·WSL gate:** Windows `pnpm test`는 **382 total / 267 pass / 0 fail / 115 DB-unconfigured skip**, PR body 검사는 **8/8 pass**다. Windows와 WSL 모두 위 exact product SHA에서 typecheck·lint·build가 PASS했다.
+- **데이터 잔류:** 종료 후 실제 행 집계에서 업무·환불·fulfillment·audit 등 시험 대상 업무행은 모두 **0**이다. 설정 singleton은 `fulfillment_settings=1`, `home_current=1`, `home_draft=1`, `shipping_global=1`로 유지됐다. shared `local-postgres/shoppingmall`에는 접근하지 않았다.
+- **독립 검토:** 독립 read-only review는 **Critical 0 / Important 0 / Minor 0**이며 `git diff --check`도 PASS했다.
+- **오류·조치:** 원격 PowerShell quoting 오류 **1회**는 무변경으로 종료됐다. 초기 full gate는 schema 환경변수 `PG*` 누락으로 **2 fail**, 환불 fixture fulfillment 누락으로 **1 fail**이 발생했으며 원인을 보정한 fresh full gate가 위 수치로 PASS했다. direct blocker PID 가정 오류는 PMO 승인 아래 실제 PostgreSQL wait queue 조건으로 수정했다. audit 계약은 PMO가 §8.5를 재확인해 approval admin actor로 복구했다. WSL의 host `pnpm` 부재와 비대화형 실행기 경로 문제는 Node 24 container와 corepack으로 보정했다. cache owner 문제는 정확한 `.pnpm-store`만 container에서 삭제했고 다른 경로는 건드리지 않았다.
+- **제품 커밋 계보:** `9d927da` RED → `fdd86ac` actual RED 문서 → `62fd882` initial → `00d79ae` race correction → `1e7662e` audit tests → `1e0d949` actual audit RED 문서 → `5ef6dd5` GREEN이다.
+- **미검증:** 실 PG, Oracle 배포/UAT, 실제 브라우저, 실택배 연동, 대규모 성능은 미검증이며 이 checkpoint가 해당 범위의 PASS를 의미하지 않는다.
+- **자원 정리 경계:** 이 기록 뒤 private 임시 DB와 network의 정확한 정리는 main agent가 수행하고 잔류 0을 별도로 확인할 예정이다. 이 문서 기록 시점에는 해당 정리를 완료로 표시하지 않는다.
+- **다음 조치:** 승인된 순서의 **Task8 역할별 Flat v2 화면 RED**를 진행한다.
+
 ## GREEN 후보 — 2026-10-06 S5.1 Task7 환불 취소 감사 계약
 
 - **판정·기준:** exact clean base `1e0d949576538aed089ac9410983d61cd5e54ba4`에서 actual RED **13 tests / 12 pass / 1 fail / 0 skip**의 유일한 누적 전량 환불 감사 누락을 최소 보정했다. actual PostgreSQL GREEN은 아직 실행하지 않았으므로 이 기록은 **로컬 GREEN 후보**이며 Task7 완료가 아니다.
