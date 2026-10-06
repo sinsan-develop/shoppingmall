@@ -8,6 +8,7 @@
 - **서비스·브라우저 자원:** WSL loopback Web `127.0.0.1:9091`, API `127.0.0.1:9092`, Windows SSH loopback tunnel, 격리 Chrome CDP `127.0.0.1:9229`와 전용 임시 profile만 사용한다. 외부 공개 port·실 결제·실배송·실 알림은 생성하지 않는다.
 - **증거·수명·정리:** 가상 5계정·3판매자·3상품·3주문·3발송, 서명 manifest, 시험 비밀번호, 역할별 3 viewport screenshot과 runner 로그는 이번 검증 동안만 유지한다. 성공·실패 모두 fixture reset과 manifest 관련 업무행 0을 확인한 뒤 API/Web/DB container·network·임시 Linux source/home·tunnel·Chrome process/profile·manifest/password·임시 evidence를 제거하고 정확한 잔류 0을 기록한다. 공유 DB rollback backup 2개는 이번 임시자원이 아니므로 보존한다.
 - **검증 항목:** 고객 READY 조회, 판매자 A 포장·출고와 고객 즉시 운송장, 판매자 B 로딩·503·정상 지연·빈 상태, 공동출고 담당 판매자 처리, 관리자 DELAYED→READY 정정과 고객 안내, 1920×1080·1440×900·430×844 가로 overflow·보이는 활성 요소 전체 Tab 순회를 실제 Chrome에서 확인한다. 200% 확대는 승인된 계획대로 Oracle UAT-03 미검증으로 유지한다.
+- **준비 오류 3회·구조 보정:** 1차는 Docker `--internal` 망 안에서 package manager를 내려받으려 해 DNS `EAI_AGAIN`, 2차는 app별 binary를 root `node_modules/.bin`으로 잘못 지정해 `tsc not found`, 3차는 build·migration·fixture와 Web 기동이 성공했으나 `--internal` 망의 host loopback publish 차단으로 API/Web가 WSL 호스트에서 HTTP 000이었다. 각 실패 trap은 지정 container·network·source·secret·manifest를 제거해 잔류 0을 확인했다. 최소 진단 container에서 internal network HTTP 000, 일반 사용자 정의 bridge HTTP 200을 재현했고 진단 자원도 0이다. 따라서 추가 실행은 DB port 비공개를 유지하고 API/Web만 WSL `127.0.0.1:9092/9091`에 publish하는 전용 사용자 정의 bridge로 수행한다. 외부 Provider는 mode disabled이며 실제 외부 호출은 없다.
 
 ## Task11 공유 개발 DB 0015 적용·exact-SHA 전체 회귀 완료 — 2026-10-06
 
