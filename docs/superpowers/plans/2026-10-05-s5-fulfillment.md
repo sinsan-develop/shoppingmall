@@ -278,7 +278,7 @@
 **검증·commit**
 
 - 먼저 private fixture에서 생성/외부참조 거부/reset 잔류0을 검증한다.
-- 브라우저 스크립트 작성만으로 PASS 처리하지 않는다. 실제 실행은 공유 DB 승인 뒤 exact SHA에서 수행한다.
+- 브라우저 스크립트 작성만으로 PASS 처리하지 않는다. 실제 실행은 공유 DB 0015 적용 승인 뒤 같은 exact SHA의 별도 격리 DB에서 수행한다.
 - commit: `test(s5): prepare fulfillment acceptance fixtures`
 
 ## Task 10 — 격리 전체 gate·독립 리뷰
@@ -319,19 +319,20 @@
 
 - PMO 경유 별도 승인이 오기 전 migration 적용·seed·브라우저 공유 쓰기를 실행하지 않는다.
 
-## Task 12 — 공유 exact-SHA QA·PR·병합·정리
+## Task 12 — 공유 migration·회귀와 격리 exact-SHA Chrome·PR·병합·정리
 
 별도 승인 뒤에만 수행한다.
 
-1. 검증된 백업 후 0015 적용, schema/행수/singleton 대조.
-2. WSL exact SHA API/Web 실행, Windows 실제 Chrome 시나리오와 viewport/키보드 증거 수집.
-3. QA reset 후 accounts/roles/sellers/orders/payments/refunds/fulfillment/events/audit/session 등 manifest 관련 전수잔류0, 임시자원0.
-4. 전체 local/WSL exact-SHA gate 재실행, 독립 최종 C0/I0.
-5. 공식 일반 조회 URL을 최종 시점에 재확인하고 변경 시 allowlist 갱신 또는 링크 비활성화를 복구안으로 기록한다. 운송장 자동조회와 실제 출고 가능일은 미검증으로 유지하고 영업일 정책 후속안을 PMO에 보고한다.
-6. 목적·영향·검증·미검증·rollback을 포함한 Stage PR 생성. 필수 gate가 모두 통과한 일반 내부 Stage면 자동화 절차로 병합하고 merged-main smoke를 수행한다.
-7. `main` 포함·원격 복구 ref·clean을 확인한 뒤 S5 branch/worktree와 정확한 임시자원만 정상 정리한다. PR은 이력으로 남긴다.
+1. 검증된 백업 후 공유 `local-postgres/shoppingmall`에 0015를 적용하고 schema/행수/singleton을 대조한다.
+2. 공유 DB에서 exact SHA 전체 회귀를 실행하고 시험자료 잔류0과 기존 singleton·행수 불변을 확인한다. actual Chrome fixture는 공유 DB에 seed하지 않는다.
+3. 같은 exact SHA의 별도 `shoppingmall_s5_fulfillment_ui_<runId>` 격리 DB에 0000~0015를 적용하고 WSL API/Web·Windows 실제 Chrome 시나리오와 viewport/키보드 증거를 수집한다.
+4. 격리 fixture reset 후 accounts/roles/sellers/orders/payments/refunds/fulfillment/events/audit/session 등 manifest 관련 전수잔류0과 DB/API/Web/network/volume/port/tunnel/Chrome profile/evidence 임시자원0을 확인한다.
+5. 전체 local/WSL exact-SHA gate 재실행, 독립 최종 C0/I0.
+6. 공식 일반 조회 URL을 최종 시점에 재확인하고 변경 시 allowlist 갱신 또는 링크 비활성화를 복구안으로 기록한다. 운송장 자동조회와 실제 출고 가능일은 미검증으로 유지하고 영업일 정책 후속안을 PMO에 보고한다.
+7. 목적·영향·검증·미검증·rollback을 포함한 Stage PR 생성. 필수 gate가 모두 통과한 일반 내부 Stage면 자동화 절차로 병합하고 merged-main smoke를 수행한다.
+8. `main` 포함·원격 복구 ref·clean을 확인한 뒤 S5 branch/worktree와 정확한 임시자원만 정상 정리한다. PR은 이력으로 남긴다.
 
 ## 완료 판정
 
-- 완료: 타 판매자 접근 차단, 담당자 고정, 결제 후 포장/지연/출고, 고객 즉시 택배사·운송장, 관리자 정정 전후/사유/고객 안내, cutoff 잠정일, 출고/환불 경합이 API·DB·실제 역할별 브라우저에서 일치한다.
+- 완료: 공유 DB의 migration·전체 회귀와 별도 격리 DB의 실제 역할별 브라우저에서 타 판매자 접근 차단, 담당자 고정, 결제 후 포장/지연/출고, 고객 즉시 택배사·운송장, 관리자 정정 전후/사유/고객 안내, cutoff 잠정일, 출고/환불 경합이 같은 exact SHA 계약으로 일치한다. 실제 Chrome이 공유 DB 자체를 사용했다는 주장은 하지 않는다.
 - 미완료로 유지: 특정 운송장 자동조회/deep link, 주말·공휴일을 반영한 실제 출고 가능일, 실 택배사 동기화/실배송, 실 문자·메일·푸시, 출고 후 약관·클레임, Oracle/UAT, 운영 전환.

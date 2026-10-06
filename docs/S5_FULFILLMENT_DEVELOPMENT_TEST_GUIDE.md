@@ -4,7 +4,7 @@
 
 - 격리 fixture와 실제 Chrome 실행기는 준비됐다.
 - private tmpfs PostgreSQL에서 migration 16건, 잘못된 DB system identifier 거부, 외부 identity·category·audit 보존/거부, late insert 잠금, 정상 reset 잔류 0을 검증했다.
-- 실제 Chrome은 실행하지 않았다. 승인 계획에 따라 공유 개발 DB 적용·QA 쓰기 승인을 받은 뒤 exact SHA에서만 실행한다.
+- 실제 Chrome은 실행하지 않았다. 승인 계획에 따라 공유 개발 DB에 0015를 적용·회귀 검증한 뒤 같은 exact SHA의 별도 격리 DB에서만 실행한다.
 - 이 문서의 준비 완료를 고객·판매자·관리자 화면 PASS로 해석하지 않는다.
 
 ## 고정 경계
@@ -12,7 +12,7 @@
 - 정본 작업경로: `D:\Project\shoppingmall2\.worktrees\s5-fulfillment-engagement`
 - WSL 시험 checkout: `/home/daon/deploy/shopping`
 - Git 원격은 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git` 별칭만 사용한다.
-- 공유 DB `WSL-server/local-postgres/shoppingmall`의 migration·seed·브라우저 쓰기는 Task11 별도 승인 전 금지한다.
+- 공유 DB `WSL-server/local-postgres/shoppingmall`의 migration·회귀 쓰기는 Task11 별도 승인 전 금지한다. 출고 Chrome fixture는 승인 후에도 공유 DB에 seed하지 않는다.
 - PG·택배·문자·메일·푸시 공급자와 Oracle/UAT는 이 시험 범위가 아니다.
 - 실제 200% 확대는 UAT-03에서 검증한다.
 
@@ -45,9 +45,9 @@ private tmpfs DB에서만 다음을 검증한다.
 
 Task11 승인 뒤 Task12에서만 아래 순서로 실행한다.
 
-1. 승인된 백업과 0015 공유 적용을 확인한다.
+1. 승인된 백업과 0015 공유 적용, 공유 DB exact-SHA 전체 회귀·잔류0을 확인한다.
 2. 로컬·원격·WSL checkout의 exact SHA와 clean 상태를 확인한다.
-3. WSL loopback API `127.0.0.1:9092`와 Web `127.0.0.1:9091`을 같은 SHA로 실행한다.
+3. 별도 `shoppingmall_s5_fulfillment_ui_<runId>` 격리 DB에 0000~0015를 적용하고, WSL loopback API `127.0.0.1:9092`와 Web `127.0.0.1:9091`을 같은 SHA로 실행한다.
 4. Windows는 `WSL-server` SSH loopback tunnel과 격리 Chrome `127.0.0.1:9229`만 사용한다.
 5. 고객 READY 조회 → 판매자 PACKING/SHIPPED → 관리자 DELAYED/READY 정정 → 고객 운송장·안내 재조회를 확인한다.
 6. 1920×1080, 1440×900, 430×844의 가로 overflow와 보이는 활성 요소 전체 Tab 순회를 확인한다.
@@ -59,5 +59,6 @@ Task11 승인 뒤 Task12에서만 아래 순서로 실행한다.
 
 - fixture·runner 단위/계약시험 PASS: 실행 도구 준비 증거
 - private DB safety PASS: fixture 격리·정리 증거
-- 실제 Chrome PASS: Task11 승인 뒤 exact SHA·공유 개발 DB의 역할별 시나리오와 viewport/키보드 증거
+- 공유 DB PASS: 승인된 0015 적용, exact-SHA 전체 회귀, 기존 자료 불변과 시험자료 잔류0 증거
+- 실제 Chrome PASS: 같은 exact SHA·별도 격리 DB의 역할별 시나리오와 viewport/키보드 증거. 공유 DB actual Chrome PASS로 표기하지 않는다.
 - PG·택배사 API·문자·메일·푸시·Oracle/UAT: 별도 실연동 증거가 없으면 미검증

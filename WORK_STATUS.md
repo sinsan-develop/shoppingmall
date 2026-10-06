@@ -1,6 +1,15 @@
 # 어울몰 작업현황
 
-## Task11 승인 패킷 작성 중 · PMO A/B 결정 대기 — 2026-10-06
+## Task11 A안 문서 정합화 — 2026-10-06
+
+- **Ruling:** 신산님의 최신 직접 지시 `진행하자`를 직전 명시한 권장 A안 승인으로 적용한다. 공유 DB에는 0015와 exact-SHA 전체 회귀만 수행하고 actual Chrome fixture는 같은 exact SHA의 별도 격리 DB에서 실행한다. 잘못 해석했을 때의 비용은 공유 DB actual-browser 증거가 빠지는 것이므로 두 결과를 분리 보고하고 격리 Chrome을 공유 DB PASS로 승격하지 않는다.
+- **문서 변경:** 승인 계획 Task9·12·완료 판정, `S5_FULFILLMENT_DEVELOPMENT_TEST_GUIDE.md`, `S5_FULFILLMENT_SHARED_DB_APPLY.md`를 A안으로 일치시킨다. fixture 코드·schema/migration·공개 API·DB 자료는 변경하지 않는다.
+- **승인 경계:** PMO가 A안 문서 정정·준비·검증·commit/push·독립 문서 검토 범위를 확인했다. shared `shoppingmall`의 0015 적용·전체 회귀 쓰기는 별도 승인 대상이며 그 승인 전에는 shared migration·회귀를 시작하지 않는다.
+- **다음 조치:** 문서 diff·계획 정합성 검사와 독립 문서/계약 검토를 통과시키고 docs-only commit·alias push·WSL exact-SHA를 맞춘다. 이어 exact commit과 백업·baseline을 포함한 shared 0015 적용·회귀 승인 요청을 PMO에 보고한다.
+
+## Task11 승인 패킷 작성 당시 기록 · PMO A/B 결정 대기 — 2026-10-06
+
+- **현재 우선 판정:** 위 `Task11 A안 문서 정합화` 절이 이 당시 기록의 A/B 대기 상태를 대체한다.
 
 - **판정:** 공유 `local-postgres/shoppingmall`은 읽기 전용 조회에서 migration15, `shipment_orders=0`, 신규 0015 관계0이며 기존 public 50관계 중 nonzero는 home current1·draft1·shipping global1뿐이다. backfill 중단 조건에는 해당하지 않는다. shared migration·seed·browser write는 실행하지 않았다.
 - **migration·백업:** 0015 SQL은 Windows/WSL SHA-256 `ec41e1ff8281ff53c4fc424245d5f9601f04d001df024b4fa4e111d42f1d19ee`다. 적용 전 custom backup `/tmp/shoppingmall-s51-0015-pre-20261006.dump`은 SHA-256 `90b7d634c9f629a2ddb1774a12dfde2cba0bcc85535a65401e5ed3b288f19681`, 165682 bytes, 0600, TOC348/TABLE DATA51이다. PostgreSQL15 일회용 container 실제 복원에서 migration15·발송주문0·기존 singleton1/1/1을 확인했고 복원 container 잔류0이다. backup은 Task12 최종 성공 전까지 보존한다.

@@ -78,20 +78,21 @@ docker exec -i RESTORE_CONTAINER \
 - 성공·실패 모두 reset 후 manifest 관련 모든 관계 0과 기존 singleton 원복을 확인한다. 임의 SQL로 억지 삭제하지 않는다.
 - 임시 정리 대상: migration/QA Node container, API/Web container, 필요 시 private DB container와 network/volume, WSL loopback 9091·9092, Windows SSH tunnel, Chrome CDP 9229 process와 격리 profile, 임시 비밀번호·manifest 파일, screenshot/evidence 임시폴더. 승인된 migration과 적용 전 백업은 Task12 최종 판정 전 삭제하지 않는다.
 
-## 7. 현재 발견된 실행계약 불일치와 PMO 결정 대기
+## 7. 실행계약 정정 — A안
 
-계획과 시험 안내는 실제 Chrome을 공유 `local-postgres/shoppingmall`에서 수행한다고 적고 있다. 그러나 현재 `qa-fulfillment-ui-fixture.ts`의 DB 이름·system-ID guard는 정확한 `shoppingmall_s5_fulfillment_ui_<runId>`만 허용하며 `/shoppingmall`을 의도적으로 거부한다. 따라서 현재 코드 그대로는 공유 DB seed/reset이 실행되지 않는다.
+기존 계획과 시험 안내는 실제 Chrome을 공유 `local-postgres/shoppingmall`에서 수행한다고 적었지만, 현재 `qa-fulfillment-ui-fixture.ts`의 DB 이름·system-ID guard는 정확한 `shoppingmall_s5_fulfillment_ui_<runId>`만 허용하며 `/shoppingmall`을 의도적으로 거부한다.
 
-- **A안(권장):** 공유 DB에는 0015 적용과 전체 회귀만 수행하고, 실제 Chrome fixture는 같은 exact SHA의 별도 격리 DB에서 실행하도록 Task12와 PASS 문구를 정정한다. 기존 검증된 fixture guard를 유지하고 공유 자료 오염 위험을 최소화한다.
-- **B안:** 별도 강한 shared consent, 정확한 `/shoppingmall`·system identifier·signed manifest를 요구하는 shared mode를 TDD로 추가한 뒤 공유 DB에서 seed/reset/Chrome을 수행한다. 코드 변경과 private safety 재검증·독립 리뷰가 필요하다.
+- **채택 A안:** 공유 DB에는 0015 적용과 exact-SHA 전체 회귀만 수행하고, 실제 Chrome fixture는 같은 exact SHA의 별도 격리 DB에서 실행한다. 기존 검증된 fixture guard를 유지하고 공유 자료 오염 위험을 최소화한다.
+- 공유 DB 회귀와 격리 Chrome은 서로 다른 증거로 보고하며, 격리 Chrome 결과를 공유 DB browser PASS로 승격하지 않는다.
+- shared fixture mode를 추가하지 않으므로 fixture 제품 코드·DB 안전장치·공개 API·schema를 변경하지 않는다.
 
-PMO가 불일치를 확인했으며 A/B는 신산님 결정 대상이다. 결정 전에는 shared migration, fixture guard 수정, shared seed/reset, 실제 Chrome 쓰기를 실행하지 않는다.
+신산님의 최신 직접 지시 `진행하자`에 따라 권장 A안으로 문서를 정정한다. PMO에 정확한 범위 확인을 요청했으며, PMO가 shared migration·전체 회귀 실행 범위를 전달하기 전에는 shared DB 쓰기를 시작하지 않는다.
 
 ## 8. 승인 요청 범위
 
-아직 요청할 수 있는 범위는 다음 두 결정을 선행한 뒤 확정한다.
+다음 실행 승인은 정정 문서의 exact packet commit을 기준으로 요청한다.
 
-1. A안 또는 B안 선택
-2. 선택안 반영·검증 뒤 exact packet commit에서 `local-postgres/shoppingmall`에 0015 적용과 Task12 수행 승인
+1. `local-postgres/shoppingmall`에 0015 적용 및 exact-SHA 전체 회귀
+2. 같은 exact SHA의 별도 격리 DB actual Chrome과 reset·임시자원 정리
 
 외부 PG·택배 API·문자·메일·푸시, Oracle/UAT, 운영 전환은 이 승인 범위에 포함하지 않는다.
