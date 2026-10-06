@@ -99,6 +99,13 @@ test('admin non-shipped correction explicitly clears every carrier field', async
     status: 'READY', expectedShipDate: '2026-10-09', carrierCode: null,
     carrierName: null, trackingNumber: null,
   });
+  assert.deepEqual(buildAdminCorrection({
+    status: 'SHIPPED', expectedShipDate: '2026-10-09', carrierCode: 'other',
+    carrierName: '지역 택배', trackingNumber: 'SHIP123',
+  }), {
+    status: 'SHIPPED', expectedShipDate: '2026-10-09', carrierCode: 'other',
+    carrierName: '지역 택배', trackingNumber: 'SHIP123',
+  });
 });
 
 test('admin screen includes paid-date filters and current pooled seller metadata', async () => {

@@ -429,9 +429,14 @@ export async function insertSellerTransitionRecords(client: PoolClient, input: {
 export type AdminFulfillmentCursor = { paidAt: string; shipmentOrderId: string };
 
 export async function getAdminFulfillmentSetting(pool: Pool) {
-  return (await pool.query<{ owoolSellerId: string | null; version: number }>(
-    `SELECT owool_seller_id AS "owoolSellerId",version
-     FROM fulfillment_settings WHERE id=1`,
+  return (await pool.query<{ owoolSellerId: string | null;
+    owoolSellerDisplayName: string | null; version: number; updatedAt: Date }>(
+    `SELECT setting.owool_seller_id AS "owoolSellerId",
+      seller.display_name AS "owoolSellerDisplayName",setting.version,
+      setting.updated_at AS "updatedAt"
+     FROM fulfillment_settings setting
+     LEFT JOIN sellers seller ON seller.id=setting.owool_seller_id
+     WHERE setting.id=1`,
   )).rows[0];
 }
 
@@ -472,11 +477,18 @@ export async function updateAdminFulfillmentSetting(client: PoolClient, input: {
   idempotencyKey: string;
   requestFingerprint: string;
 }) {
-  const changed = (await client.query<{ owoolSellerId: string; version: number }>(
-    `UPDATE fulfillment_settings SET owool_seller_id=$1,updated_by=$2,
-      version=version+1,updated_at=clock_timestamp()
-     WHERE id=1 AND version=$3
-     RETURNING owool_seller_id AS "owoolSellerId",version`,
+  const changed = (await client.query<{ owoolSellerId: string;
+    owoolSellerDisplayName: string; version: number; updatedAt: Date }>(
+    `WITH changed AS (
+      UPDATE fulfillment_settings SET owool_seller_id=$1,updated_by=$2,
+        version=version+1,updated_at=clock_timestamp()
+      WHERE id=1 AND version=$3
+      RETURNING owool_seller_id,version,updated_at
+    )
+    SELECT changed.owool_seller_id AS "owoolSellerId",
+      seller.display_name AS "owoolSellerDisplayName",changed.version,
+      changed.updated_at AS "updatedAt"
+    FROM changed JOIN sellers seller ON seller.id=changed.owool_seller_id`,
   [input.sellerId, input.accountId, input.expectedVersion])).rows[0];
   if (!changed) return undefined;
   await client.query(`INSERT INTO audit_events
@@ -514,6 +526,8 @@ export async function listAdminFulfillments(pool: Pool, input: {
   status?: string;
   sellerId?: string;
   categoryId?: string;
+  from?: string;
+  to?: string;
   cursor?: AdminFulfillmentCursor;
   limit: number;
 }): Promise<AdminFulfillmentListRow[]> {
@@ -544,11 +558,14 @@ export async function listAdminFulfillments(pool: Pool, input: {
         SELECT 1 FROM shipment_order_lines filter_line
         JOIN products filter_product ON filter_product.id=filter_line.product_id
         WHERE filter_line.shipment_order_id=s.id AND filter_product.category_id=$3))
-      AND ($4::timestamptz IS NULL OR o.paid_at < $4::timestamptz
-        OR (o.paid_at=$4::timestamptz AND s.id < $5::uuid))
-    ORDER BY o.paid_at DESC,s.id DESC LIMIT $6`, [
+      AND ($4::date IS NULL OR (o.paid_at AT TIME ZONE 'Asia/Seoul')::date >= $4::date)
+      AND ($5::date IS NULL OR (o.paid_at AT TIME ZONE 'Asia/Seoul')::date <= $5::date)
+      AND ($6::timestamptz IS NULL OR o.paid_at < $6::timestamptz
+        OR (o.paid_at=$6::timestamptz AND s.id < $7::uuid))
+    ORDER BY o.paid_at DESC,s.id DESC LIMIT $8`, [
     input.status ?? null, input.sellerId ?? null, input.categoryId ?? null,
-    input.cursor?.paidAt ?? null, input.cursor?.shipmentOrderId ?? null, input.limit + 1,
+    input.from ?? null, input.to ?? null, input.cursor?.paidAt ?? null,
+    input.cursor?.shipmentOrderId ?? null, input.limit + 1,
   ]);
   return result.rows;
 }

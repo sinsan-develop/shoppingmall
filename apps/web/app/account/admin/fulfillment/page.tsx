@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { fulfillmentSaveDisposition } from '../../fulfillment-ui';
+import { appendUniqueFulfillments, fulfillmentFailureMessage, fulfillmentSaveDisposition,
+  shouldReleaseFulfillmentKey } from '../../fulfillment-ui';
 
 type FulfillmentStatus = 'READY' | 'PACKING' | 'DELAYED' | 'SHIPPED' | 'CANCELLED';
 type CarrierCode = 'cj_logistics' | 'korea_post' | 'hanjin' | 'lotte' | 'other';
-type Setting = { owoolSellerId: string | null; version: number; updatedAt?: string };
+type Setting = { owoolSellerId: string | null; owoolSellerDisplayName?: string | null;
+  version: number; updatedAt?: string };
 type AdminItem = {
   shipmentOrderId: string; status: FulfillmentStatus; version: number; paidAt: string;
   expectedShipDate: string; recipientName: string; phone: string;
@@ -25,19 +27,20 @@ type AdminDetail = AdminItem & {
     category?: { id: string; name: string } }[];
   events: AdminEvent[];
 };
-type Filters = { status: string; sellerId: string };
+type Filters = { status: string; sellerId: string; from: string; to: string };
 type Correction = {
   expectedVersion: number;
-  corrected: { status: string; expectedShipDate: string; carrierCode?: CarrierCode;
-    carrierName?: string; trackingNumber?: string };
+  corrected: { status: string; expectedShipDate: string; carrierCode?: CarrierCode | null;
+    carrierName?: string | null; trackingNumber?: string | null };
   reason: string; customerMessage: string;
 };
 type AdminViewProps = {
   setting: Setting; items: AdminItem[]; selected: AdminDetail | null;
-  statusFilter: string; sellerFilter: string; busy: boolean; error: string; message: string;
+  statusFilter: string; sellerFilter: string; fromFilter?: string; toFilter?: string;
+  nextCursor?: string | null; busy: boolean; error: string; message: string;
   onSaveSetting: (sellerId: string, reason: string) => void;
   onFilter: (filters: Filters) => void; onSelect: (id: string) => void;
-  onCorrect: (correction: Correction) => void;
+  onLoadMore?: () => void; onCorrect: (correction: Correction) => void;
 };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -52,8 +55,24 @@ function snapshot(snapshot: Record<string, unknown>) {
   return Object.entries(snapshot).map(([key, value]) => `${key}: ${String(value ?? '-')}`).join(' · ');
 }
 
+export function buildAdminCorrection(input: {
+  status: string; expectedShipDate: string; carrierCode?: CarrierCode | null;
+  carrierName?: string | null; trackingNumber?: string | null;
+}): Correction['corrected'] {
+  if (input.status !== 'SHIPPED') return {
+    status: input.status, expectedShipDate: input.expectedShipDate,
+    carrierCode: null, carrierName: null, trackingNumber: null,
+  };
+  return {
+    status: input.status, expectedShipDate: input.expectedShipDate,
+    carrierCode: input.carrierCode, carrierName: input.carrierName,
+    trackingNumber: input.trackingNumber,
+  };
+}
+
 export function AdminFulfillmentView({ setting, items, selected, statusFilter, sellerFilter,
-  busy, error, message, onSaveSetting, onFilter, onSelect, onCorrect }: AdminViewProps) {
+  fromFilter = '', toFilter = '', nextCursor, busy, error, message, onSaveSetting, onFilter,
+  onSelect, onLoadMore, onCorrect }: AdminViewProps) {
   function saveSetting(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -64,22 +83,20 @@ export function AdminFulfillmentView({ setting, items, selected, statusFilter, s
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     onFilter({ status: String(data.get('statusFilter') ?? ''),
-      sellerId: String(data.get('sellerFilter') ?? '').trim() });
+      sellerId: String(data.get('sellerFilter') ?? '').trim(),
+      from: String(data.get('fromFilter') ?? ''), to: String(data.get('toFilter') ?? '') });
   }
   function correct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
     const data = new FormData(event.currentTarget);
     const status = String(data.get('correctedStatus') ?? selected.status);
-    const corrected: Correction['corrected'] = { status,
-      expectedShipDate: String(data.get('expectedShipDate') ?? selected.expectedShipDate) };
-    if (status === 'SHIPPED') {
-      corrected.carrierCode = String(data.get('carrierCode') ?? '') as CarrierCode;
-      corrected.trackingNumber = String(data.get('trackingNumber') ?? '').trim();
-      if (corrected.carrierCode === 'other') {
-        corrected.carrierName = String(data.get('carrierName') ?? '').trim();
-      }
-    }
+    const carrierCode = String(data.get('carrierCode') ?? '') as CarrierCode;
+    const corrected = buildAdminCorrection({ status,
+      expectedShipDate: String(data.get('expectedShipDate') ?? selected.expectedShipDate),
+      carrierCode, carrierName: carrierCode === 'other'
+        ? String(data.get('carrierName') ?? '').trim() : null,
+      trackingNumber: String(data.get('trackingNumber') ?? '').trim() });
     onCorrect({ expectedVersion: selected.version, corrected,
       reason: String(data.get('correctionReason') ?? '').trim(),
       customerMessage: String(data.get('customerMessage') ?? '').trim() });
@@ -92,7 +109,9 @@ export function AdminFulfillmentView({ setting, items, selected, statusFilter, s
         <label htmlFor="owool-seller-id">공동출고 담당 판매자</label>
         <input id="owool-seller-id" name="owoolSellerId" defaultValue={setting.owoolSellerId ?? ''}
           placeholder="판매자 UUID" required />
+        <p>현재 판매자 {setting.owoolSellerDisplayName ?? '미지정'}</p>
         <p>설정 버전 {setting.version}</p>
+        {setting.updatedAt ? <p>최종 변경일 {setting.updatedAt.slice(0, 10)}</p> : null}
         <label htmlFor="setting-reason">변경 사유</label>
         <textarea id="setting-reason" name="settingReason" rows={3} maxLength={500} required />
         <button type="submit" className="primary-button" disabled={busy}>담당 판매자 저장</button>
@@ -108,6 +127,10 @@ export function AdminFulfillmentView({ setting, items, selected, statusFilter, s
         <label htmlFor="admin-seller-filter">담당 판매자</label>
         <input id="admin-seller-filter" name="sellerFilter" defaultValue={sellerFilter}
           placeholder="판매자 UUID" />
+        <label htmlFor="admin-from-filter">결제 시작일</label>
+        <input id="admin-from-filter" name="fromFilter" type="date" defaultValue={fromFilter} />
+        <label htmlFor="admin-to-filter">결제 종료일</label>
+        <input id="admin-to-filter" name="toFilter" type="date" defaultValue={toFilter} />
         <button type="submit" className="primary-button" disabled={busy}>조회</button>
       </form>
       {error ? <p role="alert">{error}</p> : null}
@@ -126,6 +149,8 @@ export function AdminFulfillmentView({ setting, items, selected, statusFilter, s
             <span>{item.categories.map(categoryName).join(', ')}</span>
           </button>
         </li>)}</ul>}
+      {nextCursor && onLoadMore ? <button type="button" className="secondary-button"
+        disabled={busy} onClick={onLoadMore}>더보기</button> : null}
     </section>
     <section className="account-card fulfillment-detail-card" aria-labelledby="admin-detail-heading">
       <h2 id="admin-detail-heading">발송 상세·정정</h2>
@@ -182,7 +207,8 @@ export default function AdminFulfillmentPage() {
   const [setting, setSetting] = useState<Setting>({ owoolSellerId: null, version: 0 });
   const [items, setItems] = useState<AdminItem[]>([]);
   const [selected, setSelected] = useState<AdminDetail | null>(null);
-  const [filters, setFilters] = useState<Filters>({ status: '', sellerId: '' });
+  const [filters, setFilters] = useState<Filters>({ status: '', sellerId: '', from: '', to: '' });
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -200,16 +226,21 @@ export default function AdminFulfillmentPage() {
     if (!response.ok) throw new Error('Setting unavailable');
     setSetting(await response.json() as Setting); return true;
   }
-  async function loadList(next: Filters = filters, signal?: AbortSignal) {
+  async function loadList(next: Filters = filters, signal?: AbortSignal, cursor?: string) {
     if (!apiOrigin) throw new Error('API unavailable');
     const query = new URLSearchParams({ limit: '50' });
     if (next.status) query.set('status', next.status);
     if (next.sellerId) query.set('sellerId', next.sellerId);
+    if (next.from) query.set('from', next.from);
+    if (next.to) query.set('to', next.to);
+    if (cursor) query.set('cursor', cursor);
     const response = await fetch(`${apiOrigin}/fulfillment/admin/shipments?${query}`,
       { credentials: 'include', cache: 'no-store', signal });
     if (roleFailure(response)) return false;
     if (!response.ok) throw new Error('List unavailable');
-    setItems((await response.json() as { items: AdminItem[] }).items); return true;
+    const result = await response.json() as { items: AdminItem[]; nextCursor: string | null };
+    setItems((current) => cursor ? appendUniqueFulfillments(current, result.items) : result.items);
+    setNextCursor(result.nextCursor); return true;
   }
   async function loadDetail(id: string, signal?: AbortSignal) {
     if (!apiOrigin) throw new Error('API unavailable');
@@ -229,7 +260,7 @@ export default function AdminFulfillmentPage() {
       if (!response.ok) { setState(response.status === 401 ? 'unauthorized' : 'unavailable'); return; }
       if ((await response.json() as { role: string }).role !== 'admin') { setState('unauthorized'); return; }
       const loaded = await Promise.all([loadSetting(controller.signal),
-        loadList({ status: '', sellerId: '' }, controller.signal)]);
+        loadList({ status: '', sellerId: '', from: '', to: '' }, controller.signal)]);
       if (loaded.every(Boolean)) setState('ready');
     }
     load().catch((caught: unknown) => {
@@ -239,7 +270,7 @@ export default function AdminFulfillmentPage() {
   }, []);
 
   async function write(url: string, method: 'PUT' | 'POST', body: object,
-    identity: string, reload: () => Promise<unknown>, success: string) {
+    identity: string, reload: () => Promise<boolean>, success: string) {
     if (!apiOrigin || busy) return;
     const key = keys.current.get(identity) ?? crypto.randomUUID();
     keys.current.set(identity, key); setBusy(true); setError(''); setMessage('');
@@ -249,12 +280,14 @@ export default function AdminFulfillmentPage() {
       const disposition = fulfillmentSaveDisposition(response.status);
       if (disposition === 'unauthorized') { setState('unauthorized'); return; }
       if (disposition === 'reload') {
-        keys.current.delete(identity); await reload();
+        const reloaded = await reload();
+        if (shouldReleaseFulfillmentKey(disposition, reloaded)) keys.current.delete(identity);
+        if (!reloaded) throw new Error('Authoritative reload unavailable');
         setMessage(response.status === 409 ? '다른 처리로 상태가 변경되어 최신 정보를 다시 불러왔습니다' : success);
         return;
       }
-      setError('출고 정보를 저장하지 못했습니다. 입력값을 확인해 주세요');
-    } catch { setError('출고 정보를 확인하지 못했습니다. 같은 내용으로 다시 시도해 주세요'); }
+      setError(fulfillmentFailureMessage(response.status));
+    } catch { setError(fulfillmentFailureMessage()); }
     finally { setBusy(false); }
   }
 
@@ -264,20 +297,27 @@ export default function AdminFulfillmentPage() {
     {state === 'unauthorized' ? <p role="alert">운영자 로그인 후 이용할 수 있습니다</p> : null}
     {state === 'unavailable' ? <p role="alert">출고 운영 정보를 불러올 수 없습니다</p> : null}
     {state === 'ready' ? <AdminFulfillmentView setting={setting} items={items} selected={selected}
-      statusFilter={filters.status} sellerFilter={filters.sellerId} busy={busy} error={error} message={message}
+      statusFilter={filters.status} sellerFilter={filters.sellerId} fromFilter={filters.from}
+      toFilter={filters.to} nextCursor={nextCursor} busy={busy} error={error} message={message}
       onSaveSetting={(sellerId, reason) => {
         const body = { owoolSellerId: sellerId, expectedVersion: setting.version, reason };
         void write('/fulfillment/admin/settings', 'PUT', body, `setting|${JSON.stringify(body)}`,
           () => loadSetting(), '공동출고 담당 판매자 설정을 저장했습니다');
-      }} onFilter={(next) => { setFilters(next); setSelected(null); setBusy(true); setError('');
+      }} onFilter={(next) => { setFilters(next); setItems([]); setNextCursor(null);
+        setSelected(null); setBusy(true); setError('');
         void loadList(next).catch(() => setError('발송 주문 목록을 불러오지 못했습니다'))
+          .finally(() => setBusy(false)); }}
+      onLoadMore={() => { if (!nextCursor) return; setBusy(true); setError('');
+        void loadList(filters, undefined, nextCursor)
+          .catch(() => setError('발송 주문 목록을 더 불러오지 못했습니다'))
           .finally(() => setBusy(false)); }}
       onSelect={(id) => { setBusy(true); setError(''); void loadDetail(id)
         .catch(() => setError('발송 주문 상세를 불러오지 못했습니다')).finally(() => setBusy(false)); }}
       onCorrect={(body) => { if (!selected) return; const id = selected.shipmentOrderId;
         void write(`/fulfillment/admin/shipments/${encodeURIComponent(id)}/corrections`, 'POST', body,
           `correction|${id}|${JSON.stringify(body)}`,
-          () => Promise.all([loadDetail(id), loadList(filters)]), '출고 정정을 저장하고 최신 정보를 반영했습니다');
+          () => Promise.all([loadDetail(id), loadList(filters)]).then((results) => results.every(Boolean)),
+          '출고 정정을 저장하고 최신 정보를 반영했습니다');
       }} /> : null}
   </main>;
 }

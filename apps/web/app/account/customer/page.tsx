@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { createLatestRequestGuard } from '../fulfillment-ui';
 import { DeletionRequestControls } from './deletion-request-controls';
 import { EngagementLists } from './engagement-lists';
 import { CustomerOrderFulfillmentView, type CustomerShipmentWithFulfillment } from './order-fulfillment';
@@ -33,6 +34,7 @@ export default function CustomerProfilePage() {
   const [orderId, setOrderId] = useState('');
   const [order, setOrder] = useState<PendingOrder>();
   const [orderMessage, setOrderMessage] = useState('');
+  const orderRequests = useRef(createLatestRequestGuard());
 
   useEffect(() => {
     if (!apiOrigin) { setState('unavailable'); return; }
@@ -67,16 +69,21 @@ export default function CustomerProfilePage() {
   async function loadOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!apiOrigin || !orderId.trim()) return;
+    const request = orderRequests.current.begin();
     setOrder(undefined); setOrderMessage('');
     try {
       const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(orderId.trim())}`,
         { credentials: 'include', cache: 'no-store' });
+      if (!orderRequests.current.isLatest(request)) return;
       if (response.status === 404) { setOrderMessage('본인 주문을 찾을 수 없습니다'); return; }
       if (!response.ok) { setOrderMessage('주문 상태를 불러오지 못했습니다'); return; }
       const current = await response.json() as PendingOrder;
+      if (!orderRequests.current.isLatest(request)) return;
       setOrder(current);
       window.sessionStorage.setItem('owool-checkout-order-id', current.id);
-    } catch { setOrderMessage('주문 상태를 불러오지 못했습니다'); }
+    } catch {
+      if (orderRequests.current.isLatest(request)) setOrderMessage('주문 상태를 불러오지 못했습니다');
+    }
   }
 
   async function addAddress(event: FormEvent<HTMLFormElement>) {

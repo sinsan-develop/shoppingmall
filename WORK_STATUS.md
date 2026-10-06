@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## 로컬 GREEN — 2026-10-06 S5.1 Task8 독립 리뷰 Important 7건 보정
+
+- **판정·기준:** actual RED `a45a74d367899b0861d63ab51d05c1beff9fac10`의 Important 7건을 승인 계약 안에서 실제 API·화면 상태 흐름에 연결해 로컬 GREEN으로 복구했다. 새 endpoint/schema/migration/dependency는 없고 공유 DB·WSL·원격에는 접속하거나 push하지 않았다.
+- **구현:** 판매자 상세에 수령인·전화번호를 표시한다. 판매자·관리자는 응답 `nextCursor`를 보존해 더보기 요청에 전달하고 `shipmentOrderId` 중복 없이 이어 붙이며 필터 변경 때 목록·cursor를 초기화한다. 관리자 비출고 정정은 carrier 3필드를 명시적 null로, SHIPPED 정정은 입력값으로 보낸다.
+- **API·설정:** `parseAdminFulfillmentListQuery`를 export하고 실제 달력 `YYYY-MM-DD`, `from<=to`를 검증한다. 기존 status/seller/category/cursor/limit와 함께 Asia/Seoul 결제일의 inclusive from/to를 repository에 전달한다. 공동출고 설정 GET/PUT은 현재 판매자 표시명·갱신시각을 반환하고 관리 화면에 표시하며 기존 UUID 변경 입력·권한/활성 seller 검증은 유지한다.
+- **안전한 재시도·경합:** 성공·409 뒤 목록/상세 또는 설정의 권위 재조회가 모두 성공한 경우에만 같은 body의 멱등키를 해제한다. 4xx 입력 오류와 5xx·네트워크·재조회 실패의 결과불명 안내를 분리했다. 고객 연속 주문조회는 request generation guard를 실제 fetch·JSON·state·sessionStorage 경계에 연결해 늦은 이전 응답을 무시한다.
+- **변경 파일:** 제품은 `apps/api/src/fulfillment/service.ts`, `apps/api/src/fulfillment/repository.ts`, `apps/web/app/account/fulfillment-ui.ts`, `apps/web/app/account/seller/orders/page.tsx`, `apps/web/app/account/admin/fulfillment/page.tsx`, `apps/web/app/account/customer/page.tsx`; 회귀 보강은 `apps/web/test/fulfillment-role-screens.test.mjs`; 기록은 이 `WORK_STATUS.md`다.
+- **대상 검증:** Web RED는 **11/11 PASS**. API 무DB 검증은 **2 PASS / 1 explicit DB skip / 0 fail**이다. 전체 `pnpm test`는 주 시험 **394 total / 279 pass / 0 fail / 115 DB·환경 skip**, PR 본문 검사는 **8/8 PASS**다. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `git diff --check`는 모두 exit 0이며 Web build는 **18 routes**를 생성했다.
+- **오류 횟수·조치:** 최초 전체 build는 제한 실행환경이 기존 `apps/api/dist` 출력 쓰기를 거부한 `EPERM` **1회**로 중단됐다. 제품 변경 없이 동일 `pnpm build`를 작업 폴더 쓰기 권한으로 재실행해 API build와 Web 18 routes를 모두 통과했다. 동일 근본 원인 3회 연속은 없다.
+- **미검증·다음:** private PostgreSQL의 settings GET/PUT·Asia/Seoul from/to 실제 SQL 계약, 실제 브라우저 상호작용, WSL exact-SHA, Oracle/UAT는 **미검증**이다. 다음은 이 로컬 GREEN을 단일 commit으로 보존한 뒤 main agent가 private DB 검증과 후속 gate를 수행하는 것이다.
+
 ## 실제 RED — 2026-10-06 S5.1 Task8 독립 리뷰 Important 7건 보정
 
 - **판정·기준:** exact clean base `ff1264f87d4fee5c3e9ac53fb92e8e01935bf210`에서 독립 리뷰의 Critical 0 / Important 7 / Minor 1 중 Important 7건에 대한 RED 시험만 추가했다. 제품 구현 파일, schema/migration, 공유 DB, WSL, Docker, 원격은 변경하거나 사용하지 않았다.

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { fulfillmentSaveDisposition } from '../../fulfillment-ui';
+import { appendUniqueFulfillments, fulfillmentFailureMessage, fulfillmentSaveDisposition,
+  shouldReleaseFulfillmentKey } from '../../fulfillment-ui';
 
 type FulfillmentStatus = 'READY' | 'PACKING' | 'DELAYED' | 'SHIPPED' | 'CANCELLED';
 type CarrierCode = 'cj_logistics' | 'korea_post' | 'hanjin' | 'lotte' | 'other';
@@ -25,9 +26,9 @@ type SellerTransition = {
 };
 type SellerViewProps = {
   items: SellerItem[]; selected: SellerDetail | null; statusFilter: string;
-  busy: boolean; error: string; message: string;
+  nextCursor?: string | null; busy: boolean; error: string; message: string;
   onFilter: (status: string) => void; onSelect: (id: string) => void;
-  onTransition: (transition: SellerTransition) => void;
+  onLoadMore?: () => void; onTransition: (transition: SellerTransition) => void;
 };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -89,7 +90,7 @@ function ShipmentForm({ detail, busy, onTransition }: {
 }
 
 export function SellerFulfillmentView({ items, selected, statusFilter, busy, error, message,
-  onFilter, onSelect, onTransition }: SellerViewProps) {
+  nextCursor, onFilter, onSelect, onLoadMore, onTransition }: SellerViewProps) {
   return <div className="fulfillment-layout">
     <section className="account-card fulfillment-filter-card">
       <h2>판매자 주문 출고</h2>
@@ -118,12 +119,15 @@ export function SellerFulfillmentView({ items, selected, statusFilter, busy, err
             <span>잠정 예상일 {item.expectedShipDate} · 휴무일 미반영</span>
           </button>
         </li>)}</ul>}
+      {nextCursor && onLoadMore ? <button type="button" className="secondary-button"
+        disabled={busy} onClick={onLoadMore}>더보기</button> : null}
     </section>
     <section className="account-card fulfillment-detail-card" aria-labelledby="seller-detail-heading">
       <h2 id="seller-detail-heading">발송 상세</h2>
       {!selected ? <p>확인할 발송 주문을 선택해 주세요</p> : <div key={`${selected.shipmentOrderId}-${selected.version}`}>
         <p><strong>{selected.status}</strong> · 버전 {selected.version}</p>
         <p>잠정 예상일 {selected.expectedShipDate} · 휴무일 미반영</p>
+        <p>받는 분 {selected.recipientName} · {selected.phone}</p>
         <p>{selected.address.postalCode} {selected.address.line1} {selected.address.line2}</p>
         <p>결제금액 {won(selected.amounts.payableWon)}</p>
         <ul className="fulfillment-lines">{selected.lines.map((line, index) => <li
@@ -151,20 +155,24 @@ export default function SellerFulfillmentPage() {
   const [items, setItems] = useState<SellerItem[]>([]);
   const [selected, setSelected] = useState<SellerDetail | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const keys = useRef(new Map<string, string>());
 
-  async function loadList(status = statusFilter, signal?: AbortSignal) {
+  async function loadList(status = statusFilter, signal?: AbortSignal, cursor?: string) {
     if (!apiOrigin) throw new Error('API unavailable');
     const query = new URLSearchParams({ limit: '50' });
     if (status) query.set('status', status);
+    if (cursor) query.set('cursor', cursor);
     const response = await fetch(`${apiOrigin}/fulfillment/seller/shipments?${query}`,
       { credentials: 'include', cache: 'no-store', signal });
     if (response.status === 401 || response.status === 403) { setState('unauthorized'); return false; }
     if (!response.ok) throw new Error('Fulfillment list unavailable');
-    setItems((await response.json() as { items: SellerItem[] }).items);
+    const result = await response.json() as { items: SellerItem[]; nextCursor: string | null };
+    setItems((current) => cursor ? appendUniqueFulfillments(current, result.items) : result.items);
+    setNextCursor(result.nextCursor);
     return true;
   }
 
@@ -207,14 +215,17 @@ export default function SellerFulfillmentPage() {
       const disposition = fulfillmentSaveDisposition(response.status);
       if (disposition === 'unauthorized') { setState('unauthorized'); return; }
       if (disposition === 'reload') {
-        keys.current.delete(identity);
-        await Promise.all([loadList(statusFilter), loadDetail(selected.shipmentOrderId)]);
+        const reloaded = (await Promise.all([
+          loadList(statusFilter), loadDetail(selected.shipmentOrderId),
+        ])).every(Boolean);
+        if (shouldReleaseFulfillmentKey(disposition, reloaded)) keys.current.delete(identity);
+        if (!reloaded) throw new Error('Authoritative reload unavailable');
         setMessage(response.status === 409 ? '다른 처리로 상태가 변경되어 최신 정보를 다시 불러왔습니다'
           : '출고 상태를 저장하고 최신 정보를 반영했습니다');
         return;
       }
-      setError('출고 상태를 저장하지 못했습니다. 입력값을 확인해 주세요');
-    } catch { setError('출고 상태를 확인하지 못했습니다. 같은 내용으로 다시 시도해 주세요'); }
+      setError(fulfillmentFailureMessage(response.status));
+    } catch { setError(fulfillmentFailureMessage()); }
     finally { setBusy(false); }
   }
 
@@ -225,9 +236,14 @@ export default function SellerFulfillmentPage() {
     {state === 'unauthorized' ? <p role="alert">판매자 로그인 후 이용할 수 있습니다</p> : null}
     {state === 'unavailable' ? <p role="alert">출고 목록을 불러오지 못했습니다</p> : null}
     {state === 'ready' ? <SellerFulfillmentView items={items} selected={selected}
-      statusFilter={statusFilter} busy={busy} error={error} message={message}
-      onFilter={(next) => { setStatusFilter(next); setSelected(null); setBusy(true); setError('');
+      statusFilter={statusFilter} nextCursor={nextCursor} busy={busy} error={error} message={message}
+      onFilter={(next) => { setStatusFilter(next); setItems([]); setNextCursor(null);
+        setSelected(null); setBusy(true); setError('');
         void loadList(next).catch(() => setError('출고 목록을 불러오지 못했습니다'))
+          .finally(() => setBusy(false)); }}
+      onLoadMore={() => { if (!nextCursor) return; setBusy(true); setError('');
+        void loadList(statusFilter, undefined, nextCursor)
+          .catch(() => setError('출고 목록을 더 불러오지 못했습니다'))
           .finally(() => setBusy(false)); }}
       onSelect={(id) => { setBusy(true); setError(''); void loadDetail(id)
         .catch(() => setError('출고 상세를 불러오지 못했습니다')).finally(() => setBusy(false)); }}

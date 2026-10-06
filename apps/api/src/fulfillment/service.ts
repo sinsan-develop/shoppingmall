@@ -295,26 +295,40 @@ function decodeAdminCursor(value: unknown): AdminFulfillmentCursor {
   }
 }
 
-function parseAdminListQuery(query: Record<string, unknown>) {
+function validCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+export function parseAdminFulfillmentListQuery(query: Record<string, unknown>) {
   if (Object.keys(query).some((key) =>
-    !['status', 'sellerId', 'categoryId', 'cursor', 'limit'].includes(key)) ||
+    !['status', 'sellerId', 'categoryId', 'from', 'to', 'cursor', 'limit'].includes(key)) ||
       Object.values(query).some((value) => typeof value !== 'string')) throw invalid();
   if (query.status !== undefined && !statuses.has(query.status as string)) throw invalid();
   if (query.sellerId !== undefined && !uuid.test(query.sellerId as string)) throw invalid();
   if (query.categoryId !== undefined && !uuid.test(query.categoryId as string)) throw invalid();
+  if (query.from !== undefined && !validCalendarDate(query.from as string)) throw invalid();
+  if (query.to !== undefined && !validCalendarDate(query.to as string)) throw invalid();
+  if (query.from !== undefined && query.to !== undefined &&
+      (query.from as string) > (query.to as string)) throw invalid();
   let limit = 20;
   if (query.limit !== undefined) {
     if (!/^\d+$/.test(query.limit as string)) throw invalid();
     limit = Number(query.limit);
     if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw invalid();
   }
-  return {
-    status: query.status as string | undefined,
-    sellerId: query.sellerId as string | undefined,
-    categoryId: query.categoryId as string | undefined,
-    cursor: query.cursor === undefined ? undefined : decodeAdminCursor(query.cursor),
-    limit,
-  };
+  const result: {
+    status?: string; sellerId?: string; categoryId?: string; from?: string; to?: string;
+    cursor?: AdminFulfillmentCursor; limit: number;
+  } = { limit };
+  if (query.status !== undefined) result.status = query.status as string;
+  if (query.sellerId !== undefined) result.sellerId = query.sellerId as string;
+  if (query.categoryId !== undefined) result.categoryId = query.categoryId as string;
+  if (query.from !== undefined) result.from = query.from as string;
+  if (query.to !== undefined) result.to = query.to as string;
+  if (query.cursor !== undefined) result.cursor = decodeAdminCursor(query.cursor);
+  return result;
 }
 
 function nonEmptyText(value: unknown): string {
@@ -419,7 +433,7 @@ export class AdminFulfillmentService {
   }
 
   async list(query: Record<string, unknown>) {
-    const input = parseAdminListQuery(query);
+    const input = parseAdminFulfillmentListQuery(query);
     const rows = await listAdminFulfillments(this.pool, input);
     const visible = rows.slice(0, input.limit);
     const items = visible.map((row) => ({
