@@ -11,10 +11,14 @@ const sellerItem = {
 };
 
 const sellerDetail = {
-  ...sellerItem,
+  shipmentOrderId: sellerItem.shipmentOrderId, status: sellerItem.status,
+  version: sellerItem.version, paidAt: sellerItem.paidAt,
+  expectedShipDate: sellerItem.expectedShipDate, carrierCode: null,
+  carrierName: null, trackingNumber: null,
   customerMessage: null,
   amounts: { goodsWon: 12000, shippingWon: 3000, payableWon: 15000 },
-  address: { postalCode: '00000', line1: '경남 진주시', line2: '상세 주소' },
+  address: { recipientName: '실제 받는 분', phone: '010-9876-5432',
+    postalCode: '00000', line1: '경남 진주시', line2: '상세 주소' },
   lines: [{ id: 'line-1', productName: '<img src=x onerror=alert(1)>',
     optionName: '500g', quantity: 1 }],
 };
@@ -65,8 +69,9 @@ test('seller detail exposes the recipient name and phone needed for shipping', a
   const html = renderToStaticMarkup(createElement(SellerFulfillmentView,
     sellerProps({ items: [], selected: sellerDetail })));
 
-  assert.match(html, /받는 분/);
-  assert.match(html, /010-\*\*\*\*-1234/);
+  assert.match(html, /실제 받는 분/);
+  assert.match(html, /010-9876-5432/);
+  assert.doesNotMatch(html, /undefined/);
 });
 
 test('seller and admin lists expose cursor pagination without duplicate append', async () => {
@@ -124,9 +129,43 @@ test('idempotency keys survive reload failures and errors distinguish input from
 
   assert.equal(shouldReleaseFulfillmentKey('reload', false), false);
   assert.equal(shouldReleaseFulfillmentKey('reload', true), true);
+  assert.equal(shouldReleaseFulfillmentKey('error', false, 400), true);
+  assert.equal(shouldReleaseFulfillmentKey('error', false, 422), true);
+  assert.equal(shouldReleaseFulfillmentKey('error', false, 500), false);
+  assert.equal(shouldReleaseFulfillmentKey('error', false), false);
   assert.match(fulfillmentFailureMessage(422), /입력/);
   assert.match(fulfillmentFailureMessage(500), /처리 결과를 확인할 수 없습니다/);
   assert.match(fulfillmentFailureMessage(undefined), /처리 결과를 확인할 수 없습니다/);
+});
+
+test('pooled seller input remounts from the authoritative setting after a 409 reload', async () => {
+  const { AdminFulfillmentView } =
+    await import('../app/account/admin/fulfillment/page.tsx');
+
+  function findPooledSellerInput(node) {
+    if (!node || typeof node !== 'object') return null;
+    if (node.type === 'input' && node.props?.name === 'owoolSellerId') return node;
+    const children = Array.isArray(node.props?.children)
+      ? node.props.children : [node.props?.children];
+    for (const child of children) {
+      const found = findPooledSellerInput(child);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  const oldInput = findPooledSellerInput(AdminFulfillmentView(adminProps({
+    setting: { owoolSellerId: 'seller-old', owoolSellerDisplayName: '이전 판매자', version: 2 },
+  })));
+  const latestInput = findPooledSellerInput(AdminFulfillmentView(adminProps({
+    setting: { owoolSellerId: 'seller-latest', owoolSellerDisplayName: '최신 판매자', version: 3 },
+  })));
+
+  assert.ok(oldInput && latestInput);
+  assert.equal(oldInput.props.defaultValue, 'seller-old');
+  assert.equal(latestInput.props.defaultValue, 'seller-latest');
+  assert.notEqual(oldInput.key, latestInput.key);
+  assert.equal(latestInput.key, '3:seller-latest');
 });
 
 test('customer order lookup ignores a late response from an older request', async () => {

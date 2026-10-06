@@ -185,6 +185,22 @@ test('admin correction rejects an explicit null status instead of treating it as
   }), /Invalid fulfillment correction/);
 });
 
+test('admin correction rejects year 0000 expected ship dates while retaining valid leap dates', () => {
+  const base = {
+    current: {
+      status: 'PACKING', expectedShipDate: '2028-02-28',
+      carrierCode: null, carrierName: null, trackingNumber: null,
+    },
+    reason: '예상 출고일 정정', customerMessage: '2월 29일 출고 예정입니다.',
+  };
+  assert.throws(() => validateAdminCorrection({
+    ...base, corrected: { expectedShipDate: '0000-01-01' },
+  }), /Invalid fulfillment correction/);
+  assert.equal(validateAdminCorrection({
+    ...base, corrected: { expectedShipDate: '2028-02-29' },
+  }).expectedShipDate, '2028-02-29');
+});
+
 test('carrier lookup URLs are fixed official general pages and never contain tracking or caller URLs', () => {
   assert.deepEqual({
     cj_logistics: getCarrierTrackingUrl('cj_logistics'),

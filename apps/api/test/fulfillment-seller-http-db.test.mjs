@@ -389,6 +389,12 @@ async function shipmentState(pool, shipmentIds) {
     WHERE s.id=ANY($1::uuid[]) ORDER BY s.id`, [shipmentIds])).rows;
 }
 
+function cachePolicy(response) {
+  const directives = new Set((response.headers.get('cache-control') ?? '')
+    .split(',').map((value) => value.trim().toLowerCase()).filter(Boolean));
+  return { private: directives.has('private'), noStore: directives.has('no-store') };
+}
+
 test('seller fulfillment route exists before a database is configured', async () => {
   const saved = process.env.DATABASE_URL;
   let app;
@@ -431,6 +437,20 @@ test('seller fulfillment HTTP scopes paid work, exposes minimum detail and persi
     const listPath = `${base}/fulfillment/seller/shipments`;
     const get = (query = '', cookie = cookies.sellerA) => fetch(`${listPath}${query}`, {
       headers: cookie ? { cookie } : {},
+    });
+
+    await context.test('seller list and address detail prohibit private response caching', async () => {
+      const responses = await Promise.all([
+        get('?limit=1'),
+        fetch(`${listPath}/${fixture.detailOrder.shipmentId}`, {
+          headers: { cookie: cookies.sellerA },
+        }),
+      ]);
+      assert.deepEqual(responses.map(({ status }) => status), [200, 200]);
+      assert.deepEqual(responses.map(cachePolicy), [
+        { private: true, noStore: true },
+        { private: true, noStore: true },
+      ]);
     });
 
     await context.test('list requires an active seller and stable opaque paid-order paging', async () => {

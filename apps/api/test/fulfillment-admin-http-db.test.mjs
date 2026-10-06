@@ -424,6 +424,7 @@ test('admin paid-date query parser accepts inclusive ISO dates and rejects inval
   });
   for (const query of [
     { from: '2026-02-30' }, { to: '2026-10-6' },
+    { from: '0000-01-01' }, { to: '0000-12-31' },
     { from: '2026-10-07', to: '2026-10-06' },
   ]) assert.throws(() => parseAdminFulfillmentListQuery(query),
     /Invalid fulfillment request/);
@@ -581,7 +582,8 @@ test('admin fulfillment HTTP manages singleton ownership, all paid work and corr
     await context.test('admin list filters all paid work with stable opaque paging and masked PII', async () => {
       for (const query of ['?status=PAYMENT_PENDING', '?status=bad', '?status=', '?limit=0',
         '?limit=51', '?limit=1.5', '?sellerId=bad', '?categoryId=bad', '?cursor=bad',
-        '?from=2026-02-30', '?to=2026-10-6', '?from=2026-10-07&to=2026-10-06',
+        '?from=2026-02-30', '?to=2026-10-6', '?from=0000-01-01', '?to=0000-12-31',
+        '?from=2026-10-07&to=2026-10-06',
         '?unexpected=1']) {
         assert.equal((await fetch(`${listPath}${query}`, {
           headers: { cookie: cookies.admin },
@@ -752,6 +754,9 @@ test('admin fulfillment HTTP manages singleton ownership, all paid work and corr
       assert.equal((await correct(base, shipmentId, {
         ...valid, corrected: { status: 'SHIPPED', expectedShipDate,
           carrierCode: 'cj_logistics', trackingNumber: 'ADMIN123', unknown: true },
+      }, cookies.admin)).status, 400);
+      assert.equal((await correct(base, shipmentId, {
+        ...valid, corrected: { status: 'PACKING', expectedShipDate: '0000-01-01' },
       }, cookies.admin)).status, 400);
       assert.deepEqual(await fulfillmentState(pool, shipmentId), before);
     });

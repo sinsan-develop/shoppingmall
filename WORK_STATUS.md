@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 실제 RED — 2026-10-06 S5.1 Task8 독립 재리뷰 C0/I4/M1 보정
+
+- **판정·기준:** 기준 HEAD `fa8f5ed793869097a159013f8a1dd5be315d135d`에서 독립 재리뷰 Important 4건과 Minor 1건을 실제 사용자/API 계약으로 재현하는 시험만 추가했다. 제품 코드, schema/migration, endpoint, dependency는 변경하지 않았다.
+- **RED 대상:** 판매자 상세가 실제 `address.recipientName/address.phone` 응답을 사용해야 함; 관리자 조회·정정이 연도 `0000`을 400/무변경으로 거부해야 함; 판매자 목록·주소 상세 GET에 `Cache-Control: private, no-store`가 있어야 함; 공동출고 담당 설정이 409 재조회 후 최신 version/ID로 입력을 재마운트해야 함; 확정적 4xx는 해당 멱등키를 해제하되 5xx/network/reload failure는 보존해야 함.
+- **변경 파일:** `apps/web/test/fulfillment-role-screens.test.mjs`, `apps/api/test/fulfillment-rules.test.mjs`, `apps/api/test/fulfillment-admin-http-db.test.mjs`, `apps/api/test/fulfillment-seller-http-db.test.mjs`, `WORK_STATUS.md`.
+- **실제 RED:** `node --import tsx --test apps/web/test/fulfillment-role-screens.test.mjs apps/api/test/fulfillment-rules.test.mjs apps/api/test/fulfillment-admin-http-db.test.mjs apps/api/test/fulfillment-seller-http-db.test.mjs`는 **26 tests / 19 pass / 5 fail / 2 explicit DB skip, exit 1**이다. 실패 5건은 실제 address 구조 미사용, 관리자 from/to 연도 0000 허용, 정정 expectedShipDate 연도 0000 허용, 확정적 4xx 멱등키 미해제, 설정 재조회 뒤 input key 미변경을 각각 재현했다. 판매자 GET cache와 HTTP 400/무변경 시험은 private DB 부재로 명시적 skip이며 main agent의 격리 DB 검증 대상이다.
+- **환경·금지 준수:** 공유 DB, WSL-server, 원격, push 접근 0. 새 branch/worktree와 지속 자원 생성 0.
+- **다음 조치:** 이 RED를 별도 commit으로 보존한 뒤, 별도 GREEN 커밋에서 승인 범위의 최소 제품 보정과 전체 local gate를 수행한다.
+
 ## 로컬 GREEN — 2026-10-06 S5.1 Task8 독립 리뷰 Important 7건 보정
 
 - **판정·기준:** actual RED `a45a74d367899b0861d63ab51d05c1beff9fac10`의 Important 7건을 승인 계약 안에서 실제 API·화면 상태 흐름에 연결해 로컬 GREEN으로 복구했다. 새 endpoint/schema/migration/dependency는 없고 공유 DB·WSL·원격에는 접속하거나 push하지 않았다.
