@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.2 승인 범위 내 고객 클레임 웹 checkpoint — 2026-10-07
+
+- **판정/복구 ref:** Main이 exact `8d71513af91ab158e004dd181e198b75fa7dfec4`를 승인 SSH alias의 기존 원격 작업 브랜치로 fast-forward push exit0 확인했다고 보고했다(main/PR 불변). 이 writer는 push/PR/merge를 하지 않았다. 신규 구매확정 본인조회 GET은 신산님 직접 승인 답변 대기이며 해당 API·시험·의존 `support-line` UI는 이번 선택 staging/commit에서 제외하고 미커밋 보존한다. 공유 WSL DB migration·Oracle·실 Provider 변경0.
+- **RED→GREEN/독립 변경:** 기존 본인 주문의 SHIPPED 발송 품목마다 승인된 `POST /customer/support/claims` 접수(종류·사유·수량·고정 UUID 재시도)를 연결했다. 고객 본인 클레임 기본20·cursor 목록/상세와 최대5장 비공개 증빙 업로드·권한 조회 링크·메시지/사건 이력을 추가했다. 기존 주문 조회의 상품/품목 snapshot과 본인 session은 API가 최종 검증하며, UI의 잔량 표시는 최종 접수 상한을 대체하지 않는다. Main의 읽기 전용 검토로 증빙 성공 뒤 파일 선택·요청키를 함께 비우면 같은 파일 중복 등록이 가능함을 확인했다. 성공 시 form의 파일 선택만 초기화하고 같은 클레임·파일 정체성의 UUID는 성공/불명확 응답 모두 보존한다. 새 화면 부재 및 재시도 helper 부재 RED→단독 웹 정적/키 안정성 시험 **2/2 PASS**.
+- **검증/미검증:** 로컬 전체 `pnpm test` **446 total/314 pass/132 계획된 DB·환경 skip/0 fail**, PR 본문 8/8, root typecheck/lint/build exit0. 첫 단독 시험 실행은 TSX loader 누락으로 실패한 명령 오류이며 올바른 `node --import tsx` 재실행 2/2 PASS. 첫 build는 sandbox `.next/trace` EPERM, 동일 지정 worktree 권한 재실행 exit0. 증빙 중복 방지는 helper 단위/소스 시험이며 실제 브라우저·업로드 HTTP의 성공/실패 클릭 시험은 아직 아니다. 실제 3역할 브라우저/3 viewport·키보드, S5.2 signed fixture/reset, 운영 Object Storage/공유 DB는 이번 결과로 검증되지 않았다. 신규 QA DB/컨테이너/네트워크 없음; 기존 v6/전용 자원은 후속 격리 QA 중 유지하고 최종 정확 정리한다.
+
 ## S5.2 승인 범위 내 판매자 클레임·관리자 리뷰 웹 분리 checkpoint — 2026-10-07
 
 - **판정/승인 경계:** PMO는 신규 구매확정 본인조회 GET이 신산님 직접 승인 대상이며 질문 제출·답변 대기 중이라고 확인했다. 따라서 아래 웹 절편의 안전 commit에는 GET/API 시험/고객 `support-line`과 그 시험을 포함하지 않는다. `git add -A`를 사용하지 않고 아래 파일만 선택 staging·`git diff --cached` 대상 확인 후 commit한다. 단일 writer, 공유 DB/Oracle/실 Provider/push/PR/merge 변경0.

@@ -5,6 +5,7 @@ import { createLatestRequestGuard } from '../fulfillment-ui';
 import { DeletionRequestControls } from './deletion-request-controls';
 import { EngagementLists } from './engagement-lists';
 import { CustomerOrderFulfillmentView, type CustomerShipmentWithFulfillment } from './order-fulfillment';
+import { CustomerClaimLine, CustomerClaimsPanel } from './customer-claims';
 
 type Address = {
   id: string; label: string; recipientName: string; phone: string;
@@ -13,7 +14,9 @@ type Address = {
 type Preferences = { marketingEmail: boolean; marketingSms: boolean; push: boolean };
 type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID'; payableWon: number;
   expiresAt: string; paidAt?: string | null;
-  shipments: ({ id: string; key: string; payableWon: number; status?: string } &
+  shipments: ({ id: string; key: string; payableWon: number; status?: string;
+    lines: { productId: string; optionId: string; productName: string;
+      optionName: string; quantity: number; remainingQuantity: number }[] } &
     CustomerShipmentWithFulfillment)[] };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -34,6 +37,7 @@ export default function CustomerProfilePage() {
   const [orderId, setOrderId] = useState('');
   const [order, setOrder] = useState<PendingOrder>();
   const [orderMessage, setOrderMessage] = useState('');
+  const [claimRefresh, setClaimRefresh] = useState(0);
   const orderRequests = useRef(createLatestRequestGuard());
 
   useEffect(() => {
@@ -163,6 +167,7 @@ export default function CustomerProfilePage() {
       {state === 'ready' ? (
         <div className="profile-grid">
           <EngagementLists />
+          <CustomerClaimsPanel refresh={claimRefresh} />
           <section className="account-card profile-card" aria-labelledby="address-title">
             <h2 id="address-title">배송지</h2>
             {addresses.length === 0 ? <p>저장된 배송지가 없습니다</p> : (
@@ -198,6 +203,10 @@ export default function CustomerProfilePage() {
               <ul className="customer-shipment-list">{order.shipments.map((shipment) => <li key={shipment.id}>
                 <p>발송 주문 {shipment.key} · {shipment.payableWon.toLocaleString('ko-KR')}원</p>
                 <CustomerOrderFulfillmentView shipment={shipment} />
+                {shipment.lines.map((line) => <CustomerClaimLine
+                  key={line.optionId} orderId={order.id} shipmentOrderId={shipment.id}
+                  status={shipment.fulfillment?.status ?? ''} line={line}
+                  onCreated={() => setClaimRefresh((value) => value + 1)} />)}
               </li>)}</ul>
               <p>{order.status === 'PAID' ? '결제가 확인됐습니다' : '결제는 아직 완료되지 않았습니다'}</p>
             </div> : null}
