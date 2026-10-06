@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { SellerClaimsPanel } from './claims';
 
 type Question = { id: string; productId: string; body: string; status: string;
   createdAt: string };
@@ -156,8 +157,8 @@ export default function SellerSupportPage() {
     {state === 'loading' ? <p role="status">판매자 권한 확인 중</p> : null}
     {state === 'unauthorized' ? <p role="alert">판매자 로그인 후 이용할 수 있습니다</p> : null}
     {state === 'unavailable' ? <p role="alert">상품 문의를 불러올 수 없습니다</p> : null}
-    {state === 'ready' ? <SellerSupportView items={items} selected={selected}
+    {state === 'ready' ? <><SellerSupportView items={items} selected={selected}
       busy={busy} message={message} nextCursor={nextCursor} onMore={more}
-      onSelect={select} onReply={reply} /> : null}
+      onSelect={select} onReply={reply} /><SellerClaimsPanel /></> : null}
   </main>;
 }

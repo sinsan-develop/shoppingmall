@@ -1,5 +1,17 @@
 # 어울몰 작업현황
 
+## S5.2 승인 범위 내 판매자 클레임·관리자 리뷰 웹 분리 checkpoint — 2026-10-07
+
+- **판정/승인 경계:** PMO는 신규 구매확정 본인조회 GET이 신산님 직접 승인 대상이며 질문 제출·답변 대기 중이라고 확인했다. 따라서 아래 웹 절편의 안전 commit에는 GET/API 시험/고객 `support-line`과 그 시험을 포함하지 않는다. `git add -A`를 사용하지 않고 아래 파일만 선택 staging·`git diff --cached` 대상 확인 후 commit한다. 단일 writer, 공유 DB/Oracle/실 Provider/push/PR/merge 변경0.
+- **RED→GREEN/독립 변경:** 판매자 고객지원 화면에 본인 품목 seller snapshot 권한의 클레임 기본20·cursor 목록, 메시지/사건 이력, 비공개 증빙 권한 링크, 다중 답변의 안정적인 요청키 UI를 연결했다. 관리자는 새 `/account/admin/support/reviews`에서 PENDING 기본20·cursor 대기, 신고·수정 이력/이미지 비공개 preview ID를 확인하고 이미지 검사 승인 또는 사유 있는 숨김을 수행한다. scanner/파일 불가 503은 fail-closed 안내하고 공개 완료로 표시하지 않는다. 두 화면 부재 RED→정적 화면/소스 시험 **2/2 PASS**.
+- **검증/제약:** root typecheck/lint/build exit0, 전체 로컬 **444 total/312 pass/132 계획된 DB·환경 skip/0 fail**, PR 본문 8/8, `git diff --check` exit0. Next build에서 관리자 리뷰 route 생성 확인. 이 전체 gate는 승인 대기 GET 초안이 dirty에 공존한 상태에서 실행한 결과이며, GET 승인이나 실제 브라우저/DB 사용자 흐름 검증으로 해석하지 않는다. 독립 화면의 실제 브라우저·3역할/3 viewport·키보드, S5.2 signed fixture/reset은 여전히 남았다.
+
+## S5.2 구매확정 본인조회 신규 GET 승인 경계 — 2026-10-07
+
+- **판정/출처:** Main이 exact `f94a9a07b28ff7d85478582d5a077133dd8642c2`를 승인 SSH alias 기존 원격 작업 브랜치로 fast-forward push exit0 확인했다고 보고했다(main/PR 불변). 그 이후 writer가 제안한 `GET /customer/support/confirmations/:shipmentId/:optionId`는 기존 승인 HTTP 표에 없다는 Main의 승인 경계 통보를 받았다. PMO에 API 추가 승인 보고 중이며 신산님 승인 전달 전 이 GET·의존 고객 UI/시험은 **커밋/push 금지**다. writer는 push 권한을 행사하지 않는다.
+- **현재 보존:** 지정 worktree의 미커밋 `apps/api/src/support/confirmations.ts`, `confirmations.controller.ts`, `apps/api/test/support-confirmations-db.test.mjs`, `apps/web/app/account/customer/support-line.tsx`, `apps/web/test/customer-support-line.test.mjs`는 승인 대기 초안으로 보존한다. v6 격리 DB에서 GET 부재 404 RED→본인 200·타 고객404·판매자403·리뷰 상태 회복 GREEN 1/1을 확인했으나 **승인된 계약/완료 기능으로 판정하지 않는다**. 고객 화면은 아직 주문 페이지에 연결하지 않았다.
+- **독립 진행:** 승인된 POST 구매확정/리뷰/클레임, 판매자 클레임 답변, 관리자 리뷰 운영, signed fixture 설계·격리 브라우저 준비는 별도 파일·gate로 계속한다. 공유 WSL DB 신규 migration, Oracle, 실 Provider는 변경하지 않는다. GET 승인 여부 전달 시 채택/비채택 경로를 그 시점에 결정하고 WORK_STATUS에 기록한다.
+
 ## S5.2 구매 전 문의→판매자 답변→관리자 공개 웹 절편 — 2026-10-07
 
 - **판정/복구 ref:** Main이 exact `81280e3520e5427b8870623ad39ad1b11edc3d63`을 승인 SSH alias 기존 원격 작업 브랜치로 fast-forward push exit0 확인했다고 보고했다(main/PR 불변). 이는 Main 보고 기준 원격 복구 ref다. 단일 writer 지정 worktree 유지, push/PR/merge 없음. 공유 WSL DB 0016~0018 적용은 별도 정확 패킷과 PMO/신산님 승인 전 금지; 로컬 웹만 변경했다.

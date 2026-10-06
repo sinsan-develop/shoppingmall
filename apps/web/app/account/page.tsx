@@ -21,6 +21,7 @@ export function AccountRoleLinks({ role }: { role: Session['role'] }) {
     <a className="secondary-button" href="/account/admin/promotions">프로모션 관리</a>
     <a className="secondary-button" href="/account/admin/refunds">취소·환불 관리</a>
     <a className="secondary-button" href="/account/admin/support/questions">상품 문의 공개</a>
+    <a className="secondary-button" href="/account/admin/support/reviews">리뷰 신고·공개</a>
     <a className="secondary-button" href="/account/admin/support/claims">고객지원 클레임</a>
     <a className="primary-button" href="/account/admin/fulfillment">출고 운영 관리</a>
   </nav>;
