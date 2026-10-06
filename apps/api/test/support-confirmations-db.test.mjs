@@ -15,7 +15,7 @@ const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
 const fingerprint = 'a'.repeat(64);
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
 
-test('manual confirmation requires own paid SHIPPED line and reuses its idempotency key',
+test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claims',
   { skip: !systemId }, async () => {
     assert.equal(process.env.PGDATABASE, name);
     const pool = new Pool();
@@ -55,7 +55,7 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
       await client.query(`INSERT INTO product_publications
         (product_id,revision_id,published_by_account_id) VALUES ($1,$2,$3)`,
       [product, revision, fulfillmentAccount]);
-      const makeShipment = async (owner, status) => {
+      const makeShipment = async (owner, status, quantity = 1, preRefundQuantity = 0) => {
         const address = (await client.query(`INSERT INTO customer_addresses
           (account_id,label,recipient_name,phone,postal_code,line1)
           VALUES ($1,'시험','가상고객','01000000000','12345','가상 주소') RETURNING id`,
@@ -66,26 +66,45 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
             now()+interval '1 hour',now()-interval '1 hour') RETURNING id`,
         [owner, randomUUID()])).rows[0].id;
         await client.query(`INSERT INTO checkout_reservation_lines(reservation_id,option_id,quantity)
-          VALUES ($1,$2,1)`, [reservation, option]);
+          VALUES ($1,$2,$3)`, [reservation, option, quantity]);
         const orderId = (await client.query(`INSERT INTO checkout_orders
           (account_id,reservation_id,idempotency_key,request_fingerprint,address_id,
            recipient_name,phone,postal_code,line1,goods_won,goods_discount_won,
            shipping_fee_won,shipping_support_won,payable_won,status,
            created_at,expires_at,ended_at,paid_at)
           VALUES ($1,$2,$3,$4,$5,'가상고객','01000000000','12345','가상 주소',
-            10000,0,0,0,10000,'PAID',now()-interval '2 hours',
+            $6,0,0,0,$6,'PAID',now()-interval '2 hours',
             now()+interval '1 hour',now()-interval '1 hour',now()-interval '1 hour')
-          RETURNING id`, [owner, reservation, randomUUID(), fingerprint, address])).rows[0].id;
+          RETURNING id`, [owner, reservation, randomUUID(), fingerprint, address,
+          quantity * 10000])).rows[0].id;
         const shipmentId = (await client.query(`INSERT INTO shipment_orders
           (checkout_order_id,shipment_key,shipping_mode,seller_id,goods_won,goods_discount_won,
            shipping_fee_won,shipping_support_won,payable_won,status)
-          VALUES ($1,$2,'owool_fulfillment',NULL,10000,0,0,0,10000,'PAID') RETURNING id`,
-        [orderId, `owool:${randomUUID()}`])).rows[0].id;
+          VALUES ($1,$2,'owool_fulfillment',NULL,$3,0,0,0,$3,'PAID') RETURNING id`,
+        [orderId, `owool:${randomUUID()}`, quantity * 10000])).rows[0].id;
         await client.query(`INSERT INTO shipment_order_lines
           (shipment_order_id,product_id,option_id,seller_id,product_name,option_name,
            unit_price_won,quantity,goods_discount_won,goods_payable_won)
-          VALUES ($1,$2,$3,$4,'구매확정 상품','기본',10000,1,0,10000)`,
-        [shipmentId, product, option, productSeller]);
+          VALUES ($1,$2,$3,$4,'구매확정 상품','기본',10000,$5,0,$6)`,
+        [shipmentId, product, option, productSeller, quantity, quantity * 10000]);
+        if (preRefundQuantity) {
+          const preCase = (await client.query(`INSERT INTO refund_cases
+            (checkout_order_id,shipment_order_id,requester_account_id,requester_role,
+             reason_code,reason,pre_shipment_evidence,pre_shipment_confirmed_by,
+             pre_shipment_confirmed_at,idempotency_key,request_fingerprint,
+             goods_refund_won,total_refund_won,status,decided_at,completed_at,
+             decision_by,decision_reason,decision_idempotency_key,decision_fingerprint)
+            VALUES ($1,$2,$3,'customer','customer_request','PRE partial QA',
+              'ADMIN_CONFIRMED_NOT_DISPATCHED',$4,now()-interval '45 minutes',
+              $5,$6,$7,$7,'REFUNDED',now()-interval '44 minutes',
+              now()-interval '43 minutes',$4,'PRE approved',$8,$6) RETURNING id`,
+          [orderId, shipmentId, owner, fulfillmentAccount, randomUUID(), fingerprint,
+          preRefundQuantity * 10000, randomUUID()])).rows[0].id;
+          await client.query(`INSERT INTO refund_case_lines
+            (refund_case_id,shipment_order_id,option_id,quantity,goods_refund_won)
+            VALUES ($1,$2,$3,$4,$5)`,
+          [preCase, shipmentId, option, preRefundQuantity, preRefundQuantity * 10000]);
+        }
         if (status === 'READY') {
           await client.query(`INSERT INTO shipment_fulfillments
             (shipment_order_id,fulfillment_seller_id,status,expected_ship_date)
@@ -468,6 +487,93 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
       assert.equal(publicSecond.items.length, 1);
       assert.notEqual(publicSecond.items[0].id, publicFirst.items[0].id);
       assert.equal(publicSecond.nextCursor, null);
+      const claims = await import('../src/support/claims.ts').catch(() => ({}));
+      assert.equal(typeof claims.createClaim, 'function', 'claim DB service must exist');
+      const claimInput = { customerAccountId: customer, orderId: shipped.orderId,
+        shipmentOrderId: shipped.shipmentId, optionId: option, kind: 'RETURN',
+        reasonCode: 'damaged', reason: '받은 품목이 훼손됨', quantity: 1,
+        idempotencyKey: randomUUID() };
+      await assert.rejects(() => claims.createClaim(client, {
+        ...claimInput, orderId: ready.orderId, shipmentOrderId: ready.shipmentId,
+        idempotencyKey: randomUUID(),
+      }), /Support unavailable/, 'READY cannot become a post-shipment claim');
+      await assert.rejects(() => claims.createClaim(client, {
+        ...claimInput, orderId: foreign.orderId, shipmentOrderId: foreign.shipmentId,
+        idempotencyKey: randomUUID(),
+      }), /Support unavailable/, 'foreign SHIPPED line must stay hidden');
+      const claim = await claims.createClaim(client, claimInput);
+      assert.equal(claim.status, 'REQUESTED');
+      assert.equal((await claims.createClaim(client, claimInput)).id, claim.id);
+      await assert.rejects(() => claims.createClaim(client,
+        { ...claimInput, reason: '다른 내용' }), /Support conflict/);
+      await assert.rejects(() => claims.createClaim(client,
+        { ...claimInput, idempotencyKey: randomUUID() }), /Support conflict/,
+      'an active full-quantity claim must block a second claim on the same line');
+      const claimRow = (await client.query(`SELECT seller_id,product_id,
+        checkout_order_id,shipment_order_id,customer_account_id FROM support_claims
+        WHERE id=$1`, [claim.id])).rows[0];
+      assert.deepEqual(claimRow, { seller_id: productSeller, product_id: product,
+        checkout_order_id: shipped.orderId, shipment_order_id: shipped.shipmentId,
+        customer_account_id: customer });
+      assert.deepEqual((await client.query(`SELECT action FROM support_claim_events
+        WHERE claim_id=$1 ORDER BY event_seq`, [claim.id])).rows.map((row) => row.action),
+      ['REQUESTED']);
+      assert.deepEqual((await client.query(`SELECT author_role,body FROM support_claim_messages
+        WHERE claim_id=$1 ORDER BY message_seq`, [claim.id])).rows,
+      [{ author_role: 'customer', body: claimInput.reason }]);
+      const partiallyRefunded = await makeShipment(customer, 'SHIPPED', 2, 1);
+      const originalAmounts = (await client.query(`SELECT id,goods_won,payable_won
+        FROM shipment_orders WHERE id=ANY($1::uuid[]) ORDER BY id`,
+      [[shipped.shipmentId, partiallyRefunded.shipmentId]])).rows;
+      const originalPre = (await client.query(`SELECT status,goods_refund_won,
+        shipping_refund_won,total_refund_won,pre_shipment_evidence,completed_at
+        FROM refund_cases WHERE shipment_order_id=$1 AND post_shipment_claim_id IS NULL`,
+      [partiallyRefunded.shipmentId])).rows;
+      const remainingInput = { ...claimInput, orderId: partiallyRefunded.orderId,
+        shipmentOrderId: partiallyRefunded.shipmentId,
+        idempotencyKey: randomUUID() };
+      await assert.rejects(() => claims.createClaim(client,
+        { ...remainingInput, quantity: 2 }), /Support conflict/,
+      'PRE refunded quantity must be excluded from POST claim capacity');
+      const remainingClaim = await claims.createClaim(client,
+        { ...remainingInput, quantity: 1 });
+      assert.equal(remainingClaim.status, 'REQUESTED');
+      assert.deepEqual((await client.query(`SELECT c.status,l.quantity
+        FROM refund_cases c JOIN refund_case_lines l ON l.refund_case_id=c.id
+        WHERE c.shipment_order_id=$1 AND c.post_shipment_claim_id IS NULL`,
+      [partiallyRefunded.shipmentId])).rows,
+      [{ status: 'REFUNDED', quantity: 1 }], 'PRE refund row must remain unchanged');
+      assert.deepEqual((await client.query(`SELECT status,goods_refund_won,
+        shipping_refund_won,total_refund_won,pre_shipment_evidence,completed_at
+        FROM refund_cases WHERE shipment_order_id=$1 AND post_shipment_claim_id IS NULL`,
+      [partiallyRefunded.shipmentId])).rows, originalPre);
+      assert.deepEqual((await client.query(`SELECT id,goods_won,payable_won
+        FROM shipment_orders WHERE id=ANY($1::uuid[]) ORDER BY id`,
+      [[shipped.shipmentId, partiallyRefunded.shipmentId]])).rows, originalAmounts);
+      const claimPath = '/customer/support/claims';
+      const claimBody = { orderId: httpShipment.orderId,
+        shipmentOrderId: httpShipment.shipmentId, optionId: option,
+        kind: 'EXCHANGE', reasonCode: 'wrong_delivery',
+        reason: '잘못 온 품목', quantity: 1 };
+      const claimKey = randomUUID();
+      const claimRequest = (actor, requestBody, requestKey = claimKey,
+        origin = 'http://127.0.0.1:9091') => fetch(base + claimPath, {
+        method: 'POST', headers: { cookie: cookies.get(actor), origin,
+          'content-type': 'application/json', 'idempotency-key': requestKey },
+        body: JSON.stringify(requestBody),
+      });
+      assert.equal((await claimRequest(customer, claimBody, claimKey,
+        'http://evil.invalid')).status, 403);
+      assert.equal((await claimRequest(fulfillmentAccount, claimBody)).status, 403);
+      assert.equal((await claimRequest(otherCustomer, claimBody)).status, 404);
+      const claimCreated = await claimRequest(customer, claimBody);
+      assert.equal(claimCreated.status, 200);
+      const httpClaim = await claimCreated.json();
+      assert.equal(httpClaim.status, 'REQUESTED');
+      assert.equal((await (await claimRequest(customer, claimBody)).json()).id, httpClaim.id);
+      assert.equal((await claimRequest(customer, { ...claimBody,
+        reason: '다른 요청' })).status, 409);
+      assert.equal((await claimRequest(customer, claimBody, randomUUID())).status, 409);
     } finally {
       if (app) await app.close();
       await client.query('ROLLBACK');
