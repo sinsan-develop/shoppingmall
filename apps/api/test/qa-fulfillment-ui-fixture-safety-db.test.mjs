@@ -25,7 +25,11 @@ test('fulfillment fixture refuses a foreign identity and leaves it intact, then 
         systemId,
         databaseName: fulfillmentUiDatabaseName(runId),
       });
-      manifest = await runFulfillmentUiFixture('seed', runId, databaseUrl, password);
+      await assert.rejects(
+        runFulfillmentUiFixture('seed', runId, databaseUrl, password, undefined, '999999999999'),
+        /system identifier|target/i,
+      );
+      manifest = await runFulfillmentUiFixture('seed', runId, databaseUrl, password, undefined, systemId);
       assert.equal(manifest.accountIds.length, 5);
       assert.equal(manifest.sellerIds.length, 3);
       assert.equal(manifest.orderIds.length, 3);
@@ -35,7 +39,7 @@ test('fulfillment fixture refuses a foreign identity and leaves it intact, then 
       await pool.query(`INSERT INTO account_identities(id,account_id,kind,identifier)
         VALUES ($1,$2,'email',$3)`, [randomUUID(), manifest.accountIds[0], foreignIdentifier]);
       await assert.rejects(
-        runFulfillmentUiFixture('reset', runId, databaseUrl, undefined, JSON.stringify(manifest)),
+        runFulfillmentUiFixture('reset', runId, databaseUrl, password, JSON.stringify(manifest), systemId),
         /foreign|ownership/i,
       );
       assert.equal((await pool.query('SELECT count(*)::int AS count FROM account_identities WHERE identifier=$1',
@@ -44,8 +48,23 @@ test('fulfillment fixture refuses a foreign identity and leaves it intact, then 
         [manifest.orderIds])).rows[0].count, 3);
 
       await pool.query('DELETE FROM account_identities WHERE identifier=$1', [foreignIdentifier]);
+      const foreignCategoryId = (await pool.query(
+        'INSERT INTO product_categories(name) VALUES ($1) RETURNING id',
+        [`qa-${runId}-fulfillment-foreign-category`])).rows[0].id;
+      await pool.query(`INSERT INTO audit_events
+        (actor_account_id,active_role,action,target_type,target_id)
+        VALUES ($1,'customer','qa.foreign','account',$2)`, [manifest.accountIds[0], randomUUID()]);
+      await assert.rejects(
+        runFulfillmentUiFixture('reset', runId, databaseUrl, password, JSON.stringify(manifest), systemId),
+        /foreign|ownership/i,
+      );
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM product_categories WHERE id=$1',
+        [foreignCategoryId])).rows[0].count, 1);
+      await pool.query("DELETE FROM audit_events WHERE action='qa.foreign' AND actor_account_id=$1",
+        [manifest.accountIds[0]]);
+      await pool.query('DELETE FROM product_categories WHERE id=$1', [foreignCategoryId]);
       const reset = await runFulfillmentUiFixture(
-        'reset', runId, databaseUrl, undefined, JSON.stringify(manifest));
+        'reset', runId, databaseUrl, password, JSON.stringify(manifest), systemId);
       assert.deepEqual(reset, { accounts: 5, sellers: 3, products: 3, orders: 3, shipments: 3 });
 
       const emails = fulfillmentUiEmails(runId);
@@ -58,8 +77,8 @@ test('fulfillment fixture refuses a foreign identity and leaves it intact, then 
       manifest = undefined;
     } finally {
       if (manifest) {
-        await runFulfillmentUiFixture('reset', runId, databaseUrl, undefined,
-          JSON.stringify(manifest)).catch(() => undefined);
+        await runFulfillmentUiFixture('reset', runId, databaseUrl, password,
+          JSON.stringify(manifest), systemId).catch(() => undefined);
       }
       await pool.end();
     }

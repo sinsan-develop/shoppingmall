@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 실제 RED 준비 — 2026-10-06 S5.1 Task9 독립 리뷰 C1/I6/M0 보정
+
+- **판정:** exact `3f222a50d206567ec0488cafeb50b6cf254461de` 읽기 전용 독립 리뷰는 **Critical 1 / Important 6 / Minor 0**이다. 실제 브라우저 실행 승인 요청 전에 모두 해소해야 하며 private DB 앞선 1/1 PASS만으로 안전·브라우저 gate를 통과 처리하지 않는다.
+- **고정할 RED:** fixture 실행 자체의 DB system identifier 강제, password-HMAC creation manifest와 seller/product category ID 포함, manifest 밖 category·audit 보존/거부, 자식 FK parent 잠금과 짧은 audit 잠금, 임의 singleton 원복값 위조 거부를 요구한다. 브라우저는 exact loopback Web/CDP와 run-bound consent·서명 manifest만 허용하고, 실제 Tab 순회 수를 검증하며 page/socket 생성 실패도 정리 경계 안에 둔다.
+- **정리 책임 구분:** browser runner는 자신이 만든 CDP page/socket을 항상 닫는다. 외부 실행 orchestration은 fixture reset·업무행0 확인, WSL container/network/API/Web·SSH tunnel, Windows Chrome process/profile/evidence 임시폴더를 `finally/trap`에서 정확한 이름으로 정리한다. 이 구분을 실제 실행 보고와 문서에 명시하며 runner 단독이 전체 자원을 정리한다고 주장하지 않는다.
+- **다음 조치:** 위 요구를 시험으로 실제 RED 고정→최소 GREEN→local/private DB 재검증→독립 재리뷰 C0/I0 순으로 진행한다. 그 전에는 PMO에 실제 browser 실행 요청을 보내지 않는다.
+- **실제 RED:** 대상 명령은 **3 tests / 0 pass / 2 fail / 1 private-DB skip, exit 1**이다. API 시험은 서명 함수·system target validator export 부재로 module load가 실패했고, Web 계약 시험은 run-bound consent·exact loopback·서명 manifest·전체 Tab 순회·초기 생성 실패 정리 계약 부재를 재현했다. 기존 제품 회귀 실패가 아니라 독립 리뷰 안전 요구의 의도한 RED다.
+
 ## 착수 — 2026-10-06 S5.1 Task9 격리 출고 브라우저 fixture·실행계약
 
 - **판정·범위:** Task8 검증 기준 `279b16ba41f4485e9f235b43ab0f59500dbd26f6`에서 Task9를 착수한다. 고유 8자리 `QA_RUN_ID`와 정확한 `shoppingmall_s5_fulfillment_ui_<runid>` 전용 DB, 가상 고객·판매자A/B·어울몰 판매자·관리자와 가상 운송장만 허용한다.
@@ -19,6 +27,13 @@
 - **다음 조치:** 후보를 안전한 commit으로 보존·별칭 원격에 push한 뒤, WSL 비공개 network `shoppingmall-s51-task9-1006`와 tmpfs PostgreSQL `shoppingmall-s51-task9-pg-1006`, DB `shoppingmall_s5_fulfillment_ui_f5101006`에서 migration 0000~0015, 외부 identity 삭제 거부, 정상 reset 잔류0을 검증한다. 사용 즉시 정확한 컨테이너·network·cache를 제거한다.
 - **실DB 첫 오류·조치:** 첫 WSL tmpfs 실행은 migration **16건** 적용 뒤 fixture 시험이 seed 전에 `Expected isolated S3 QA database`로 중단됐다. 원인은 기존 `assertOrderMutationQaTarget`이 S3 전용으로 DB 이름 `shoppingmall`만 허용하는 데 있었다. 새 S5 시험은 정확한 `shoppingmall_s5_fulfillment_ui_<runid>`와 전달된 system identifier를 직접 대조하도록 보정한다. 제품·DB 자료 변경은 없고 종료 trap으로 컨테이너·network는 잔류 0, WSL checkout은 clean이다. 동일 근본 원인 1회다.
 - **실DB 둘째 오류·조치:** S5 전용 target 대조 뒤 seed와 의도한 외부 identity 거부까지 진행했지만 정상 reset 사전검사 SQL이 `restock_subscriptions.option_id`라는 존재하지 않는 열을 조회해 중단됐다. 실제 schema의 참조는 `product_id`이므로 외부 재입고 신청 검사를 QA `productIds`에 묶어 보정한다. 종료 trap으로 private 컨테이너·network는 다시 잔류 0이며, 첫 오류와 다른 근본 원인 1회다.
+
+## private DB GREEN — 2026-10-06 S5.1 Task9 fixture 안전 검증
+
+- **판정·기준:** exact commit `3f222a50d206567ec0488cafeb50b6cf254461de`를 승인된 SSH alias로 WSL 지정 checkout에 fast-forward했다. 비공개 network `shoppingmall-s51-task9-1006`, tmpfs PostgreSQL 18 `shoppingmall-s51-task9-pg-1006`, DB `shoppingmall_s5_fulfillment_ui_f5101006`에서만 시험했으며 공유 `local-postgres/shoppingmall`은 접속·변경하지 않았다.
+- **실제 DB 증거:** 정식 migration runner로 **0000~0015 / Drizzle 16건**을 적용했고 PostgreSQL system identifier `7693441491838476333`과 정확한 DB 이름을 대조했다. fixture seed 뒤 QA 고객 계정에 별도 foreign identity를 추가하면 reset이 삭제 전에 거부하고 identity·주문 3건을 그대로 보존했다. 외부 identity를 제거한 뒤 같은 creation manifest로 정상 reset해 시험 1/1 PASS를 확인했다.
+- **잔류·정리:** reset 후 `migration|accounts|sellers|products|checkout_orders|shipment_orders|shipment_fulfillments|fulfillment_settings`는 **16|0|0|0|0|0|0|1**이다. 종료 trap 후 전용 PostgreSQL 컨테이너·network 출력 0, `.pnpm-store` 부재, WSL checkout `3f222a5` clean을 확인했다. 영속 volume·외부 공개 port는 만들지 않았다.
+- **미검증·다음:** 실제 Chrome 고객·판매자·관리자 흐름과 화면 증거는 아직 실행하지 않았다. 읽기 전용 독립 리뷰에서 C0/I0를 확인하고, PMO에 정확한 isolated browser 실행 자원·변경·정리 계획을 보고해 별도 실행 경계를 해소한 뒤 수행한다. 공유 DB seed/write, 실제 배송·PG·문자·메일·푸시, Oracle/UAT는 계속 제외한다.
 
 ## 검증 완료 — 2026-10-06 S5.1 Task8 역할별 출고 화면·독립 리뷰 보정
 

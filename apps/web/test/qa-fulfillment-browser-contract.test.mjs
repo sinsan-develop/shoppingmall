@@ -12,5 +12,13 @@ test('fulfillment browser runner covers three roles, three viewports and keyboar
   assert.match(source, /scrollWidth/);
   assert.match(source, /QA_FIXTURE_JSON/);
   assert.match(source, /QA_CHROME_DEBUGGING/);
+  assert.match(source, /S5_ISOLATED_FULFILLMENT_/);
+  assert.match(source, /http:\/\/127\.0\.0\.1:9091/);
+  assert.match(source, /http:\/\/127\.0\.0\.1:9229/);
+  assert.match(source, /validateFulfillmentUiManifest/);
+  assert.match(source, /visibleFocusables/);
+  assert.match(source, /visited\.size/);
+  assert.match(source, /let page/);
+  assert.match(source, /finally/);
   assert.doesNotMatch(source, /sms|email provider|push provider|payment provider/i);
 });

@@ -3,7 +3,9 @@ import test from 'node:test';
 import {
   fulfillmentUiDatabaseName,
   fulfillmentUiEmails,
+  signFulfillmentUiManifest,
   validateFulfillmentUiManifest,
+  validateFulfillmentUiSystemTarget,
   validateFulfillmentUiTarget,
 } from '../scripts/qa-fulfillment-ui-fixture.ts';
 
@@ -32,11 +34,14 @@ test('fulfillment browser fixture is bound to one exact isolated database and fi
 
 test('fulfillment reset manifest must identify every created role, seller, order and shipment', () => {
   const runId = 'a1b2c3d4';
-  const manifest = {
+  const password = 'test-only-password-12345';
+  const unsigned = {
     runId,
     emails: fulfillmentUiEmails(runId),
     accountIds: ['1', '2', '3', '4', '5'].map(uuid),
     sellerIds: ['6', '7', '8'].map(uuid),
+    sellerCategoryId: uuid('f'),
+    productCategoryIds: ['1', '2', '3', '4', '5'].map(uuid),
     productIds: ['9', 'a', 'b'].map(uuid),
     revisionIds: ['c', 'd', 'e'].map(uuid),
     optionIds: ['f', '1', '2'].map(uuid),
@@ -51,8 +56,27 @@ test('fulfillment reset manifest must identify every created role, seller, order
       updatedAt: '2026-10-06T00:00:00.000Z',
     },
   };
-  assert.deepEqual(validateFulfillmentUiManifest(runId, manifest), manifest);
-  assert.throws(() => validateFulfillmentUiManifest(runId, { ...manifest, accountIds: manifest.accountIds.slice(1) }));
-  assert.throws(() => validateFulfillmentUiManifest(runId, { ...manifest, emails: manifest.emails.slice(1) }));
-  assert.throws(() => validateFulfillmentUiManifest(runId, { ...manifest, shipmentIds: [uuid('9')] }));
+  const manifest = { ...unsigned, signature: signFulfillmentUiManifest(unsigned, password) };
+  assert.deepEqual(validateFulfillmentUiManifest(runId, manifest, password), manifest);
+  assert.throws(() => validateFulfillmentUiManifest(runId,
+    { ...manifest, accountIds: manifest.accountIds.slice(1) }, password));
+  assert.throws(() => validateFulfillmentUiManifest(runId,
+    { ...manifest, emails: manifest.emails.slice(1) }, password));
+  assert.throws(() => validateFulfillmentUiManifest(runId,
+    { ...manifest, shipmentIds: [uuid('9')] }, password));
+  assert.throws(() => validateFulfillmentUiManifest(runId,
+    { ...manifest, previousFulfillmentSetting: { ...manifest.previousFulfillmentSetting, version: 9 } }, password));
+  assert.throws(() => validateFulfillmentUiManifest(runId, manifest, 'another-test-password'));
+});
+
+test('fulfillment fixture runtime target requires the exact private database and system identifier', () => {
+  assert.deepEqual(validateFulfillmentUiSystemTarget('a1b2c3d4', '123456789012', {
+    databaseName: 'shoppingmall_s5_fulfillment_ui_a1b2c3d4', systemId: '123456789012',
+  }), { databaseName: 'shoppingmall_s5_fulfillment_ui_a1b2c3d4', systemId: '123456789012' });
+  assert.throws(() => validateFulfillmentUiSystemTarget('a1b2c3d4', undefined, {
+    databaseName: 'shoppingmall_s5_fulfillment_ui_a1b2c3d4', systemId: '123456789012',
+  }));
+  assert.throws(() => validateFulfillmentUiSystemTarget('a1b2c3d4', '999999999999', {
+    databaseName: 'shoppingmall_s5_fulfillment_ui_a1b2c3d4', systemId: '123456789012',
+  }));
 });
