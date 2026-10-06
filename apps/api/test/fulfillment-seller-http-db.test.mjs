@@ -295,6 +295,77 @@ function promiseBarrier(parties) {
   };
 }
 
+async function observeTransitionLockPair(pool, blockerPid, deadlineMs = 10_000) {
+  const deadline = Date.now() + deadlineMs;
+  let lastObserved = [];
+  while (Date.now() < deadline) {
+    lastObserved = (await pool.query(`SELECT a.pid,a.wait_event_type AS "waitEventType",
+      a.wait_event AS "waitEvent",pg_blocking_pids(a.pid) AS "blockingPids",
+      EXISTS (SELECT 1 FROM pg_locks l WHERE l.pid=a.pid AND NOT l.granted)
+        AS "hasPendingLock",
+      CASE
+        WHEN a.query ~* 'FOR[[:space:]]+UPDATE[[:space:]]+OF[[:space:]]+f'
+          THEN 'fulfillment'
+        WHEN a.query ~* 'FOR[[:space:]]+UPDATE[[:space:]]+OF[[:space:]]+s'
+          THEN 'shipment'
+        ELSE 'other'
+      END AS "waitTarget"
+      FROM pg_stat_activity a
+      WHERE a.datname=current_database() AND a.backend_type='client backend'
+        AND a.pid<>$1 AND a.state='active' AND a.wait_event_type='Lock'
+        AND a.query ILIKE '%shipment_fulfillments%'
+        AND (a.query ~* 'FOR[[:space:]]+UPDATE[[:space:]]+OF[[:space:]]+f'
+          OR a.query ~* 'FOR[[:space:]]+UPDATE[[:space:]]+OF[[:space:]]+s')`,
+    [blockerPid])).rows;
+    const fulfillmentWait = lastObserved.find((row) => row.waitTarget === 'fulfillment' &&
+      row.hasPendingLock && row.blockingPids.includes(blockerPid));
+    const shipmentWait = fulfillmentWait && lastObserved.find((row) =>
+      row.waitTarget === 'shipment' && row.hasPendingLock &&
+      row.blockingPids.includes(fulfillmentWait.pid));
+    if (fulfillmentWait && shipmentWait) return [fulfillmentWait, shipmentWait];
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.fail(`two transition backends did not reach PostgreSQL lock waits: ${JSON.stringify(
+    lastObserved,
+  )}`);
+}
+
+async function runBehindFulfillmentRowLock(pool, shipmentId, requestFactories) {
+  const blocker = await pool.connect();
+  let transactionOpen = false;
+  let pending;
+  try {
+    await blocker.query('BEGIN');
+    transactionOpen = true;
+    const blockerPid = (await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+    const locked = await blocker.query(`SELECT shipment_order_id FROM shipment_fulfillments
+      WHERE shipment_order_id=$1 FOR UPDATE`, [shipmentId]);
+    assert.equal(locked.rowCount, 1);
+
+    const arrive = promiseBarrier(requestFactories.length);
+    pending = Promise.all(requestFactories.map(async (request) => {
+      await arrive();
+      return request();
+    }));
+    void pending.catch(() => {});
+    const waits = await observeTransitionLockPair(pool, blockerPid);
+
+    await blocker.query('COMMIT');
+    transactionOpen = false;
+    return { results: await pending, waits };
+  } catch (error) {
+    if (transactionOpen) {
+      await blocker.query('ROLLBACK').catch(() => {});
+      transactionOpen = false;
+    }
+    if (pending) await Promise.allSettled([pending]);
+    throw error;
+  } finally {
+    if (transactionOpen) await blocker.query('ROLLBACK').catch(() => {});
+    blocker.release();
+  }
+}
+
 async function fulfillmentWriteCounts(pool, shipmentId) {
   return (await pool.query(`SELECT f.version,
     (SELECT count(*)::int FROM shipment_fulfillment_events e
@@ -500,13 +571,15 @@ test('seller fulfillment HTTP scopes paid work, exposes minimum detail and persi
       const shipmentId = fixture.sellerAOrders[0].shipmentId;
       const body = { targetStatus: 'PACKING', expectedVersion: 0 };
       const keys = [randomUUID(), randomUUID()];
-      const arrive = promiseBarrier(2);
-      const results = await Promise.all(keys.map(async (key) => {
-        await arrive();
-        const response = await transition(base, shipmentId, body, cookies.sellerA, key);
-        return { status: response.status, payload: await response.json() };
-      }));
+      const { results, waits } = await runBehindFulfillmentRowLock(pool, shipmentId,
+        keys.map((key) => async () => {
+          const response = await transition(base, shipmentId, body, cookies.sellerA, key);
+          return { status: response.status, payload: await response.json() };
+        }));
 
+      assert.deepEqual(waits.map(({ waitTarget }) => waitTarget).sort(), ['fulfillment', 'shipment']);
+      assert.equal(waits.every(({ waitEventType, hasPendingLock }) =>
+        waitEventType === 'Lock' && hasPendingLock), true);
       assert.deepEqual(results.map(({ status }) => status).sort((left, right) => left - right),
         [200, 409], JSON.stringify(results));
       const winner = results.find(({ status }) => status === 200);
@@ -521,13 +594,15 @@ test('seller fulfillment HTTP scopes paid work, exposes minimum detail and persi
       const shipmentId = fixture.sellerAOrders[20].shipmentId;
       const body = { targetStatus: 'PACKING', expectedVersion: 0 };
       const key = randomUUID();
-      const arrive = promiseBarrier(2);
-      const results = await Promise.all([0, 1].map(async () => {
-        await arrive();
-        const response = await transition(base, shipmentId, body, cookies.sellerA, key);
-        return { status: response.status, payload: await response.json() };
-      }));
+      const { results, waits } = await runBehindFulfillmentRowLock(pool, shipmentId,
+        [0, 1].map(() => async () => {
+          const response = await transition(base, shipmentId, body, cookies.sellerA, key);
+          return { status: response.status, payload: await response.json() };
+        }));
 
+      assert.deepEqual(waits.map(({ waitTarget }) => waitTarget).sort(), ['fulfillment', 'shipment']);
+      assert.equal(waits.every(({ waitEventType, hasPendingLock }) =>
+        waitEventType === 'Lock' && hasPendingLock), true);
       assert.deepEqual(results.map(({ status }) => status), [200, 200], JSON.stringify(results));
       assert.deepEqual(results[1].payload, results[0].payload);
       assert.equal(results[0].payload.status, 'PACKING');
