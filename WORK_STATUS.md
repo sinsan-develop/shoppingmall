@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.2 공개 리뷰·고객 신고 웹 checkpoint — 2026-10-07
+
+- **판정/복구 ref:** Main이 exact `39d66a5eeb403ae88842b3efc5f9d83caa9a2ab1`을 승인 SSH alias 기존 원격 작업 브랜치로 fast-forward push exit0 확인했다고 보고했다(main/PR 불변). 구매확정 신규 GET 직접 승인 답변은 아직 미수신이므로 그 API·시험·의존 고객 `support-line`은 미커밋 보존하고 이 절편의 선택 staging에서 제외한다. 공유 DB/Oracle/실 Provider 및 push/PR/merge 변경0.
+- **RED→GREEN/독립 변경:** 승인된 공개 상품 상세에 `GET /catalog/products/:productId/customer-reviews` 기본20·cursor 리뷰 목록, 승인 공개 이미지 전용 route, 로그인 고객 `POST /customer/support/reviews/:reviewId/reports` 신고 사유 UI를 연결했다. 승인 후 리뷰만 보이는 최종 경계·이미지 scan PASS/파일 hash 검증·비공개 증빙 분리는 기존 API가 시행한다. 화면은 `cache:no-store` 조회와 수동 새로고침을 제공하며 숨김/공개 철회 뒤 API 재조회 시 목록에서 제외된다. 새 화면 부재 RED→정적 렌더/소스 계약 **1/1 PASS**. 첫 GREEN 시도에서는 기존 `PublicImage`가 SSR에 이미지 URL 대신 로딩 표시를 내므로 잘못된 테스트 기대값 1회 실패; 렌더 표시와 공개 route 소스 검사를 분리해 교정했다.
+- **검증/미검증:** 로컬 전체 `pnpm test` **447 total/315 pass/132 계획된 DB·환경 skip/0 fail**, PR 본문 8/8, root typecheck/lint/build exit0. 이는 웹 정적/소스 및 이전 격리 API gate 근거이며 실제 브라우저의 신고·이미지 표시/숨김 실시간 관찰, 3역할/3 viewport·키보드, S5.2 signed fixture/reset을 아직 검증하지 않았다. 운영 Object Storage/실 ClamAV/공유 DB 정식 QA 완료 주장 아님. 신규 QA 자원0; 기존 v6/전용 자원은 후속 격리 QA 중 유지 후 정확 정리한다.
+
 ## S5.2 승인 범위 내 고객 클레임 웹 checkpoint — 2026-10-07
 
 - **판정/복구 ref:** Main이 exact `8d71513af91ab158e004dd181e198b75fa7dfec4`를 승인 SSH alias의 기존 원격 작업 브랜치로 fast-forward push exit0 확인했다고 보고했다(main/PR 불변). 이 writer는 push/PR/merge를 하지 않았다. 신규 구매확정 본인조회 GET은 신산님 직접 승인 답변 대기이며 해당 API·시험·의존 `support-line` UI는 이번 선택 staging/commit에서 제외하고 미커밋 보존한다. 공유 WSL DB migration·Oracle·실 Provider 변경0.
