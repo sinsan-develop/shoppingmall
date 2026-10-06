@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.2 구매 전 문의→판매자 답변→관리자 공개 웹 절편 — 2026-10-07
+
+- **판정/복구 ref:** Main이 exact `81280e3520e5427b8870623ad39ad1b11edc3d63`을 승인 SSH alias 기존 원격 작업 브랜치로 fast-forward push exit0 확인했다고 보고했다(main/PR 불변). 이는 Main 보고 기준 원격 복구 ref다. 단일 writer 지정 worktree 유지, push/PR/merge 없음. 공유 WSL DB 0016~0018 적용은 별도 정확 패킷과 PMO/신산님 승인 전 금지; 로컬 웹만 변경했다.
+- **RED→GREEN:** 상품 상세에는 주문/출고 ID 없이 `productId,text`만 쓰는 구매 전 문의와 관리자 공개 승인된 Q&A 조회를 추가했다. 판매자 `/account/seller/support`는 실제 seller session scope의 기본20·cursor 문의 목록, 답변 ID·다중 이력과 안정적인 UUID 재시도 답변을 제공한다. 관리자 `/account/admin/support/questions`는 `ANSWERED` 대기 기본 필터/상세에서 판매자 답변 ID·사건을 확인하고 한 답변을 선택해 질문+답변을 공개한다. 세 역할 동선의 계정 메뉴 링크를 추가했다. seller/owool 공동출고 소유 판단은 UI가 아닌 기존 API의 상품 seller snapshot 권한을 따른다. 웹 페이지 부재 RED→구조/계약 시험 **3/3 pass**.
+- **검증/제약:** 전체 로컬 `pnpm test` **441 total/309 pass/132 계획된 DB·환경 skip/0 fail**, PR 본문 8/8, root typecheck/lint/build 및 `git diff --check` exit0. Next build에서 seller/admin 신규 route 생성 확인. Q&A 공개와 답변 다중 이력의 실제 DB/HTTP 근거는 이전 격리 v6 시험이며 이번 화면은 정적 렌더/소스 계약만 검증했다. 실제 브라우저·쿠키/3역할 사용자 흐름은 아직 미검증이다. React 지침에 따라 역할별 인증 후 목록을 로드하고 기본20·cursor/중복 append 방지, 성공 이후 목록 새로고침 실패와 원 요청 실패를 분리했다.
+- **다음/자원:** 고객 본인 구매확정·리뷰·클레임 웹, 판매자 클레임 답변·관리자 리뷰 운영, S5.2 전용 signed fixture/reset·실제 브라우저/3 viewport/키보드, 최종 Stage gate가 남았다. 새 QA DB/컨테이너 없음. 기존 v6/전용 컨테이너·네트워크는 후속 격리 QA 중 유지하고 최종 정확 정리한다.
+
 ## S5.2 관리자 클레임 웹 첫 절편 — 2026-10-07
 
 - **판정/복구 ref:** Main이 exact `d64925f95e9e4688987feabd3d319a8e8fc8d771`을 승인 SSH alias 기존 작업 브랜치로 fast-forward push exit0 확인했다고 보고했다(main/PR 불변). 원격 복구 ref는 Main 보고 기준이다. 단일 writer 지정 worktree 유지, push/PR/merge 없음. 신산님 명확화대로 공유 WSL `local-postgres/shoppingmall`의 0016~0018 적용은 별도 정확 패킷과 PMO/신산님 승인 전 **금지**한다. 이 절편은 로컬 웹 코드/테스트만 변경했다.
