@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 실제 RED — 2026-10-06 S5.1 Task8 역할별 Flat v2 출고 화면
+
+- **판정·기준:** 승인 계획 `docs/superpowers/plans/2026-10-05-s5-fulfillment.md`의 Task8 RED만 exact base `0e9f4436a05caf7cd491f0a21454bb74b4ac69c4`에서 수행했다. `node --import tsx --test apps/web/test/fulfillment-role-screens.test.mjs` 결과는 **5 tests / 0 pass / 5 fail / 0 skip, exit 1**이며 새 시험 파일의 `node --check`는 exit 0이다. 제품 화면이 아직 없음을 재현한 유효한 actual RED이고 GREEN·Task8 완료가 아니다.
+- **핵심 RED:** 공용 순수 helper `apps/web/app/account/fulfillment-ui.ts`, 판매자 화면 `apps/web/app/account/seller/orders/page.tsx`, 관리자 화면 `apps/web/app/account/admin/fulfillment/page.tsx`, 고객 주문 출고 컴포넌트 `apps/web/app/account/customer/order-fulfillment.tsx`가 없어 각각 `ERR_MODULE_NOT_FOUND` 4건이 발생했다. 기존 `apps/web/app/account/page.tsx`에는 역할 메뉴를 검증할 `AccountRoleLinks` export가 없어 1건이 `expected function / actual undefined`로 실패했다. loader·구문 오류는 0이다.
+- **고정한 화면 계약:** 판매자는 역할 확인 전 비공개, 상태 filter·빈 목록·오류·저장중, PACKING/DELAYED/SHIPPED 입력과 운송장 영숫자·하이픈/50자 제한·고객 안내를 요구한다. 관리자는 역할 확인 전 비공개, 공동출고 singleton·상태/판매자 filter·사건 상세와 before/after·내부 사유·고객 안내 정정 폼을 요구한다. 성공과 409 모두 서버 권위 상태 재조회로 수렴해야 한다.
+- **고객·안전·디자인 계약:** 고객 주문의 기존 server fulfillment 응답에서 잠정 예상일과 `휴무일 미반영`, DELAYED·관리자 정정 고객 안내, 택배사·운송장을 표시한다. 배송조회 링크는 서버 계약의 택배사별 고정 일반 URL만 사용하고 새 창에 `noopener noreferrer`를 적용하며 `운송장 직접 입력`을 안내한다. 상품명·고객 안내 문자열은 React text로 escape하고 `dangerouslySetInnerHTML` 실행 경로를 허용하지 않으며 기존 Flat v2 class와 역할별 메뉴 링크를 유지한다.
+- **시험 경계·변경 범위:** 새 `apps/web/test/fulfillment-role-screens.test.mjs` 한 파일과 이 `WORK_STATUS.md`만 변경했다. 공용 helper의 최소 예정 경로를 위 시험에서 확정했지만 helper와 화면 제품 구현은 생성하지 않았다. 신규 시험을 제외한 기존 Web 시험은 **113 tests / 113 pass / 0 fail / 0 skip**이며 신규 시험 ESLint도 exit 0이다. 기존 시험·제품·API·schema/migration·DB·WSL·Docker·원격은 변경하거나 접근하지 않았다.
+- **오류·다음:** 상태 확인용 PowerShell 조건문을 명령 연결 뒤에 둔 문법 오류가 **1회** 있었고 읽기·Git 상태 확인만 일부 완료된 뒤 파일 무변경으로 종료됐다. 명령을 분리해 즉시 보정했으며 같은 근본 오류 반복은 0회다. 다음은 이 RED 커밋을 기준으로 별도 승인된 Task8 GREEN 최소 구현이며, 그 전에는 제품 구현·push를 수행하지 않는다.
+
 ## 제품 GREEN checkpoint — 2026-10-06 S5.1 Task7 고객 조회·환불·출고 경합
 
 - **판정·정확한 기준:** S5.1 Task7 제품 범위는 exact product SHA `5ef6dd5ecdade1c887c71dfb894fabe3ed3b59c5`에서 GREEN checkpoint다. 제품 검증 시점의 local `codex/s5-fulfillment-engagement`, `origin/codex/s5-fulfillment-engagement`, WSL checkout은 모두 이 exact SHA와 clean 상태로 일치했다. WSL 검증 중 생성된 `.pnpm-store`는 아래 기록대로 별도 정리했다. 이는 S5.1 Stage 전체, Oracle/UAT 또는 운영 출시 완료 판정이 아니다.
