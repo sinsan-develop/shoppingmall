@@ -4,11 +4,14 @@ import test from 'node:test';
 import { Pool } from 'pg';
 
 const phase = process.env.S52_UPGRADE_PHASE;
-const name = 'shoppingmall_s52_schema_v2_1007';
+const name = process.env.S52_SUPPORT_TEST_DB_NAME;
 const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
 
 test('0015 PRE rows survive 0016 unchanged', { skip: !phase }, async () => {
   assert.ok(phase === 'seed' || phase === 'verify');
+  assert.ok(['shoppingmall_s52_schema_v2_1007', 'shoppingmall_s52_schema_v3_1007',
+    'shoppingmall_s52_schema_v4_1007','shoppingmall_s52_schema_v5_1007',
+    'shoppingmall_s52_schema_v6_1007'].includes(name));
   assert.equal(process.env.PGDATABASE, name);
   assert.ok(systemId);
   const pool = new Pool();

@@ -14,6 +14,7 @@
 ## 데이터와 환불 연결
 
 - 새 0016 migration은 기존 테이블·자료에 additive로 적용한다. 문의 답변은 `support_question_messages` 여러 행과 작성/공개/숨김 `support_question_message_events`의 append-only 이력으로 저장한다. 수정은 원문 UPDATE가 아니라 새 message와 공개 사건이다. 클레임 판매자·고객·관리자 답변도 `support_claim_messages` 여러 행에 본문·역할·시각을 보존하고 상태 전이는 별도 `support_claim_events`에 기록한다. 구매확정, 리뷰·이미지, 증빙, 정책 버전 관계와 각 소유자·주문·상품 FK, 상태·평점·수량·금액 CHECK, 멱등 UNIQUE를 둔다. 0014/0015는 수정하지 않는다.
+- append-only는 S5.2 업무 API의 쓰기 계약이다. API는 기록 UPDATE/DELETE를 노출하지 않는다. 무조건 DB DELETE 차단 trigger는 signed QA fixture의 소유 범위 정리까지 막으므로 사용하지 않는다. 공유 DB QA는 별도 서명 manifest·외부참조 검사·대상 범위 확인을 통과한 reset 경로 없이는 수행하거나 완료로 주장하지 않는다.
 - `refund_cases.post_shipment_claim_id`는 nullable UNIQUE composite FK로 `(claim ID,checkout order ID,shipment order ID,requester account ID)`가 동일 claim의 `(ID,checkout order ID,shipment order ID,customer account ID)`를 참조한다. NULL인 기존 PRE 사건은 기존 제약/금액/재입고/fulfillment 취소 로직을 그대로 탄다. POST 사건은 claim 하나에 refund case 최대 하나다. `refund_cases_state_ck`는 POST branch의 pre-shipment 확인 열 NULL을 허용하되 기존 PRE branch를 강화하거나 완화하지 않는다.
 - 초기 정책은 `code=POST_SHIPMENT_TRIAL`, `version=1`이며 버전·효력 시작 시각·관리자 변경 이력을 보존한다. 관리자 결정에는 적용 버전과 상품 환불액 snapshot을 기록한다. POST 승인 수량의 누적 환불액은 해당 `shipment_order_lines.goods_payable_won`의 잔여액 이내이며, 배송비 환급은 0, `refund_case_lines.restock_mode='none'` 및 재입고 수량 0이다. 원 결제·환불 attempt/event와 1:1 연결하고 idempotency와 잠금으로 중복/경합을 차단한다.
 - POST 환불의 verified event는 동일 S4 결제/환불 검증 경계를 거치되 SHIPPED 자체를 거부하지 않는다. 성공해도 출고 상태·운송장, checkout/shipment 원 총액, 다른 발송 묶음, 기존 S4 후속 사건을 변경하지 않는다. PRE 사건의 SHIPPED 거부·배송비·재입고·CANCELLED 전이는 별도 회귀로 보존한다. 실제 Provider 환불은 시험하지 않는다.
@@ -26,11 +27,11 @@
 |---|---|---|
 | 고객 | `POST /customer/support/confirmations` | orderId, shipmentOrderId, optionId, 멱등키 → 사건 ID·시각 |
 | 고객 | `POST /customer/support/reviews`, `PUT/GET /customer/support/reviews/:id`, `POST /customer/support/reviews/:id/reports` | confirmationId, rating, text·이미지; 본인 수정은 이력+재승인 대기, 로그인 고객 신고 |
-| 공개 | `GET /catalog/products/:productId/customer-reviews` | 승인 리뷰·검사 PASS 이미지 참조만 |
+| 공개 | `GET /catalog/products/:productId/customer-reviews`; `GET /catalog/products/:productId/questions` | 승인 리뷰·검사 PASS 이미지 참조만; 문의는 질문 본문+관리자가 마지막으로 선택·공개 승인한 답변 한 건만, account ID·비공개 metadata 제외 |
 | 고객 | `POST /customer/support/questions` | productId, text → 비공개 문의·담당 seller snapshot |
 | 고객 | `POST /customer/support/claims` | orderId, shipmentOrderId, optionId, kind, reasonCode, reason, quantity → claim ID |
 | 고객 | `GET /customer/support/questions`, `GET /customer/support/claims/:id` | 자기 건만, 저장 key 제외 |
-| 판매자 | `GET /seller/support/questions`, `GET /seller/support/claims`; `POST .../:id/replies` | 상품/품목 seller snapshot 일치 필요 |
+| 판매자 | `GET /seller/support/questions`, `GET /seller/support/claims`; `POST .../:id/replies` | 상품/품목 seller snapshot과 활성 account seller grant 일치 필요, 답변 멱등키 재시도는 동일 message |
 | 관리자 | `POST /admin/support/reviews/:id/approve`, `POST /admin/support/reviews/:id/hide`; `POST /admin/support/questions/:id/publish`; `POST /admin/support/claims/:id/decision` | 검사 PASS 공개, 사유 있는 숨김/신고 이력, 판매자 답변 공개 승인, 최종 사유·정책 버전·환불 실행 |
 | 권한별 | `POST/GET .../:id/images` 또는 `.../:id/evidence` | raw 이미지 5MiB 이하, MIME·재인코딩 검사, key 비노출 |
 

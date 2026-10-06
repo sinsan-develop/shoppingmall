@@ -66,6 +66,7 @@ CREATE INDEX "support_reviews_public_idx" ON "support_reviews" ("product_id","st
 --> statement-breakpoint
 CREATE TABLE "support_review_events" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "event_seq" bigint GENERATED ALWAYS AS IDENTITY UNIQUE NOT NULL,
   "review_id" uuid NOT NULL REFERENCES "support_reviews"("id"),
   "action" text NOT NULL,
   "actor_account_id" uuid NOT NULL REFERENCES "accounts"("id"),
@@ -132,19 +133,23 @@ CREATE INDEX "support_questions_seller_idx" ON "support_questions" ("seller_id",
 --> statement-breakpoint
 CREATE TABLE "support_question_messages" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "message_seq" bigint GENERATED ALWAYS AS IDENTITY UNIQUE NOT NULL,
   "question_id" uuid NOT NULL REFERENCES "support_questions"("id"),
   "author_account_id" uuid NOT NULL REFERENCES "accounts"("id"),
   "author_role" text NOT NULL,
+  "idempotency_key" uuid NOT NULL,
   "body" text NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   CONSTRAINT "support_question_messages_role_ck" CHECK ("author_role" IN ('customer','seller','admin')),
-  CONSTRAINT "support_question_messages_body_ck" CHECK (length(trim("body")) BETWEEN 1 AND 2000)
+  CONSTRAINT "support_question_messages_body_ck" CHECK (length(trim("body")) BETWEEN 1 AND 2000),
+  CONSTRAINT "support_question_messages_request_uq" UNIQUE ("author_account_id","idempotency_key")
 );
 --> statement-breakpoint
 CREATE INDEX "support_question_messages_question_idx" ON "support_question_messages" ("question_id","created_at","id");
 --> statement-breakpoint
 CREATE TABLE "support_question_message_events" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "event_seq" bigint GENERATED ALWAYS AS IDENTITY UNIQUE NOT NULL,
   "message_id" uuid NOT NULL REFERENCES "support_question_messages"("id"),
   "action" text NOT NULL,
   "actor_account_id" uuid NOT NULL REFERENCES "accounts"("id"),
@@ -205,6 +210,7 @@ CREATE INDEX "support_claims_seller_idx" ON "support_claims" ("seller_id","statu
 --> statement-breakpoint
 CREATE TABLE "support_claim_events" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "event_seq" bigint GENERATED ALWAYS AS IDENTITY UNIQUE NOT NULL,
   "claim_id" uuid NOT NULL REFERENCES "support_claims"("id"),
   "action" text NOT NULL,
   "actor_account_id" uuid REFERENCES "accounts"("id"),
@@ -223,6 +229,7 @@ CREATE INDEX "support_claim_events_claim_idx" ON "support_claim_events" ("claim_
 --> statement-breakpoint
 CREATE TABLE "support_claim_messages" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "message_seq" bigint GENERATED ALWAYS AS IDENTITY UNIQUE NOT NULL,
   "claim_id" uuid NOT NULL REFERENCES "support_claims"("id"),
   "author_account_id" uuid NOT NULL REFERENCES "accounts"("id"),
   "author_role" text NOT NULL,
@@ -316,27 +323,3 @@ ALTER TABLE "refund_cases" ADD CONSTRAINT "refund_cases_post_state_ck" CHECK (
       AND "total_refund_won" = 0))
   )
 );
---> statement-breakpoint
-CREATE FUNCTION "support_reject_history_mutation"() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  RAISE EXCEPTION 'support history is append-only';
-END;
-$$;
---> statement-breakpoint
-CREATE TRIGGER "support_question_messages_immutable" BEFORE UPDATE OR DELETE ON "support_question_messages"
-  FOR EACH ROW EXECUTE FUNCTION "support_reject_history_mutation"();
---> statement-breakpoint
-CREATE TRIGGER "support_question_message_events_immutable" BEFORE UPDATE OR DELETE ON "support_question_message_events"
-  FOR EACH ROW EXECUTE FUNCTION "support_reject_history_mutation"();
---> statement-breakpoint
-CREATE TRIGGER "support_claim_messages_immutable" BEFORE UPDATE OR DELETE ON "support_claim_messages"
-  FOR EACH ROW EXECUTE FUNCTION "support_reject_history_mutation"();
---> statement-breakpoint
-CREATE TRIGGER "support_claim_events_immutable" BEFORE UPDATE OR DELETE ON "support_claim_events"
-  FOR EACH ROW EXECUTE FUNCTION "support_reject_history_mutation"();
---> statement-breakpoint
-CREATE TRIGGER "support_review_events_immutable" BEFORE UPDATE OR DELETE ON "support_review_events"
-  FOR EACH ROW EXECUTE FUNCTION "support_reject_history_mutation"();
---> statement-breakpoint
-CREATE TRIGGER "support_confirmations_immutable" BEFORE UPDATE OR DELETE ON "support_purchase_confirmations"
-  FOR EACH ROW EXECUTE FUNCTION "support_reject_history_mutation"();

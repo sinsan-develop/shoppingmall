@@ -6,6 +6,10 @@ const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
 const expectedDatabase = process.env.S52_SUPPORT_TEST_DB_NAME;
 const isolatedDatabases = new Set([
   'shoppingmall_s52_schema_1007', 'shoppingmall_s52_schema_v2_1007',
+  'shoppingmall_s52_schema_v3_1007',
+  'shoppingmall_s52_schema_v4_1007',
+  'shoppingmall_s52_schema_v5_1007',
+  'shoppingmall_s52_schema_v6_1007',
 ]);
 
 test('0016 creates private support relations without changing the existing orders', {
@@ -43,6 +47,19 @@ test('0016 creates private support relations without changing the existing order
       WHERE table_schema='public' AND table_name='refund_cases'
       AND column_name='post_shipment_claim_id'`)).rows;
     assert.deepEqual(bridge, [{ column_name: 'post_shipment_claim_id', is_nullable: 'YES' }]);
+    const orderedEvents = (await pool.query(`SELECT table_name FROM information_schema.columns
+      WHERE table_schema='public' AND column_name='event_seq'
+        AND table_name=ANY($1::text[]) ORDER BY table_name`, [[
+      'support_review_events','support_question_message_events','support_claim_events',
+    ]])).rows.map((row) => row.table_name);
+    assert.deepEqual(orderedEvents, ['support_claim_events','support_question_message_events',
+      'support_review_events']);
+    const orderedMessages = (await pool.query(`SELECT table_name FROM information_schema.columns
+      WHERE table_schema='public' AND column_name='message_seq'
+        AND table_name=ANY($1::text[]) ORDER BY table_name`, [[
+      'support_question_messages','support_claim_messages',
+    ]])).rows.map((row) => row.table_name);
+    assert.deepEqual(orderedMessages, ['support_claim_messages','support_question_messages']);
     const bridgeForeignKey = (await pool.query(`SELECT pg_get_constraintdef(oid) AS definition
       FROM pg_constraint WHERE conname='refund_cases_post_claim_fk'`)).rows[0]?.definition;
     assert.match(bridgeForeignKey, /FOREIGN KEY \(post_shipment_claim_id, checkout_order_id, shipment_order_id, requester_account_id\)/);
