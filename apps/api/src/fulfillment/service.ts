@@ -16,15 +16,19 @@ type TransitionBody = Record<(typeof transitionFields)[number], unknown> & { exp
 
 function invalid(): Error { return new Error('Invalid fulfillment request'); }
 
-function cursorSignature(payload: string): Buffer {
-  return createHash('sha256').update('seller-fulfillment-cursor-v1\0').update(payload).digest();
+const CURSOR_CHECKSUM_PREFIX = 'seller-fulfillment-cursor-checksum-v1\0';
+
+// SQL seller scope is the authorization boundary. This unkeyed checksum only detects
+// opaque cursor format/corruption; it does not authenticate the cursor.
+function cursorChecksum(payload: string): Buffer {
+  return createHash('sha256').update(CURSOR_CHECKSUM_PREFIX).update(payload).digest();
 }
 
 function encodeCursor(cursor: SellerFulfillmentCursor): string {
   const payload = Buffer.from(JSON.stringify({ paidAt: cursor.paidAt,
     shipmentOrderId: cursor.shipmentOrderId })).toString('base64url');
   return Buffer.from(JSON.stringify({ payload,
-    signature: cursorSignature(payload).toString('base64url') })).toString('base64url');
+    checksum: cursorChecksum(payload).toString('base64url') })).toString('base64url');
 }
 
 function decodeCursor(value: unknown): SellerFulfillmentCursor {
@@ -34,10 +38,11 @@ function decodeCursor(value: unknown): SellerFulfillmentCursor {
     if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) throw invalid();
     const record = envelope as Record<string, unknown>;
     if (Object.keys(record).length !== 2 || typeof record.payload !== 'string' ||
-        typeof record.signature !== 'string') throw invalid();
-    const actual = Buffer.from(record.signature, 'base64url');
-    const expected = cursorSignature(record.payload);
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw invalid();
+        typeof record.checksum !== 'string') throw invalid();
+    const actualChecksum = Buffer.from(record.checksum, 'base64url');
+    const expectedChecksum = cursorChecksum(record.payload);
+    if (actualChecksum.length !== expectedChecksum.length ||
+        !timingSafeEqual(actualChecksum, expectedChecksum)) throw invalid();
     const decoded = JSON.parse(Buffer.from(record.payload, 'base64url').toString('utf8')) as unknown;
     if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) throw invalid();
     const cursor = decoded as Record<string, unknown>;
