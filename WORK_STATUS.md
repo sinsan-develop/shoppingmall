@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## Task12 fix round 2·3 최종 exact-code-SHA gate GREEN · 독립 Stage review 대기 — 2026-10-06
+
+- **판정·기준:** 환불–출고 경합, 계약 밖 PATCH 제거, 판매자·관리자 화면 stale 응답 방지와 실제 Chrome hydration 대기를 보정한 최종 제품·QA commit `943a8cd99307f968ca21cbeaf283f610b2e52448`을 작업 branch·SSH alias 원격·WSL 지정 checkout에 일치시키고 clean 상태에서 최종 gate를 수행했다. 구현·격리 DB·실제 Chrome·signed reset·임시자원 정리는 GREEN이다. 독립 Stage review와 Oracle release candidate/UAT·PR 병합은 아직 남아 있으므로 S5 전체 완료로 선언하지 않는다.
+- **전체 local·WSL gate:** Windows local과 WSL exact Git archive가 각각 제품시험 **415 total / 298 pass / 117 planned DB·환경 skip / 0 fail**, PR 본문 validator **8/8 PASS**, recursive typecheck·전체 ESLint·API/Next production build **18 routes**·`git diff --check`를 모두 통과했다. planned skip은 PASS로 계산하지 않았다.
+- **실제 DB 경합·HTTP:** fresh tmpfs PostgreSQL 18.4의 별도 `shoppingmall` DB에 migration **0000~0015 / 16건**을 적용하고 system identifier를 고정했다. 환불 처리 8, 환불–출고 결합 5, 관리자 HTTP 13, 판매자 HTTP 10, 환불 HTTP 2의 합계 **38/38 PASS, fail0, skip0**이며 seller/admin 경쟁 양쪽 안정 상태, PUT 존재·PATCH 404를 포함한다.
+- **actual Chrome 최종 GREEN:** run ID `f5141006`, 전용 DB `shoppingmall_s5_fulfillment_ui_f5141006`, Chrome `154.0.8037.97`, Windows loopback Web/API/CDP HTTP 200에서 가상 `accounts|sellers|products|orders|shipments|fulfillments=5|3|3|3|3|3`을 사용했다. runner native exit0과 `customer, seller and admin fulfillment paths PASS`, `1920, 1440, 430 and keyboard checks PASS`를 확인했다. `customer-ready`, `seller-shipped`, `admin-corrected` 3상태×3 viewport screenshot **9개**를 생성했고 모바일 고객·모바일 관리자·PC 판매자 화면을 직접 읽어 핵심 정보 누락·가로 잘림이 없음을 확인했다. 이는 공유 DB가 아닌 같은 제품 SHA의 별도 격리 DB 증거다.
+- **reset·공유 DB 불변:** signed reset은 생성한 5계정·3판매자·3상품·3주문·3발송만 제거했고 manifest 관련 **25개 관계 합계0**, `fulfillment_settings=1`을 확인했다. 공유 `local-postgres/shoppingmall`은 읽기 전용 사후 조회에서 `migration16|settings1|fulfillments0|events0|핵심 업무행0`으로 동일하다. 적용 전 backup 2개는 각각 0600·165,682 bytes와 SHA-256 `90b7d634c9f629a2ddb1774a12dfde2cba0bcc85535a65401e5ed3b288f19681`, `f956f40dcb7aa2b469e5c409e1b56eab3ef25239918eaf5e037916bcfd47af2f` 그대로 보존했다.
+- **자원 정리:** WSL `f5141006` 전용 DB/API/Web container·network·source/store/home·secret/system-id/env/manifest와 9091/9092 listener는 잔류0이다. Windows 전용 Chrome process/profile·secret/manifest/evidence/PID 경로는 모두 없음이며 9091/9092/9229 listener는 각0이다. 제품 SHA 확인 시 local/origin/WSL은 모두 `943a8cd...`·clean이었다.
+- **오류 횟수·영향·조치:** 최종 실행 준비에서 OpenSSL 출력 인자 순서 오류1회는 secret/DB 생성 전 중단돼 올바른 정적 명령으로 재실행했다. 복합 SQL을 Windows PowerShell이 먼저 해석한 오류1회는 조회 전 중단돼 단일 정적 조회로 분리했다. Chrome 종료 중 자식 process 1개가 먼저 종료된 오류1회는 현재 목록을 재조회해 전용 process0을 확인했다. 앞선 재개 과정에서 Windows→WSL 중첩 command substitution 전송의 같은 인용 근본 원인이 3회 누적되어 PMO 지시에 따라 그 전송 형식을 폐기하고 정적 절대경로·개별 확인으로 전환했다. 위 오류는 제품·공유 DB·Git 변경을 만들지 않았고 최종 잔류0이다.
+- **다음 조치:** `origin/main@94af5e853b1019130ea9fc043519f8f91b07297b...943a8cd` 전체 Stage를 새 독립 read-only reviewer가 계약·권한/IDOR·경합/멱등·PII·환불 회귀·migration rollback·actual evidence 기준으로 검토해 **Critical 0 / Important 0**을 판정해야 한다. 통과 결과를 docs-only checkpoint로 기록·alias push·WSL 동기화하고 PR 자동화 요청을 생성한다. Oracle release candidate와 신산님 UAT 승인 전에는 병합하지 않는다.
+
 ## Task12 exact-SHA actual Chrome·전체 gate·자원 정리 완료 — 2026-10-06
 
 - **판정:** 작업 branch·SSH alias 원격·WSL checkout을 `39f3fe89f20b96a61e447545f7a691704c2c479f`로 일치시킨 뒤 actual Chrome과 전체 local/WSL gate를 다시 수행했다. Task12 구현·검증·임시자원 정리는 GREEN이며, Stage 전체 독립 review·Oracle release candidate/UAT·PR/main은 아직 별도 후속 gate이므로 S5 전체 완료로 선언하지 않는다.
