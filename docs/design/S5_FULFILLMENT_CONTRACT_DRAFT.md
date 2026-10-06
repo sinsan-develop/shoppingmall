@@ -37,7 +37,7 @@ PMO 조건·보완 승인: WORK_PLAN의 “추적 링크”는 운송장 자동�
 - 판매자는 `READY → PACKING`, `READY|PACKING → DELAYED`, `DELAYED → PACKING`, `PACKING → SHIPPED`만 요청한다. `READY → SHIPPED` 직행, 역행, `SHIPPED|CANCELLED` 변경은 거부한다.
 - `SHIPPED`에는 허용 택배사 코드와 1~50자의 정규화된 운송장 번호가 필수다. 카드·주소·전화 등 개인정보를 사건 snapshot에 중복 저장하지 않는다.
 - 관리자는 `READY|PACKING|DELAYED|SHIPPED` 사이의 오입력 정정과 예상일·택배사·운송장 정정을 할 수 있다. 1~500자 내부 정정 사유와 1~500자 고객 안내가 모두 필수며, 전후 snapshot을 사건으로 남긴다. `CANCELLED`는 정정 대상이 아니다.
-- 현재 출고 상태가 `SHIPPED`이면 S4 출고 전 환불 승인/집행을 거부하고 S5.2 출고 후 클레임으로 안내한다. 관리자가 오출고 입력을 사유와 고객 안내로 정정해 현재 상태가 출고 전으로 돌아간 뒤에만 S4 경로를 다시 검토할 수 있다.
+- 판매자 전이와 관리자 정정은 발송 주문→출고 행→환불 사례 순으로 잠근 뒤 `APPROVED|PROCESSING|REVIEW_REQUIRED` 환불 사례가 하나라도 있으면 `SHIPPED` 저장을 409로 거부한다. 반대로 검증된 환불 사건이 이미 `SHIPPED`를 관찰하면 rollback해 `PROCESSING/PENDING_PROCESSING`으로 남기지 않고 사례·시도·사건을 같은 거래에서 `REVIEW_REQUIRED`로 확정해 S5.2 출고 후 클레임으로 연결한다. 관리자가 오출고 입력을 사유와 고객 안내로 정정해 현재 상태가 출고 전으로 돌아간 뒤에만 S4 경로를 다시 검토할 수 있다.
 - 부분 환불은 상태를 취소로 바꾸지 않는다. 판매자 상세에는 원수량·완료 환불수량·남은 출고수량을 분리해 보여 주며, 판매자는 남은 수량만 출고한다.
 
 ## 4. 마감시간·예상 출고일
@@ -60,7 +60,7 @@ PMO 조건·보완 승인: WORK_PLAN의 “추적 링크”는 운송장 자동�
 
 - 출고 행은 주문 snapshot 생성 거래에서 함께 만든다. 공동출고 설정과 배송정책 행을 잠그고 담당자·마감시간을 확정한다. 주문/출고 행 중 하나만 저장되는 상태를 허용하지 않는다.
 - 결제 processor는 결제 검증·주문 `PAID` 처리와 같은 거래에서 출고를 `READY`로 바꾸고 최초 예상 출고일과 사건을 기록한다. 중복 결제 사건은 출고 사건을 추가 생성하지 않는다.
-- S4 환불 processor는 출고 행을 잠가 현재 `SHIPPED`를 거부한다. 검증 완료 환불수량이 발송 주문 전 수량과 같아지면 같은 거래에서 `CANCELLED`와 사건을 한 번 기록한다.
+- S4 환불 processor는 출고 행과 같은 발송의 환불 사례를 고정 순서로 잠근다. 현재 `SHIPPED`이면 사례·시도·사건을 원자적으로 `REVIEW_REQUIRED`로 확정하고 같은 사건 재호출에도 그 상태를 반환한다. 검증 완료 환불수량이 발송 주문 전 수량과 같아지면 같은 거래에서 `CANCELLED`와 사건을 한 번 기록한다.
 - 사건의 before/after에는 상태, 예상일, 택배사 코드, 운송장 번호만 포함한다. 고객 이름·전화·주소, 내부 인증정보, 공급자 원문은 저장하지 않는다.
 
 ## 6. 인증 API 8개와 기존 고객 API 확장
@@ -70,7 +70,7 @@ PMO 조건·보완 승인: WORK_PLAN의 “추적 링크”는 운송장 자동�
 | 경로 | 계약 |
 | --- | --- |
 | `GET /fulfillment/admin/settings` | 관리자만 공동출고 담당 판매자 ID·표시명·변경시각 조회. |
-| `PUT /fulfillment/admin/settings` | 관리자만 `{owoolSellerId, expectedVersion, reason}` 설정. 실제 존재하고 판매자 역할 계정을 가진 판매자인지 검증, 1~500자 변경 사유 필수. 기존 주문 담당자 불변. |
+| `PUT /fulfillment/admin/settings` | 관리자만 `{owoolSellerId, expectedVersion, reason}` 설정. 실제 존재하고 판매자 역할 계정을 가진 판매자인지 검증, 1~500자 변경 사유 필수. 기존 주문 담당자 불변. 이 설정 쓰기는 PUT 하나뿐이며 PATCH route는 노출하지 않는다. |
 | `GET /fulfillment/seller/shipments?status=&cursor=&limit=` | 활성 판매자와 `fulfillment_seller_id`가 같은 결제완료 발송 주문만. 상태 필터 필수값은 `READY|PACKING|DELAYED|SHIPPED|CANCELLED`; 최신 결제시각·ID 내림차순. 목록의 고객 이름/전화는 마스킹한다. |
 | `GET /fulfillment/seller/shipments/:shipmentOrderId` | 담당 판매자만 품목별 원수량·환불완료수량·남은수량, 금액 snapshot, 예상일/상태/출고정보와 **출고에 필요한 기존 주문 배송지**를 조회. 주소·수령인·전화는 새 테이블에 복제하지 않으며 PAID 이후 담당자에게만 반환한다. 타 판매자는 존재 여부를 숨겨 404. |
 | `POST /fulfillment/seller/shipments/:shipmentOrderId/transitions` | `{targetStatus, expectedVersion, reason?, customerMessage?, expectedShipDate?, carrierCode?, carrierName?, trackingNumber?}`. 상태별 필수값 검사, 담당자·현재 상태·잔여수량 재검증. 같은 키/본문은 같은 응답, 다른 본문 409. |
@@ -104,7 +104,7 @@ fulfillment: {
 
 ## 8. 동시성·권한·개인정보
 
-1. 쓰기 거래는 발송 주문→출고 행→환불 사례 순의 고정 잠금 순서를 사용한다. `expectedVersion`이 다르면 409로 재조회시키고 자동 덮어쓰지 않는다.
+1. 쓰기 거래는 발송 주문→출고 행→환불 사례 순의 고정 잠금 순서를 사용한다. `SHIPPED` 쓰기 전에 같은 발송의 `APPROVED|PROCESSING|REVIEW_REQUIRED` 사례를 잠가 존재하면 409로 거부한다. `expectedVersion`이 다르면 409로 재조회시키고 자동 덮어쓰지 않는다.
 2. 사용자 요청의 멱등 범위는 actor account ID, 결제·환불 서버 사건은 각각 `system:payment`·`system:refund`로 고정한다. 같은 발송 주문·범위·키의 같은 지문은 기존 결과, 다른 지문은 409다. 재시도는 사건·고객 안내를 중복 생성하지 않는다.
 3. 판매자 목록·상세 쿼리는 요청받은 ID를 먼저 조회한 뒤 애플리케이션에서만 비교하지 않고 SQL 자체에 `fulfillment_seller_id=actor.sellerId`를 포함한다. 관리자와 어울몰 판매자가 실제 같은 사람이어도 활성 역할이 다르면 권한을 공유하지 않는다.
 4. 판매자에게 노출되는 고객 정보는 이미 결제된 담당 주문의 출고에 필요한 수령인·전화·우편번호·주소로 제한한다. 검색·내보내기·새 저장은 이번 범위에 넣지 않는다. 로그·사건·감사 `details`에는 개인정보를 남기지 않는다.
@@ -127,7 +127,7 @@ fulfillment: {
 4. `PACKING → SHIPPED` 저장 직후 고객 상세에 택배사·운송장이 보이고 관리자 승인 행이 필요하지 않다.
 5. 같은 멱등키 재시도는 사건 1개, 다른 본문은 409, 낡은 version은 409다.
 6. 관리자 정정은 reason/customerMessage 누락 시 실패하고 성공 시 before/after·감사·고객 안내가 모두 남는다.
-7. 현재 `SHIPPED`의 S4 출고 전 환불은 거부되고, 출고 전 전량 환불 완료는 `CANCELLED`가 되어 판매자 출고가 거부된다. 부분 환불 후 남은 수량만 표시된다.
+7. 환불이 잠금을 먼저 얻으면 전량 환불은 `REFUNDED/APPLIED`와 출고 `CANCELLED`로 끝나고, 배송이 먼저 `SHIPPED`를 확정하면 환불 사례·시도·사건은 모두 `REVIEW_REQUIRED`로 안정 수렴한다. 어느 경우에도 `PROCESSING/PENDING_PROCESSING`을 성공 상태로 인정하지 않는다. 부분 환불 후에는 남은 수량만 표시된다.
 8. 고객/판매자 API·로그·사건에 허용 범위 밖 개인정보·공급자 원문이 노출되지 않는다.
 9. 택배사별 공식 링크는 고정 allowlist와 일치하고 `other`는 null이며, 운송장·호출자 URL을 포함하거나 임의 URL로 바꿀 수 없다.
 

@@ -2,17 +2,17 @@
 
 ## 현재 판정
 
-- 격리 fixture와 실제 Chrome 실행기는 준비됐다.
-- private tmpfs PostgreSQL에서 migration 16건, 잘못된 DB system identifier 거부, 외부 identity·category·audit 보존/거부, late insert 잠금, 정상 reset 잔류 0을 검증했다.
-- 실제 Chrome은 실행하지 않았다. 승인 계획에 따라 공유 개발 DB에 0015를 적용·회귀 검증한 뒤 같은 exact SHA의 별도 격리 DB에서만 실행한다.
-- 이 문서의 준비 완료를 고객·판매자·관리자 화면 PASS로 해석하지 않는다.
+- 제품 SHA `39f3fe89f20b96a61e447545f7a691704c2c479f`에서 별도 격리 DB actual Chrome을 실행해 고객·판매자·관리자 경로와 1920×1080·1440×900·430×844·키보드 검사를 통과했다. 역할 경로 PASS와 viewport/keyboard PASS 두 runner 문구, screenshot 9개를 확인했다.
+- signed reset 뒤 manifest 관련 25개 관계는 모두 0, `fulfillment_settings(id=1)`은 1행이며 전용 container·network·tunnel·Chrome/profile·secret·manifest·evidence는 모두 0이다.
+- 공유 개발 DB는 승인된 0015 적용 완료 상태로 migration16·settings1·fulfillments0·events0·핵심 업무행0이며, 적용 전 rollback backup 2개는 보존 중이다.
+- 위 결과는 `39f3fe89...`의 S5.1 actual Chrome 이력이다. 이후 fix round 2 commit의 actual Chrome·독립 review·Oracle/UAT는 재검증 전까지 미검증이며 S5 전체 완료로 해석하지 않는다.
 
 ## 고정 경계
 
 - 정본 작업경로: `D:\Project\shoppingmall2\.worktrees\s5-fulfillment-engagement`
 - WSL 시험 checkout: `/home/daon/deploy/shopping`
 - Git 원격은 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git` 별칭만 사용한다.
-- 공유 DB `WSL-server/local-postgres/shoppingmall`의 migration·회귀 쓰기는 Task11 별도 승인 전 금지한다. 출고 Chrome fixture는 승인 후에도 공유 DB에 seed하지 않는다.
+- 공유 DB `WSL-server/local-postgres/shoppingmall`에는 승인된 0015와 exact-SHA 회귀만 적용했다. 출고 Chrome fixture는 공유 DB에 seed하지 않고 별도 격리 DB만 사용한다.
 - PG·택배·문자·메일·푸시 공급자와 Oracle/UAT는 이 시험 범위가 아니다.
 - 실제 200% 확대는 UAT-03에서 검증한다.
 
@@ -27,7 +27,7 @@
 
 fixture는 고유 8자리 `QA_RUN_ID`, 정확한 `shoppingmall_s5_fulfillment_ui_<runId>` DB 이름, PostgreSQL system identifier, 시험 비밀번호 HMAC manifest에 묶인다. 가상 고객·판매자 A/B·어울몰 판매자·관리자 5계정과 가상 3상품·3결제완료 주문·3출고만 생성한다.
 
-## Task9에서 허용된 검증
+## Task9에서 수행한 private 검증 이력
 
 private tmpfs DB에서만 다음을 검증한다.
 
@@ -41,9 +41,9 @@ private tmpfs DB에서만 다음을 검증한다.
 
 이미 통과한 동일 fixture 안전시험은 근거가 유효한 동안 반복하지 않는다.
 
-## 승인 후 실제 Chrome 시나리오
+## 승인 후 실제 Chrome 시나리오와 재실행 절차
 
-Task11 승인 뒤 Task12에서만 아래 순서로 실행한다.
+Task11 승인 뒤 Task12에서 아래 순서로 실행해 `39f3fe89...`에서 PASS·signed reset·자원0을 확인했다. 후속 commit을 검증할 때도 같은 절차를 반복한다.
 
 1. 승인된 백업과 0015 공유 적용, 공유 DB exact-SHA 전체 회귀·잔류0을 확인한다.
 2. 로컬·원격·WSL checkout의 exact SHA와 clean 상태를 확인한다.

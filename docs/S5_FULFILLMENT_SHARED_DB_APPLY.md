@@ -1,12 +1,12 @@
-# S5.1 출고 공유 DB 적용 승인 패킷
+# S5.1 출고 공유 DB 적용 승인 패킷과 완료 결과
 
 ## 1. 현재 판정
 
-- 이 문서는 **승인 요청 자료**다. migration 적용, QA seed/reset, 실제 Chrome 공유 쓰기 승인이 아니다.
+- 이 문서는 승인 전에 작성한 **과거 승인 요청 자료와 실제 적용 완료 결과**를 함께 보존한다. 공유 DB actual Chrome fixture seed/reset 승인은 아니며 실제 Chrome은 별도 격리 DB에서만 수행했다.
 - 공유 대상은 `WSL-server`의 Docker container `local-postgres`, database `shoppingmall`이다.
 - PostgreSQL은 `pgvector/pgvector:0.8.2-pg15`, 실제 server version은 `15.18`이다.
-- 제품 코드 기준 commit은 `553d4af28bbe30d975fadb80a5dae547ac936f9a`다. Task10 완료·패킷 작성 직전 local/origin/WSL exact commit은 `d8c851a35b91034d1dae8138807a8c3879e524a6`이며 이후 packet 문서 commit은 PMO 승인 요청 본문에서 별도 고정한다.
-- Task10 private gate는 upgrade 11/11, 전체 441건 중 421 pass·20 planned skip·0 fail, PR 본문 8/8, typecheck·lint·build 18 routes, 업무행 잔류0·임시자원0, 독립 review C0/I0/M0다.
+- 과거 패킷 제품 기준 commit은 `553d4af28bbe30d975fadb80a5dae547ac936f9a`, 승인 실행 제품 commit은 `16a0d97143ffc6e47cf3b44280ff795af75c08d6`이다. 적용 뒤 공유 DB는 migration16·`fulfillment_settings=1`·출고/사건0·기존 업무행0이며 rollback은 실행하지 않았다.
+- 두 적용 전 backup은 보존 중이다. 제품 SHA `39f3fe89f20b96a61e447545f7a691704c2c479f`의 별도 격리 actual Chrome과 signed reset·임시자원0까지 완료했지만, fix round 2 commit의 actual Chrome·Oracle/UAT는 별도 미검증이다.
 
 ## 2. 적용 대상 migration
 
@@ -59,7 +59,7 @@ docker exec -i RESTORE_CONTAINER \
 
 백업은 Task12 전체 성공, merged-main smoke, 복구 불필요 확인 전까지 보존한다. 성공 뒤 exact 경로·해시를 다시 확인해 해당 파일만 삭제한다.
 
-## 5. 승인 후 적용 절차와 중단 조건
+## 5. 승인 당시 적용 절차와 중단 조건
 
 1. local/origin/WSL의 승인된 exact SHA와 clean 상태, 0015 SHA-256을 다시 대조한다.
 2. `local-postgres/shoppingmall`과 migration15, `shipment_orders=0`, 기존 baseline, 백업 해시·0600을 다시 확인한다.
@@ -89,7 +89,7 @@ docker exec -i RESTORE_CONTAINER \
 
 신산님의 최신 직접 지시 `진행하자`에 따라 권장 A안으로 문서를 정정한다. PMO에 정확한 범위 확인을 요청했으며, PMO가 shared migration·전체 회귀 실행 범위를 전달하기 전에는 shared DB 쓰기를 시작하지 않는다.
 
-## 8. 승인 요청 범위
+## 8. 과거 승인 요청 범위
 
 다음 실행 승인은 정정 문서의 exact packet commit을 기준으로 요청한다.
 
