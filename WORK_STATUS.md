@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## GREEN 후보 — 2026-10-06 S5.1 Task7 환불 취소 감사 계약
+
+- **판정·기준:** exact clean base `1e0d949576538aed089ac9410983d61cd5e54ba4`에서 actual RED **13 tests / 12 pass / 1 fail / 0 skip**의 유일한 누적 전량 환불 감사 누락을 최소 보정했다. actual PostgreSQL GREEN은 아직 실행하지 않았으므로 이 기록은 **로컬 GREEN 후보**이며 Task7 완료가 아니다.
+- **최소 구현:** `apps/api/src/refunds/processor.ts`의 잠긴 환불 대상 조회에 `refund_cases.decision_by`를 `decisionBy`로 포함했다. 누적 전량 환불 분기에서 값이 없으면 `Refund conflict`로 transaction 전체를 rollback한다. fulfillment `CANCELLED` 갱신과 기존 `REFUND_CANCELLED` 사건을 기록하는 같은 transaction 안에 승인 관리자를 actor로 하는 `fulfillment.refund_cancelled` 감사를 정확히 1건 추가했다.
+- **감사 계약:** `actor_account_id=decisionBy`, `active_role='admin'`, `seller_id=null`, `target_type='shipment_order'`, `target_id=shipmentId`이며 details는 `{refundEventId:event.id,before:beforeSnapshot,after:afterSnapshot}`만 저장한다. 부분 환불 분기에는 감사를 만들지 않고, 처리 완료 event의 기존 `processingStatus` 조기 반환이 전량 분기보다 앞에 있어 replay 중복0 계약을 유지한다.
+- **변경 범위:** `apps/api/src/refunds/processor.ts`와 이 `WORK_STATUS.md`만 수정했다. 다른 제품·시험·schema/migration·공개 계약은 변경하지 않았다.
+- **로컬 검증:** DB 환경변수를 제거한 Task7 세 loader는 **13 tests / 0 pass / 13 explicit DB skip / 0 fail**이다. API typecheck, `processor.ts` ESLint, `git diff --check`는 모두 exit 0이다. 이는 loader·컴파일·정적 경계만 확인하며 actual GREEN 증거가 아니다.
+- **미검증·다음:** private PostgreSQL 18.4/migration16에서 감사 expected1, 정확한 actor/details, 부분 감사0, replay 중복0과 기존 고객·경합·S4 회귀를 재검증해야 한다. DB·WSL·Docker·commit·push는 수행하지 않았다.
+
 ## 실제 RED — 2026-10-06 S5.1 Task7 환불 취소 감사 계약
 
 - **판정·환경:** exact SHA `1e7662e1f5af69cffda58018fdb348f56fe86d5a`, private PostgreSQL **18.4**, migration **16건**, system identifier `7693381525225517100`에서 대상 시험은 **13 tests / 12 pass / 1 fail / 0 skip, exit 1**이었다. 따라서 감사 계약의 유효한 actual RED이며 GREEN·Task7 완료가 아니다.
