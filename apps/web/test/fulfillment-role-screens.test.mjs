@@ -98,7 +98,7 @@ test('seller fulfillment screen is private and covers filters, states, and trans
     '지연 등록', '출고 처리', '지연 사유', '고객 안내', '택배사', '운송장'])
     assert.match(all, new RegExp(label));
   assert.match(all, /name="trackingNumber"/);
-  assert.match(all, /maxlength="50"/);
+  assert.match(all, /maxLength="50"/);
   assert.match(all, /pattern="\[A-Za-z0-9-\]\+"/);
   assert.match(all, /name="customerMessage"/);
   assert.match(all, /class="[^"]*(shell|account-card|primary-button)/);

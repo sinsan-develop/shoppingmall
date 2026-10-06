@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## GREEN 후보 — 2026-10-06 S5.1 Task8 역할별 Flat v2 출고 화면
+
+- **판정·기준:** actual RED commit `083a9e9faa2c783e9664807aded00e175f1676b8`와 이전 writer가 남긴 정상 미추적 WIP `apps/web/app/account/fulfillment-ui.ts`를 삭제·되돌림 없이 인수해 Task8 승인 범위만 구현했다. 현재는 로컬 Web gate를 통과한 **GREEN 후보**이며 S5.1 Stage 전체, 실제 브라우저, WSL 통합, Oracle/UAT 또는 `main` 병합 완료가 아니다.
+- **역할별 화면:** 판매자 화면은 seller 권한 확인 뒤 기존 `/fulfillment/seller/shipments` 목록·상세·전이만 사용하고 상태 filter, 빈 목록·오류·저장 중, `READY→PACKING`, 지연 등록, `DELAYED→PACKING`, 택배사·운송장 출고 입력을 제공한다. 관리자 화면은 admin 권한 확인 뒤 기존 설정·목록·상세·정정 route만 사용하고 공동출고 담당 seller UUID/version, 상태·담당 판매자 filter, 사건 before/after·정정 사유·고객 안내를 표시한다. 두 쓰기 화면은 `credentials: include`, UUID 멱등키, server version을 사용하며 성공과 409 모두 목록·상세 또는 설정을 서버에서 재조회한다.
+- **고객·메뉴·안전:** 고객 주문 조회의 각 `shipments[].fulfillment`를 기존 customer page에 실제 연결해 잠정 예상일·휴무일 미반영·지연/정정 안내·택배사·운송장·고객용 사건을 표시한다. 배송조회는 서버 계약과 같은 택배사별 고정 일반 URL만 렌더링하고 운송장을 URL에 넣지 않으며 `target="_blank" rel="noopener noreferrer"`와 직접 입력 안내를 사용한다. 역할 확인 전 민감정보를 렌더링하지 않고 상품명·고객 안내는 React text escape만 사용한다. 기존 account 기능을 유지한 `AccountRoleLinks`를 export해 판매자·운영자·구매자 실제 메뉴에 연결했다.
+- **변경 범위:** `apps/web/app/account/fulfillment-ui.ts`, `apps/web/app/account/seller/orders/page.tsx`, `apps/web/app/account/admin/fulfillment/page.tsx`, `apps/web/app/account/customer/order-fulfillment.tsx`, `apps/web/app/account/customer/page.tsx`, `apps/web/app/account/page.tsx`, `apps/web/app/styles.css`, `apps/web/test/fulfillment-role-screens.test.mjs`, 이 `WORK_STATUS.md`다. 새 API/schema/migration/dependency/secret, shared DB·WSL·Oracle 변경은 0이다.
+- **실제 검증:** targeted `fulfillment-role-screens.test.mjs`는 **5 tests / 5 pass / 0 fail / 0 skip**이다. 기존 시험을 포함한 Web 전체는 **118 tests / 118 pass / 0 fail / 0 skip**이다. `pnpm --filter @shoppingmall/web typecheck`, 변경 파일 ESLint, 전체 `pnpm lint`는 exit 0이다. `pnpm --filter @shoppingmall/web build`는 Next.js **18 routes**를 생성해 exit 0이다.
+- **오류·조치:** 이전 writer의 판매자 화면 부모 폴더 부재 **1회**와 작업보조 스크립트 권한 오류 **1회**를 인수 기록한다. 이번 targeted 1차는 React `renderToStaticMarkup`이 실제 출력한 `maxLength="50"`을 시험이 소문자 `maxlength`로만 기대해 **3 pass / 2 fail** 중 표현 오류 **1건**이 발생했다. 제품의 50자 제한은 그대로 두고 시험 regex만 실제 React 출력에 맞춰 보정했으며 나머지 실패인 `AccountRoleLinks`를 구현한 뒤 5/5가 됐다. 최초 Web build는 제한된 실행환경이 `apps/web/.next/trace` 쓰기를 거부한 `EPERM` **1회**였고, 제품 변경 없이 승인된 동일 build를 작업 폴더 쓰기 권한으로 재실행해 통과했다.
+- **미검증·다음:** 실제 브라우저 상호작용·키보드/모바일/200% 확대, 실제 API 세션과 private/shared DB, WSL exact-SHA, Oracle staging/UAT는 **미검증**이다. 변경 전체 staged diff·최종 fresh gate를 다시 확인한 뒤 지정 메시지로 단일 commit하고 push하지 않는다.
+
 ## 실제 RED — 2026-10-06 S5.1 Task8 역할별 Flat v2 출고 화면
 
 - **판정·기준:** 승인 계획 `docs/superpowers/plans/2026-10-05-s5-fulfillment.md`의 Task8 RED만 exact base `0e9f4436a05caf7cd491f0a21454bb74b4ac69c4`에서 수행했다. `node --import tsx --test apps/web/test/fulfillment-role-screens.test.mjs` 결과는 **5 tests / 0 pass / 5 fail / 0 skip, exit 1**이며 새 시험 파일의 `node --check`는 exit 0이다. 제품 화면이 아직 없음을 재현한 유효한 actual RED이고 GREEN·Task8 완료가 아니다.
