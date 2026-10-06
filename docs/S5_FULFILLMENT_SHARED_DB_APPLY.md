@@ -66,7 +66,8 @@ docker exec -i RESTORE_CONTAINER \
 3. exact checkout의 정식 `apps/api/scripts/migrate.ts`를 자격정보 비노출 환경에서 1회 실행한다. `migrate-dry-run.ts`를 적용 명령으로 오용하지 않는다.
 4. migration16, 신규 세 관계, singleton1, 신규 출고·사건0, 기존 50관계 행수 불변을 즉시 대조한다.
 5. 어느 값이라도 다르면 API/Web·fixture 실행을 시작하지 않고 PMO에 보고한다. migration15·신규 관계 없음이면 원인을 조사하고 재시도 승인을 받는다. migration16인데 baseline 불일치면 백업 복구 승인 경계로 전환한다.
-6. migration 검증이 모두 맞을 때만 승인된 실제 Chrome QA 방식으로 진행한다.
+6. migration 검증이 모두 맞을 때만 공유 DB에서 같은 exact SHA의 전체 회귀를 실행하고, 기존 50관계·singleton 불변과 시험자료 잔류0을 다시 확인한다. 이 단계에서는 actual Chrome fixture를 seed하지 않는다.
+7. 공유 전체 회귀까지 통과한 경우에만 별도 `shoppingmall_s5_fulfillment_ui_<runId>` 격리 DB를 만들어 같은 exact SHA의 실제 Chrome QA를 진행한다.
 
 ## 6. QA run과 생성·정리 범위
 

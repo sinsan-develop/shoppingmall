@@ -264,7 +264,7 @@
 **파일**
 
 - 생성: `apps/api/test/qa-fulfillment-ui-fixture.test.mjs`
-- 생성: `scripts/qa-s5-fulfillment-browser.mjs`
+- 생성: `scripts/qa-fulfillment-browser.mjs`
 - 생성: `docs/S5_FULFILLMENT_DEVELOPMENT_TEST_GUIDE.md`
 - 수정: `WORK_STATUS.md`
 

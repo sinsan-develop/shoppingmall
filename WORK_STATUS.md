@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## Task11 A안 독립 문서·계약 검토 보정 — 2026-10-06
+
+- **판정:** exact docs commit `e423da6a3c0880a1d358abb255d56cfbae4871e8`의 독립 읽기 전용 검토는 C0/I3/M2다. 어울이 실제 코드와 대조해 다섯 건 모두 사실로 판정했다. 핵심 A안 경계와 docs-only 성격은 일치한다.
+- **문서 즉시 보정:** shared migration 검증 뒤 exact-SHA 전체 회귀·불변·잔류0을 확인하고 나서 격리 Chrome으로 진행하도록 적용 절차를 고쳤다. 계획의 실제 runner 파일명도 `scripts/qa-fulfillment-browser.mjs`로 바로잡았다.
+- **남은 Important:** fixture reset이 외부 `payment_event_conflicts`를 사전 거부하지 않는 문제, actual Chrome runner가 타판매자404·공동출고 담당 seller·cutoff·로딩/오류/빈 상태를 아직 증거화하지 않는 문제다. safety DB 시험의 최종 잔류 단언도 manifest 전 관계·singleton으로 확대해야 한다.
+- **승인 경계·조치:** PMO에 같은 branch/worktree에서 TDD 보강→private gate→독립 재리뷰 C0/I0→exact packet 갱신을 권장 보고했다. 회신 전에는 제품/시험 코드를 바꾸거나 shared DB를 쓰지 않는다. 문서 보정과 읽기 전용 검증만 계속한다.
+
 ## Task11 A안 문서 정합화 — 2026-10-06
 
 - **Ruling:** 신산님의 최신 직접 지시 `진행하자`를 직전 명시한 권장 A안 승인으로 적용한다. 공유 DB에는 0015와 exact-SHA 전체 회귀만 수행하고 actual Chrome fixture는 같은 exact SHA의 별도 격리 DB에서 실행한다. 잘못 해석했을 때의 비용은 공유 DB actual-browser 증거가 빠지는 것이므로 두 결과를 분리 보고하고 격리 Chrome을 공유 DB PASS로 승격하지 않는다.
