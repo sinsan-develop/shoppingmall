@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 실제 RED — 2026-10-06 S5.1 Task7 환불 취소 감사 계약
+
+- **판정·환경:** exact SHA `1e7662e1f5af69cffda58018fdb348f56fe86d5a`, private PostgreSQL **18.4**, migration **16건**, system identifier `7693381525225517100`에서 대상 시험은 **13 tests / 12 pass / 1 fail / 0 skip, exit 1**이었다. 따라서 감사 계약의 유효한 actual RED이며 GREEN·Task7 완료가 아니다.
+- **유일한 제품 RED:** `fulfillment-refund-db.test.mjs` line 262의 누적 전량 환불 감사 단언이 **expected 1 / actual 0**으로 실패했다. 부분 환불, seller/admin race 2건, 고객 조회, 기존 S4 7건은 모두 통과했고 harness·schema·setup 오류는 **0**이다.
+- **잔류·공유 경계:** 실행 전후 기존 잔류 `accounts=6`, `audit_events=2`는 불변이었다. `shipment_orders`, `shipment_fulfillments`, `shipment_fulfillment_events`, `refund_cases`는 모두 **0**이므로 이번 fixture의 신규 잔류는 **0**이다. shared DB에는 접근하지 않았다.
+- **다음 최소 GREEN:** `apps/api/src/refunds/processor.ts`에서 누적 전량 환불 취소와 같은 transaction에 승인 관리자 actor의 `fulfillment.refund_cancelled` 감사 정확히 1건을 복원한다. replay 중복0과 기존 fulfillment event·부분 환불·경합·S4 계약은 유지해야 한다.
+- **이번 기록 범위:** 이 actual 결과를 `WORK_STATUS.md` 최상단에만 기록했다. 다른 문서·제품·시험 수정, commit/push, DB/WSL 접근·변경은 수행하지 않는다.
+
 ## RED 후보 — 2026-10-06 S5.1 Task7 환불 취소 감사 계약 TDD Phase A
 
 - **판정:** PMO가 승인한 Phase A에 따라 시험·fixture만 보정했다. actual PostgreSQL RED는 실행하지 않았으므로 이 기록은 **RED 후보**이며 GREEN·Task7 완료가 아니다.
