@@ -55,7 +55,15 @@ async function navigate(route) {
   await waitFor(`location.pathname === ${JSON.stringify(route)}`, `navigation ${route}`);
 }
 
-function setInput(selector, value) {
+async function waitForHydrated(selector, label) {
+  await waitFor(`(() => {
+    const target = document.querySelector(${JSON.stringify(selector)});
+    return Boolean(target && Object.keys(target).some((key) => key.startsWith('__reactProps$')));
+  })()`, `hydration ${label}`);
+}
+
+async function setInput(selector, value) {
+  await waitForHydrated(selector, selector);
   return evaluate(`(() => {
     const input = document.querySelector(${JSON.stringify(selector)});
     if (!input) return false;
@@ -69,11 +77,25 @@ function setInput(selector, value) {
 }
 
 async function clickText(text) {
+  await waitFor(`(() => {
+    const target = [...document.querySelectorAll('button,a')].find((node) =>
+      node.textContent?.includes(${JSON.stringify(text)}) && !node.disabled);
+    return Boolean(target && Object.keys(target).some((key) => key.startsWith('__reactProps$')));
+  })()`, `hydration action ${text}`);
   assert.equal(await evaluate(`(() => {
     const target = [...document.querySelectorAll('button,a')].find((node) =>
       node.textContent?.includes(${JSON.stringify(text)}) && !node.disabled);
     if (!target) return false; target.click(); return true;
   })()`), true, `missing action: ${text}`);
+}
+
+async function clickSelector(selector, label) {
+  await waitForHydrated(selector, label);
+  assert.equal(await evaluate(`(() => {
+    const target = document.querySelector(${JSON.stringify(selector)});
+    if (!target || target.disabled) return false;
+    target.click(); return true;
+  })()`), true, `missing action: ${label}`);
 }
 
 async function clearSession() {
@@ -121,6 +143,7 @@ async function login(role, email) {
   assert.equal(await setInput('#login-role', role), true);
   assert.equal(await setInput('#login-email', email), true);
   assert.equal(await setInput('#login-password', password), true);
+  await waitForHydrated('form', `${role} login form`);
   await evaluate("document.querySelector('form').requestSubmit(); true");
   await waitFor("location.pathname === '/account'", `${role} login`);
 }
@@ -186,7 +209,7 @@ try {
     'seller fulfillment list');
   await assertSellerCannotAccess(fixture.shipmentIds[1]);
   await assertSellerCannotAccess(fixture.shipmentIds[2]);
-  await evaluate(`document.querySelector('.fulfillment-list-button')?.click(); true`);
+  await clickSelector('.fulfillment-list-button', 'seller fulfillment detail');
   await waitFor("document.body.innerText.includes('받는 분 가상고객')", 'seller detail');
   await clickText('포장 시작');
   await waitFor("document.body.innerText.includes('PACKING') && document.querySelector('#seller-tracking')",
@@ -223,7 +246,7 @@ try {
   await waitFor(`document.body.innerText.includes('SHIPPED') && document.body.innerText.includes(${JSON.stringify(fulfillmentUiExpectedShipDate)})`,
     'owool fulfillment seller list');
   await assertSellerCannotAccess(fixture.shipmentIds[0]);
-  await evaluate(`document.querySelector('.fulfillment-list-button')?.click(); true`);
+  await clickSelector('.fulfillment-list-button', 'owool fulfillment detail');
   await waitFor(`document.body.innerText.includes(${JSON.stringify(`QA${fixture.runId.toUpperCase()}`)})`,
     'owool seller sees assigned shipment');
 
@@ -231,12 +254,7 @@ try {
   await navigate('/account/admin/fulfillment');
   await waitFor("document.body.innerText.includes('출고 운영 관리') && document.querySelectorAll('.fulfillment-list-button').length === 3",
     'admin fulfillment list');
-  const delayedSelected = await evaluate(`(() => {
-    const button = [...document.querySelectorAll('.fulfillment-list-button')]
-      .find((node) => node.textContent.includes('DELAYED'));
-    if (!button) return false; button.click(); return true;
-  })()`);
-  assert.equal(delayedSelected, true);
+  await clickText('DELAYED');
   await waitFor("document.querySelector('#correction-reason')", 'admin correction form');
   assert.equal(await setInput('#corrected-status', 'READY'), true);
   assert.equal(await setInput('#correction-reason', '가상 시험 출고 상태 정정'), true);

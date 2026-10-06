@@ -41,3 +41,16 @@ test('fulfillment browser runner covers three roles, three viewports and keyboar
   assert.doesNotMatch(source, /const pending = new Map/);
   assert.doesNotMatch(source, /sms|email provider|push provider|payment provider/i);
 });
+
+test('fulfillment browser runner waits for React hydration before scripted interactions', async () => {
+  const source = await readFile(scriptUrl, 'utf8');
+  assert.match(source, /async function waitForHydrated/);
+  assert.match(source, /__reactProps\$/);
+  assert.match(source, /async function setInput[\s\S]*?await waitForHydrated/);
+  assert.match(source, /async function clickText[\s\S]*?await waitFor\([\s\S]*?__reactProps\$/);
+  assert.match(source,
+    /await waitForHydrated\('form', `\$\{role\} login form`\)[\s\S]*?requestSubmit/);
+  assert.match(source, /await clickSelector\('\.fulfillment-list-button'/);
+  assert.doesNotMatch(source,
+    /document\.querySelector\('\.fulfillment-list-button'\)\?\.click/);
+});
