@@ -337,7 +337,7 @@ async function assertResetOwnership(client: PoolClient, manifest: FulfillmentUiM
         AND NOT(shipment_order_id=ANY($5::uuid[]))
     UNION ALL SELECT 1 FROM customer_cart_items WHERE option_id=ANY($7::uuid[])
     UNION ALL SELECT 1 FROM customer_favorites WHERE product_id=ANY($6::uuid[])
-    UNION ALL SELECT 1 FROM restock_subscriptions WHERE option_id=ANY($7::uuid[])
+    UNION ALL SELECT 1 FROM restock_subscriptions WHERE product_id=ANY($6::uuid[])
     UNION ALL SELECT 1 FROM refund_cases WHERE checkout_order_id=ANY($4::uuid[])
     LIMIT 1`, [manifest.accountIds[0], manifest.reservationIds, manifest.addressId,
     manifest.orderIds, manifest.shipmentIds, manifest.productIds, manifest.optionIds, manifest.sellerIds]);
