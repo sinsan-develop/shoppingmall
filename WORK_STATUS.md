@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 실제 RED 준비 — 2026-10-06 S5.1 Task9 독립 재리뷰 C0/I3/M0 보정
+
+- **판정:** exact `d805c3f35e3b69af2351f50086d12fe81f5bfaa6` 읽기 전용 재리뷰는 **Critical 0 / Important 3 / Minor 0**이다. 실제 Chrome 실행 전에 세 항목을 시험으로 보강하고 재검증해야 한다.
+- **시험 보강:** foreign audit와 category 거부를 서로 분리해 각 행·주문 보존을 확인한다. 두 DB 연결로 reset이 audit lock에서 대기하는 동안 fixture account를 참조하는 late identity insert가 부모 잠금에서 대기하고, reset commit 뒤 FK로 실패하는 경합을 확인한다. Chrome CDP page 생성 후 WebSocket open timeout이 발생해도 page가 닫히고 socket close 예외에도 page close가 실행되는 helper 단위시험을 추가한다.
+- **변경 범위:** 이 단계는 `apps/api/test/qa-fulfillment-ui-fixture-safety-db.test.mjs`, 신규 `apps/web/test/qa-browser-cdp.test.mjs`, `apps/web/test/qa-fulfillment-browser-contract.test.mjs`, 이 `WORK_STATUS.md`의 시험·기록만 변경한다. 제품/실행 helper는 아직 변경하지 않는다.
+- **다음 조치:** 로컬에서 CDP helper 부재와 runner 미연결을 실제 RED로 확인·보존한 뒤 최소 GREEN 구현, 전체 local/private DB gate, 독립 재리뷰 C0/I0를 수행한다. 그 전에는 PMO 실제 browser 실행 요청이나 Chrome 실행을 하지 않는다.
+- **실제 RED:** DB 환경을 제거한 대상 실행은 **3 tests / 0 pass / 2 fail / 1 private-DB skip, exit 1**이다. 신규 CDP helper import는 `ERR_MODULE_NOT_FOUND`, browser 계약은 `openCdpPage` 미연결로 실패했다. DB의 audit 분리·두 연결 경합은 private PostgreSQL 전까지 명시적 skip이며 RED/PASS 근거로 세지 않는다. `git diff --check`는 exit 0이다.
+
 ## private DB GREEN — 2026-10-06 S5.1 Task9 독립 리뷰 보정 재검증
 
 - **판정·기준:** exact commit `313095e14b0243ff52c752b2f6debffc737d4ee6`을 승인된 SSH alias로 WSL 지정 checkout에 fast-forward하고, 비공개 network `shoppingmall-s51-task9-review-1006`, tmpfs PostgreSQL 18 `shoppingmall-s51-task9-review-pg-1006`, 전용 DB `shoppingmall_s5_fulfillment_ui_f5101006`에서만 재검증했다. 공유 `local-postgres/shoppingmall`은 접속·변경하지 않았다.

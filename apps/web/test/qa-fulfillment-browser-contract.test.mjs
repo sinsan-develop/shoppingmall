@@ -16,6 +16,8 @@ test('fulfillment browser runner covers three roles, three viewports and keyboar
   assert.match(source, /http:\/\/127\.0\.0\.1:9091/);
   assert.match(source, /http:\/\/127\.0\.0\.1:9229/);
   assert.match(source, /validateFulfillmentUiManifest/);
+  assert.match(source, /openCdpPage/);
+  assert.match(source, /closeCdpPage/);
   assert.match(source, /visibleFocusables/);
   assert.match(source, /visited\.size/);
   assert.match(source, /let page/);
