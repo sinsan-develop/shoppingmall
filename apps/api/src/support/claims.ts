@@ -1,7 +1,9 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import type { PoolClient } from 'pg';
 import type { ImageQuarantine } from '../catalog/image-quarantine.js';
+import { providerRefundId, resolveRefundMode } from '../refunds/adapter.js';
+import { allocateIncrementalRefundWon } from '../refunds/allocation.js';
 import { parseQuestionPageQuery } from './questions.js';
 
 type Db = Pool | PoolClient;
@@ -396,6 +398,185 @@ export async function rejectClaim(db: Db, input: { claimId: string;
         error.code === '23505' && 'constraint' in error &&
         error.constraint === 'support_claims_decision_author_key_uq')
       throw new Error('Support conflict');
+    throw error;
+  } finally { if (ownsTransaction) client.release(); }
+}
+
+export async function approveClaim(db: Db, input: { claimId: string;
+  adminAccountId: string; reason: string; idempotencyKey: string },
+env: { APP_ENV?: string; PAYMENT_MODE?: string } = process.env) {
+  if (![input.claimId,input.adminAccountId,input.idempotencyKey]
+    .every((id) => uuid.test(id)) || typeof input.reason !== 'string' ||
+    !input.reason.trim() || input.reason.trim().length > 500)
+    throw new Error('Invalid support request');
+  if (resolveRefundMode(env) !== 'mock') throw new Error('Support refund unavailable');
+  const reason = input.reason.trim();
+  const fingerprint = createHash('sha256').update(JSON.stringify({
+    decision: 'approve',reason,
+  })).digest('hex');
+  const ownsTransaction = db instanceof Pool;
+  const client = ownsTransaction ? await db.connect() : db as PoolClient;
+  try {
+    if (ownsTransaction) await client.query('BEGIN');
+    const admin = await client.query(`SELECT 1 FROM accounts actor
+      JOIN account_roles role_grant ON role_grant.account_id=actor.id
+      WHERE actor.id=$1 AND actor.disabled_at IS NULL AND role_grant.role='admin'`,
+    [input.adminAccountId]);
+    if (!admin.rowCount) throw new Error('Support unavailable');
+    // Keep the same decision-key-before-row-lock order as rejection.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
+      [`support-claim-decision:${input.adminAccountId}:${input.idempotencyKey}`]);
+    const located = (await client.query<{ orderId: string; shipmentId: string }>(`
+      SELECT checkout_order_id AS "orderId",shipment_order_id AS "shipmentId"
+      FROM support_claims WHERE id=$1`, [input.claimId])).rows[0];
+    if (!located) throw new Error('Support unavailable');
+    const order = (await client.query<{ status: string }>(`SELECT status
+      FROM checkout_orders WHERE id=$1 FOR UPDATE`, [located.orderId])).rows[0];
+    const shipment = (await client.query<{ status: string; payableWon: number }>(`
+      SELECT status,payable_won AS "payableWon" FROM shipment_orders
+      WHERE id=$1 AND checkout_order_id=$2 FOR UPDATE`,
+    [located.shipmentId,located.orderId])).rows[0];
+    const fulfillment = (await client.query<{ status: string }>(`
+      SELECT status FROM shipment_fulfillments
+      WHERE shipment_order_id=$1 FOR UPDATE`, [located.shipmentId])).rows[0];
+    if (order?.status !== 'PAID' || shipment?.status !== 'PAID' ||
+        fulfillment?.status !== 'SHIPPED') throw new Error('Support unavailable');
+    const shippedEvent = await client.query(`SELECT 1 FROM shipment_fulfillment_events
+      WHERE shipment_order_id=$1 AND action='MARK_SHIPPED' AND to_status='SHIPPED'
+      LIMIT 1`, [located.shipmentId]);
+    if (!shippedEvent.rowCount) throw new Error('Support unavailable');
+    await client.query(`SELECT option_id FROM shipment_order_lines
+      WHERE shipment_order_id=$1 ORDER BY option_id FOR UPDATE`, [located.shipmentId]);
+    await client.query(`SELECT id FROM refund_cases WHERE shipment_order_id=$1
+      ORDER BY id FOR UPDATE`, [located.shipmentId]);
+    const claim = (await client.query<{ status: string; optionId: string;
+      customerId: string; quantity: number; kind: string; reasonCode: string;
+      decisionBy: string | null; decisionKey: string | null;
+      decisionFingerprint: string | null }>(`SELECT status,option_id AS "optionId",
+      customer_account_id AS "customerId",quantity,kind,reason_code AS "reasonCode",
+      decision_by AS "decisionBy",decision_idempotency_key AS "decisionKey",
+      decision_fingerprint AS "decisionFingerprint" FROM support_claims
+      WHERE id=$1 AND checkout_order_id=$2 AND shipment_order_id=$3 FOR UPDATE`,
+    [input.claimId,located.orderId,located.shipmentId])).rows[0];
+    if (!claim) throw new Error('Support unavailable');
+    const reused = (await client.query<{ id: string }>(`SELECT id FROM support_claims
+      WHERE decision_by=$1 AND decision_idempotency_key=$2`,
+    [input.adminAccountId,input.idempotencyKey])).rows[0];
+    if (reused && reused.id !== input.claimId) throw new Error('Support conflict');
+    if (claim.decisionBy) {
+      if (claim.decisionBy !== input.adminAccountId ||
+          claim.decisionKey !== input.idempotencyKey ||
+          claim.decisionFingerprint !== fingerprint)
+        throw new Error('Support conflict');
+      const prior = await getClaim(client, 'admin', input.adminAccountId,
+        undefined, input.claimId);
+      const priorAttempt = (await client.query<{ id: string }>(`
+        SELECT a.id FROM refund_attempts a JOIN refund_cases c
+          ON c.id=a.refund_case_id WHERE c.post_shipment_claim_id=$1
+        ORDER BY a.created_at DESC,a.id DESC LIMIT 1`, [input.claimId])).rows[0];
+      if (ownsTransaction) await client.query('COMMIT');
+      return { ...prior!,attemptId: priorAttempt?.id };
+    }
+    if (!['REQUESTED','SELLER_REPLIED'].includes(claim.status))
+      throw new Error('Support conflict');
+    const line = (await client.query<{ quantity: number; goodsPayableWon: number }>(`
+      SELECT quantity,goods_payable_won AS "goodsPayableWon"
+      FROM shipment_order_lines WHERE shipment_order_id=$1 AND option_id=$2`,
+    [located.shipmentId,claim.optionId])).rows[0];
+    if (!line) throw new Error('Support unavailable');
+    const occupied = (await client.query<{ quantity: number; goodsWon: number }>(`
+      SELECT coalesce(sum(l.quantity),0)::int AS quantity,
+        coalesce(sum(l.goods_refund_won),0)::int AS "goodsWon"
+      FROM refund_case_lines l JOIN refund_cases c ON c.id=l.refund_case_id
+      WHERE l.shipment_order_id=$1 AND l.option_id=$2
+        AND c.status IN ('APPROVED','PROCESSING','REFUNDED','REVIEW_REQUIRED')`,
+    [located.shipmentId,claim.optionId])).rows[0];
+    if (occupied.quantity + claim.quantity > line.quantity)
+      throw new Error('Support conflict');
+    const goodsWon = allocateIncrementalRefundWon(line.goodsPayableWon,
+      line.quantity,occupied.quantity,claim.quantity);
+    if (occupied.goodsWon + goodsWon > line.goodsPayableWon ||
+        goodsWon > 2147483647) throw new Error('Support conflict');
+    const previous = (await client.query<{ totalWon: number }>(`
+      SELECT coalesce(sum(total_refund_won),0)::int AS "totalWon" FROM refund_cases
+      WHERE shipment_order_id=$1
+        AND status IN ('APPROVED','PROCESSING','REFUNDED','REVIEW_REQUIRED')`,
+    [located.shipmentId])).rows[0];
+    if (previous.totalWon + goodsWon > shipment.payableWon)
+      throw new Error('Support conflict');
+    const policy = (await client.query<{ id: string; version: number }>(`
+      SELECT id,version FROM support_policy_versions
+      WHERE code='POST_SHIPMENT_TRIAL' AND effective_at<=now()
+      ORDER BY version DESC LIMIT 1`)).rows[0];
+    if (!policy) throw new Error('Support unavailable');
+    const payment = (await client.query<{ id: string; provider: 'mock' | 'no_charge';
+      amountWon: number }>(`SELECT a.id,a.provider,e.amount_won AS "amountWon"
+      FROM payment_attempts a JOIN payment_events e ON e.payment_attempt_id=a.id
+      WHERE a.checkout_order_id=$1 AND a.status='APPROVED'
+        AND e.outcome='APPROVED' AND e.processing_status='APPLIED'
+        AND e.verified_order_id=$1
+      ORDER BY a.ended_at DESC,a.id DESC LIMIT 1 FOR UPDATE OF a,e`,
+    [located.orderId])).rows[0];
+    if (!payment) throw new Error('Support refund unavailable');
+    const orderRefunds = (await client.query<{ totalWon: number }>(`
+      SELECT coalesce(sum(total_refund_won),0)::int AS "totalWon" FROM refund_cases
+      WHERE checkout_order_id=$1
+        AND status IN ('APPROVED','PROCESSING','REFUNDED','REVIEW_REQUIRED')`,
+    [located.orderId])).rows[0];
+    if (orderRefunds.totalWon + goodsWon > payment.amountWon)
+      throw new Error('Support conflict');
+    const provider = goodsWon === 0 ? 'no_charge' : payment.provider;
+    const refundReasonCode = claim.reasonCode === 'change_of_mind' ?
+      'customer_request' : claim.reasonCode;
+    const caseRow = (await client.query<{ id: string }>(`INSERT INTO refund_cases
+      (checkout_order_id,shipment_order_id,requester_account_id,requester_role,
+       reason_code,reason,idempotency_key,request_fingerprint,post_shipment_claim_id,
+       policy_code,policy_version,status,goods_refund_won,shipping_refund_won,
+       total_refund_won,decided_at,decision_by,decision_reason,
+       decision_idempotency_key,decision_fingerprint)
+      VALUES ($1,$2,$3,'customer',$4,$5,$6,$7,$8,'POST_SHIPMENT_TRIAL',$9,
+        'PROCESSING',$10,0,$10,clock_timestamp(),$11,$12,$13,$14)
+      RETURNING id`, [located.orderId,located.shipmentId,claim.customerId,
+      refundReasonCode,reason,randomUUID(),fingerprint,input.claimId,policy.version,
+      goodsWon,input.adminAccountId,reason,input.idempotencyKey,fingerprint])).rows[0];
+    await client.query(`INSERT INTO refund_case_lines
+      (refund_case_id,shipment_order_id,option_id,quantity,goods_refund_won,restock_mode)
+      VALUES ($1,$2,$3,$4,$5,'none')`,
+    [caseRow.id,located.shipmentId,claim.optionId,claim.quantity,goodsWon]);
+    const attempt = (await client.query<{ id: string }>(`INSERT INTO refund_attempts
+      (refund_case_id,payment_attempt_id,provider,provider_refund_id,requested_won,
+       idempotency_key,request_fingerprint)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [caseRow.id,payment.id,provider,providerRefundId(provider,caseRow.id),goodsWon,
+      input.idempotencyKey,fingerprint])).rows[0];
+    await client.query(`INSERT INTO refund_case_events
+      (refund_case_id,from_status,to_status,actor_account_id,actor_role,reason)
+      VALUES ($1,NULL,'REQUESTED',$2,'customer','Post-shipment claim'),
+             ($1,'REQUESTED','APPROVED',$3,'admin',$4),
+             ($1,'APPROVED','PROCESSING',NULL,'system','Refund attempt reserved')`,
+    [caseRow.id,claim.customerId,input.adminAccountId,reason]);
+    await client.query(`UPDATE support_claims SET status='REFUND_PROCESSING',
+      policy_version_id=$2,decision_by=$3,decision_reason=$4,
+      decided_at=clock_timestamp(),decision_idempotency_key=$5,
+      decision_fingerprint=$6,goods_refund_won=$7 WHERE id=$1`,
+    [input.claimId,policy.id,input.adminAccountId,reason,input.idempotencyKey,
+      fingerprint,goodsWon]);
+    await client.query(`INSERT INTO support_claim_events
+      (claim_id,action,actor_account_id,actor_role,reason,before_status,after_status)
+      VALUES ($1,'APPROVED',$2,'admin',$3,$4,'APPROVED'),
+             ($1,'REFUND_PROCESSING',NULL,'system','Refund attempt reserved',
+              'APPROVED','REFUND_PROCESSING')`,
+    [input.claimId,input.adminAccountId,reason,claim.status]);
+    const result = await getClaim(client, 'admin', input.adminAccountId,
+      undefined, input.claimId);
+    if (ownsTransaction) await client.query('COMMIT');
+    return { ...result!,attemptId: attempt.id };
+  } catch (error) {
+    if (ownsTransaction) await client.query('ROLLBACK');
+    if (error && typeof error === 'object' && 'code' in error &&
+        error.code === '23505' && 'constraint' in error &&
+        ['support_claims_decision_author_key_uq','refund_cases_post_claim_uq']
+          .includes(String(error.constraint))) throw new Error('Support conflict');
     throw error;
   } finally { if (ownsTransaction) client.release(); }
 }

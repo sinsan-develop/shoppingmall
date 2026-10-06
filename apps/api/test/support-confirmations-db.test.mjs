@@ -552,6 +552,53 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       assert.deepEqual((await client.query(`SELECT id,goods_won,payable_won
         FROM shipment_orders WHERE id=ANY($1::uuid[]) ORDER BY id`,
       [[shipped.shipmentId, partiallyRefunded.shipmentId]])).rows, originalAmounts);
+      const approvalShipment = await makeShipment(customer, 'SHIPPED');
+      const approvalClaim = await claims.createClaim(client, {
+        ...claimInput, orderId: approvalShipment.orderId,
+        shipmentOrderId: approvalShipment.shipmentId,idempotencyKey: randomUUID(),
+      });
+      const paymentAttempt = (await client.query(`INSERT INTO payment_attempts
+        (checkout_order_id,provider,provider_order_id,requested_won,idempotency_key,
+         request_fingerprint,status,ended_at)
+        VALUES ($1,'mock',$2,10000,$3,$4,'APPROVED',now()) RETURNING id`,
+      [approvalShipment.orderId,`mock:order:${approvalShipment.orderId}`,
+        randomUUID(),fingerprint])).rows[0].id;
+      await client.query(`INSERT INTO payment_events
+        (payment_attempt_id,provider,provider_event_id,outcome,verified_order_id,
+         provider_payment_id,amount_won,event_fingerprint,processing_status,processed_at)
+        VALUES ($1,'mock',$2,'APPROVED',$3,$4,10000,$5,'APPLIED',now())`,
+      [paymentAttempt,`mock:event:${randomUUID()}`,approvalShipment.orderId,
+        `mock:payment:${randomUUID()}`,fingerprint]);
+      const approvalInput = { claimId: approvalClaim.id,
+        adminAccountId: productSellerAccount,reason: '출고 품목 환불 승인',
+        idempotencyKey: randomUUID() };
+      const approvedClaim = await claims.approveClaim(client, approvalInput,
+        { APP_ENV: 'development',PAYMENT_MODE: 'mock' });
+      assert.equal(approvedClaim.status, 'REFUND_PROCESSING');
+      assert.equal(approvedClaim.goodsRefundWon, 10000);
+      assert.deepEqual(await claims.approveClaim(client, approvalInput,
+        { APP_ENV: 'development',PAYMENT_MODE: 'mock' }),approvedClaim,
+      'the same decision retry must return the same claim and refund attempt');
+      const postRefund = (await client.query(`SELECT status,post_shipment_claim_id,
+        goods_refund_won,shipping_refund_won,total_refund_won,
+        pre_shipment_evidence,policy_code,policy_version FROM refund_cases
+        WHERE post_shipment_claim_id=$1`, [approvalClaim.id])).rows;
+      assert.deepEqual(postRefund, [{ status: 'PROCESSING',
+        post_shipment_claim_id: approvalClaim.id,goods_refund_won: 10000,
+        shipping_refund_won: 0,total_refund_won: 10000,
+        pre_shipment_evidence: null,policy_code: 'POST_SHIPMENT_TRIAL',
+        policy_version: 1 }]);
+      assert.deepEqual((await client.query(`SELECT quantity,goods_refund_won,
+        restock_mode,restocked_quantity FROM refund_case_lines
+        WHERE refund_case_id=(SELECT id FROM refund_cases WHERE post_shipment_claim_id=$1)`,
+      [approvalClaim.id])).rows, [{ quantity: 1,goods_refund_won: 10000,
+        restock_mode: 'none',restocked_quantity: 0 }]);
+      assert.equal((await client.query(`SELECT count(*)::int AS n FROM refund_attempts
+        WHERE refund_case_id=(SELECT id FROM refund_cases WHERE post_shipment_claim_id=$1)`,
+      [approvalClaim.id])).rows[0].n, 1);
+      await assert.rejects(() => claims.approveClaim(client,
+        { ...approvalInput,claimId: remainingClaim.id },
+        { APP_ENV: 'development',PAYMENT_MODE: 'mock' }), /Support conflict/);
       const claimPath = '/customer/support/claims';
       const claimBody = { orderId: httpShipment.orderId,
         shipmentOrderId: httpShipment.shipmentId, optionId: option,
@@ -699,6 +746,35 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       assert.equal(rejectedDetail.events.filter((event) => event.action === 'REJECTED').length, 1);
       assert.equal((await client.query(`SELECT count(*)::int AS n FROM refund_cases
         WHERE post_shipment_claim_id=$1`, [httpClaim.id])).rows[0].n, 0);
+      const partialPayment = (await client.query(`INSERT INTO payment_attempts
+        (checkout_order_id,provider,provider_order_id,requested_won,idempotency_key,
+         request_fingerprint,status,ended_at)
+        VALUES ($1,'mock',$2,20000,$3,$4,'APPROVED',now()) RETURNING id`,
+      [partiallyRefunded.orderId,`mock:order:${partiallyRefunded.orderId}`,
+        randomUUID(),fingerprint])).rows[0].id;
+      await client.query(`INSERT INTO payment_events
+        (payment_attempt_id,provider,provider_event_id,outcome,verified_order_id,
+         provider_payment_id,amount_won,event_fingerprint,processing_status,processed_at)
+        VALUES ($1,'mock',$2,'APPROVED',$3,$4,20000,$5,'APPLIED',now())`,
+      [partialPayment,`mock:event:${randomUUID()}`,partiallyRefunded.orderId,
+        `mock:payment:${randomUUID()}`,fingerprint]);
+      const partialApproval = await claims.approveClaim(client, {
+        claimId: remainingClaim.id,adminAccountId: productSellerAccount,
+        reason: 'PRE 잔량만 승인',idempotencyKey: randomUUID(),
+      }, { APP_ENV: 'development',PAYMENT_MODE: 'mock' });
+      assert.equal(partialApproval.goodsRefundWon, 10000);
+      assert.deepEqual((await client.query(`SELECT sum(goods_refund_won)::int AS goods,
+        sum(shipping_refund_won)::int AS shipping FROM refund_cases
+        WHERE shipment_order_id=$1 AND status IN ('PROCESSING','REFUNDED')`,
+      [partiallyRefunded.shipmentId])).rows[0], { goods: 20000,shipping: 0 });
+      assert.deepEqual((await client.query(`SELECT status,goods_refund_won,
+        shipping_refund_won,total_refund_won,pre_shipment_evidence,completed_at
+        FROM refund_cases WHERE shipment_order_id=$1 AND post_shipment_claim_id IS NULL`,
+      [partiallyRefunded.shipmentId])).rows, originalPre,
+      'PRE refund contents must remain unchanged by a POST claim');
+      assert.deepEqual((await client.query(`SELECT id,goods_won,payable_won
+        FROM shipment_orders WHERE id=ANY($1::uuid[]) ORDER BY id`,
+      [[shipped.shipmentId, partiallyRefunded.shipmentId]])).rows, originalAmounts);
     } finally {
       if (app) await app.close();
       await client.query('ROLLBACK');

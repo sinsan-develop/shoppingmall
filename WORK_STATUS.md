@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.2 POST 승인 예약 내부 service checkpoint — 2026-10-07
+
+- **판정/담당:** 단일 writer 어울, 지정 S5.2 worktree/branch. Main이 승인 SSH alias로 exact `01bedde`를 원격 작업 브랜치에 push 완료(main/PR 미변경)라고 직접 보고했다. 이 세션에서 원격 재조회는 하지 않았으므로 원격 복구 ref는 **Main 보고 기준 `01bedde`**다. 공유 DB/Oracle/실 Provider/credential·push/PR/merge 변경0.
+- **RED→GREEN/현재 범위:** `approveClaim` 없음 RED를 격리 v6 실제 DB 시험으로 확인했다. 내부 service는 관리자 활성 grant, 본인 SHIPPED 발송·MARK_SHIPPED 사건, 검증된 결제 APPLIED 사건, 정책 `POST_SHIPMENT_TRIAL` 버전을 확인하고 결정키 advisory lock을 행 lock 전에 잡는다. 승인 수량의 PRE/POST 기점 점유량과 상품 실결제액·발송/주문/결제 총액 cap을 검사한 뒤 POST `refund_cases`·1개 line(`restock_mode=none`, 배송비0)·1개 refund attempt를 거래로 예약한다. 동일 결정키/본문 재시도는 같은 claim/attempt ID, 다른 claim은 충돌이다. PRE 1개 부분 환불 후 출고된 2개 품목의 잔량 1개를 POST로 예약해 PRE 행 전체와 원 발송 총액 불변을 격리 v6 rollback 시험으로 확인했다. 첫 재시도 응답에서 attemptId가 누락된 RED를 동일 응답으로 교정했다. 격리 v6 support DB/HTTP 1/1, 로컬 전체 **428 total/305 pass/123 계획된 환경 skip/0 fail**, PR 본문 8/8, root typecheck/lint/build·diff check exit0. 동일 근본 원인 연속 실패3회 없음.
+- **절대 미완료 경계:** `approveClaim`은 현재 내부 service 시험만 존재한다. 관리자 HTTP 승인 route는 reject-only이고, `refunds/processor.ts` 현행은 SHIPPED를 `REVIEW_REQUIRED`로 보내므로 모의환불 verified event·POST 완료·claim 최종 상태/감사 연결은 아직 구현/검증되지 않았다. 이를 Stage GREEN이나 실제 환불 성공으로 주장하지 않는다. PRE processor 경로와 shipment/재고/원금액 불변 회귀를 별도 격리 DB에서 확인하고 나서 route를 연다. 교환 대체 발송 자동 생성 없음. 새 외부 자원 없음; 기존 v6/container/network는 후속 시험 중 유지한다.
+
 ## S5.2 fresh 0018 CHECK 반례·v7 정확 정리 — 2026-10-07
 
 - **판정/담당:** 단일 writer 어울. Main이 승인 SSH alias 원격 `codex/s52-customer-support`에 exact `8f2c655` push 완료(main/PR 미변경)라고 직접 보고했다. 이 세션에서 원격 재조회는 하지 않았으므로 복구 ref는 **Main 보고 기준 `8f2c655`**다. 공유 DB/Oracle/실 Provider/credential·push/PR/merge 변경0.
