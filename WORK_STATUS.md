@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## Task10 private gate GREEN · 독립 리뷰 대기 — 2026-10-06
+
+- **판정·기준:** WSL exact SHA `a063a5f43782990d736aa8b8a32ce147e6a1f7e9`와 clean checkout에서 private upgrade/fresh PostgreSQL gate, 전체 시험, typecheck·lint·build, 잔류·임시자원 정리를 모두 통과했다. 공유 `local-postgres/shoppingmall`, 실제 Chrome, 외부서비스, Oracle, PR/main은 접근·변경하지 않았다. 독립 read-only review C0/I0가 아직 남아 있으므로 Task10 최종 완료나 Task11 착수로 승격하지 않는다.
+- **upgrade 0000~0014→0015:** 적용 전 `migration15|accounts0|shipment_orders0|refund_cases0|shipping_policy_global1`, 적용 후 `migration16|accounts0|shipment_orders0|refund_cases0|fulfillment_settings1|shipment_fulfillments relation true|shipment_fulfillment_events relation true`로 기존 행수 불변과 additive schema를 확인했다. `fulfillment-schema-db.test.mjs`는 top-level/subtest 합계 **11/11 PASS**다.
+- **fresh 0000~0015 전체 gate:** 일회용 Linux workspace와 fresh private PostgreSQL `shoppingmall`에 migration **16건**을 적용하고 system identifier `7693458883200426018`를 모든 mutation guard에 고정했다. 제품·안전 시험은 **441 total / 421 pass / 0 fail / 20 planned skip**, PR 본문 자동화 검사는 **8/8 PASS**다. skip은 ClamAV·별도 shared/private fixture처럼 이번 gate에서 의도적으로 opt-in하지 않은 환경 시험이며 PASS로 계산하지 않았다.
+- **정적·빌드 gate:** Node 24 Linux에서 `pnpm typecheck`, `pnpm lint`, `pnpm build`가 모두 exit 0이다. API build와 Next.js production build가 통과했고 Web은 **18 routes**를 생성했다.
+- **잔류·정리:** fresh 전체 시험 뒤 공개 테이블 실제 행수 전수 조회 결과 비어 있지 않은 테이블은 설계상 singleton인 `fulfillment_settings=1`, `home_content_current=1`, `home_content_draft=1`, `shipping_policy_global=1`뿐이다. 시험 계정·상품·장바구니·예약·주문·결제·환불·출고·감사 업무행 잔류는 0이다. exact Task10 container/network/volume/archive 잔류는 모두 **0**, WSL checkout은 clean이다.
+- **오류 횟수·조치:** upgrade runner 위치의 `tsx` 해석 오류 **1회**, schema 시험의 `PG*` 누락 **1회**, 기존 WSL 의존성의 Linux Sharp optional runtime 부재 **1회**는 각각 absolute loader, PG 환경, 일회용 Linux dependency volume으로 보정했다. fresh DB를 `shoppingmall_s51_...`로 만든 안전장치 계약 불일치 **1회**는 해당 컨테이너를 폐기하고 정확한 `shoppingmall` 이름의 새 서버로 처음부터 재실행했다. 새 gate container의 corepack shim 미활성 **1회**는 `corepack enable` 후 재실행했다. 원격 셸 인용·검사용 helper 호출 오류는 **4회**였고 모두 대상 명령 실행 전 또는 읽기 전용 조회에서 종료됐으며 제품·DB 자료 변경은 없었다. 동일 근본 원인 3회 연속은 없다.
+- **다음 조치:** exact SHA의 변경·계획·검증 증거를 독립 read-only reviewer가 확인해 Critical 0 / Important 0을 판정해야 한다. 통과하면 결과를 commit·alias 원격 push·WSL exact-SHA로 맞춘 뒤 Task11 공유 DB 적용 승인 패킷만 준비해 PMO에 보고한다. 별도 승인 전 shared migration/seed/browser write는 하지 않는다.
+
 ## Task10 착수 — 2026-10-06 격리 전체 gate
 
 - **판정·기준:** PMO 지시에 따라 exact SHA `c4327aaa5e6db6d7d606f253ff4c73299cd005ad`에서 Task10을 시작한다. 같은 `codex/s5-fulfillment-engagement`와 기존 worktree만 사용하며 공유 DB·실제 Chrome·외부서비스·Oracle·PR/main은 범위 밖이다.
