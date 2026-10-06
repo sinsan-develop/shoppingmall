@@ -4,7 +4,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fulfillmentUiExpectedShipDate,
   validateFulfillmentUiManifest } from '../apps/api/scripts/qa-fulfillment-ui-fixture.ts';
-import { closeCdpPage, createCdpCommandChannel, openCdpPage } from './qa-browser-cdp.mjs';
+import { closeCdpPage, createCdpCommandChannel, openCdpPage,
+  visitKeyboardTargets } from './qa-browser-cdp.mjs';
 
 const web = process.env.QA_WEB_BASE;
 const password = process.env.QA_FIXTURE_PASSWORD;
@@ -146,13 +147,11 @@ async function keyboardAndViewportEvidence(label) {
       return nodes.length;
     })()`);
     assert.ok(visibleFocusables > 0, `${label} has no visible keyboard targets`);
-    const visited = new Set();
-    for (let index = 0; index < visibleFocusables + 2; index += 1) {
+    const visited = await visitKeyboardTargets(visibleFocusables, async () => {
       await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
-      const active = await evaluate("document.activeElement?.dataset?.qaFocusIndex ?? null");
-      if (active !== null) visited.add(active);
-    }
+      return evaluate("document.activeElement?.dataset?.qaFocusIndex ?? null");
+    });
     assert.equal(visited.size, visibleFocusables,
       `${label} ${viewport.name}px keyboard traversal ${visited.size}/${visibleFocusables}`);
     if (evidenceDir) {

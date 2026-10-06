@@ -71,6 +71,19 @@ export function createCdpCommandChannel(socket, {
   };
 }
 
+export async function visitKeyboardTargets(targetCount, pressTab) {
+  const visited = new Set();
+  let pressesWithoutNewTarget = 0;
+  const stallLimit = targetCount + 2;
+  while (visited.size < targetCount && pressesWithoutNewTarget < stallLimit) {
+    const active = await pressTab();
+    const previousSize = visited.size;
+    if (active !== null) visited.add(active);
+    pressesWithoutNewTarget = visited.size === previousSize ? pressesWithoutNewTarget + 1 : 0;
+  }
+  return visited;
+}
+
 export async function openCdpPage({ debugging, fetchImpl = globalThis.fetch,
   WebSocketImpl = globalThis.WebSocket, timeoutMs = 5_000 }) {
   let page;

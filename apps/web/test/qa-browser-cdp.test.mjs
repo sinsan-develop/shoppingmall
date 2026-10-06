@@ -49,6 +49,19 @@ test('CDP command error identifies the failed method', async () => {
   assert.equal(channel.pendingCount(), 0);
 });
 
+test('keyboard traversal tolerates native date segments that retain the same DOM focus', async () => {
+  const { visitKeyboardTargets } =
+    await import('../../../scripts/qa-browser-cdp.mjs');
+  const sequence = ['0', '1', '1', '1', '1', '2'];
+  let presses = 0;
+
+  assert.equal(typeof visitKeyboardTargets, 'function');
+  const visited = await visitKeyboardTargets(3, async () => sequence[presses++] ?? null);
+
+  assert.deepEqual([...visited], ['0', '1', '2']);
+  assert.equal(presses, 6);
+});
+
 test('CDP socket close rejects every pending command', async () => {
   const socket = { readyState: 1, send() {} };
   const channel = createCdpCommandChannel(socket, { WebSocketImpl: { OPEN: 1 }, timeoutMs: 1_000 });
