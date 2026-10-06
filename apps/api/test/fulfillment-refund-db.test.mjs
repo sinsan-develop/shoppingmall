@@ -209,6 +209,9 @@ test('verified partial refund preserves fulfillment and updates customer and sel
     assert.deepEqual(fulfillment, { status: 'READY', version: 0, cancelled_at: null });
     assert.equal((await pool.query(`SELECT count(*)::int AS count FROM shipment_fulfillment_events
       WHERE shipment_order_id=$1`, [ids.shipmentId])).rows[0].count, 0);
+    assert.equal((await pool.query(`SELECT count(*)::int AS count FROM audit_events
+      WHERE action='fulfillment.refund_cancelled' AND target_type='shipment_order'
+        AND target_id=$1`, [ids.shipmentId])).rows[0].count, 0);
     const customer = await getOrderSnapshotConsistent(pool, ids.customerId, ids.orderId);
     const seller = await getSellerFulfillmentDetail(pool, ids.sellerId, ids.shipmentId);
     assert.equal(customer.shipments[0].lines[0].completedRefundQuantity, 1);
@@ -250,6 +253,32 @@ test('cumulative full refund cancels fulfillment once and replay stays idempoten
         carrierCode: null, trackingNumber: null },
       after: { status: 'CANCELLED', expectedShipDate: '2026-10-08',
         carrierCode: null, trackingNumber: null } });
+    const audits = (await pool.query(`SELECT actor_account_id AS "actorAccountId",
+      active_role AS "activeRole",seller_id AS "sellerId",action,
+      target_type AS "targetType",target_id AS "targetId",details
+      FROM audit_events WHERE action='fulfillment.refund_cancelled'
+        AND target_type='shipment_order' AND target_id=$1
+      ORDER BY occurred_at,id`, [ids.shipmentId])).rows;
+    assert.equal(audits.length, 1);
+    assert.deepEqual(audits[0], {
+      actorAccountId: ids.adminId,
+      activeRole: 'admin',
+      sellerId: null,
+      action: 'fulfillment.refund_cancelled',
+      targetType: 'shipment_order',
+      targetId: ids.shipmentId,
+      details: {
+        refundEventId: second.event.id,
+        before: { status: 'READY', expectedShipDate: '2026-10-08',
+          carrierCode: null, trackingNumber: null },
+        after: { status: 'CANCELLED', expectedShipDate: '2026-10-08',
+          carrierCode: null, trackingNumber: null },
+      },
+    });
+    const auditDetails = JSON.stringify(audits[0].details);
+    for (const privateValue of ['01000000000', '시험 주소', ids.customerId, '미출고 확인']) {
+      assert.equal(auditDetails.includes(privateValue), false);
+    }
     const customer = await getOrderSnapshotConsistent(pool, ids.customerId, ids.orderId);
     const seller = await getSellerFulfillmentDetail(pool, ids.sellerId, ids.shipmentId);
     assert.equal(customer.shipments[0].lines[0].completedRefundQuantity, 3);

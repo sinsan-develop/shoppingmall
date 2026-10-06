@@ -125,6 +125,8 @@ async function cleanup(pool, ids) {
   await pool.query('DELETE FROM payment_events WHERE payment_attempt_id=$1', [ids.paymentAttemptId]);
   await pool.query('DELETE FROM payment_attempts WHERE id=$1', [ids.paymentAttemptId]);
   await pool.query('DELETE FROM shipment_fulfillment_events WHERE shipment_order_id=$1', [ids.shipmentId]);
+  await pool.query(`DELETE FROM audit_events WHERE action='fulfillment.refund_cancelled'
+    AND target_type='shipment_order' AND target_id=$1`, [ids.shipmentId]);
   await pool.query('DELETE FROM shipment_order_lines WHERE shipment_order_id=$1', [ids.shipmentId]);
   await pool.query('DELETE FROM shipment_fulfillments WHERE shipment_order_id=$1', [ids.shipmentId]);
   await pool.query('DELETE FROM shipment_orders WHERE id=$1', [ids.shipmentId]);

@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## RED 후보 — 2026-10-06 S5.1 Task7 환불 취소 감사 계약 TDD Phase A
+
+- **판정:** PMO가 승인한 Phase A에 따라 시험·fixture만 보정했다. actual PostgreSQL RED는 실행하지 않았으므로 이 기록은 **RED 후보**이며 GREEN·Task7 완료가 아니다.
+- **PMO 정정·감사 계약:** 누적 전량 환불로 출고가 `CANCELLED`될 때 `fulfillment.refund_cancelled` 감사를 남기는 것이 확정 계약이다. 앞선 audit FK 회귀를 이유로 제품의 추가 감사 INSERT를 제거했던 조치는 최종 계약 폐기가 아니며, 이번 Phase A에서 fixture 정리와 RED 단언으로 계약을 바로잡았다. 부분 환불은 해당 감사 0건, 누적 전량 환불은 replay 뒤에도 exact action/target 감사 정확히 1건이어야 한다.
+- **정확한 단언:** 전량 환불 감사의 `actor_account_id`는 환불 승인 관리자, `active_role='admin'`, `seller_id=null`, target은 해당 `shipment_order`다. details는 원 refund event ID와 `READY→CANCELLED` 전후 상태·예상출고일·택배사/운송장 null만 정확히 포함하고 고객 전화·주소·customer ID·내부 사유를 포함하지 않아야 한다. 기존 fulfillment event 단언은 삭제·완화하지 않았다.
+- **fixture·정리:** 환불 HTTP fixture는 기존 판매자 소유의 `READY`·예상출고일 `2026-10-08` 출고행을 발송 주문 직후 생성한다. 정리는 출고사건→exact action/target 감사→출고행→발송 주문 순서를 지키며, 기존 S4 환불 처리 fixture도 동일 exact 감사행을 계정보다 먼저 삭제한다. 다른 자료 삭제 범위는 확대하지 않았다.
+- **변경 범위:** `apps/api/test/fulfillment-refund-db.test.mjs`, `apps/api/test/refund-processing-db.test.mjs`, `apps/api/test-support/refund-http-fixture.mjs`, 이 `WORK_STATUS.md`만 변경했다. `apps/api/src/refunds/processor.ts`를 포함한 제품 코드, schema/migration, 공개 계약은 수정하지 않았다.
+- **로컬 검증:** DB 환경변수를 제거한 fulfillment-refund/refund-processing/refund-http/customer-paid/payment-sale-stop 5개 loader는 **16 tests / 1 no-DB route pass / 15 explicit DB skip / 0 fail**이다. 변경 코드 3파일 ESLint, API typecheck, `git diff --check`는 모두 exit 0이다. 이 결과는 loader·문법·정적 경계만 확인하며 actual RED 증거가 아니다.
+- **미검증·다음:** actual private PostgreSQL에서 부분 감사0·전량 감사 정확1·PII/내부사유 비저장과 fixture cleanup을 아직 검증하지 않았다. DB·WSL·Docker·commit·push는 수행하지 않았다. controller가 exact 후보를 actual DB에서 실행해 제품 RED와 cleanup을 확인하기 전에는 GREEN 또는 완료로 판정하지 않는다.
+
 ## actual candidate NON-GREEN — 2026-10-06 S5.1 Task7 경합 preflight 보정
 
 - **판정:** controller의 actual private PostgreSQL 후보 실행은 **13 tests / 9 pass / 4 fail / 0 skip**으로 아직 GREEN·Task7 완료가 아니다. 실패 4건은 full-refund 뒤 추가 감사행이 기존 S4 fixture 계정 정리를 FK로 막은 **audit FK 2건**과, 경합 helper가 외부 locker PID의 직접 포함만 요구해 실제 잠금 대기를 놓친 **PG wait queue direct-PID 2건**이다. 이 수치는 보정 전 관찰이며 최종 수치 갱신은 controller의 actual 재검증 뒤 수행한다.
