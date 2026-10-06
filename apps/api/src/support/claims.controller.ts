@@ -1,11 +1,12 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException,
-  Header, HttpCode, Inject, NotFoundException, Post, Req, ServiceUnavailableException,
+  Get, Header, HttpCode, Inject, NotFoundException, Param, Post, Query, Req,
+  ServiceUnavailableException,
   UnauthorizedException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
-import { createClaim } from './claims.js';
+import { createClaim, getClaim, listClaims, parseClaimPageQuery } from './claims.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string } };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,34 +31,109 @@ function claimBody(value: unknown) {
     kind: string; reasonCode: string; reason: string; quantity: number };
 }
 
+async function context(database: DatabaseService, request: RequestHeaders,
+  role: 'customer' | 'seller' | 'admin') {
+  const token = readToken(request.headers.cookie);
+  if (!token) throw new UnauthorizedException();
+  const pool = poolOrUnavailable(database);
+  const actor = await new AuthRepository(pool).getSession(token);
+  if (!actor) throw new UnauthorizedException();
+  if (actor.role !== role || (role === 'seller' && !actor.sellerId))
+    throw new ForbiddenException();
+  return { pool, actor };
+}
+
+async function handle<T>(operation: () => Promise<T>): Promise<T> {
+  try { return await operation(); }
+  catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message === 'Invalid support request')
+      throw new BadRequestException({ status: 'invalid_support' });
+    if (message === 'Support unavailable') throw new NotFoundException();
+    if (message === 'Support conflict')
+      throw new ConflictException({ status: 'support_conflict' });
+    throw error;
+  }
+}
+
 @Controller('customer/support/claims')
 export class CustomerSupportClaimController {
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  @Get()
+  @Header('Cache-Control', 'private, no-store')
+  async list(@Req() request: RequestHeaders, @Query() query: Record<string, unknown>) {
+    const { pool, actor } = await context(this.database, request, 'customer');
+    return handle(() => listClaims(pool, 'customer', actor.accountId,
+      undefined, parseClaimPageQuery(query)));
+  }
+
+  @Get(':claimId')
+  @Header('Cache-Control', 'private, no-store')
+  async detail(@Req() request: RequestHeaders, @Param('claimId') claimId: string) {
+    const { pool, actor } = await context(this.database, request, 'customer');
+    const claim = await handle(() => getClaim(pool, 'customer', actor.accountId,
+      undefined, claimId));
+    if (!claim) throw new NotFoundException();
+    return claim;
+  }
 
   @Post()
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
   async create(@Req() request: RequestHeaders, @Body() value: unknown) {
     requireOrigin(request);
-    const token = readToken(request.headers.cookie);
-    if (!token) throw new UnauthorizedException();
-    const pool = poolOrUnavailable(this.database);
-    const actor = await new AuthRepository(pool).getSession(token);
-    if (!actor) throw new UnauthorizedException();
-    if (actor.role !== 'customer') throw new ForbiddenException();
+    const { pool, actor } = await context(this.database, request, 'customer');
     const key = request.headers['idempotency-key'];
     if (!key || !uuid.test(key)) throw new BadRequestException({ status: 'invalid_support' });
     const body = claimBody(value);
-    try { return await createClaim(pool, { ...body, customerAccountId: actor.accountId,
-      idempotencyKey: key }); }
-    catch (error) {
-      const message = error instanceof Error ? error.message : '';
-      if (message === 'Invalid support request')
-        throw new BadRequestException({ status: 'invalid_support' });
-      if (message === 'Support unavailable') throw new NotFoundException();
-      if (message === 'Support conflict')
-        throw new ConflictException({ status: 'support_conflict' });
-      throw error;
-    }
+    return handle(() => createClaim(pool, { ...body, customerAccountId: actor.accountId,
+      idempotencyKey: key }));
+  }
+}
+
+@Controller('seller/support/claims')
+export class SellerSupportClaimController {
+  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  @Get()
+  @Header('Cache-Control', 'private, no-store')
+  async list(@Req() request: RequestHeaders, @Query() query: Record<string, unknown>) {
+    const { pool, actor } = await context(this.database, request, 'seller');
+    return handle(() => listClaims(pool, 'seller', actor.accountId,
+      actor.sellerId!, parseClaimPageQuery(query)));
+  }
+
+  @Get(':claimId')
+  @Header('Cache-Control', 'private, no-store')
+  async detail(@Req() request: RequestHeaders, @Param('claimId') claimId: string) {
+    const { pool, actor } = await context(this.database, request, 'seller');
+    const claim = await handle(() => getClaim(pool, 'seller', actor.accountId,
+      actor.sellerId!, claimId));
+    if (!claim) throw new NotFoundException();
+    return claim;
+  }
+}
+
+@Controller('admin/support/claims')
+export class AdminSupportClaimController {
+  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  @Get()
+  @Header('Cache-Control', 'private, no-store')
+  async list(@Req() request: RequestHeaders, @Query() query: Record<string, unknown>) {
+    const { pool, actor } = await context(this.database, request, 'admin');
+    return handle(() => listClaims(pool, 'admin', actor.accountId,
+      undefined, parseClaimPageQuery(query, true)));
+  }
+
+  @Get(':claimId')
+  @Header('Cache-Control', 'private, no-store')
+  async detail(@Req() request: RequestHeaders, @Param('claimId') claimId: string) {
+    const { pool, actor } = await context(this.database, request, 'admin');
+    const claim = await handle(() => getClaim(pool, 'admin', actor.accountId,
+      undefined, claimId));
+    if (!claim) throw new NotFoundException();
+    return claim;
   }
 }

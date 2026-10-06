@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import type { PoolClient } from 'pg';
+import { parseQuestionPageQuery } from './questions.js';
 
 type Db = Pool | PoolClient;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -97,4 +98,95 @@ export async function createClaim(db: Db, input: ClaimInput) {
     if (ownsTransaction) await client.query('ROLLBACK');
     throw error;
   } finally { if (ownsTransaction) client.release(); }
+}
+
+export function parseClaimPageQuery(query: Record<string, unknown>, admin = false) {
+  if (!admin) return parseQuestionPageQuery(query);
+  if (!query || typeof query !== 'object') throw new Error('Invalid support request');
+  const { status, ...pageQuery } = query;
+  if (status !== undefined && (typeof status !== 'string' || ![
+    'REQUESTED','SELLER_REPLIED','APPROVED','REJECTED','REFUND_PROCESSING',
+    'REFUNDED','REVIEW_REQUIRED',
+  ].includes(status))) throw new Error('Invalid support request');
+  return { ...parseQuestionPageQuery(pageQuery),
+    ...(status === undefined ? {} : { status }) };
+}
+
+type ClaimScope = 'customer' | 'seller' | 'admin';
+
+export async function listClaims(db: Db, scope: ClaimScope, actorAccountId: string,
+  sellerId: string | undefined, page: ReturnType<typeof parseClaimPageQuery>) {
+  if (!uuid.test(actorAccountId) || (scope === 'seller' && (!sellerId || !uuid.test(sellerId))))
+    throw new Error('Invalid support request');
+  const where = scope === 'customer' ? 'c.customer_account_id=$1 AND $2::uuid IS NULL' :
+    scope === 'seller' ? `c.seller_id=$2 AND EXISTS (SELECT 1 FROM account_roles grant_role
+      WHERE grant_role.account_id=$1 AND grant_role.role='seller'
+        AND grant_role.seller_id=c.seller_id)` : '$1::uuid IS NOT NULL AND $2::uuid IS NULL';
+  const result = (await db.query<{ id: string; productId: string; shipmentOrderId: string;
+    kind: string; reasonCode: string; status: string; createdAt: Date;
+    cursorTime: string }>(`SELECT c.id,c.product_id AS "productId",
+    c.shipment_order_id AS "shipmentOrderId",c.kind,
+    c.reason_code AS "reasonCode",c.status,c.created_at AS "createdAt",
+    to_char(c.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "cursorTime"
+    FROM support_claims c WHERE ${where}
+      AND ($3::text IS NULL OR c.status=$3::text)
+      AND ($4::timestamptz IS NULL OR
+        (c.created_at,c.id)<($4::timestamptz,$5::uuid))
+    ORDER BY c.created_at DESC,c.id DESC LIMIT $6`,
+  [actorAccountId, sellerId ?? null, page.status ?? null,
+    page.cursor?.createdAt ?? null, page.cursor?.id ?? null,
+    page.limit + 1])).rows;
+  const rows = result.slice(0, page.limit);
+  const last = rows.at(-1);
+  return { items: rows.map(({ id, productId, shipmentOrderId, kind,
+    reasonCode, status, createdAt }) => ({ id, productId, shipmentOrderId,
+    kind, reasonCode, status, createdAt })),
+    nextCursor: result.length > page.limit && last ? Buffer.from(JSON.stringify({
+      createdAt: last.cursorTime, id: last.id,
+    })).toString('base64url') : null };
+}
+
+export async function getClaim(db: Db, scope: ClaimScope, actorAccountId: string,
+  sellerId: string | undefined, claimId: string) {
+  if (![actorAccountId, claimId].every((id) => uuid.test(id)) ||
+      (scope === 'seller' && (!sellerId || !uuid.test(sellerId))))
+    throw new Error('Invalid support request');
+  const where = scope === 'customer' ? 'c.customer_account_id=$2' :
+    scope === 'seller' ? `c.seller_id=$3 AND EXISTS (SELECT 1 FROM account_roles grant_role
+      WHERE grant_role.account_id=$2 AND grant_role.role='seller'
+        AND grant_role.seller_id=c.seller_id)` : 'true';
+  const claim = (await db.query<{ id: string; orderId: string; shipmentOrderId: string;
+    optionId: string; productId: string; customerAccountId: string; sellerId: string;
+    kind: string; reasonCode: string; reason: string; quantity: number; status: string;
+    policyVersionId: string | null; decisionReason: string | null;
+    decidedAt: Date | null; createdAt: Date }>(`
+    SELECT c.id,c.checkout_order_id AS "orderId",
+      c.shipment_order_id AS "shipmentOrderId",c.option_id AS "optionId",
+      c.product_id AS "productId",c.customer_account_id AS "customerAccountId",
+      c.seller_id AS "sellerId",c.kind,c.reason_code AS "reasonCode",
+      c.reason,c.quantity,c.status,c.policy_version_id AS "policyVersionId",
+      c.decision_reason AS "decisionReason",c.decided_at AS "decidedAt",
+      c.created_at AS "createdAt" FROM support_claims c
+    WHERE c.id=$1 AND ${where}`,
+  scope === 'admin' ? [claimId] : scope === 'customer' ?
+    [claimId, actorAccountId] : [claimId, actorAccountId, sellerId])).rows[0];
+  if (!claim) return undefined;
+  const messages = (await db.query<{ id: string; authorRole: string;
+    body: string; createdAt: Date }>(`SELECT id,author_role AS "authorRole",
+    body,created_at AS "createdAt" FROM support_claim_messages
+    WHERE claim_id=$1 ORDER BY message_seq`, [claimId])).rows;
+  const events = (await db.query<{ action: string; actorRole: string;
+    reason: string; beforeStatus: string | null; afterStatus: string;
+    occurredAt: Date }>(`SELECT action,actor_role AS "actorRole",reason,
+    before_status AS "beforeStatus",after_status AS "afterStatus",
+    occurred_at AS "occurredAt" FROM support_claim_events
+    WHERE claim_id=$1 ORDER BY event_seq`, [claimId])).rows;
+  const evidence = (await db.query<{ id: string; mimeType: string;
+    sizeBytes: number; createdAt: Date }>(`SELECT id,mime_type AS "mimeType",
+    size_bytes AS "sizeBytes",created_at AS "createdAt"
+    FROM support_claim_evidence WHERE claim_id=$1 ORDER BY created_at,id`, [claimId])).rows;
+  const { customerAccountId, ...publicClaim } = claim;
+  return { ...publicClaim,
+    ...(scope === 'admin' ? { customerAccountId } : {}),
+    messages, events, evidence };
 }

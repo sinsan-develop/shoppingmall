@@ -31,9 +31,10 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       assert.deepEqual(identity, { name, system_id: systemId });
       await client.query('BEGIN');
       const accounts = [];
-      for (let index = 0; index < 4; index++)
+      for (let index = 0; index < 5; index++)
         accounts.push((await client.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id);
-      const [customer, otherCustomer, productSellerAccount, fulfillmentAccount] = accounts;
+      const [customer, otherCustomer, productSellerAccount, fulfillmentAccount,
+        sellerSupportAccount] = accounts;
       const sellerCategory = (await client.query(`INSERT INTO seller_categories(name)
         VALUES ($1) RETURNING id`, [`s52-confirm-${randomUUID()}`])).rows[0].id;
       const productSeller = (await client.query(`INSERT INTO sellers(category_id,display_name)
@@ -223,6 +224,7 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       for (const [account, role, sellerId] of [
         [customer, 'customer', null], [otherCustomer, 'customer', null],
         [fulfillmentAccount, 'seller', fulfillmentSeller],
+        [sellerSupportAccount, 'seller', productSeller],
         [productSellerAccount, 'admin', null],
       ]) {
         await client.query(`INSERT INTO account_roles(account_id,role,seller_id)
@@ -574,6 +576,36 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       assert.equal((await claimRequest(customer, { ...claimBody,
         reason: '다른 요청' })).status, 409);
       assert.equal((await claimRequest(customer, claimBody, randomUUID())).status, 409);
+      const customerClaimPath = `${claimPath}/${httpClaim.id}`;
+      const sellerClaimPath = `/seller/support/claims/${httpClaim.id}`;
+      const adminClaimPath = `/admin/support/claims/${httpClaim.id}`;
+      assert.equal((await reviewRequest(otherCustomer, customerClaimPath, 'GET')).status, 404);
+      assert.equal((await reviewRequest(customer, sellerClaimPath, 'GET')).status, 403);
+      assert.equal((await reviewRequest(fulfillmentAccount, sellerClaimPath, 'GET')).status, 404,
+        'pooled fulfillment seller is not the product seller');
+      assert.equal((await reviewRequest(sellerSupportAccount, sellerClaimPath, 'GET')).status, 200);
+      assert.equal((await reviewRequest(productSellerAccount, adminClaimPath, 'GET')).status, 200);
+      const customerClaim = await (await reviewRequest(customer, customerClaimPath, 'GET')).json();
+      assert.equal(customerClaim.id, httpClaim.id);
+      assert.equal(customerClaim.sellerId, productSeller);
+      assert.deepEqual(customerClaim.messages.map(({ body }) => body), [claimBody.reason]);
+      for (const invalid of ['limit=0','limit=51','cursor=bad']) {
+        assert.equal((await reviewRequest(customer, `${claimPath}?${invalid}`, 'GET')).status, 400);
+        assert.equal((await reviewRequest(sellerSupportAccount,
+          `/seller/support/claims?${invalid}`, 'GET')).status, 400);
+      }
+      const customerClaims = await (await reviewRequest(customer,
+        `${claimPath}?limit=50`, 'GET')).json();
+      assert.ok(customerClaims.items.some((item) => item.id === httpClaim.id));
+      const productSellerClaims = await (await reviewRequest(sellerSupportAccount,
+        '/seller/support/claims?limit=50', 'GET')).json();
+      assert.ok(productSellerClaims.items.some((item) => item.id === httpClaim.id));
+      const pooledClaims = await (await reviewRequest(fulfillmentAccount,
+        '/seller/support/claims?limit=50', 'GET')).json();
+      assert.deepEqual(pooledClaims.items, []);
+      const adminClaims = await (await reviewRequest(productSellerAccount,
+        '/admin/support/claims?status=REQUESTED&limit=50', 'GET')).json();
+      assert.ok(adminClaims.items.some((item) => item.id === httpClaim.id));
     } finally {
       if (app) await app.close();
       await client.query('ROLLBACK');
