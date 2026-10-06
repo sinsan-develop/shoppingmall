@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## Task10 착수 — 2026-10-06 격리 전체 gate
+
+- **판정·기준:** PMO 지시에 따라 exact SHA `c4327aaa5e6db6d7d606f253ff4c73299cd005ad`에서 Task10을 시작한다. 같은 `codex/s5-fulfillment-engagement`와 기존 worktree만 사용하며 공유 DB·실제 Chrome·외부서비스·Oracle·PR/main은 범위 밖이다.
+- **격리 자원:** private network `shoppingmall-s51-task10-1006`, tmpfs PostgreSQL `shoppingmall-s51-task10-fresh-pg-1006`와 `shoppingmall-s51-task10-upgrade-pg-1006`, 일회용 Node runner만 사용한다. 외부 port·영속 volume은 만들지 않고 종료·실패 시 exact 자원과 upgrade 임시 archive를 제거한다.
+- **검증 순서:** fresh DB에 0000~0015와 S5 system identifier-bound 목표·전체 순차 시험을 실행한다. 별도 upgrade DB에는 0015 직전 commit의 0000~0014 migration archive를 적용해 이력15·기존 관계/행수를 기록한 뒤 현재 0015를 적용하고 이력16·신규 3관계/singleton1·기존 관계/행수 불변을 대조한다. 이어 WSL exact-SHA의 typecheck·lint·build와 잔류0·임시자원0을 확인한다.
+- **재사용:** Task9 private fixture safety 1/1은 이미 유효한 exact 계보에서 통과했으므로 반복하지 않는다. 실제 Chrome은 Task11 별도 승인 뒤 Task12에서만 실행한다.
+- **다음 조치:** 이 착수 기록을 commit·push하고 WSL exact SHA를 맞춘 뒤 위 두 private DB gate를 수행한다. 실패는 원인별 횟수와 잔류/정리를 기록하며 PASS로 바꾸지 않는다.
+
 ## Task9 정합화 완료 — 2026-10-06 fixture/runner 준비·private DB 안전검증
 
 - **판정:** PMO가 승인 계획을 재확인해 private Chrome 실행 요청을 철회했다. Task9는 fixture·runner 준비와 private DB 안전검증까지 완료했으며 실제 Chrome은 **미실행**이다. 이 상태를 화면·viewport·키보드 PASS로 승격하지 않는다.
