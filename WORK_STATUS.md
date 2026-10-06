@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## S5.1 PR #13 생성 완료 · Oracle RC 승인 패킷 준비 대기 — 2026-10-07
+
+- **PR 생성:** PR #13 `https://github.com/sinsan-develop/shoppingmall/pull/13` 생성을 완료했다. 생성 당시 exact head는 `84a37641c1df7ad2b873a9493b4ff6db16661d59`이며 GitHub verify는 `completed/success`다. `pr-create` tag는 자동 삭제됐고 `pr-request`와 병합은 사용하지 않았다.
+- **Main 실제 확인:** Main이 local·origin·WSL의 HEAD가 모두 `84a37641c1df7ad2b873a9493b4ff6db16661d59`로 일치하고 clean임을 실제 확인했다. local/WSL의 PR body validator는 각각 **8/8 PASS**, `git diff --check`도 각각 PASS다. 마지막 commit은 승인된 문서 8개만 포함하며 제품 코드는 포함하지 않는다.
+- **PMO 증거 경계:** PMO는 자기 환경에서 live GitHub와 WSL을 독립 조회하지 못했으므로 위 PR·GitHub verify·origin/WSL 상태는 담당 Main의 live 확인 보고로 구분한다. 이 문서 기록은 해당 live 상태를 PMO가 독립 재현했다는 뜻이 아니다.
+- **기존 제품·QA 증거 불변:** 제품·QA SHA `943a8cd99307f968ca21cbeaf283f610b2e52448`의 local/WSL 각각 **415 total / 298 pass / 117 planned skip / 0 fail**, 격리 PostgreSQL 18.4 migration16 관련 DB/HTTP **38/38**, Chrome 154의 고객·판매자·관리자 역할 경로와 1920/1440/430·키보드 PASS, signed reset 25관계 합계0·run 자원0 증거는 변경되지 않았다.
+- **미해결·미검증:** 판매자·관리자 상세의 여러 `SELECT`가 하나의 read-only snapshot이 아니어서 동시 정정/환불 중 일시적으로 서로 다른 시점이 섞일 수 있는 M1 위험은 후속으로 유지한다. 실제 Provider 연동, 실제 200% 확대, S5.2~S5.4는 미검증·미완료다.
+- **다음 정확한 gate:** Oracle release candidate 승인 패킷에 exact commit/image, 대상 서버, 환경 영향, health 확인, 사용자 테스트 방법, rollback, 미검증 범위를 정리해 신산님께 진행 여부 결정을 요청한다. 신산님 UAT 승인 전에는 PR #13을 병합하지 않는다.
+- **PR head 후속:** 이번 `WORK_STATUS.md` 기록을 docs-only commit하면 PR head가 바뀌므로 Main이 승인 SSH alias push, WSL exact-SHA sync, PR exact head/check/diff를 다시 확인할 예정이다. 이번 writer는 stage·commit·push·WSL/DB/Chrome 작업을 수행하지 않는다.
+
 ## S5.1 PMO 승인 docs 보정 독립 재리뷰 PASS — 2026-10-07
 
 - **판정:** PMO 승인 docs-only 정본 보정의 독립 재리뷰 결과는 **Critical 0 / Important 0 / Minor 1, Stage gate PASS**다. 첫 리뷰의 I1 계약/계획 잠금 의미와 I2 최종 검증 증거 불일치는 해소됐다.
