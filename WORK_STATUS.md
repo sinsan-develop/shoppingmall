@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## 완료 checkpoint — 2026-10-06 S5.1 Task6 관리자 설정·조회·정정 API
+
+- **판정:** branch `codex/s5-fulfillment-engagement`, 최종 제품 SHA `7b798cc9c4c870ee76dc1461134d58b8908fb7aa`에서 **Task6 범위 완료**다. 이는 S5.1 Stage 전체, Task7 이후 범위, shared DB, Oracle, 외부 서비스, 사용자 인수 또는 `main` 병합 완료 판정이 아니다.
+- **제품·Important 해소:** 관리자 설정·전체 발송 목록/상세·정정 API를 유지하면서 최초 Important 4건인 2글자 이름 마스킹, 관리자 GET settings/list/detail의 `Cache-Control: private, no-store`, PII 없는 감사 before/after 전체 상태(`carrierName` 포함)·reason·customerMessage, `SHIPPED→SHIPPED` 재정정 시 `first_shipped_at`·`shipped_at` 보존을 해소했다. 0015 출고사건 snapshot allowlist와 기존 실제 lock 경합 시험은 유지했다.
+- **actual private DB:** fresh PostgreSQL **18.4**, migration **16건**, system identifier `7693368997398884396`에서 Task6는 **12/12 pass, 0 fail, 0 skip**이다. auth는 **6/6**, seller/access 전체는 **13/13**이며 핵심 seller route/suite **9건**을 포함한다. 전체 DB 회귀는 **411 tests / 392 pass / 19 환경 skip / 0 fail**이며 skip을 PASS로 계산하지 않았다.
+- **Windows·WSL 최종 gate:** Windows nonDB는 **376 tests / 267 pass / 109 DB·환경 skip / 0 fail**, PR 본문 검사는 **8/8**이며 root typecheck·lint·build가 통과했다. WSL은 위 exact SHA와 clean 상태가 일치했고 전체 typecheck·lint, Node24 격리 API build와 Web **16 routes** build가 통과했다.
+- **격리·정리:** 최종 실행 후 accounts부터 audit 및 환불 6개 표의 업무행은 모두 **0**, singleton은 `fulfillment_settings=1`, `shipping_policy_global=1`이다. `shoppingmall-s51-admin-fix*` 전용 container/network/volume 잔류는 **0**이다. shared `local-postgres/shoppingmall`, Oracle, 외부 서비스는 접촉하지 않았다.
+- **독립 재리뷰:** **Critical 0 / Important 0 / Minor 1**이다. 남은 Minor는 관리자 상세의 multi-SELECT 사이 순간 시점 불일치이며 데이터 훼손·권한·PII 위험 근거는 없다. **Task10 final gate 전 보강** 대상으로 유지한다.
+- **실행 오류·보정:** RED 시험 운송장 하이픈 test-preflight **1회**, writer의 broad SQL 치환 **1회**(판매자 함수 즉시 원복), controller 임시 DB password 오입력 **1회**(auth 2 fail 뒤 secret-safe 재실행 6/6), CRLF 원격 파일명 누락 **1회**, 잔류 조회의 잘못된 `refund_lines` 테이블명 **1회**, WSL SHA 비교에서 PowerShell 조기 해석 **1회**가 있었다. 모두 제품·공유 DB 변경 없이 정확한 명령과 최종 diff로 보정했으며 최종 gate는 위 결과다.
+- **다음:** 기존 승인 순서의 **Task7 고객 own-order fulfillment 응답·전량환불 `CANCELLED`·부분 환불 잔여수량·refund↔ship race RED**다. 새 구현은 PMO의 exact scope를 받은 뒤 시작한다.
+
 ## GREEN 후보 — 2026-10-06 S5.1 Task6 독립리뷰 Important 4건 최소 보정
 
 - **판정·기준:** actual RED 기록 SHA `fd306e234780418e6ad11f3ff312b761321036e8`의 **12 tests / 8 pass / 4 fail / 0 skip, exit 1**을 기준으로 기존 `codex/s5-fulfillment-engagement` branch/worktree에서 제품 최소 보정만 적용했다. actual private DB GREEN 전이므로 Task6 완료·checkpoint가 아닌 **GREEN 후보**다.
