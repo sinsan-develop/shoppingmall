@@ -714,7 +714,7 @@ export async function updateAdminFulfillment(client: PoolClient, shipmentOrderId
       packed_at=CASE WHEN $3='PACKING' THEN COALESCE(packed_at,clock_timestamp()) ELSE packed_at END,
       first_shipped_at=CASE WHEN $3='SHIPPED' THEN COALESCE(first_shipped_at,clock_timestamp())
         ELSE first_shipped_at END,
-      shipped_at=CASE WHEN $3='SHIPPED' THEN clock_timestamp() ELSE NULL END,
+      shipped_at=CASE WHEN $3='SHIPPED' THEN COALESCE(shipped_at,clock_timestamp()) ELSE NULL END,
       version=version+1,updated_at=clock_timestamp()
     WHERE shipment_order_id=$1 AND version=$2 RETURNING version`, [
     shipmentOrderId, expectedVersion, update.status, update.expectedShipDate,
@@ -733,6 +733,8 @@ export async function insertAdminCorrectionRecords(client: PoolClient, input: {
   customerMessage: string;
   beforeSnapshot: object;
   afterSnapshot: object;
+  auditBefore: object;
+  auditAfter: object;
   response: object;
 }): Promise<void> {
   await client.query(`INSERT INTO shipment_fulfillment_events
@@ -752,6 +754,9 @@ export async function insertAdminCorrectionRecords(client: PoolClient, input: {
     JSON.stringify({
       idempotencyKey: input.idempotencyKey,
       reason: input.reason,
+      customerMessage: input.customerMessage,
+      before: input.auditBefore,
+      after: input.auditAfter,
       response: input.response,
     }),
   ]);

@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## GREEN 후보 — 2026-10-06 S5.1 Task6 독립리뷰 Important 4건 최소 보정
+
+- **판정·기준:** actual RED 기록 SHA `fd306e234780418e6ad11f3ff312b761321036e8`의 **12 tests / 8 pass / 4 fail / 0 skip, exit 1**을 기준으로 기존 `codex/s5-fulfillment-engagement` branch/worktree에서 제품 최소 보정만 적용했다. actual private DB GREEN 전이므로 Task6 완료·checkpoint가 아닌 **GREEN 후보**다.
+- **최소 구현:** 2글자 이름은 첫 글자만 남기고 나머지를 숨기며 1글자와 3글자 이상 기존 동작을 유지한다. 관리자 GET settings/list/detail에만 `Cache-Control: private, no-store`를 설정했다. 관리자 감사 details에는 PII 없이 `carrierName`을 포함한 before/after 전체 상태·reason·customerMessage와 기존 response/idempotencyKey를 같은 transaction에 저장하고, 출고사건의 0015 제한 snapshot은 변경하지 않았다. `SHIPPED→SHIPPED`는 기존 `first_shipped_at`과 `shipped_at`을 보존하고 최초 SHIPPED 전이와 비SHIPPED 결과의 기존 시각 계약을 유지한다.
+- **변경 파일:** `apps/api/src/fulfillment/service.ts`, `apps/api/src/fulfillment/admin.controller.ts`, `apps/api/src/fulfillment/repository.ts`, 이 `WORK_STATUS.md`다. 기존 RED assertion·fixture, migration/schema, 공개 계약은 변경하지 않았다.
+- **로컬 검증:** `DATABASE_URL`과 `S5_ADMIN_TEST_DB_SYSTEM_ID`를 제거한 관리자 loader·fulfillment rules·access 범위는 **14 tests / 13 pass / 1 expected DB skip / 0 fail**이다. API typecheck, 변경 제품 3파일과 기존 관리자 RED 시험 대상 ESLint, `git diff --check`는 모두 exit 0이다. DB skip은 GREEN 근거가 아니다.
+- **오류·조치:** 최초 최소 patch에서 동일한 `shipped_at` SQL 문장을 넓게 매칭해 판매자 갱신 함수가 일시 변경된 오류 **1회**를 최종 diff 검토에서 발견했다. 판매자 함수는 즉시 원상복구하고 관리자 `updateAdminFulfillment`에만 보존식을 적용한 뒤 위 로컬 검증 전체를 다시 통과했다. DB·원격 변경은 없었다.
+- **미검증·다음:** actual private DB Task6 12/12, PII 없는 감사 before/after, 시각 보존, cache header, fixture cleanup·업무행0·singleton1/1과 active 전용 PG/network 정리는 controller 재검증 전까지 미검증이다. shared DB·WSL·Docker·Oracle·외부 서비스는 접촉하지 않았다. 독립 리뷰 Minor 1건인 상세 multi-SELECT 시점 불일치는 미해결이며 Task10 최종 gate 전 보강 대상으로 유지한다.
+
 ## NON-GREEN / RED 후보 — 2026-10-06 S5.1 Task6 독립리뷰 Important 4건
 
 - **판정:** Task6 GREEN 후보 `653fe8283022dcf9d93914d4a34ea796e39a8761`의 독립 정적 리뷰는 **Critical 0 / Important 4 / Minor 1**이다. PMO 승인에 따라 이번 작업은 Important 4건의 RED 시험만 추가했으며 제품 코드는 아직 보정하지 않았다. 따라서 Task6는 **NON-GREEN**이고 완료·checkpoint가 아니다.

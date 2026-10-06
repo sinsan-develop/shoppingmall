@@ -98,6 +98,7 @@ function transitionFingerprint(shipmentOrderId: string, body: TransitionBody): s
 function maskName(value: string): string {
   const characters = Array.from(value);
   if (characters.length < 2) return '*';
+  if (characters.length === 2) return `${characters[0]}*`;
   return `${characters[0]}${'*'.repeat(Math.max(2, characters.length - 2))}${characters.at(-1)}`;
 }
 
@@ -496,6 +497,8 @@ export class AdminFulfillmentService {
         carrierCode: validated.carrierCode,
         trackingNumber: validated.trackingNumber,
       };
+      const auditBefore = { ...beforeSnapshot, carrierName: current.carrierName };
+      const auditAfter = { ...afterSnapshot, carrierName: validated.carrierName };
       const response = {
         shipmentOrderId,
         status: validated.status,
@@ -517,6 +520,8 @@ export class AdminFulfillmentService {
         customerMessage: validated.customerMessage,
         beforeSnapshot,
         afterSnapshot,
+        auditBefore,
+        auditAfter,
         response,
       });
       return response;
