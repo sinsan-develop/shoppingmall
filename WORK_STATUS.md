@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 착수 — 2026-10-06 S5.1 Task9 격리 출고 브라우저 fixture·실행계약
+
+- **판정·범위:** Task8 검증 기준 `279b16ba41f4485e9f235b43ab0f59500dbd26f6`에서 Task9를 착수한다. 고유 8자리 `QA_RUN_ID`와 정확한 `shoppingmall_s5_fulfillment_ui_<runid>` 전용 DB, 가상 고객·판매자A/B·어울몰 판매자·관리자와 가상 운송장만 허용한다.
+- **실제 RED:** `node --import tsx --test apps/api/test/qa-fulfillment-ui-fixture.test.mjs apps/api/test/qa-fulfillment-ui-fixture-safety-db.test.mjs apps/web/test/qa-fulfillment-browser-contract.test.mjs`는 **3 tests / 0 pass / 3 fail / 0 skip, exit 1**이다. 출고 전용 fixture module 2건은 `ERR_MODULE_NOT_FOUND`, 브라우저 runner 1건은 `ENOENT`로 실패해 아직 구현되지 않은 상태를 정확히 재현했다.
+- **RED 변경 파일:** `apps/api/test/qa-fulfillment-ui-fixture.test.mjs`, `apps/api/test/qa-fulfillment-ui-fixture-safety-db.test.mjs`, `apps/web/test/qa-fulfillment-browser-contract.test.mjs`, 이 `WORK_STATUS.md`다. 제품 코드·schema/migration·dependency 변경은 0이다.
+- **생성 예정 자원:** 실행 시에만 WSL-server의 비공개 Docker network·tmpfs PostgreSQL 18·전용 DB를 만들고 외부 공개 port·영속 volume은 두지 않는다. 로컬 API/Web/격리 Chrome도 실행 시 정확한 이름과 port를 다시 확인한다. 종료·실패 때 fixture reset 후 컨테이너·network·브라우저 프로필·임시 증거 폴더를 제거하고 잔류 0을 확인한다.
+- **안전계약:** seed가 만든 5계정·3판매자·3상품·3주문·3발송과 공동출고 singleton 이전값을 manifest로 고정한다. reset은 계정 추가 identity/role, 다른 계정·상품·주문·결제·출고·감사 참조 등 외부 소유가 하나라도 있으면 삭제 전에 중단하고 트랜잭션을 rollback한다. 정상 reset은 사건→출고→결제→주문→예약→배송지→상품→판매자→계정 순으로 지우고 singleton을 원복한다.
+- **브라우저 준비계약:** 고객·판매자·관리자 역할 흐름, 1920·1440·430 viewport, 가로 넘침과 키보드 조작을 실제 제품 URL에서 확인할 실행기를 준비한다. 실제 브라우저 실행과 공유 `local-postgres/shoppingmall` seed/write는 PMO가 전달한 별도 실행 경계를 지키며, 이번 RED 작성 시점에는 수행하지 않는다.
+- **다음 조치:** fixture 안전·브라우저 실행계약 시험을 실제 RED로 고정한 뒤 최소 GREEN 구현, 로컬 정적 gate, private DB 외부참조 거부·reset 잔류0 검증 순으로 진행한다.
+
 ## 검증 완료 — 2026-10-06 S5.1 Task8 역할별 출고 화면·독립 리뷰 보정
 
 - **판정·기준:** 제품 기준 commit `38442f83fa412c578bdeb8126801efccf94e7bec`의 Task8 역할별 출고 화면은 local·private PostgreSQL·WSL exact-SHA gate와 최종 독립 코드 재리뷰를 통과했다. 이는 S5.1 Task8 검증 완료이며 실제 브라우저·Oracle·사용자 인수 또는 S5 전체 완료 판정은 아니다.
