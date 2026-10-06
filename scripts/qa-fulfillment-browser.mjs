@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { validateFulfillmentUiManifest } from '../apps/api/scripts/qa-fulfillment-ui-fixture.ts';
+import { closeCdpPage, openCdpPage } from './qa-browser-cdp.mjs';
 
 const web = process.env.QA_WEB_BASE;
 const password = process.env.QA_FIXTURE_PASSWORD;
@@ -141,12 +142,7 @@ async function customerOrder(orderId, expectedText) {
 }
 
 try {
-  page = await fetch(`${debugging}/json/new?about:blank`, { method: 'PUT' }).then((response) => {
-    if (!response.ok) throw new Error('Chrome page creation failed');
-    return response.json();
-  });
-  socket = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
+  ({ page, socket } = await openCdpPage({ debugging }));
   socket.onmessage = ({ data }) => {
     const message = JSON.parse(data);
     if (!message.id || !pending.has(message.id)) return;
@@ -204,7 +200,7 @@ try {
   console.info('browser: customer, seller and admin fulfillment paths PASS');
   console.info('browser: 1920, 1440, 430 and keyboard checks PASS');
 } finally {
-  if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
-  if (page?.id) await fetch(`${debugging}/json/close/${page.id}`).catch(() => undefined);
+  const cleanupErrors = await closeCdpPage({ debugging, page, socket });
   await new Promise((resolve) => setTimeout(resolve, 100));
+  if (cleanupErrors.length) throw new AggregateError(cleanupErrors, 'Chrome cleanup failed');
 }

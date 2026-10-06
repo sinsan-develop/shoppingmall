@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 로컬 GREEN — 2026-10-06 S5.1 Task9 독립 재리뷰 I3 보정
+
+- **판정:** RED `c44d256fba44a3abc7d6ea88a4f0d363c7fad05b`에서 고정한 CDP 연결·정리 결함을 공용 helper로 보정했고, foreign audit/category 도달성 및 두 연결 late insert 경합 시험을 추가했다. 로컬 gate는 GREEN이지만 private DB 실제 경합·독립 재리뷰·실제 Chrome은 아직 남아 있다.
+- **CDP 보정:** `scripts/qa-browser-cdp.mjs`는 page 생성 뒤 WebSocket open을 5초로 제한한다. timeout/error에서는 생성된 socket과 page 정리를 시도하며, 정상 runner 종료에서도 socket close 예외와 무관하게 page close를 수행하고 cleanup 오류를 실패로 반환한다. 실제 출고 browser runner는 이 helper만 사용한다.
+- **DB 시험 보강:** foreign audit와 foreign category를 서로 다른 reset 시도로 분리해 각각 거부·행 보존·주문 3건 보존을 단언한다. reset이 audit table lock에서 대기한 상태에서 별도 연결의 late identity insert가 fixture account 부모 잠금에 대기하도록 만들고, reset commit 뒤 FK `23503`으로 실패하는 계약을 고정했다.
+- **대상·전체 검증:** 로컬 대상은 **4 tests / 3 pass / 0 fail / 1 private-DB skip**다. 전체 `pnpm test`는 주 시험 **403 total / 287 pass / 0 fail / 116 DB·환경 skip**, PR 본문 **8/8 PASS**다. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `git diff --check`는 exit 0이고 Web은 **18 routes**를 생성했다.
+- **오류 횟수·조치:** 첫 전체 build는 제한 실행환경이 `apps/web/.next/trace` 쓰기를 차단한 `EPERM` 1회로 중단됐다. 제품 변경 없이 같은 build를 작업 폴더 쓰기 권한으로 재실행해 통과했다. 동일 근본 원인 반복은 없다.
+- **변경 파일:** 신규 `scripts/qa-browser-cdp.mjs`, `scripts/qa-fulfillment-browser.mjs`, 앞선 RED 시험 3파일, 이 `WORK_STATUS.md`다. schema/migration·공개 API·제품 화면·dependency 변경은 없다.
+- **다음 조치:** GREEN을 commit·별칭 원격 push하고 WSL exact-SHA를 맞춘 뒤 새 private tmpfs PostgreSQL에서 audit/category 도달성과 late insert 잠금·정상 reset 잔류0을 검증한다. 독립 재리뷰 C0/I0 전에는 실제 browser 실행 요청을 보내지 않는다.
+
 ## 실제 RED 준비 — 2026-10-06 S5.1 Task9 독립 재리뷰 C0/I3/M0 보정
 
 - **판정:** exact `d805c3f35e3b69af2351f50086d12fe81f5bfaa6` 읽기 전용 재리뷰는 **Critical 0 / Important 3 / Minor 0**이다. 실제 Chrome 실행 전에 세 항목을 시험으로 보강하고 재검증해야 한다.
