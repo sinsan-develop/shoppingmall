@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## 완료 checkpoint — 2026-10-06 S5.1 Task5 판매자 목록·상세·전이 API
+
+- **판정:** 제품·시험 SHA `5ad995fc9d6ba34d40575c5ba740f289762de2e4`, cursor 경계 문서 SHA `e13c7165475c21c1219076cf19168c61aea12f47`에서 **Task5 범위 완료**다. 이는 S5.1 Stage, 고객 주문 조회, 환불 결합, UI, 공유 DB, Oracle, 사용자 인수 또는 `main` 병합 완료가 아니다.
+- **제품 범위:** 활성 seller session의 고정 seller scope와 결제완료 주문을 SQL에서 함께 제한한 목록·상세·상태 전이 API를 구현했다. 목록은 상태 filter, 기본20/최대50, `(paid_at, shipment id)` keyset, checksum 포함 불투명 cursor, 이름·전화 마스킹과 주소 미노출을 지킨다. 상세는 담당 PAID 발송의 기존 배송지 최소 범위와 원수량·완료환불·잔여수량만 제공한다. 쓰기는 same-Origin, UUID 멱등키, deterministic fingerprint, expectedVersion과 기존 전이 규칙을 사용하고 PII 없는 불변 사건·감사를 같은 거래에 기록한다.
+- **실제 private DB:** fresh PostgreSQL 18.4, migration 16건, system identifier `7693340807256473641`에서 최종 seller 목표시험 **9/9 pass, 0 fail, 0 skip**이다. 별도 거래가 fulfillment row를 선점한 뒤 두 HTTP 거래가 `pg_stat_activity`·`pg_locks`·`pg_blocking_pids`에서 실제 `Lock` 대기 사슬을 이룬 것을 먼저 확인했다. 다른 키는 `200 1 / 409 1`, 같은 키는 동일 `200` 응답 2건이며 두 경우 version/event/audit는 정확히 `1/1/1`이다. 권한·로그인 DB 회귀는 **6/6 pass**다.
+- **전체·정적 gate:** 제품 SHA `0a2d6f7c8f359303fe61876b4fd7f5fd39072f71`의 전체 private DB는 **397 tests / 378 pass / 19 조건부 skip / 0 fail**이었다. 이후 변경은 seller 동시성 시험 강화와 cursor envelope의 `signature` 오표현을 `checksum`으로 정정한 것이며, 최종 Windows nonDB는 **374 / 266 pass / 108 DB·환경 skip / 0 fail**, PR 본문 **8/8**, root typecheck·lint·API/Web build가 통과했다. WSL exact 최종 제품 SHA에서 seller DB 9/9, auth DB 6/6, API typecheck·대상 lint·Node24 격리 API build가 통과했다. skip은 PASS로 계산하지 않았다.
+- **격리·정리:** 최종 DB 실행 뒤 accounts부터 audit까지 업무 시험행 16범주는 전부 **0**, `fulfillment_settings=1`, `shipping_policy_global=1`이었다. Task5 이름의 임시 container·network·volume은 모두 제거해 잔류 **0**이며 외부 port·영속 mount를 만들지 않았다. shared `local-postgres/shoppingmall`, Oracle, 외부 서비스는 접촉하지 않았다.
+- **독립 리뷰:** 최초 리뷰의 Task5 Important 동시 경합 실증 부족과 Minor 감사행 false positive·cursor 보안 오표현을 보정했다. 최종 reviewer Lorentz는 exact `e13c716`에서 **Critical 0 / Important 0 / Minor 0**과 Task5 범위 C0/I0을 확인했다.
+- **오류·보정:** 첫 전체 DB 실행의 스키마 시험 2건은 제품 실패가 아니라 `PGHOST` 미전달로 127.0.0.1을 본 환경 오류였고, 올바른 연결에서 스키마 11/11과 전체 397건 0 fail을 재확인했다. WSL host의 `corepack` 부재·Node18·기존 build 출력 권한 거부는 저장소 읽기전용+임시 출력의 Node24 컨테이너로 보정해 build를 통과시켰다. 증거 수집 명령의 PowerShell 인용 오류는 읽기 명령 형식만 고쳐 재확인했으며 제품·DB 변경은 없었다. 최초 동시 시험은 HTTP 출발만 맞춰 실제 DB 대기를 보장하지 못했으므로, DB 잠금 대기 사슬 관측이 없으면 실패하는 시험으로 강화했다.
+- **Stage 미해결·다음:** PMO 지시에 따라 고객 own-order 응답의 출고정보·내부정보 배제와 전량 환불 `CANCELLED`·부분 환불 잔여수량·환불↔출고 경합은 **Task7 Important**로 유지한다. Task4의 비 `PAYMENT_PENDING` 원자 거부와 실제 결제승인 PostgreSQL 경합 시험은 **Task10 전 M2**로 유지한다. 다음 작업은 같은 branch/worktree의 승인된 **Task6 관리자 설정·조회·정정 API RED**다.
+
 ## NON-GREEN 보정 — 2026-10-06 S5.1 Task5 actual private DB test-harness SQL
 
 - **판정·원인:** private PostgreSQL system identifier `7693320434235625514`, migration 16건의 Task5 목표시험은 **7 tests / 5 pass / 2 fail / 0 skip**이었다. 목록, 타 판매자 404·zero mutation, 상세, invalid transition은 통과했고, 마지막 persistence/PII 검증의 `audit_events.target_id(text)=shipment_fulfillment_events.shipment_order_id(uuid)` 비교가 PostgreSQL **42883**으로 실패해 부모 suite도 함께 fail했다. 제품 API assertion 실패가 아니므로 actual DB GREEN이 아니다.
