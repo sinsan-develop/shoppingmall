@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 실제 RED 준비 — 2026-10-06 S5.1 Task9 CDP 명령 무한대기 보정
+
+- **판정:** exact `12b00f65b3a9b52920868826e8b3737a55f842a5` 읽기 전용 재리뷰는 **Critical 0 / Important 1 / Minor 0**이다. 직전 I3은 해소됐으나 WebSocket 연결 뒤 개별 CDP 명령의 응답 제한시간과 close/error 시 pending 전체 reject가 없어 실제 Chrome 실행 전 보정이 필요하다.
+- **RED 요구:** 공용 CDP command channel이 응답 없는 명령을 유한시간 뒤 reject하고 pending을 제거해야 한다. socket close는 동시에 대기하는 모든 명령을 즉시 reject해야 하며 실제 fulfillment browser runner는 자체 무제한 pending map 대신 이 channel을 사용해야 한다.
+- **변경 범위:** 이 단계는 `apps/web/test/qa-browser-cdp.test.mjs`, `apps/web/test/qa-fulfillment-browser-contract.test.mjs`, 이 `WORK_STATUS.md`의 시험·기록만 변경한다. 실행 helper·runner는 아직 변경하지 않는다.
+- **다음 조치:** helper export 부재와 runner 미연결을 실제 RED로 확인·보존한 뒤 최소 GREEN, 전체 local gate, 독립 최종 재리뷰 C0/I0 순으로 진행한다. 실제 Chrome은 그 뒤에만 실행한다.
+- **실제 RED:** 대상 실행은 **2 tests / 0 pass / 2 fail / 0 skip, exit 1**이다. helper 시험은 `createCdpCommandChannel` export 부재로 module load가 실패했고, browser 계약은 runner 미연결·기존 무제한 pending map 잔존을 재현했다. `git diff --check`는 exit 0이다.
+
 ## private DB GREEN — 2026-10-06 S5.1 Task9 독립 재리뷰 I3 보정
 
 - **판정·기준:** exact commit `496cf1d69efaec933bbbd4ad34b7dd999f251fd7`을 WSL 지정 checkout에 맞추고, 비공개 network `shoppingmall-s51-task9-review2-1006`, tmpfs PostgreSQL 18 `shoppingmall-s51-task9-review2-pg-1006`, 전용 DB `shoppingmall_s5_fulfillment_ui_f5101006`에서만 검증했다. 공유 `local-postgres/shoppingmall`은 접속·변경하지 않았다.

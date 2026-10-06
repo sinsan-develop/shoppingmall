@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { closeCdpPage, openCdpPage } from '../../../scripts/qa-browser-cdp.mjs';
+import { closeCdpPage, createCdpCommandChannel, openCdpPage } from '../../../scripts/qa-browser-cdp.mjs';
 
 test('CDP open timeout closes the created page instead of hanging', async () => {
   const calls = [];
@@ -28,4 +28,22 @@ test('CDP cleanup still closes the page when socket close throws', async () => {
     socket: { readyState: 1, close() { throw new Error('socket close failed'); } },
     WebSocketImpl: { CLOSING: 2 }, fetchImpl: async (url) => { calls.push(url); return { ok: true }; } });
   assert.deepEqual(calls, ['http://127.0.0.1:9229/json/close/page-close']);
+});
+
+test('CDP command rejects on response timeout', async () => {
+  const socket = { readyState: 1, send() {} };
+  const channel = createCdpCommandChannel(socket, { WebSocketImpl: { OPEN: 1 }, timeoutMs: 10 });
+  await assert.rejects(channel.send('Runtime.evaluate'), /timed out/i);
+  assert.equal(channel.pendingCount(), 0);
+});
+
+test('CDP socket close rejects every pending command', async () => {
+  const socket = { readyState: 1, send() {} };
+  const channel = createCdpCommandChannel(socket, { WebSocketImpl: { OPEN: 1 }, timeoutMs: 1_000 });
+  const first = channel.send('Page.enable');
+  const second = channel.send('Runtime.enable');
+  socket.onclose();
+  await assert.rejects(first, /closed/i);
+  await assert.rejects(second, /closed/i);
+  assert.equal(channel.pendingCount(), 0);
 });

@@ -18,9 +18,11 @@ test('fulfillment browser runner covers three roles, three viewports and keyboar
   assert.match(source, /validateFulfillmentUiManifest/);
   assert.match(source, /openCdpPage/);
   assert.match(source, /closeCdpPage/);
+  assert.match(source, /createCdpCommandChannel/);
   assert.match(source, /visibleFocusables/);
   assert.match(source, /visited\.size/);
   assert.match(source, /let page/);
   assert.match(source, /finally/);
+  assert.doesNotMatch(source, /const pending = new Map/);
   assert.doesNotMatch(source, /sms|email provider|push provider|payment provider/i);
 });
