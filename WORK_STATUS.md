@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.2 관리자 클레임 웹 첫 절편 — 2026-10-07
+
+- **판정/복구 ref:** Main이 exact `d64925f95e9e4688987feabd3d319a8e8fc8d771`을 승인 SSH alias 기존 작업 브랜치로 fast-forward push exit0 확인했다고 보고했다(main/PR 불변). 원격 복구 ref는 Main 보고 기준이다. 단일 writer 지정 worktree 유지, push/PR/merge 없음. 신산님 명확화대로 공유 WSL `local-postgres/shoppingmall`의 0016~0018 적용은 별도 정확 패킷과 PMO/신산님 승인 전 **금지**한다. 이 절편은 로컬 웹 코드/테스트만 변경했다.
+- **RED→GREEN:** 관리자 고객지원 클레임 화면 경로 부재를 웹 시험 RED로 확인했다. `/account/admin/support/claims`에 관리자 session/역할 gate, 기본20·cursor 목록/상태 필터, 상세 대화·사건, ID만 노출하는 권한형 비공개 증빙 링크, 최종 승인/반려 사유와 안정적인 결정 UUID 재시도 UI를 추가하고 계정 메뉴에서 연결했다. 승인 화면은 개발 loopback mock에서만 실행·대체 발송 자동생성 없음·약관/반송비 미확정을 표시한다. 성공 후 목록 재조회 실패는 결정 재실행을 유도하지 않도록 별도 메시지로 처리했다. React 성능 지침을 적용해 독립된 목록/상세 로드, bounded 20행 페이지, 중복 append 방지를 유지했다.
+- **검증/제약:** 화면 구조·링크·결정키 소스 시험 **1/1 pass**, root typecheck/lint/build exit0(Next route 생성 확인), 전체 로컬 **438 total/306 pass/132 계획된 DB·환경 skip/0 fail**, PR 본문 8/8, `git diff --check` exit0. 새 페이지 디렉터리 생성은 workspace sandbox에서 한 차례 거부되어 정확한 지정 worktree 내부 경로만 권한 있는 명령으로 생성했다(환경 권한 오류 1회, 코드 결함 아님). 이는 정적 렌더/빌드 검증이고 실제 로그인 브라우저/3역할 E2E PASS가 아니다. 고객·판매자 화면, 문의/리뷰 운영 UI, signed fixture/reset과 실제 브라우저, Stage 최종 gate가 남았다. 새 QA DB/컨테이너 없음; 기존 v6/전용 컨테이너·네트워크는 유지한다.
+
 ## S5.2 동일 관리자 결정키 동시 approve·v8 정확 정리 — 2026-10-07
 
 - **판정/복구 ref:** Main이 exact `25ab0c7e4b5be36105ed341ec2c938a7b4d4f6aa`를 승인 SSH alias 기존 원격 작업 브랜치에 fast-forward push exit0 확인했다고 직접 보고했다(main/PR 불변). 이는 Main 보고 기준 원격 복구 ref이며 writer는 push/PR/merge를 하지 않았다. 현재 writer의 동시 결정 시험 변경은 이 ref 이후 로컬 dirty로 수행했다.
