@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 import { createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import type { ImageQuarantine } from '../catalog/image-quarantine.js';
-import type { parseQuestionPageQuery } from './questions.js';
+import { parseQuestionPageQuery } from './questions.js';
 
 type Db = Pool | PoolClient;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -108,13 +108,17 @@ export async function editReview(db: Db, input: {
       FROM support_reviews WHERE id=$1 AND customer_account_id=$2 FOR UPDATE`,
     [input.reviewId, input.customerAccountId])).rows[0];
     if (!current) throw new Error('Support unavailable');
-    const retry = (await client.query<{ afterValue: { rating: number; body: string;
-      version: number } }>(`SELECT after_value AS "afterValue" FROM support_review_events
-      WHERE review_id=$1 AND actor_account_id=$2 AND action='EDITED'
-        AND after_value->>'idempotencyKey'=$3 ORDER BY event_seq DESC LIMIT 1`,
-    [input.reviewId, input.customerAccountId, input.idempotencyKey])).rows[0];
+    await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
+      [`support-review-mutation:${input.customerAccountId}:${input.idempotencyKey}`]);
+    const retry = (await client.query<{ reviewId: string; afterValue: { rating: number;
+      body: string; version: number; kind?: string } }>(`SELECT review_id AS "reviewId",
+      after_value AS "afterValue" FROM support_review_events
+      WHERE actor_account_id=$1 AND action='EDITED'
+        AND after_value->>'idempotencyKey'=$2 ORDER BY event_seq DESC LIMIT 1`,
+    [input.customerAccountId, input.idempotencyKey])).rows[0];
     if (retry) {
-      if (retry.afterValue.rating !== input.rating || retry.afterValue.body !== body)
+      if (retry.reviewId !== input.reviewId || retry.afterValue.kind === 'IMAGE_ADDED' ||
+          retry.afterValue.rating !== input.rating || retry.afterValue.body !== body)
         throw new Error('Support conflict');
       if (ownsTransaction) await client.query('COMMIT');
       return { id: current.id, status: 'PENDING', version: retry.afterValue.version };
@@ -137,6 +141,81 @@ export async function editReview(db: Db, input: {
     throw error;
   } finally {
     if (ownsTransaction) client.release();
+  }
+}
+
+export async function addReviewImage(db: Db, input: {
+  reviewId: string; customerAccountId: string; idempotencyKey: string;
+  bytes: Buffer; mimeType: string; store: ImageQuarantine;
+}) {
+  if (![input.reviewId, input.customerAccountId, input.idempotencyKey]
+    .every((id) => uuid.test(id)) || !Buffer.isBuffer(input.bytes) ||
+      !['image/png','image/jpeg','image/webp'].includes(input.mimeType))
+    throw new Error('Invalid support request');
+  const requestSha256 = createHash('sha256').update(input.bytes).digest('hex');
+  let objectKey: string | undefined;
+  try {
+    return await inReviewTransaction(db, async (client) => {
+      const review = (await client.query<ReviewRow & { rating: number; body: string }>(`
+        SELECT id,status,version,rating,body FROM support_reviews
+        WHERE id=$1 AND customer_account_id=$2 FOR UPDATE`,
+      [input.reviewId, input.customerAccountId])).rows[0];
+      if (!review) throw new Error('Support unavailable');
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
+        [`support-review-mutation:${input.customerAccountId}:${input.idempotencyKey}`]);
+      const retry = (await client.query<{ reviewId: string; afterValue: {
+        kind?: string; imageId?: string; requestSha256?: string; mimeType?: string;
+        version?: number } }>(`SELECT review_id AS "reviewId",after_value AS "afterValue"
+        FROM support_review_events WHERE actor_account_id=$1 AND action='EDITED'
+          AND after_value->>'idempotencyKey'=$2 ORDER BY event_seq DESC LIMIT 1`,
+      [input.customerAccountId, input.idempotencyKey])).rows[0];
+      if (retry) {
+        if (retry.reviewId !== input.reviewId || retry.afterValue.kind !== 'IMAGE_ADDED' ||
+            retry.afterValue.requestSha256 !== requestSha256 ||
+            retry.afterValue.mimeType !== input.mimeType)
+          throw new Error('Support conflict');
+        const priorImage = (await client.query<{ id: string; mimeType: string;
+          sizeBytes: number }>(`SELECT id,mime_type AS "mimeType",size_bytes AS "sizeBytes"
+          FROM support_review_images WHERE id=$1 AND review_id=$2`,
+        [retry.afterValue.imageId, input.reviewId])).rows[0];
+        if (!priorImage) throw new Error('Support unavailable');
+        return { ...priorImage, version: retry.afterValue.version! };
+      }
+      if (review.status === 'HIDDEN') throw new Error('Support conflict');
+      const count = (await client.query<{ n: number }>(`
+        SELECT count(*)::int AS n FROM support_review_images WHERE review_id=$1`,
+      [review.id])).rows[0].n;
+      if (count >= 5) throw new Error('Support image limit');
+      const saved = await input.store.put(input.bytes, input.mimeType);
+      objectKey = saved.objectKey;
+      const image = (await client.query<{ id: string }>(`
+        INSERT INTO support_review_images(review_id,object_key,mime_type,size_bytes)
+        VALUES ($1,$2,$3,$4) RETURNING id`,
+      [review.id, saved.objectKey, saved.mimeType, saved.sizeBytes])).rows[0];
+      const version = review.version + 1;
+      await client.query(`UPDATE support_reviews SET status='PENDING',rating=$2,body=$3,
+        version=$4,approved_by=NULL,approved_at=NULL,updated_at=now()
+        WHERE id=$1`, [review.id, review.rating, review.body, version]);
+      await client.query(`INSERT INTO support_review_events
+        (review_id,action,actor_account_id,actor_role,before_value,after_value)
+        VALUES ($1,'EDITED',$2,'customer',$3::jsonb,$4::jsonb)`,
+      [review.id, input.customerAccountId,
+        JSON.stringify({ rating: review.rating, body: review.body,
+          version: review.version, status: review.status }),
+        JSON.stringify({ kind: 'IMAGE_ADDED', imageId: image.id,
+          requestSha256, mimeType: input.mimeType, idempotencyKey: input.idempotencyKey,
+          rating: review.rating, body: review.body, version, status: 'PENDING' })]);
+      return { id: image.id, mimeType: saved.mimeType,
+        sizeBytes: saved.sizeBytes, version };
+    });
+  } catch (error) {
+    if (objectKey) {
+      try { await input.store.remove(objectKey); }
+      catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], 'Review image rollback left a private file');
+      }
+    }
+    throw error;
   }
 }
 
@@ -367,4 +446,100 @@ export async function readPublicReviewImage(db: Db, input: {
     if (digest !== image.imageHashes[input.imageId]) throw new Error('Support image unavailable');
     return bytes;
   } catch { throw new Error('Support image unavailable'); }
+}
+
+export async function readPrivateReviewImage(db: Db, input: {
+  reviewId: string; imageId: string; actorRole: 'customer' | 'admin';
+  actorAccountId: string; store: ImageQuarantine;
+}) {
+  if (![input.reviewId, input.imageId, input.actorAccountId].every((id) => uuid.test(id)))
+    throw new Error('Invalid support request');
+  const image = (await db.query<{ objectKey: string }>(`
+    SELECT image.object_key AS "objectKey" FROM support_review_images image
+    JOIN support_reviews review ON review.id=image.review_id
+    WHERE review.id=$1 AND image.id=$2
+      AND ($3::text='admin' OR review.customer_account_id=$4::uuid)`,
+  [input.reviewId, input.imageId, input.actorRole, input.actorAccountId])).rows[0];
+  if (!image) throw new Error('Support unavailable');
+  try { return await input.store.read(image.objectKey); }
+  catch { throw new Error('Support image unavailable'); }
+}
+
+export function parseReviewPageQuery(query: Record<string, unknown>, admin = false) {
+  if (!admin) return parseQuestionPageQuery(query);
+  if (!query || typeof query !== 'object') throw new Error('Invalid support request');
+  const { status, ...pageQuery } = query;
+  if (status !== undefined && (typeof status !== 'string' ||
+      !['PENDING','APPROVED','HIDDEN'].includes(status)))
+    throw new Error('Invalid support request');
+  const page = parseQuestionPageQuery(pageQuery);
+  return { ...page, ...(status === undefined ? {} : { status }) };
+}
+
+export async function listAdminReviews(db: Db,
+  page: ReturnType<typeof parseReviewPageQuery>) {
+  const results = (await db.query<{ id: string; productId: string; confirmationId: string;
+    rating: number; body: string; status: string; version: number; createdAt: Date;
+    reportCount: number; cursorTime: string }>(`SELECT r.id,r.product_id AS "productId",
+    r.confirmation_id AS "confirmationId",r.rating,r.body,r.status,r.version,
+    r.created_at AS "createdAt",
+    to_char(r.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "cursorTime",
+    (SELECT count(*)::int FROM support_review_reports report
+      WHERE report.review_id=r.id) AS "reportCount"
+    FROM support_reviews r
+    WHERE ($1::text IS NULL OR r.status=$1::text)
+      AND ($2::timestamptz IS NULL OR
+        (r.created_at,r.id)<($2::timestamptz,$3::uuid))
+    ORDER BY r.created_at DESC,r.id DESC LIMIT $4`,
+  [page.status ?? null, page.cursor?.createdAt ?? null,
+    page.cursor?.id ?? null, page.limit + 1])).rows;
+  const rows = results.slice(0, page.limit);
+  const last = rows.at(-1);
+  return { items: rows.map(({ id, productId, confirmationId, rating, body,
+    status, version, createdAt, reportCount }) => ({ id, productId, confirmationId,
+    rating, body, status, version, createdAt, reportCount })),
+    nextCursor: results.length > page.limit && last ? Buffer.from(JSON.stringify({
+      createdAt: last.cursorTime, id: last.id,
+    })).toString('base64url') : null };
+}
+
+export async function getAdminReview(db: Db, reviewId: string) {
+  if (!uuid.test(reviewId)) throw new Error('Invalid support request');
+  const review = (await db.query<{ id: string; confirmationId: string; productId: string;
+    customerAccountId: string; rating: number; body: string; status: string;
+    version: number; createdAt: Date; updatedAt: Date }>(`SELECT id,
+    confirmation_id AS "confirmationId",product_id AS "productId",
+    customer_account_id AS "customerAccountId",rating,body,status,version,
+    created_at AS "createdAt",updated_at AS "updatedAt"
+    FROM support_reviews WHERE id=$1`, [reviewId])).rows[0];
+  if (!review) return undefined;
+  const images = await db.query<{ id: string; mimeType: string; sizeBytes: number;
+    scanStatus: string }>(`
+      SELECT id,mime_type AS "mimeType",size_bytes AS "sizeBytes",
+      scan_status AS "scanStatus" FROM support_review_images
+      WHERE review_id=$1 ORDER BY created_at,id`, [reviewId]);
+  const reports = await db.query<{ id: string; reporterAccountId: string; reason: string;
+      reportedAt: Date }>(`SELECT id,reporter_account_id AS "reporterAccountId",
+      reason,reported_at AS "reportedAt" FROM support_review_reports
+      WHERE review_id=$1 ORDER BY reported_at,id`, [reviewId]);
+  const events = await db.query<{ action: string; actorRole: string; actorAccountId: string;
+      reason: string | null; beforeValue: Record<string, unknown>;
+      afterValue: Record<string, unknown>; occurredAt: Date }>(`
+      SELECT action,actor_role AS "actorRole",actor_account_id AS "actorAccountId",
+      reason,before_value AS "beforeValue",after_value AS "afterValue",
+      occurred_at AS "occurredAt"
+      FROM support_review_events WHERE review_id=$1 ORDER BY event_seq`, [reviewId]);
+  const snapshot = (value: Record<string, unknown>) => ({
+    ...(typeof value.rating === 'number' ? { rating: value.rating } : {}),
+    ...(typeof value.body === 'string' ? { body: value.body } : {}),
+    ...(typeof value.version === 'number' ? { version: value.version } : {}),
+    ...(typeof value.status === 'string' ? { status: value.status } : {}),
+  });
+  return { ...review, images: images.rows, reports: reports.rows,
+    events: events.rows.map((event) => ({
+      action: event.action, actorRole: event.actorRole,
+      actorAccountId: event.actorAccountId, reason: event.reason,
+      beforeValue: snapshot(event.beforeValue), afterValue: snapshot(event.afterValue),
+      occurredAt: event.occurredAt,
+    })) };
 }

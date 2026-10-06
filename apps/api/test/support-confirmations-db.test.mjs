@@ -9,7 +9,6 @@ import { Pool } from 'pg';
 import { createApp } from '../src/app.ts';
 import { DatabaseService } from '../src/db/service.ts';
 import { hashSessionToken } from '../src/auth/credentials.ts';
-import { ImageQuarantine } from '../src/catalog/image-quarantine.ts';
 
 const name = 'shoppingmall_s52_schema_v6_1007';
 const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
@@ -277,6 +276,32 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
         'create idempotency key must not appear in review history JSON');
       assert.equal(JSON.stringify(reviewDetail).includes(editKey), false,
         'internal idempotency key must not appear in review history JSON');
+      const adminReviewsPath = '/admin/support/reviews';
+      assert.equal((await reviewRequest(customer, adminReviewsPath, 'GET')).status, 403);
+      assert.equal((await reviewRequest(fulfillmentAccount, adminReviewsPath, 'GET')).status, 403);
+      for (const invalid of ['limit=0','limit=51','cursor=bad','status=INVALID'])
+        assert.equal((await reviewRequest(productSellerAccount,
+          `${adminReviewsPath}?${invalid}`, 'GET')).status, 400);
+      const pendingReviews = await (await reviewRequest(productSellerAccount,
+        `${adminReviewsPath}?status=PENDING&limit=50`, 'GET')).json();
+      assert.ok(pendingReviews.items.some((item) => item.id === httpReview.id));
+      const adminFirst = await (await reviewRequest(productSellerAccount,
+        `${adminReviewsPath}?status=PENDING&limit=1`, 'GET')).json();
+      assert.ok(adminFirst.nextCursor);
+      const adminSecond = await (await reviewRequest(productSellerAccount,
+        `${adminReviewsPath}?status=PENDING&limit=1&cursor=${adminFirst.nextCursor}`,
+        'GET')).json();
+      assert.equal(adminSecond.items.length, 1);
+      assert.notEqual(adminSecond.items[0].id, adminFirst.items[0].id);
+      assert.equal(adminSecond.nextCursor, null);
+      const adminReviewPath = `${adminReviewsPath}/${httpReview.id}`;
+      assert.equal((await reviewRequest(customer, adminReviewPath, 'GET')).status, 403);
+      const adminReview = await (await reviewRequest(productSellerAccount,
+        adminReviewPath, 'GET')).json();
+      assert.equal(adminReview.id, httpReview.id);
+      assert.deepEqual(adminReview.events.map(({ action }) => action), ['CREATED','EDITED']);
+      assert.equal(JSON.stringify(adminReview).includes(reviewKey), false);
+      assert.equal(JSON.stringify(adminReview).includes(editKey), false);
       const publicPath = `/catalog/products/${product}/customer-reviews`;
       for (const invalid of ['limit=0','limit=51','cursor=bad','limit=abc'])
         assert.equal((await fetch(`${base}${publicPath}?${invalid}`)).status, 400);
@@ -302,17 +327,47 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
       uploadRoot = await mkdtemp(join(tmpdir(), 'shoppingmall-upload-s52-review-'));
       process.env.ENABLE_LOCAL_UPLOAD = '1';
       process.env.SHOPPINGMALL_UPLOAD_ROOT = uploadRoot;
-      const store = new ImageQuarantine(uploadRoot);
-      const staged = await store.put(png, 'image/png');
-      const imagePath = join(uploadRoot, staged.objectKey);
+      await client.query('DELETE FROM support_review_images WHERE id=$1', [image]);
+      const uploadKey = randomUUID();
+      const uploadPath = `${detailPath}/images`;
+      const upload = (actor, path, bytes, key = uploadKey) => fetch(base + path, {
+        method: 'POST', headers: { cookie: cookies.get(actor), origin: 'http://127.0.0.1:9091',
+          'content-type': 'image/png', 'idempotency-key': key }, body: bytes,
+      });
+      assert.equal((await upload(otherCustomer, uploadPath, png)).status, 404);
+      assert.equal((await upload(fulfillmentAccount, uploadPath, png)).status, 403);
+      const uploadResponse = await upload(customer, uploadPath, png);
+      assert.equal(uploadResponse.status, 200);
+      const uploaded = await uploadResponse.json();
+      assert.ok(uploaded.id);
+      assert.equal(JSON.stringify(uploaded).includes('quarantine/'), false);
+      assert.deepEqual(await (await upload(customer, uploadPath, png)).json(), uploaded,
+        'image upload replay must return the same public DTO');
+      assert.equal((await upload(customer, `${reviewPath}/${review.id}/images`, png)).status,
+        409, 'same image upload key cannot target another review');
+      assert.equal((await upload(customer, uploadPath, Buffer.from('different'))).status, 409);
+      assert.equal((await client.query(`SELECT count(*)::int AS n FROM support_review_images
+        WHERE review_id=$1`, [httpReview.id])).rows[0].n, 1);
+      const savedImage = (await client.query(`SELECT object_key FROM support_review_images
+        WHERE id=$1`, [uploaded.id])).rows[0];
+      const imagePath = join(uploadRoot, savedImage.object_key);
       const originalBytes = await readFile(imagePath);
-      await client.query(`UPDATE support_review_images
-        SET object_key=$2,mime_type=$3,size_bytes=$4,scan_status='PENDING',scanned_at=NULL
-        WHERE id=$1`, [image, staged.objectKey, staged.mimeType, staged.sizeBytes]);
+      const imageId = uploaded.id;
+      const customerPreview = `${detailPath}/images/${imageId}/preview`;
+      const adminPreview = `${adminReviewPath}/images/${imageId}/preview`;
+      assert.equal((await reviewRequest(otherCustomer, customerPreview, 'GET')).status, 404);
+      assert.equal((await reviewRequest(fulfillmentAccount, adminPreview, 'GET')).status, 403);
+      assert.equal((await reviewRequest(customer, customerPreview, 'GET')).status, 200);
+      assert.equal((await reviewRequest(productSellerAccount, adminPreview, 'GET')).status, 200);
+      process.env.CLAMD_PORT = '1';
+      assert.equal((await reviewRequest(productSellerAccount, approvalPath, 'POST', {},
+        randomUUID())).status, 503, 'scanner unavailable must fail closed');
       let scanVerdict = 'stream: TEST FOUND\0';
       let scanFrames = 0;
-      scanServer = createServer((socket) => socket.once('data', (frame) => {
+      let alterDuringScan = false;
+      scanServer = createServer((socket) => socket.once('data', async (frame) => {
         if (frame.subarray(0, 10).toString() === 'zINSTREAM\0') scanFrames++;
+        if (alterDuringScan) await writeFile(imagePath, Buffer.from('changed-during-scan'));
         socket.end(scanVerdict);
       }));
       await new Promise((done, reject) => {
@@ -323,8 +378,13 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
       assert.equal((await reviewRequest(productSellerAccount, approvalPath, 'POST', {},
         randomUUID())).status, 503, 'scanner rejection must leave review private');
       assert.equal((await client.query('SELECT scan_status FROM support_review_images WHERE id=$1',
-        [image])).rows[0].scan_status, 'PENDING');
+        [imageId])).rows[0].scan_status, 'PENDING');
       scanVerdict = 'stream: OK\0';
+      alterDuringScan = true;
+      assert.equal((await reviewRequest(productSellerAccount, approvalPath, 'POST', {},
+        randomUUID())).status, 503, 'file change between scan and approval must fail closed');
+      await writeFile(imagePath, originalBytes);
+      alterDuringScan = false;
       const approved = await reviewRequest(productSellerAccount, approvalPath, 'POST', {});
       assert.equal(approved.status, 200);
       assert.equal((await approved.json()).status, 'APPROVED');
@@ -334,11 +394,11 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
       assert.equal(published.items.length, 1);
       assert.equal(published.items[0].id, httpReview.id);
       assert.equal(published.items[0].body, editBody.text);
-      assert.deepEqual(published.items[0].imageIds, [image]);
+      assert.deepEqual(published.items[0].imageIds, [imageId]);
       assert.equal(JSON.stringify(published).includes(customer), false);
       assert.equal(JSON.stringify(published).includes(reviewKey), false);
-      assert.equal(JSON.stringify(published).includes(staged.objectKey), false);
-      const imagePublicPath = `${publicPath}/${httpReview.id}/images/${image}`;
+      assert.equal(JSON.stringify(published).includes(savedImage.object_key), false);
+      const imagePublicPath = `${publicPath}/${httpReview.id}/images/${imageId}`;
       assert.equal((await fetch(base + imagePublicPath)).status, 200);
       await writeFile(imagePath, Buffer.from('tampered'));
       assert.equal((await fetch(base + imagePublicPath)).status, 503,
@@ -369,6 +429,10 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
         { reason: '허위 리뷰' })).status, 200);
       assert.equal((await reviewRequest(otherCustomer, reportPath, 'POST',
         { reason: '다른 사유' })).status, 409);
+      const reportedAdminDetail = await (await reviewRequest(productSellerAccount,
+        adminReviewPath, 'GET')).json();
+      assert.equal(reportedAdminDetail.reports.length, 1);
+      assert.equal(reportedAdminDetail.reports[0].reason, '허위 리뷰');
       const hidePath = `/admin/support/reviews/${httpReview.id}/hide`;
       assert.equal((await reviewRequest(customer, hidePath, 'POST',
         { reason: '숨김' })).status, 403);
@@ -382,12 +446,28 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
         { items: [], nextCursor: null }, 'HIDDEN review must disappear immediately');
       const actions = (await client.query(`SELECT action FROM support_review_events
         WHERE review_id=$1 ORDER BY event_seq`, [httpReview.id])).rows.map((row) => row.action);
-      assert.deepEqual(actions, ['CREATED','EDITED','APPROVED','EDITED','APPROVED','REPORTED','HIDDEN']);
+      assert.deepEqual(actions, ['CREATED','EDITED','EDITED','APPROVED','EDITED','APPROVED','REPORTED','HIDDEN']);
       const hiddenDetail = await (await reviewRequest(customer, detailPath, 'GET')).json();
       assert.equal(JSON.stringify(hiddenDetail).includes(reviewKey), false);
       assert.equal(JSON.stringify(hiddenDetail).includes(reeditKey), false);
       assert.equal(JSON.stringify(hiddenDetail).includes('허위 리뷰'), false,
         'another customer report reason must remain admin-private');
+      const textOnly = await reviews.approveReview(client, { reviewId: review.id,
+        adminAccountId: productSellerAccount, idempotencyKey: randomUUID() });
+      assert.equal(textOnly.status, 'APPROVED', 'text-only review needs no upload store');
+      const secondReview = await reviews.createReview(client, {
+        confirmationId: secondConfirmation.id, customerAccountId: customer,
+        rating: 4, body: '두번째 확인 리뷰', idempotencyKey: randomUUID(),
+      });
+      await reviews.approveReview(client, { reviewId: secondReview.id,
+        adminAccountId: productSellerAccount, idempotencyKey: randomUUID() });
+      const publicFirst = await (await fetch(`${base}${publicPath}?limit=1`)).json();
+      assert.equal(publicFirst.items.length, 1);
+      assert.ok(publicFirst.nextCursor);
+      const publicSecond = await (await fetch(`${base}${publicPath}?limit=1&cursor=${publicFirst.nextCursor}`)).json();
+      assert.equal(publicSecond.items.length, 1);
+      assert.notEqual(publicSecond.items[0].id, publicFirst.items[0].id);
+      assert.equal(publicSecond.nextCursor, null);
     } finally {
       if (app) await app.close();
       await client.query('ROLLBACK');

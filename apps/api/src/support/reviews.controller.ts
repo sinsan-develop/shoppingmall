@@ -1,15 +1,17 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException,
-  Get, Header, HttpCode, Inject, NotFoundException, Param, Post, Put, Query, Req,
+  Get, Header, HttpCode, Inject, NotFoundException, Param, PayloadTooLargeException,
+  Post, Put, Query, Req,
   ServiceUnavailableException, StreamableFile, UnauthorizedException } from '@nestjs/common';
+import type { IncomingMessage } from 'node:http';
 import type { Pool } from 'pg';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
 import { ImageQuarantine } from '../catalog/image-quarantine.js';
 import { scanImageWithClamd } from '../catalog/image-scanner.js';
-import { approveReview, createReview, editReview, getCustomerReview, hideReview,
-  listPublicReviews, readPublicReviewImage, reportReview } from './reviews.js';
-import { parseQuestionPageQuery } from './questions.js';
+import { addReviewImage, approveReview, createReview, editReview, getAdminReview, getCustomerReview,
+  hideReview, listAdminReviews, listPublicReviews, parseReviewPageQuery,
+  readPrivateReviewImage, readPublicReviewImage, reportReview } from './reviews.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string } };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,6 +41,10 @@ async function handle<T>(operation: () => Promise<T>): Promise<T> {
     if (message === 'Invalid support request') throw new BadRequestException({ status: 'invalid_support' });
     if (message === 'Support unavailable') throw new NotFoundException();
     if (message === 'Support conflict') throw new ConflictException({ status: 'support_conflict' });
+    if (message === 'Support image limit') throw new ConflictException({ status: 'image_limit' });
+    if (message === 'Image too large') throw new PayloadTooLargeException();
+    if (['Unsupported image','Image MIME mismatch','Invalid image container'].includes(message))
+      throw new BadRequestException({ status: 'invalid_image' });
     if (message === 'Support scan unavailable')
       throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'image_scan' });
     if (message === 'Support image unavailable')
@@ -125,6 +131,48 @@ export class CustomerSupportReviewController {
     return review;
   }
 
+  @Post(':reviewId/images')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async addImage(@Req() request: IncomingMessage,
+    @Param('reviewId') reviewId: string) {
+    requireOrigin(request);
+    const { pool, accountId } = await this.context(request);
+    const key = requestKey(request);
+    const store = localReviewStore();
+    if (!store) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'upload_store' });
+    const mimeType = request.headers['content-type'];
+    if (typeof mimeType !== 'string' ||
+        !['image/png','image/jpeg','image/webp'].includes(mimeType))
+      throw new BadRequestException({ status: 'invalid_image_headers' });
+    if (Number(request.headers['content-length'] ?? 0) > 5 * 1024 * 1024)
+      throw new PayloadTooLargeException();
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of request) {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += bytes.length;
+      if (size > 5 * 1024 * 1024) throw new PayloadTooLargeException();
+      chunks.push(bytes);
+    }
+    return handle(() => addReviewImage(pool, { reviewId, customerAccountId: accountId,
+      idempotencyKey: key, bytes: Buffer.concat(chunks, size), mimeType, store }));
+  }
+
+  @Get(':reviewId/images/:imageId/preview')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async preview(@Req() request: RequestHeaders, @Param('reviewId') reviewId: string,
+    @Param('imageId') imageId: string) {
+    const { pool, accountId } = await this.context(request);
+    const store = localReviewStore();
+    if (!store) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'upload_store' });
+    const bytes = await handle(() => readPrivateReviewImage(pool, { reviewId, imageId,
+      actorRole: 'customer', actorAccountId: accountId, store }));
+    return new StreamableFile(bytes, { type: 'image/webp' });
+  }
+
   @Post(':reviewId/reports')
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
@@ -140,6 +188,36 @@ export class CustomerSupportReviewController {
 @Controller('admin/support/reviews')
 export class AdminSupportReviewController {
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  @Get()
+  @Header('Cache-Control', 'private, no-store')
+  async list(@Req() request: RequestHeaders, @Query() query: Record<string, unknown>) {
+    const { pool } = await context(this.database, request, 'admin');
+    return handle(() => listAdminReviews(pool, parseReviewPageQuery(query, true)));
+  }
+
+  @Get(':reviewId')
+  @Header('Cache-Control', 'private, no-store')
+  async detail(@Req() request: RequestHeaders, @Param('reviewId') reviewId: string) {
+    const { pool } = await context(this.database, request, 'admin');
+    const review = await handle(() => getAdminReview(pool, reviewId));
+    if (!review) throw new NotFoundException();
+    return review;
+  }
+
+  @Get(':reviewId/images/:imageId/preview')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cross-Origin-Resource-Policy', 'same-site')
+  async preview(@Req() request: RequestHeaders, @Param('reviewId') reviewId: string,
+    @Param('imageId') imageId: string) {
+    const { pool, accountId } = await context(this.database, request, 'admin');
+    const store = localReviewStore();
+    if (!store) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'upload_store' });
+    const bytes = await handle(() => readPrivateReviewImage(pool, { reviewId, imageId,
+      actorRole: 'admin', actorAccountId: accountId, store }));
+    return new StreamableFile(bytes, { type: 'image/webp' });
+  }
 
   @Post(':reviewId/approve')
   @HttpCode(200)
@@ -176,7 +254,7 @@ export class PublicSupportReviewController {
   @Get()
   async list(@Param('productId') productId: string, @Query() query: Record<string, unknown>) {
     return handle(() => listPublicReviews(poolOrUnavailable(this.database), productId,
-      parseQuestionPageQuery(query)));
+      parseReviewPageQuery(query)));
   }
 
   @Get(':reviewId/images/:imageId')
