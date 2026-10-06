@@ -120,6 +120,13 @@
       "when": 1791302400000,
       "tag": "0016_s52_customer_support",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791388800000,
+      "tag": "0017_s52_claim_reply_keys",
+      "breakpoints": true
     }
   ]
 }

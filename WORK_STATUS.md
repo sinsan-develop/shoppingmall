@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.2 판매자 클레임 답변·0017 checkpoint — 2026-10-07
+
+- **판정/소유:** 단일 writer 어울의 시작 HEAD `1c78d07`; Main이 승인 SSH alias 원격 `codex/s52-customer-support`에 exact `1c78d07` push 완료(main/PR 미변경)라고 직접 보고했다. 이 세션의 원격 재조회는 없으므로 원격 복구 ref는 **Main 보고 기준**이다. 로컬 새 commit은 아래 gate 후 수행한다. 공유 WSL `local-postgres/shoppingmall`·Oracle·실 Provider·secret/credential·push/PR/merge 변경0.
+- **변경/계약:** `0017_s52_claim_reply_keys.sql`+journal은 기존 0016의 클레임 메시지에 nullable 답변 UUID 멱등키와 작성자별 non-null UNIQUE를 추가한다. 기존 요청 본문/행은 그대로다. `apps/api/src/support/claims.ts`/controller는 품목 seller snapshot과 활성 seller grant를 DB에서 확인한 뒤 `POST /seller/support/claims/:claimId/replies`의 2,000자 이하 답변을 여러 `support_claim_messages`/`support_claim_events`에 순차 저장한다. 같은 키·같은 대상/본문은 같은 ID, 같은 키의 다른 본문/클레임은 409, 공동출고 담당만인 seller는 404, 고객은 403이다. 결정 이후 새 답변은 닫는다. 목록/상세에는 message/event 이력이 남고 object key는 없다.
+- **RED→GREEN/격리 업그레이드:** route 미구현 실제 HTTP 404 vs 기대403 RED, schema 17 vs 기대18 RED를 확인했다. 기존 전용 tmpfs DB `shoppingmall_s52_schema_v6_1007`(system ID `7693634051273510955`)에서 migration 전 PRE 환불 2행 전체 row hash `0f6adf9d3a314d0f14cb6fdcc2eafed2`를 읽은 뒤 0017만 적용했고, 동일 DB/2행/hash 불변을 재확인했다. 신규 DB/container/network/file 자원0. 격리 schema/문의/리뷰/클레임 실제 DB+HTTP 4/4 pass·0 skip; typecheck/lint/build exit0. 로컬 전체 첫 실행은 migration preview의 17건 고정 기대 1 fail을 확인해 18건으로 교정했고 재실행 **427 total/305 pass/122 계획된 DB·환경 skip/0 fail**, PR 본문 8/8. 초안에서 시험 PoolClient를 새 연결로 취급해 500 1회, `pnpm exec tsx` 명령 해석 실패 1회는 각각 거래 소유권 분기와 기존 node import 실행으로 교정했다. 동일 근본 원인 3회 연속 없음.
+- **신규 코드리뷰 정합 gate(미완료):** Main의 읽기 전용 지적을 확인했다. 0016의 support 13관계와 0017 답변키는 현재 raw SQL migration 및 실제 격리 DB에는 있으나 `apps/api/src/db/schema.ts`에 선언되지 않았고, `refund_cases`의 POST 열/교체 CHECK도 선언은 PRE 상태다. 현재 `migration-preview`는 적용 SQL hash/건수만 검증하므로 schema drift 없음의 증거가 아니다. Stage gate 전에 Drizzle 선언·migration/실DB catalog 정합과 0016/0017 검증을 별도 RED→GREEN으로 닫는다. 공유 DB 적용은 별도 패킷 전 계속 보류한다.
+- **미검증/다음:** 관리자 최종 결정·증빙 업/다운로드·POST 환불 1:1 bridge, 기존 PRE 회귀, 고객/판매자/관리자 Web/브라우저, signed fixture/reset 및 위 schema drift gate는 아직 미완료다. 전용 PG/네트워크는 다음 slice 중 유지, 최종 정확 정리 후 잔류0을 확인한다.
+
 ## S5.2 클레임 조회·권한 checkpoint — 2026-10-07
 
 - **판정/담당:** 단일 writer 어울, `D:\Project\shoppingmall2\.worktrees\s52-customer-support` / `codex/s52-customer-support`; 시작 HEAD `0968f68`. Main이 승인 SSH alias의 원격 `codex/s52-customer-support`에 exact `0968f68` push 완료, main/PR 미변경이라고 직접 보고했다. 이 세션에서 원격 재조회는 하지 않았으므로 복구 ref는 **Main 보고 기준**이다. 공유 DB·Oracle·실 Provider·secret·push/PR/merge는 건드리지 않았다.

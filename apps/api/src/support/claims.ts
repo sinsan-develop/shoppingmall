@@ -190,3 +190,54 @@ export async function getClaim(db: Db, scope: ClaimScope, actorAccountId: string
     ...(scope === 'admin' ? { customerAccountId } : {}),
     messages, events, evidence };
 }
+
+export async function replyToClaim(db: Db, input: { claimId: string; sellerId: string;
+  actorAccountId: string; body: string; idempotencyKey: string }) {
+  if (![input.claimId,input.sellerId,input.actorAccountId,input.idempotencyKey]
+    .every((id) => uuid.test(id)) || typeof input.body !== 'string' ||
+    !input.body.trim() || input.body.trim().length > 2000)
+    throw new Error('Invalid support request');
+  const body = input.body.trim();
+  const ownsTransaction = db instanceof Pool;
+  const client = ownsTransaction ? await db.connect() : db as PoolClient;
+  try {
+    if (ownsTransaction) await client.query('BEGIN');
+    const claim = (await client.query<{ status: string }>(`SELECT c.status
+      FROM support_claims c WHERE c.id=$1 AND c.seller_id=$2
+        AND EXISTS (SELECT 1 FROM account_roles role_grant
+          JOIN accounts actor ON actor.id=role_grant.account_id
+          WHERE role_grant.account_id=$3 AND role_grant.role='seller'
+            AND role_grant.seller_id=c.seller_id AND actor.disabled_at IS NULL)
+      FOR UPDATE OF c`, [input.claimId,input.sellerId,input.actorAccountId])).rows[0];
+    if (!claim) throw new Error('Support unavailable');
+    const prior = (await client.query<{ id: string; claimId: string; body: string }>(`
+      SELECT id,claim_id AS "claimId",body FROM support_claim_messages
+      WHERE author_account_id=$1 AND idempotency_key=$2`,
+    [input.actorAccountId,input.idempotencyKey])).rows[0];
+    if (prior) {
+      if (prior.claimId !== input.claimId || prior.body !== body)
+        throw new Error('Support conflict');
+      if (ownsTransaction) await client.query('COMMIT');
+      return { id: prior.id };
+    }
+    if (!['REQUESTED','SELLER_REPLIED'].includes(claim.status))
+      throw new Error('Support conflict');
+    const message = (await client.query<{ id: string }>(`INSERT INTO support_claim_messages
+      (claim_id,author_account_id,author_role,body,idempotency_key)
+      VALUES ($1,$2,'seller',$3,$4) RETURNING id`,
+    [input.claimId,input.actorAccountId,body,input.idempotencyKey])).rows[0];
+    await client.query(`UPDATE support_claims SET status='SELLER_REPLIED' WHERE id=$1`,
+      [input.claimId]);
+    await client.query(`INSERT INTO support_claim_events
+      (claim_id,action,actor_account_id,actor_role,reason,before_status,after_status)
+      VALUES ($1,'SELLER_REPLIED',$2,'seller','Seller reply submitted',$3,'SELLER_REPLIED')`,
+    [input.claimId,input.actorAccountId,claim.status]);
+    if (ownsTransaction) await client.query('COMMIT');
+    return { id: message.id };
+  } catch (error) {
+    if (ownsTransaction) await client.query('ROLLBACK');
+    if (error && typeof error === 'object' && 'code' in error && error.code === '23505')
+      throw new Error('Support conflict');
+    throw error;
+  } finally { if (ownsTransaction) client.release(); }
+}

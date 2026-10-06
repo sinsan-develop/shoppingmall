@@ -12,7 +12,7 @@ const isolatedDatabases = new Set([
   'shoppingmall_s52_schema_v6_1007',
 ]);
 
-test('0016 creates private support relations without changing the existing orders', {
+test('0016/0017 create private support relations without changing existing orders', {
   skip: !systemId || !expectedDatabase,
 }, async () => {
   assert.ok(isolatedDatabases.has(expectedDatabase), 'S5.2 isolated database name required');
@@ -33,7 +33,14 @@ test('0016 creates private support relations without changing the existing order
     assert.equal(existing.length, 13);
     assert.ok(existing.every(Boolean), `missing S5.2 relation: ${JSON.stringify(existing)}`);
     const migrationCount = (await pool.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations')).rows[0].n;
-    assert.equal(migrationCount, 17);
+    assert.equal(migrationCount, 18);
+    const claimReplyKey = (await pool.query(`SELECT is_nullable FROM information_schema.columns
+      WHERE table_schema='public' AND table_name='support_claim_messages'
+        AND column_name='idempotency_key'`)).rows;
+    assert.deepEqual(claimReplyKey, [{ is_nullable: 'YES' }]);
+    const replyKeyIndex = (await pool.query(`SELECT indexdef FROM pg_indexes
+      WHERE schemaname='public' AND indexname='support_claim_messages_author_key_uq'`)).rows[0];
+    assert.match(replyKeyIndex?.indexdef ?? '', /UNIQUE.*author_account_id.*idempotency_key/);
     const policy = (await pool.query(`SELECT code,version,shipping_refund_won,restock_mode
       FROM support_policy_versions`)).rows;
     assert.deepEqual(policy, [{ code: 'POST_SHIPMENT_TRIAL', version: 1,

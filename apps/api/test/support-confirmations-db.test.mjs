@@ -606,6 +606,33 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       const adminClaims = await (await reviewRequest(productSellerAccount,
         '/admin/support/claims?status=REQUESTED&limit=50', 'GET')).json();
       assert.ok(adminClaims.items.some((item) => item.id === httpClaim.id));
+      const replyPath = `${sellerClaimPath}/replies`;
+      const replyKey = randomUUID();
+      const reply = (actor, body, key = replyKey) => reviewRequest(actor, replyPath,
+        'POST', { body }, key);
+      assert.equal((await reply(customer, '판매자 답변')).status, 403);
+      assert.equal((await reply(fulfillmentAccount, '판매자 답변')).status, 404);
+      const firstReplyResponse = await reply(sellerSupportAccount, '상품 상태를 확인했습니다');
+      assert.equal(firstReplyResponse.status, 200);
+      const firstReply = await firstReplyResponse.json();
+      assert.equal((await (await reply(sellerSupportAccount,
+        '상품 상태를 확인했습니다')).json()).id, firstReply.id);
+      assert.equal((await reply(sellerSupportAccount, '다른 내용')).status, 409);
+      assert.equal((await reviewRequest(sellerSupportAccount,
+        `/seller/support/claims/${remainingClaim.id}/replies`, 'POST',
+        { body: '상품 상태를 확인했습니다' }, replyKey)).status, 409,
+      'one seller retry key cannot be reused for another claim');
+      const secondReplyResponse = await reply(sellerSupportAccount,
+        '추가 확인 결과를 전달합니다', randomUUID());
+      assert.equal(secondReplyResponse.status, 200);
+      const sellerDetail = await (await reviewRequest(sellerSupportAccount,
+        sellerClaimPath, 'GET')).json();
+      assert.deepEqual(sellerDetail.messages.map(({ body }) => body), [
+        claimBody.reason, '상품 상태를 확인했습니다', '추가 확인 결과를 전달합니다',
+      ]);
+      assert.equal(sellerDetail.status, 'SELLER_REPLIED');
+      assert.equal(sellerDetail.events.filter((event) =>
+        event.action === 'SELLER_REPLIED').length, 2);
     } finally {
       if (app) await app.close();
       await client.query('ROLLBACK');

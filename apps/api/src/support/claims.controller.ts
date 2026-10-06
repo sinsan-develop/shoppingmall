@@ -6,7 +6,7 @@ import type { Pool } from 'pg';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
-import { createClaim, getClaim, listClaims, parseClaimPageQuery } from './claims.js';
+import { createClaim, getClaim, listClaims, parseClaimPageQuery, replyToClaim } from './claims.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string } };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -112,6 +112,23 @@ export class SellerSupportClaimController {
       actor.sellerId!, claimId));
     if (!claim) throw new NotFoundException();
     return claim;
+  }
+
+  @Post(':claimId/replies')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async reply(@Req() request: RequestHeaders, @Param('claimId') claimId: string,
+    @Body() value: unknown) {
+    requireOrigin(request);
+    const { pool, actor } = await context(this.database, request, 'seller');
+    const key = request.headers['idempotency-key'];
+    if (!key || !uuid.test(key) || !value || typeof value !== 'object' ||
+        Array.isArray(value) || Object.keys(value).join(',') !== 'body' ||
+        typeof (value as Record<string, unknown>).body !== 'string')
+      throw new BadRequestException({ status: 'invalid_support' });
+    return handle(() => replyToClaim(pool, { claimId, sellerId: actor.sellerId!,
+      actorAccountId: actor.accountId, body: (value as { body: string }).body,
+      idempotencyKey: key }));
   }
 }
 
