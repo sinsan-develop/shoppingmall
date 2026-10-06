@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+const scriptUrl = new URL('../../../scripts/qa-fulfillment-browser.mjs', import.meta.url);
+
+test('fulfillment browser runner covers three roles, three viewports and keyboard use', async () => {
+  const source = await readFile(scriptUrl, 'utf8');
+  for (const role of ['customer', 'seller', 'admin']) assert.match(source, new RegExp(`['\"]${role}['\"]`));
+  for (const width of [1920, 1440, 430]) assert.match(source, new RegExp(`width:\\s*${width}`));
+  assert.match(source, /Input\.dispatchKeyEvent/);
+  assert.match(source, /scrollWidth/);
+  assert.match(source, /QA_FIXTURE_JSON/);
+  assert.match(source, /QA_CHROME_DEBUGGING/);
+  assert.match(source, /S5_ISOLATED_FULFILLMENT_/);
+  assert.match(source, /http:\/\/127\.0\.0\.1:9091/);
+  assert.match(source, /http:\/\/127\.0\.0\.1:9229/);
+  assert.match(source, /validateFulfillmentUiManifest/);
+  assert.match(source, /openCdpPage/);
+  assert.match(source, /closeCdpPage/);
+  assert.match(source, /createCdpCommandChannel/);
+  assert.match(source, /visibleFocusables/);
+  assert.match(source, /visited\.size/);
+  assert.match(source, /let page/);
+  assert.match(source, /finally/);
+  assert.match(source, /assertSellerCannotAccess/);
+  assert.match(source, /installSellerListFault/);
+  assert.match(source, /fixture\.emails\[2\]/);
+  assert.match(source, /fixture\.emails\[3\]/);
+  assert.match(source, /fixture\.shipmentIds\[2\]/);
+  assert.match(source, /fixture\.emails\[2\][\s\S]*installSellerListFault\('delay'\)/);
+  assert.match(source, /__qaSellerListFaultUsed === true/);
+  assert.match(source, /customerOrder\(fixture\.orderIds\[0\], fulfillmentUiExpectedShipDate\)/);
+  assert.match(source, /처리할 발송 주문이 없습니다/);
+  assert.match(source, /판매자 권한 확인 중/);
+  assert.match(source, /출고 목록을 불러오지 못했습니다/);
+  assert.match(source, /2026-10-10/);
+  assert.ok(source.includes('if (await evaluate(`Boolean(${expression})`)) return;'));
+  assert.ok((source.match(/fulfillmentUiExpectedShipDate/g) ?? []).length >= 3);
+  assert.doesNotMatch(source, /2026-10-08/);
+  assert.doesNotMatch(source, /const pending = new Map/);
+  assert.doesNotMatch(source, /sms|email provider|push provider|payment provider/i);
+});
+
+test('fulfillment browser runner waits for React hydration before scripted interactions', async () => {
+  const source = await readFile(scriptUrl, 'utf8');
+  assert.match(source, /async function waitForHydrated/);
+  assert.match(source, /__reactProps\$/);
+  assert.match(source, /async function setInput[\s\S]*?await waitForHydrated/);
+  assert.match(source, /async function clickText[\s\S]*?await waitFor\([\s\S]*?__reactProps\$/);
+  assert.match(source,
+    /await waitForHydrated\('form', `\$\{role\} login form`\)[\s\S]*?requestSubmit/);
+  assert.match(source, /await clickSelector\('\.fulfillment-list-button'/);
+  assert.doesNotMatch(source,
+    /document\.querySelector\('\.fulfillment-list-button'\)\?\.click/);
+});

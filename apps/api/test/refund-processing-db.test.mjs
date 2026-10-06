@@ -6,8 +6,21 @@ import { MockRefundAdapter, NoChargeRefundAdapter } from '../src/refunds/mock-ad
 import { processVerifiedRefundEvent } from '../src/refunds/processor.ts';
 import { createRefundCase, decideRefundCase, getRefundCase,
   recordVerifiedRefundEvent } from '../src/refunds/service.ts';
+import { assertOrderMutationQaTarget, skipWithoutFulfillmentSchema,
+  skipWithoutOrderSchema } from './order-schema-guard.mjs';
 
 const fingerprint = 'a'.repeat(64);
+
+async function requireTask7Schema(context, pool) {
+  await assertOrderMutationQaTarget(pool, process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID);
+  if (await skipWithoutOrderSchema(context, pool, true)) return false;
+  if (await skipWithoutFulfillmentSchema(context, pool, true)) return false;
+  const migrations = (await pool.query(
+    'SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations',
+  )).rows[0].count;
+  assert.equal(migrations, 16);
+  return true;
+}
 
 async function seedPaidOrder(pool) {
   const ids = { accounts: [], categories: [] };
@@ -77,6 +90,9 @@ async function seedPaidOrder(pool) {
      unit_price_won,quantity,goods_discount_won,goods_payable_won)
     VALUES ($1,$2,$3,$4,'환불 시험 상품','기본',4000,3,2000,10000)`,
   [ids.shipmentId, ids.productId, ids.optionId, ids.sellerId]);
+  await pool.query(`INSERT INTO shipment_fulfillments
+    (shipment_order_id,fulfillment_seller_id,status,expected_ship_date)
+    VALUES ($1,$2,'READY','2026-10-08')`, [ids.shipmentId, ids.sellerId]);
   ids.paymentAttemptId = (await pool.query(`INSERT INTO payment_attempts
     (checkout_order_id,provider,provider_order_id,requested_won,idempotency_key,
      request_fingerprint,status,ended_at)
@@ -108,7 +124,11 @@ async function cleanup(pool, ids) {
   await pool.query('DELETE FROM refund_cases WHERE checkout_order_id=$1', [ids.orderId]);
   await pool.query('DELETE FROM payment_events WHERE payment_attempt_id=$1', [ids.paymentAttemptId]);
   await pool.query('DELETE FROM payment_attempts WHERE id=$1', [ids.paymentAttemptId]);
+  await pool.query('DELETE FROM shipment_fulfillment_events WHERE shipment_order_id=$1', [ids.shipmentId]);
+  await pool.query(`DELETE FROM audit_events WHERE action='fulfillment.refund_cancelled'
+    AND target_type='shipment_order' AND target_id=$1`, [ids.shipmentId]);
   await pool.query('DELETE FROM shipment_order_lines WHERE shipment_order_id=$1', [ids.shipmentId]);
+  await pool.query('DELETE FROM shipment_fulfillments WHERE shipment_order_id=$1', [ids.shipmentId]);
   await pool.query('DELETE FROM shipment_orders WHERE id=$1', [ids.shipmentId]);
   await pool.query('DELETE FROM checkout_orders WHERE id=$1', [ids.orderId]);
   await pool.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=$1', [ids.reservationId]);
@@ -129,6 +149,23 @@ async function cleanup(pool, ids) {
   await pool.query('DELETE FROM sellers WHERE id=$1', [ids.sellerId]);
   await pool.query('DELETE FROM seller_categories WHERE id=$1', [ids.sellerCategoryId]);
   await pool.query('DELETE FROM accounts WHERE id=ANY($1::uuid[])', [ids.accounts]);
+}
+
+async function readTask7MutationState(pool, ids, caseId) {
+  const refund = (await pool.query(`SELECT status,goods_refund_won,shipping_refund_won,
+    total_refund_won,completed_at FROM refund_cases WHERE id=$1`, [caseId])).rows[0];
+  const fulfillment = (await pool.query(`SELECT status,version,cancelled_at,
+    first_shipped_at,shipped_at FROM shipment_fulfillments WHERE shipment_order_id=$1`,
+  [ids.shipmentId])).rows[0];
+  const stock = (await pool.query(`SELECT on_hand_quantity,sellable_quantity
+    FROM inventory_levels WHERE option_id=$1`, [ids.optionId])).rows[0];
+  const counts = (await pool.query(`SELECT
+    (SELECT count(*)::int FROM refund_attempts WHERE refund_case_id=$1) AS attempts,
+    (SELECT count(*)::int FROM refund_events e JOIN refund_attempts a
+      ON a.id=e.refund_attempt_id WHERE a.refund_case_id=$1) AS refund_events,
+    (SELECT count(*)::int FROM shipment_fulfillment_events
+      WHERE shipment_order_id=$2) AS fulfillment_events`, [caseId, ids.shipmentId])).rows[0];
+  return { refund, fulfillment, stock, counts };
 }
 
 test('sequential pre-shipment refunds preserve snapshots and refund shipping once', {
@@ -479,6 +516,87 @@ test('zero-won refund uses no-charge evidence and a verified failure stays incom
   } finally {
     await cleanup(pool, failedIds);
     await cleanup(pool, zeroIds);
+    await pool.end();
+  }
+});
+
+test('SHIPPED fulfillment rejects pre-shipment approval without any mutation', {
+  skip: !process.env.DATABASE_URL || !process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID,
+}, async (context) => {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+  let ids;
+  try {
+    if (!await requireTask7Schema(context, pool)) return;
+    ids = await seedPaidOrder(pool);
+    const requested = await createRefundCase(pool, { actorAccountId: ids.customerId,
+      actorRole: 'customer', checkoutOrderId: ids.orderId, shipmentOrderId: ids.shipmentId,
+      lines: [{ optionId: ids.optionId, quantity: 3 }], reasonCode: 'customer_request',
+      reason: '이미 출고된 주문 승인 거부', idempotencyKey: randomUUID() });
+    const shippedAt = new Date('2026-10-06T02:00:00.000Z');
+    await pool.query(`UPDATE shipment_fulfillments SET status='SHIPPED',carrier_code='hanjin',
+      tracking_number='QAAPPROVAL1',first_shipped_at=$2,shipped_at=$2,updated_at=$2
+      WHERE shipment_order_id=$1`, [ids.shipmentId, shippedAt]);
+    const before = await readTask7MutationState(pool, ids, requested.id);
+    await assert.rejects(() => decideRefundCase(pool, { adminAccountId: ids.adminId,
+      caseId: requested.id, idempotencyKey: randomUUID(), decision: 'approve',
+      reason: '출고 전으로 잘못 승인하면 안 됨', preShipmentConfirmed: true,
+      preShipmentEvidence: 'ADMIN_CONFIRMED_NOT_DISPATCHED',
+      lines: [{ optionId: ids.optionId, restockMode: 'on_hand_only' }] },
+    { APP_ENV: 'development', PAYMENT_MODE: 'mock' }), /Refund unavailable|Refund conflict/);
+    assert.deepEqual(await readTask7MutationState(pool, ids, requested.id), before);
+  } finally {
+    await cleanup(pool, ids);
+    await pool.end();
+  }
+});
+
+test('SHIPPED fulfillment moves verified refund processing to stable review', {
+  skip: !process.env.DATABASE_URL || !process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID,
+}, async (context) => {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+  let ids;
+  try {
+    if (!await requireTask7Schema(context, pool)) return;
+    ids = await seedPaidOrder(pool);
+    const requested = await createRefundCase(pool, { actorAccountId: ids.customerId,
+      actorRole: 'customer', checkoutOrderId: ids.orderId, shipmentOrderId: ids.shipmentId,
+      lines: [{ optionId: ids.optionId, quantity: 3 }], reasonCode: 'customer_request',
+      reason: '처리 직전 출고 경합 거부', idempotencyKey: randomUUID() });
+    const decision = await decideRefundCase(pool, { adminAccountId: ids.adminId,
+      caseId: requested.id, idempotencyKey: randomUUID(), decision: 'approve', reason: '미출고 확인',
+      preShipmentConfirmed: true, preShipmentEvidence: 'ADMIN_CONFIRMED_NOT_DISPATCHED',
+      lines: [{ optionId: ids.optionId, restockMode: 'on_hand_only' }] },
+    { APP_ENV: 'development', PAYMENT_MODE: 'mock' });
+    const verified = new MockRefundAdapter().verify({ providerRefundId: decision.providerRefundId,
+      orderId: ids.orderId, paymentId: ids.paymentId, amountWon: decision.totalRefundWon,
+      outcome: 'SUCCEEDED' });
+    const event = await recordVerifiedRefundEvent(pool, decision.attemptId, verified);
+    const shippedAt = new Date('2026-10-06T02:10:00.000Z');
+    await pool.query(`UPDATE shipment_fulfillments SET status='SHIPPED',carrier_code='hanjin',
+      tracking_number='QAPROCESS1',first_shipped_at=$2,shipped_at=$2,updated_at=$2
+      WHERE shipment_order_id=$1`, [ids.shipmentId, shippedAt]);
+    assert.equal((await processVerifiedRefundEvent(pool, event.id)).processingStatus,
+      'REVIEW_REQUIRED');
+    assert.equal((await processVerifiedRefundEvent(pool, event.id)).processingStatus,
+      'REVIEW_REQUIRED');
+    const state = (await pool.query(`SELECT c.status AS "caseStatus",a.status AS "attemptStatus",
+      e.processing_status AS "eventStatus",c.completed_at AS "completedAt",
+      f.status AS "fulfillmentStatus",f.version AS "fulfillmentVersion"
+      FROM refund_cases c JOIN refund_attempts a ON a.refund_case_id=c.id
+      JOIN refund_events e ON e.refund_attempt_id=a.id
+      JOIN shipment_fulfillments f ON f.shipment_order_id=c.shipment_order_id
+      WHERE c.id=$1 AND e.id=$2`, [requested.id, event.id])).rows[0];
+    assert.deepEqual(state, { caseStatus: 'REVIEW_REQUIRED', attemptStatus: 'REVIEW_REQUIRED',
+      eventStatus: 'REVIEW_REQUIRED', completedAt: null,
+      fulfillmentStatus: 'SHIPPED', fulfillmentVersion: 0 });
+    const reviewEvents = (await pool.query(`SELECT from_status AS "fromStatus",
+      to_status AS "toStatus",reason FROM refund_case_events
+      WHERE refund_case_id=$1 AND refund_event_id=$2 ORDER BY created_at,id`,
+    [requested.id, event.id])).rows;
+    assert.deepEqual(reviewEvents, [{ fromStatus: 'PROCESSING', toStatus: 'REVIEW_REQUIRED',
+      reason: 'Verified refund cannot be applied after shipment was marked SHIPPED' }]);
+  } finally {
+    await cleanup(pool, ids);
     await pool.end();
   }
 });

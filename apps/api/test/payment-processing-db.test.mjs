@@ -204,12 +204,16 @@ test('one verified approval pays its shipment, reservation, coupon and stock onl
       WHERE reservation_id=$1 AND status='USED'`, [zeroHold.id])).rows[0].n, 2);
   } finally {
     for (const id of orders) {
+      await pool.query(`DELETE FROM shipment_fulfillment_events WHERE shipment_order_id IN
+        (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [id]);
       await pool.query(`DELETE FROM payment_events WHERE payment_attempt_id IN
         (SELECT id FROM payment_attempts WHERE checkout_order_id=$1)`, [id]);
       await pool.query('DELETE FROM payment_attempts WHERE checkout_order_id=$1', [id]);
       await pool.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=$1', [id]);
       await pool.query('DELETE FROM order_status_events WHERE checkout_order_id=$1', [id]);
       await pool.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
+        (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [id]);
+      await pool.query(`DELETE FROM shipment_fulfillments WHERE shipment_order_id IN
         (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [id]);
       await pool.query('DELETE FROM shipment_orders WHERE checkout_order_id=$1', [id]);
       await pool.query('DELETE FROM checkout_orders WHERE id=$1', [id]);

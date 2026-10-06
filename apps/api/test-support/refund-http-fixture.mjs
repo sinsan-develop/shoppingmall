@@ -77,6 +77,9 @@ export async function seedRefundHttpFixture(pool) {
      shipping_fee_won,shipping_support_won,payable_won,status)
     VALUES ($1,$2,'seller_direct',$3,12000,2000,3000,1000,12000,'PAID') RETURNING id`,
   [ids.orderId, `seller:${ids.sellerId}`, ids.sellerId])).rows[0].id;
+  await pool.query(`INSERT INTO shipment_fulfillments
+    (shipment_order_id,fulfillment_seller_id,status,expected_ship_date)
+    VALUES ($1,$2,'READY','2026-10-08')`, [ids.shipmentId, ids.sellerId]);
   await pool.query(`INSERT INTO shipment_order_lines
     (shipment_order_id,product_id,option_id,seller_id,product_name,option_name,
      unit_price_won,quantity,goods_discount_won,goods_payable_won)
@@ -114,6 +117,10 @@ export async function cleanupRefundHttpFixture(pool, ids) {
   await pool.query('DELETE FROM payment_events WHERE payment_attempt_id=$1', [ids.paymentAttemptId]);
   await pool.query('DELETE FROM payment_attempts WHERE id=$1', [ids.paymentAttemptId]);
   await pool.query('DELETE FROM shipment_order_lines WHERE shipment_order_id=$1', [ids.shipmentId]);
+  await pool.query('DELETE FROM shipment_fulfillment_events WHERE shipment_order_id=$1', [ids.shipmentId]);
+  await pool.query(`DELETE FROM audit_events WHERE action='fulfillment.refund_cancelled'
+    AND target_type='shipment_order' AND target_id=$1`, [ids.shipmentId]);
+  await pool.query('DELETE FROM shipment_fulfillments WHERE shipment_order_id=$1', [ids.shipmentId]);
   await pool.query('DELETE FROM shipment_orders WHERE id=$1', [ids.shipmentId]);
   await pool.query('DELETE FROM checkout_orders WHERE id=$1', [ids.orderId]);
   await pool.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=$1', [ids.reservationId]);

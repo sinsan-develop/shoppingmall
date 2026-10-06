@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assertOrderMutationQaTarget, skipWithoutOrderSchema } from './order-schema-guard.mjs';
+import { assertOrderMutationQaTarget, skipWithoutOrderSchema, skipWithoutFulfillmentSchema } from './order-schema-guard.mjs';
+
+test('0015 guard rejects missing fulfillment schema before any seed in strict QA', async () => {
+  const missing = { query: async () => ({ rows: [{ ready: false }] }) };
+  const reasons = [];
+  assert.equal(await skipWithoutFulfillmentSchema({ skip: r => reasons.push(r) }, missing, false), true);
+  assert.deepEqual(reasons, ['S5 fulfillment migration 0015 not applied']);
+  await assert.rejects(() => skipWithoutFulfillmentSchema({}, missing, true), /0015 not applied/);
+  assert.equal(await skipWithoutFulfillmentSchema({}, { query: async () => ({ rows: [{ ready: true }] }) }, true), false);
+});
 
 test('0012 guard skips without seeding a schema-missing DB and can fail strict QA', async () => {
   const pool = { query: async () => ({ rows: [{ ready: false }] }) };

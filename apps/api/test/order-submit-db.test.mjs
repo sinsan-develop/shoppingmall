@@ -5,7 +5,8 @@ import { Pool } from 'pg';
 import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 import { CheckoutReservations } from '../src/checkout/reservation-service.ts';
-import { assertOrderMutationQaTarget, skipWithoutOrderSchema } from './order-schema-guard.mjs';
+import { assertOrderMutationQaTarget, skipWithoutFulfillmentSchema,
+  skipWithoutOrderSchema } from './order-schema-guard.mjs';
 
 test('two direct sellers and pooled goods submit once with an exact pending amount and owned address', {
   skip: !process.env.DATABASE_URL,
@@ -17,13 +18,25 @@ test('two direct sellers and pooled goods submit once with an exact pending amou
   let buyerId;
   let addressId;
   let reservationId;
+  let originalFulfillmentSetting;
   try {
     if (await skipWithoutOrderSchema(context, pool)) return;
+    if (await skipWithoutFulfillmentSchema(context, pool)) return;
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);
+    originalFulfillmentSetting = (await pool.query(`SELECT owool_seller_id AS "owoolSellerId",
+      updated_by AS "updatedBy",version,updated_at AS "updatedAt"
+      FROM fulfillment_settings WHERE id=1`)).rows[0];
     buyerId = (await pool.query(`SELECT account_id FROM account_identities
       WHERE kind='email' AND identifier=$1`, [names.emails[0]])).rows[0].account_id;
+    const fulfillmentOwner = (await pool.query(`SELECT r.seller_id AS "sellerId",
+      r.account_id AS "accountId" FROM account_roles r JOIN accounts a ON a.id=r.account_id
+      WHERE r.role='seller' AND a.disabled_at IS NULL ORDER BY r.seller_id LIMIT 1`)).rows[0];
+    assert.ok(fulfillmentOwner);
+    await pool.query(`UPDATE fulfillment_settings SET owool_seller_id=$1,updated_by=$2,
+      version=version+1,updated_at=now() WHERE id=1`,
+    [fulfillmentOwner.sellerId, fulfillmentOwner.accountId]);
     const options = await pool.query(`SELECT o.id,r.title FROM product_options o
       JOIN product_revisions r ON r.id=o.revision_id WHERE r.title=ANY($1::text[])`,
     [['고추', '마늘', '고춧가루'].map((name) => `qa-${runId}-${name}`)]);
@@ -115,6 +128,8 @@ test('two direct sellers and pooled goods submit once with an exact pending amou
       for (const { id } of orders) {
         await pool.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=$1', [id]);
         await pool.query('DELETE FROM order_status_events WHERE checkout_order_id=$1', [id]);
+        await pool.query(`DELETE FROM shipment_fulfillments WHERE shipment_order_id IN
+          (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [id]);
         await pool.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
           (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [id]);
         await pool.query('DELETE FROM shipment_orders WHERE checkout_order_id=$1', [id]);
@@ -123,6 +138,10 @@ test('two direct sellers and pooled goods submit once with an exact pending amou
       await pool.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=$1', [reservationId]);
       await pool.query('DELETE FROM checkout_reservations WHERE id=$1', [reservationId]);
     }
+    if (originalFulfillmentSetting) await pool.query(`UPDATE fulfillment_settings
+      SET owool_seller_id=$1,updated_by=$2,version=$3,updated_at=$4 WHERE id=1`,
+    [originalFulfillmentSetting.owoolSellerId, originalFulfillmentSetting.updatedBy,
+      originalFulfillmentSetting.version, originalFulfillmentSetting.updatedAt]);
     if (addressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [addressId]);
     if (seeded) await runQaCatalogFixture('reset', runId, process.env.DATABASE_URL);
     await pool.end();
@@ -138,6 +157,7 @@ test('changed money, stock and campaign roll back order and coupon hold; valid s
   let seeded = false; let reservationId; let addressId; let campaignId; let orderId;
   try {
     if (await skipWithoutOrderSchema(context, pool)) return;
+    if (await skipWithoutFulfillmentSchema(context, pool)) return;
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);
@@ -197,6 +217,8 @@ test('changed money, stock and campaign roll back order and coupon hold; valid s
     if (orderId) {
       await pool.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=$1', [orderId]);
       await pool.query('DELETE FROM order_status_events WHERE checkout_order_id=$1', [orderId]);
+      await pool.query(`DELETE FROM shipment_fulfillments WHERE shipment_order_id IN
+        (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [orderId]);
       await pool.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
         (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [orderId]);
       await pool.query('DELETE FROM shipment_orders WHERE checkout_order_id=$1', [orderId]);

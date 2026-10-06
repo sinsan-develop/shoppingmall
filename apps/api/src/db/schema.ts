@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { boolean, check, date, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { PostalRange, ShippingPolicy } from '../shipping/policy.js';
 
 export const identityKind = pgEnum('identity_kind', ['email', 'phone', 'kakao', 'apple']);
@@ -933,4 +933,152 @@ export const refundCaseEvents = pgTable('refund_case_events', {
       AND ${table.actorAccountId} IS NOT NULL)
     OR (${table.actorRole} = 'system' AND ${table.actorAccountId} IS NULL)`),
   check('refund_case_events_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
+]);
+
+export const fulfillmentSettings = pgTable('fulfillment_settings', {
+  id: integer('id').primaryKey().default(1),
+  owoolSellerId: uuid('owool_seller_id').references(() => sellers.id),
+  updatedBy: uuid('updated_by').references(() => accounts.id),
+  version: integer('version').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  check('fulfillment_settings_singleton_ck', sql`${table.id} = 1`),
+  check('fulfillment_settings_version_ck', sql`${table.version} >= 0`),
+]);
+
+export const shipmentFulfillments = pgTable('shipment_fulfillments', {
+  shipmentOrderId: uuid('shipment_order_id').primaryKey().references(() => shipmentOrders.id),
+  fulfillmentSellerId: uuid('fulfillment_seller_id').notNull().references(() => sellers.id),
+  status: text('status').notNull().default('PAYMENT_PENDING'),
+  cutoffTime: text('cutoff_time'),
+  timezone: text('timezone').notNull().default('Asia/Seoul'),
+  expectedShipDate: date('expected_ship_date'),
+  carrierCode: text('carrier_code'),
+  carrierName: text('carrier_name'),
+  trackingNumber: text('tracking_number'),
+  packedAt: timestamp('packed_at', { withTimezone: true }),
+  firstShippedAt: timestamp('first_shipped_at', { withTimezone: true }),
+  shippedAt: timestamp('shipped_at', { withTimezone: true }),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  version: integer('version').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('shipment_fulfillments_seller_status_idx').on(table.fulfillmentSellerId, table.status, table.shipmentOrderId),
+  index('shipment_fulfillments_status_idx').on(table.status, table.shipmentOrderId),
+  check('shipment_fulfillments_status_ck', sql`${table.status} IN
+    ('PAYMENT_PENDING','READY','PACKING','DELAYED','SHIPPED','CANCELLED')`),
+  check('shipment_fulfillments_cutoff_ck', sql`${table.cutoffTime} IS NULL
+    OR ${table.cutoffTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  check('shipment_fulfillments_timezone_ck', sql`${table.timezone} = 'Asia/Seoul'`),
+  check('shipment_fulfillments_version_ck', sql`${table.version} >= 0`),
+  check('shipment_fulfillments_pending_ck', sql`
+    (${table.status} = 'PAYMENT_PENDING' AND ${table.expectedShipDate} IS NULL
+      AND ${table.packedAt} IS NULL AND ${table.firstShippedAt} IS NULL)
+    OR (${table.status} <> 'PAYMENT_PENDING' AND ${table.expectedShipDate} IS NOT NULL)`),
+  check('shipment_fulfillments_packing_ck', sql`${table.status} <> 'PACKING' OR ${table.packedAt} IS NOT NULL`),
+  check('shipment_fulfillments_shipping_ck', sql`
+    (${table.status} = 'SHIPPED' AND ${table.carrierCode} IS NOT NULL
+      AND ${table.carrierCode} IN ('cj_logistics','korea_post','hanjin','lotte','other')
+      AND ${table.trackingNumber} IS NOT NULL AND ${table.trackingNumber} ~ '^[A-Za-z0-9]{1,50}$'
+      AND ${table.firstShippedAt} IS NOT NULL AND ${table.shippedAt} IS NOT NULL
+      AND ((${table.carrierCode} = 'other' AND ${table.carrierName} IS NOT NULL
+        AND length(trim(${table.carrierName})) BETWEEN 1 AND 50)
+        OR (${table.carrierCode} <> 'other' AND ${table.carrierName} IS NULL)))
+    OR (${table.status} <> 'SHIPPED' AND ${table.carrierCode} IS NULL AND ${table.carrierName} IS NULL
+      AND ${table.trackingNumber} IS NULL AND ${table.shippedAt} IS NULL)`),
+  check('shipment_fulfillments_cancelled_ck', sql`(${table.status} = 'CANCELLED') = (${table.cancelledAt} IS NOT NULL)`),
+]);
+
+export const shipmentFulfillmentEvents = pgTable('shipment_fulfillment_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  shipmentOrderId: uuid('shipment_order_id').notNull().references(() => shipmentFulfillments.shipmentOrderId),
+  action: text('action').notNull(),
+  fromStatus: text('from_status').notNull(),
+  toStatus: text('to_status').notNull(),
+  actorAccountId: uuid('actor_account_id').references(() => accounts.id),
+  actorRole: text('actor_role'),
+  actorSellerId: uuid('actor_seller_id').references(() => sellers.id),
+  reason: text('reason'),
+  customerMessage: text('customer_message'),
+  beforeSnapshot: jsonb('before_snapshot').notNull(),
+  afterSnapshot: jsonb('after_snapshot').notNull(),
+  idempotencyScope: text('idempotency_scope').notNull(),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  requestFingerprint: text('request_fingerprint').notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('shipment_fulfillment_events_key_uq').on(table.shipmentOrderId, table.idempotencyScope, table.idempotencyKey),
+  index('shipment_fulfillment_events_shipment_time_idx').on(table.shipmentOrderId, table.occurredAt),
+  check('shipment_fulfillment_events_action_ck', sql`${table.action} IN
+    ('PAYMENT_CONFIRMED','START_PACKING','REPORT_DELAY','RESUME_PACKING','MARK_SHIPPED','ADMIN_CORRECT','REFUND_CANCELLED')`),
+  check('shipment_fulfillment_events_from_ck', sql`${table.fromStatus} IN
+    ('PAYMENT_PENDING','READY','PACKING','DELAYED','SHIPPED','CANCELLED')`),
+  check('shipment_fulfillment_events_to_ck', sql`${table.toStatus} IN
+    ('PAYMENT_PENDING','READY','PACKING','DELAYED','SHIPPED','CANCELLED')`),
+  check('shipment_fulfillment_events_actor_ck', sql`coalesce(
+    (${table.action} IN ('START_PACKING','REPORT_DELAY','RESUME_PACKING','MARK_SHIPPED')
+      AND ${table.actorRole} = 'seller' AND ${table.actorAccountId} IS NOT NULL AND ${table.actorSellerId} IS NOT NULL
+      AND ${table.idempotencyScope} = ${table.actorAccountId}::text)
+    OR (${table.action} = 'ADMIN_CORRECT' AND ${table.actorRole} = 'admin'
+      AND ${table.actorAccountId} IS NOT NULL AND ${table.actorSellerId} IS NULL
+      AND ${table.idempotencyScope} = ${table.actorAccountId}::text)
+    OR (${table.action} IN ('PAYMENT_CONFIRMED','REFUND_CANCELLED') AND ${table.actorRole} IS NULL
+      AND ${table.actorAccountId} IS NULL AND ${table.actorSellerId} IS NULL
+      AND ${table.idempotencyScope} = CASE ${table.action} WHEN 'PAYMENT_CONFIRMED' THEN 'system:payment' ELSE 'system:refund' END), false)`),
+  check('shipment_fulfillment_events_reason_ck', sql`${table.reason} IS NULL OR length(trim(${table.reason})) BETWEEN 1 AND 500`),
+  check('shipment_fulfillment_events_message_ck', sql`${table.customerMessage} IS NULL OR length(trim(${table.customerMessage})) BETWEEN 1 AND 500`),
+  check('shipment_fulfillment_events_notice_ck', sql`${table.action} NOT IN ('REPORT_DELAY','ADMIN_CORRECT')
+    OR (${table.reason} IS NOT NULL AND ${table.customerMessage} IS NOT NULL)`),
+  check('shipment_fulfillment_events_snapshot_ck', sql`
+    jsonb_typeof(${table.beforeSnapshot}) = 'object' AND jsonb_typeof(${table.afterSnapshot}) = 'object'
+    AND (${table.beforeSnapshot} - ARRAY['status','expectedShipDate','carrierCode','trackingNumber']::text[]) = '{}'::jsonb
+    AND (${table.afterSnapshot} - ARRAY['status','expectedShipDate','carrierCode','trackingNumber']::text[]) = '{}'::jsonb
+      AND (NOT (${table.beforeSnapshot} ? 'status') OR
+        (jsonb_typeof(${table.beforeSnapshot}->'status') = 'string' AND ${table.beforeSnapshot}->>'status' IN
+          ('PAYMENT_PENDING','READY','PACKING','DELAYED','SHIPPED','CANCELLED')))
+      AND (NOT (${table.beforeSnapshot} ? 'expectedShipDate') OR ${table.beforeSnapshot}->'expectedShipDate' = 'null'::jsonb OR
+        CASE WHEN jsonb_typeof(${table.beforeSnapshot}->'expectedShipDate') = 'string'
+          AND length(${table.beforeSnapshot}->>'expectedShipDate') = 10
+          AND ${table.beforeSnapshot}->>'expectedShipDate' ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+        THEN substring(${table.beforeSnapshot}->>'expectedShipDate',9,2)::integer <=
+          CASE WHEN substring(${table.beforeSnapshot}->>'expectedShipDate',6,2) = '02'
+            THEN 28 + CASE WHEN substring(${table.beforeSnapshot}->>'expectedShipDate',1,4)::integer % 400 = 0
+              OR (substring(${table.beforeSnapshot}->>'expectedShipDate',1,4)::integer % 4 = 0
+                AND substring(${table.beforeSnapshot}->>'expectedShipDate',1,4)::integer % 100 <> 0)
+              THEN 1 ELSE 0 END
+            WHEN substring(${table.beforeSnapshot}->>'expectedShipDate',6,2) IN ('04','06','09','11') THEN 30
+            ELSE 31 END
+        ELSE false END)
+      AND (NOT (${table.beforeSnapshot} ? 'carrierCode') OR ${table.beforeSnapshot}->'carrierCode' = 'null'::jsonb OR
+        (jsonb_typeof(${table.beforeSnapshot}->'carrierCode') = 'string' AND ${table.beforeSnapshot}->>'carrierCode' IN
+          ('cj_logistics','korea_post','hanjin','lotte','other')))
+      AND (NOT (${table.beforeSnapshot} ? 'trackingNumber') OR ${table.beforeSnapshot}->'trackingNumber' = 'null'::jsonb OR
+        (jsonb_typeof(${table.beforeSnapshot}->'trackingNumber') = 'string'
+          AND length(${table.beforeSnapshot}->>'trackingNumber') BETWEEN 1 AND 50
+          AND ${table.beforeSnapshot}->>'trackingNumber' !~ '[^A-Za-z0-9]'))
+      AND (NOT (${table.afterSnapshot} ? 'status') OR
+        (jsonb_typeof(${table.afterSnapshot}->'status') = 'string' AND ${table.afterSnapshot}->>'status' IN
+          ('PAYMENT_PENDING','READY','PACKING','DELAYED','SHIPPED','CANCELLED')))
+      AND (NOT (${table.afterSnapshot} ? 'expectedShipDate') OR ${table.afterSnapshot}->'expectedShipDate' = 'null'::jsonb OR
+        CASE WHEN jsonb_typeof(${table.afterSnapshot}->'expectedShipDate') = 'string'
+          AND length(${table.afterSnapshot}->>'expectedShipDate') = 10
+          AND ${table.afterSnapshot}->>'expectedShipDate' ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+        THEN substring(${table.afterSnapshot}->>'expectedShipDate',9,2)::integer <=
+          CASE WHEN substring(${table.afterSnapshot}->>'expectedShipDate',6,2) = '02'
+            THEN 28 + CASE WHEN substring(${table.afterSnapshot}->>'expectedShipDate',1,4)::integer % 400 = 0
+              OR (substring(${table.afterSnapshot}->>'expectedShipDate',1,4)::integer % 4 = 0
+                AND substring(${table.afterSnapshot}->>'expectedShipDate',1,4)::integer % 100 <> 0)
+              THEN 1 ELSE 0 END
+            WHEN substring(${table.afterSnapshot}->>'expectedShipDate',6,2) IN ('04','06','09','11') THEN 30
+            ELSE 31 END
+        ELSE false END)
+      AND (NOT (${table.afterSnapshot} ? 'carrierCode') OR ${table.afterSnapshot}->'carrierCode' = 'null'::jsonb OR
+        (jsonb_typeof(${table.afterSnapshot}->'carrierCode') = 'string' AND ${table.afterSnapshot}->>'carrierCode' IN
+          ('cj_logistics','korea_post','hanjin','lotte','other')))
+      AND (NOT (${table.afterSnapshot} ? 'trackingNumber') OR ${table.afterSnapshot}->'trackingNumber' = 'null'::jsonb OR
+        (jsonb_typeof(${table.afterSnapshot}->'trackingNumber') = 'string'
+          AND length(${table.afterSnapshot}->>'trackingNumber') BETWEEN 1 AND 50
+          AND ${table.afterSnapshot}->>'trackingNumber' !~ '[^A-Za-z0-9]'))`),
+  check('shipment_fulfillment_events_fingerprint_ck', sql`${table.requestFingerprint} ~ '^[0-9a-f]{64}$'`),
 ]);

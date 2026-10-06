@@ -2,6 +2,13 @@
 
 상태: **2026-10-05 PMO 경유 신산님 지시로 현 branch의 0014 추가식 6관계·고객/관리자 API·권한/금액/재고 복원 계약과 격리 구현·검증 승인**. 기준 checkout은 `codex/s4-payment-refund@ad05adc874e4ff97005f8b50f04f7a7ba5c466a1`. 근거는 [DESIGN](DESIGN.md) R06/R07, [PRD](../PRD.md) 7.5·8.2·8.4, [WORK_PLAN](../WORK_PLAN.md) S4.2 및 기존 [S4.1 결제 계약](S4_PAYMENT_CONTRACT_DRAFT.md)이다. 공유 개발 DB 0014 적용, 실제 PG, Oracle/UAT, S5.2 출고 후 정책·약관, 쿠폰 재발행·sellable 자동 증가는 승인 범위 밖이다.
 
+### 2026-10-06 S5.1 연계 완료 사실
+
+- 최종 제품·QA SHA `943a8cd99307f968ca21cbeaf283f610b2e52448`에서 출고 전 환불과 배송 경쟁은 환불 승리 시 `REFUNDED/APPLIED`+출고 `CANCELLED`, 배송 승리 시 출고 `SHIPPED`+사례·시도·사건 `REVIEW_REQUIRED`의 안정 상태로 검증됐으며 `PROCESSING/PENDING_PROCESSING`을 성공으로 인정하지 않는다.
+- Windows/WSL은 각각 415 total / 298 pass / 117 planned skip / 0 fail이고, 격리 PostgreSQL 18.4 migration16의 관련 DB/HTTP 시험은 38/38이다. 별도 격리 DB의 Chrome 154에서 고객·판매자·관리자, 1920/1440/430·키보드, screenshot 9개가 PASS했다.
+- signed reset 뒤 25관계 합계0·`fulfillment_settings=1`, run `f5141006` 자원0을 확인했다. 공유 DB는 actual Chrome에 사용하지 않았고 읽기 전용 사후 확인에서 migration16·settings1·업무행0으로 불변이다.
+- 실제 PG·택배·문자·메일·푸시, Oracle/UAT·PR·병합, 실제 200% 확대와 S5.2 출고 후 법률·약관/심사·환불은 미검증·미완료다.
+
 ### Task 6 리뷰 보정 승인(2026-10-05, PMO 경유)
 
 - 추가 공개 읽기 계약 `GET /customer/checkout/orders?status=PAID&cursor=<opaque>&limit=<n>`: 세션 고객 소유의 결제완료 주문만, 기본20/최대50, `created_at,id` 내림차순 keyset. cursor는 서버가 반환한 불투명 값이며 DB timestamp의 마이크로초를 보존한다. 응답 `items[{id,status,createdAt,paidAt,payableWon,productSummary:{productName,optionName,lineCount}}],nextCursor`; 상품 표기는 불변 주문 snapshot의 첫 품목과 전체 품목 수다. 주소/연락처/공급자·계정 식별자 제외. 미인증401/타 역할403/잘못된 상태·cursor·limit400/빈 목록200. 기존 상세 GET과 환불 API로 연결한다.
@@ -11,7 +18,7 @@
 ## 1. 범위와 권장안
 
 - S4.2는 **출고 전** 결제 완료 발송 주문의 수량 단위 일부/전량 취소, 관리자 최종 결정과 모의 환불 실행, 원거래 링크·상태 이력까지 맡는다. 고객은 자기 주문에 요청할 수 있고 관리자는 사유 있는 직권 사례를 만들 수 있다. 판매자는 환불을 최종 결정·집행하지 않는다.
-- S5.1은 출고 사실·운송장, S5.2는 **출고 후** 사유별 클레임/증빙·변경 가능한 시험 정책·관리자 심사/환불 연결을 맡는다. S4.2가 없는 출고 사건을 추정하거나 임시 출고 테이블을 선점하지 않는다. 실제 PG 부분 환불, Oracle, UAT, 최종 약관/반송비 판단은 이 계약 밖이다.
+- S5.1은 출고 사실·운송장과 출고 전 환불의 잠금 결합, S5.2는 **출고 후** 사유별 클레임/증빙·변경 가능한 시험 정책·관리자 심사/환불 연결을 맡는다. 검증된 환불이 이미 `SHIPPED`를 관찰하면 사례·시도·사건을 원자적으로 `REVIEW_REQUIRED`로 확정하며 `PROCESSING/PENDING_PROCESSING`으로 남기지 않는다. S4.2가 없는 출고 사건을 추정하거나 임시 출고 테이블을 선점하지 않는다. 실제 PG 부분 환불, Oracle, UAT, 최종 약관/반송비 판단은 이 계약 밖이다.
 - 권장: 원 주문/금액은 결제 당시 사실로 보존하고, 환불을 별도 사례·검증 사건으로 누적한다. 원 주문 상태만 `REFUNDED`로 덮어쓰는 안은 한 통합결제의 다른 발송 주문·부분 수량을 표현하지 못한다. S4에서 임시 배송 상태를 만드는 안은 S5와 중복 계약이 된다.
 - 완료 경계: S4.1+S4.2를 현재 단일 branch의 S4 Stage PR 1개로 제출한다. 필수 local/WSL DB/API/실제 브라우저·review gate 통과 후 병합·merged-main smoke·정리한다. 그 뒤 최신 `origin/main`에서 S5 branch/worktree를 만든다. 브라우저 도구 오류를 자동 시험 PASS로 대체하지 않는다.
 
@@ -63,4 +70,4 @@
 - RED: 타 고객/판매자 접근, 미결제/지연·이중 요청, 동일 키 다른 본문, 3개 중 1개·순차 전량의 원 단위 합, 할인/배송비 지원, 다른 발송 주문 불변, 배송비 1회, 부분 취소 후 새 배송비 0, 0원, 거절/지연/중복·다른 지문 사건, 병렬 승인·초과 환불, 관리자 사유/감사 누락, 재고 복원 기본 0·선택 복원 1회·판매중지 복원 거부. GREEN: 순수 계산→격리 DB 0000~0014 fresh/기존 migration 호환→HTTP 역할/상태/사건 시험→실제 브라우저 고객/관리자/390px/키보드→typecheck/lint/build/review→WSL exact SHA. 자동 HTTP 시험을 실제 브라우저 PASS로 부르지 않는다.
 - 영향: 신규 6관계 및 고객·관리자 환불 API/화면, 조회 파생 상태, 승인된 경우의 보유 재고 복원, 정산 원사건 연결. 기존 원주문·프로모션·결제 승인 데이터와 S4.1 API는 유지. 테스트 계정·가상 주문만 사용하고 실제 결제·송금 금지. 실제 PG 부분 환불은 U0/U3 경계.
 - 공유 DB 적용은 **별도 승인**이다. 승인 요청에 최종 SQL 해시, 기존 행수/마이그레이션 dry-run, 정확한 백업·복원 검증, 사후 API/DB/행수 대조, QA 잔류 정리를 포함한다. 실패 시 mock 환불 쓰기를 닫고 사건/원거래를 보존한다. 이미 발생한 금전 사건을 임의 삭제하거나 공유 DB를 역마이그레이션하지 않고 전진 보정·복구를 별도로 결정한다.
-- 이 계약의 현 branch 격리 구현은 승인됐지만 공유 DB 적용은 별도 승인이다. 미해결·후속: S5.1 출고 사건과의 자동 결합, 실제 브라우저 도구 경로, 실제 PG/Oracle/UAT, 출고 후 법률·약관.
+- 이 계약의 S4 구현과 S5.1 출고 사건 자동 결합·actual Chrome 검증은 위 최종 SHA에서 완료됐다. 미해결·후속: 실제 PG·Oracle/UAT·200% 확대, S5.2 출고 후 법률·약관·증빙·심사/환불.

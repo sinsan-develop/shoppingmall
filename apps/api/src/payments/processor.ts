@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { lockPaymentFulfillments, openPaymentFulfillments } from '../fulfillment/repository.js';
 import { PromotionUsageService } from '../promotions/usage-service.js';
 import type { PaymentEventView } from './repository.js';
 
@@ -139,6 +140,20 @@ export async function processVerifiedPaymentEvent(pool: Pool, eventId: string): 
       return review;
     }
     const stocks = await lockAndCheckStock(client, order.reservationId, order.id);
+    const fulfillments = await lockPaymentFulfillments(client, order.id);
+    if (!fulfillments) {
+      const review = await finishEvent(client, eventId, 'REVIEW_REQUIRED');
+      await client.query(`UPDATE payment_attempts SET status='REVIEW_REQUIRED',ended_at=clock_timestamp()
+        WHERE id=$1 AND status='PENDING'`, [attempt.id]);
+      await client.query('COMMIT');
+      return review;
+    }
+    const paidAt = (await client.query<{ paidAt: Date }>(
+      'SELECT clock_timestamp() AS "paidAt"',
+    )).rows[0]?.paidAt;
+    if (!(paidAt instanceof Date) || !Number.isFinite(paidAt.getTime())) {
+      throw new Error('Payment timestamp unavailable');
+    }
     await new PromotionUsageService(pool).markPaidInTransaction(client, uses.rows.map(({ id }) => id));
     await client.query(`UPDATE checkout_reservations SET status='CONSUMED',ended_at=clock_timestamp()
       WHERE id=$1 AND status='ACTIVE'`, [order.reservationId]);
@@ -146,9 +161,10 @@ export async function processVerifiedPaymentEvent(pool: Pool, eventId: string): 
       SET on_hand_quantity=on_hand_quantity-$2,
         sellable_quantity=greatest(0,sellable_quantity-$2),updated_at=clock_timestamp()
       WHERE option_id=$1`, [stock.optionId, stock.quantity]);
-    await client.query(`UPDATE checkout_orders SET status='PAID',
-      paid_at=clock_timestamp(),ended_at=clock_timestamp() WHERE id=$1`, [order.id]);
+    await client.query(`UPDATE checkout_orders SET status='PAID',paid_at=$2,ended_at=$2
+      WHERE id=$1`, [order.id, paidAt]);
     await client.query(`UPDATE shipment_orders SET status='PAID' WHERE checkout_order_id=$1`, [order.id]);
+    await openPaymentFulfillments(client, fulfillments, event.id, paidAt);
     await client.query(`INSERT INTO order_status_events (checkout_order_id,status,reason)
       VALUES ($1,'PAID','Verified payment')`, [order.id]);
     await client.query(`UPDATE payment_attempts SET status='APPROVED',ended_at=clock_timestamp()

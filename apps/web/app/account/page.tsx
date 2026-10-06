@@ -6,6 +6,26 @@ type Session = { accountId: string; role: 'customer' | 'seller' | 'admin'; selle
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
+export function AccountRoleLinks({ role }: { role: Session['role'] }) {
+  if (role === 'seller') return <nav className="account-role-links" aria-label="판매자 메뉴">
+    <a className="secondary-button" href="/account/seller/products">상품 초안 등록</a>
+    <a className="secondary-button" href="/account/seller/shipping">배송 정책 변경 요청</a>
+    <a className="primary-button" href="/account/seller/orders">주문·출고 관리</a>
+  </nav>;
+  if (role === 'admin') return <nav className="account-role-links" aria-label="운영자 메뉴">
+    <a className="secondary-button" href="/account/admin/catalog">분류·판매자 등록</a>
+    <a className="secondary-button" href="/account/admin/proposals">상품 요청 검토</a>
+    <a className="secondary-button" href="/account/admin/shipping">배송 정책 관리</a>
+    <a className="secondary-button" href="/account/admin/home">홈 전시 관리</a>
+    <a className="secondary-button" href="/account/admin/promotions">프로모션 관리</a>
+    <a className="secondary-button" href="/account/admin/refunds">취소·환불 관리</a>
+    <a className="primary-button" href="/account/admin/fulfillment">출고 운영 관리</a>
+  </nav>;
+  return <nav className="account-role-links" aria-label="구매자 메뉴">
+    <a className="primary-button" href="/account/customer">찜·재입고·배송지·주문·알림 설정</a>
+  </nav>;
+}
+
 export default function AccountPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [state, setState] = useState<'loading' | 'unauthorized' | 'ready' | 'unavailable'>('loading');
@@ -58,15 +78,7 @@ export default function AccountPage() {
         {state === 'ready' && session ? (
           <div>
             <p>현재 역할: <strong>{roleLabel}</strong></p>
-            {session.role === 'seller' ? <p><a className="text-link" href="/account/seller/products">상품 초안 등록</a><br />
-              <a className="text-link" href="/account/seller/shipping">배송 정책 변경 요청</a><br />주문 관리는 준비 중입니다</p> : null}
-            {session.role === 'admin' ? <p><a className="text-link" href="/account/admin/catalog">분류·판매자 등록</a><br />
-              <a className="text-link" href="/account/admin/proposals">상품 요청 검토</a><br />
-                <a className="text-link" href="/account/admin/shipping">배송 정책 관리</a><br />
-                <a className="text-link" href="/account/admin/home">홈 전시 관리</a><br />
-                <a className="text-link" href="/account/admin/promotions">프로모션 관리</a><br />
-                <a className="text-link" href="/account/admin/refunds">취소·환불 관리</a><br />그 밖의 운영 관리 기능은 준비 중입니다</p> : null}
-            {session.role === 'customer' ? <p><a className="text-link" href="/account/customer">찜·재입고·배송지·알림 설정</a><br />주문 기능은 준비 중입니다</p> : null}
+            <AccountRoleLinks role={session.role} />
             <button type="button" className="primary-button" disabled={busy} onClick={logout}>로그아웃</button>
           </div>
         ) : null}

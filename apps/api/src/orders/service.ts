@@ -5,6 +5,7 @@ import { getOrderSnapshot, insertOrderSnapshot, type OrderLineSnapshot,
   type PendingOrderSnapshot, type PendingOrderView } from './repository.js';
 import { PromotionUsageService, type PromotionSelection } from '../promotions/usage-service.js';
 import { ShippingPolicies } from '../shipping/service.js';
+import { snapshotFulfillmentAssignments, type FulfillmentSource } from '../fulfillment/repository.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type SubmitInput = { reservationId: string; addressId: string;
@@ -61,8 +62,8 @@ export async function submitPendingOrderWithDisposition(pool: Pool, accountId: s
   const requestFingerprint = fingerprint(input);
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    const account = await client.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE', [accountId]);
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+    const account = await client.query('SELECT id FROM accounts WHERE id=$1 FOR NO KEY UPDATE', [accountId]);
     if (!account.rowCount) throw new Error('Order unavailable');
     const previous = await client.query<{ id: string; requestFingerprint: string }>(
       `SELECT id,request_fingerprint AS "requestFingerprint" FROM checkout_orders
@@ -92,11 +93,17 @@ export async function submitPendingOrderWithDisposition(pool: Pool, accountId: s
     if (!address.rows[0]) throw new Error('Address unavailable');
     if (address.rows[0].deletedAt) throw new Error('Address changed');
     const options = await lockOptions(client, input.reservationId);
-    await client.query('SELECT id FROM shipping_policy_global WHERE id=1 FOR SHARE');
-    for (const sellerId of [...new Set([...options.values()].map((option) => option.sellerId))].sort()) {
-      await client.query(`SELECT seller_id FROM seller_shipping_policies
-        WHERE seller_id=$1 FOR SHARE`, [sellerId]);
+    const fulfillmentSources = new Map<string, FulfillmentSource>();
+    for (const option of options.values()) {
+      const source: FulfillmentSource = option.shippingMode === 'seller_direct'
+        ? { key: `seller_direct:${option.sellerId}`, shippingMode: option.shippingMode,
+          sellerId: option.sellerId }
+        : { key: 'owool_fulfillment', shippingMode: option.shippingMode, sellerId: null };
+      fulfillmentSources.set(source.key, source);
     }
+    const fulfillmentAssignments = await snapshotFulfillmentAssignments(
+      client, [...fulfillmentSources.values()],
+    );
     const { uses, quote, goodsRule } = await new PromotionUsageService(pool).holdForOrderInTransaction(
       client, accountId, input.reservationId, input.selections,
       input.idempotencyKey, hold.expiresAt);
@@ -157,7 +164,7 @@ export async function submitPendingOrderWithDisposition(pool: Pool, accountId: s
       shippingFeeWon: quote.shippingWon, shippingSupportWon: quote.supportWon,
       payableWon: quote.payableTotalWon, shipments,
     };
-    const order = await insertOrderSnapshot(client, snapshot);
+    const order = await insertOrderSnapshot(client, snapshot, fulfillmentAssignments);
     await client.query(`INSERT INTO audit_events
       (actor_account_id,active_role,action,target_type,target_id,details)
       VALUES ($1,'customer','pending_order_created','checkout_order',$2,$3::jsonb)`,

@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { createLatestRequestGuard } from '../fulfillment-ui';
 import { DeletionRequestControls } from './deletion-request-controls';
 import { EngagementLists } from './engagement-lists';
+import { CustomerOrderFulfillmentView, type CustomerShipmentWithFulfillment } from './order-fulfillment';
 
 type Address = {
   id: string; label: string; recipientName: string; phone: string;
@@ -11,7 +13,8 @@ type Address = {
 type Preferences = { marketingEmail: boolean; marketingSms: boolean; push: boolean };
 type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID'; payableWon: number;
   expiresAt: string; paidAt?: string | null;
-  shipments: { id: string; key: string; payableWon: number; status?: string }[] };
+  shipments: ({ id: string; key: string; payableWon: number; status?: string } &
+    CustomerShipmentWithFulfillment)[] };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -31,6 +34,7 @@ export default function CustomerProfilePage() {
   const [orderId, setOrderId] = useState('');
   const [order, setOrder] = useState<PendingOrder>();
   const [orderMessage, setOrderMessage] = useState('');
+  const orderRequests = useRef(createLatestRequestGuard());
 
   useEffect(() => {
     if (!apiOrigin) { setState('unavailable'); return; }
@@ -65,16 +69,21 @@ export default function CustomerProfilePage() {
   async function loadOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!apiOrigin || !orderId.trim()) return;
+    const request = orderRequests.current.begin();
     setOrder(undefined); setOrderMessage('');
     try {
       const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(orderId.trim())}`,
         { credentials: 'include', cache: 'no-store' });
+      if (!orderRequests.current.isLatest(request)) return;
       if (response.status === 404) { setOrderMessage('본인 주문을 찾을 수 없습니다'); return; }
       if (!response.ok) { setOrderMessage('주문 상태를 불러오지 못했습니다'); return; }
       const current = await response.json() as PendingOrder;
+      if (!orderRequests.current.isLatest(request)) return;
       setOrder(current);
       window.sessionStorage.setItem('owool-checkout-order-id', current.id);
-    } catch { setOrderMessage('주문 상태를 불러오지 못했습니다'); }
+    } catch {
+      if (orderRequests.current.isLatest(request)) setOrderMessage('주문 상태를 불러오지 못했습니다');
+    }
   }
 
   async function addAddress(event: FormEvent<HTMLFormElement>) {
@@ -186,8 +195,10 @@ export default function CustomerProfilePage() {
               <p>{order.status === 'EXPIRED' ? '기한 만료' : order.status === 'PAID' ? '결제 확인 완료' : '결제대기'} · 서버 확정 금액 {order.payableWon.toLocaleString('ko-KR')}원</p>
               {order.status === 'PAID' && order.paidAt ? <p>결제 확인 시각 {new Date(order.paidAt).toLocaleString('ko-KR')}</p> : null}
               <p>만료 시각 {new Date(order.expiresAt).toLocaleString('ko-KR')}</p>
-              <ul>{order.shipments.map((shipment) => <li key={shipment.id}>
-                발송 주문 {shipment.key} · {shipment.payableWon.toLocaleString('ko-KR')}원</li>)}</ul>
+              <ul className="customer-shipment-list">{order.shipments.map((shipment) => <li key={shipment.id}>
+                <p>발송 주문 {shipment.key} · {shipment.payableWon.toLocaleString('ko-KR')}원</p>
+                <CustomerOrderFulfillmentView shipment={shipment} />
+              </li>)}</ul>
               <p>{order.status === 'PAID' ? '결제가 확인됐습니다' : '결제는 아직 완료되지 않았습니다'}</p>
             </div> : null}
           </section>

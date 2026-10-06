@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { insertPendingFulfillment, type FulfillmentAssignment } from '../fulfillment/repository.js';
 
 export type OrderAmounts = {
   goodsWon: number; goodsDiscountWon: number; shippingFeeWon: number;
@@ -12,6 +13,19 @@ export type OrderLineSnapshot = {
   productId: string; optionId: string; sellerId: string;
   productName: string; optionName: string; unitPriceWon: number; quantity: number;
   goodsDiscountWon: number; goodsPayableWon: number;
+};
+export type CustomerOrderLineSnapshot = OrderLineSnapshot & {
+  completedRefundQuantity: number; remainingQuantity: number;
+};
+export type CustomerFulfillmentView = {
+  status: 'PAYMENT_PENDING' | 'READY' | 'PACKING' | 'DELAYED' | 'SHIPPED' | 'CANCELLED';
+  expectedShipDate: string | null; delayedReason?: string; customerMessage?: string;
+  carrier: { code: string; displayName: string } | null; trackingNumber: string | null;
+  packedAt: Date | null; shippedAt: Date | null; updatedAt: Date;
+  events: {
+    action: string; status: string; expectedShipDate: string | null;
+    customerMessage: string | null; occurredAt: Date;
+  }[];
 };
 export type OrderPromotionAllocation = {
   useId: string; campaignId: string; versionId: string;
@@ -29,12 +43,19 @@ export type PendingOrderSnapshot = OrderAmounts & {
 export type PendingOrderView = OrderAmounts & {
   id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID'; createdAt: Date;
   expiresAt: Date; endedAt: Date | null; paidAt: Date | null; address: OrderAddress;
-  shipments: (ShipmentOrderSnapshot & { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID' })[];
+  shipments: (Omit<ShipmentOrderSnapshot, 'lines'> & {
+    id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID';
+    lines: CustomerOrderLineSnapshot[]; fulfillment?: CustomerFulfillmentView;
+  })[];
 };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const maxWon = 2147483647;
 const invalid = () => new Error('Invalid order snapshot');
+const carrierDisplayNames: Record<string, string> = {
+  cj_logistics: 'CJ대한통운', korea_post: '우체국택배', hanjin: '한진택배',
+  lotte: '롯데택배', other: '기타',
+};
 function won(value: unknown): value is number {
   return Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= maxWon;
 }
@@ -117,8 +138,13 @@ function validate(input: PendingOrderSnapshot): void {
 
 /** Insert the whole immutable snapshot on the caller's already-open transaction. */
 export async function insertOrderSnapshot(client: PoolClient,
-  input: PendingOrderSnapshot): Promise<PendingOrderView> {
+  input: PendingOrderSnapshot,
+  fulfillmentAssignments?: ReadonlyMap<string, FulfillmentAssignment>): Promise<PendingOrderView> {
   validate(input);
+  if (fulfillmentAssignments && (fulfillmentAssignments.size !== input.shipments.length ||
+      input.shipments.some((shipment) => !fulfillmentAssignments.has(shipment.key)))) {
+    throw invalid();
+  }
   const order = await client.query<{ id: string }>(`INSERT INTO checkout_orders
     (account_id,reservation_id,idempotency_key,request_fingerprint,address_id,
       recipient_name,phone,postal_code,line1,line2,goods_won,goods_discount_won,
@@ -138,6 +164,8 @@ export async function insertOrderSnapshot(client: PoolClient,
       shipment.goodsDiscountWon, shipment.shippingFeeWon, shipment.shippingSupportWon,
       shipment.payableWon]);
     const shipmentId = inserted.rows[0].id;
+    const fulfillment = fulfillmentAssignments?.get(shipment.key);
+    if (fulfillment) await insertPendingFulfillment(client, shipmentId, fulfillment);
     for (const line of shipment.lines) await client.query(`INSERT INTO shipment_order_lines
       (shipment_order_id,product_id,option_id,seller_id,product_name,option_name,
         unit_price_won,quantity,goods_discount_won,goods_payable_won)
@@ -185,16 +213,74 @@ export async function getOrderSnapshot(client: PoolClient, accountId: string,
     WHERE checkout_order_id=$1 ORDER BY shipment_key`, [id]);
   const shipments: PendingOrderView['shipments'] = [];
   for (const shipment of shipmentRows.rows) {
-    const lines = await client.query<OrderLineSnapshot>(`SELECT product_id AS "productId",
+    const lines = await client.query<CustomerOrderLineSnapshot>(`SELECT product_id AS "productId",
       option_id AS "optionId",seller_id AS "sellerId",product_name AS "productName",
       option_name AS "optionName",unit_price_won AS "unitPriceWon",quantity,
+      COALESCE((SELECT sum(rl.quantity)::int FROM refund_case_lines rl
+        JOIN refund_cases r ON r.id=rl.refund_case_id
+        WHERE rl.shipment_order_id=shipment_order_lines.shipment_order_id
+          AND rl.option_id=shipment_order_lines.option_id AND r.status='REFUNDED'),0)
+        AS "completedRefundQuantity",
+      GREATEST(quantity-COALESCE((SELECT sum(rl.quantity)::int FROM refund_case_lines rl
+        JOIN refund_cases r ON r.id=rl.refund_case_id
+        WHERE rl.shipment_order_id=shipment_order_lines.shipment_order_id
+          AND rl.option_id=shipment_order_lines.option_id AND r.status='REFUNDED'),0),0)
+        AS "remainingQuantity",
       goods_discount_won AS "goodsDiscountWon",goods_payable_won AS "goodsPayableWon"
       FROM shipment_order_lines WHERE shipment_order_id=$1 ORDER BY option_id`, [shipment.id]);
     const promotions = await client.query<OrderPromotionAllocation>(`SELECT
       promotion_use_id AS "useId",campaign_id AS "campaignId",version_id AS "versionId",
       kind,amount_won AS "amountWon" FROM order_promotion_allocations
       WHERE shipment_order_id=$1 ORDER BY kind,promotion_use_id`, [shipment.id]);
-    shipments.push({ ...shipment, lines: lines.rows, promotions: promotions.rows });
+    const fulfillment = (await client.query<{
+      status: CustomerFulfillmentView['status']; expectedShipDate: string | null;
+      carrierCode: string | null; carrierName: string | null; trackingNumber: string | null;
+      packedAt: Date | null; shippedAt: Date | null; updatedAt: Date;
+    }>(`SELECT status,expected_ship_date::text AS "expectedShipDate",
+      carrier_code AS "carrierCode",carrier_name AS "carrierName",
+      tracking_number AS "trackingNumber",packed_at AS "packedAt",shipped_at AS "shippedAt",
+      updated_at AS "updatedAt" FROM shipment_fulfillments WHERE shipment_order_id=$1`,
+    [shipment.id])).rows[0];
+    let customerFulfillment: CustomerFulfillmentView | undefined;
+    if (fulfillment) {
+      const eventRows = (await client.query<{
+        action: string; status: string; reason: string | null; customerMessage: string | null;
+        afterSnapshot: { expectedShipDate?: string | null }; occurredAt: Date;
+      }>(`SELECT action,to_status AS status,reason,customer_message AS "customerMessage",
+        after_snapshot AS "afterSnapshot",occurred_at AS "occurredAt"
+        FROM shipment_fulfillment_events WHERE shipment_order_id=$1
+        ORDER BY occurred_at,id`, [shipment.id])).rows;
+      const latestMessage = [...eventRows].reverse()
+        .find(({ customerMessage }) => customerMessage !== null)?.customerMessage ?? undefined;
+      const delayedReason = fulfillment.status === 'DELAYED'
+        ? [...eventRows].reverse().find(({ action, reason }) =>
+          action === 'REPORT_DELAY' && reason !== null)?.reason ?? undefined
+        : undefined;
+      const displayName = fulfillment.carrierCode === 'other'
+        ? fulfillment.carrierName : fulfillment.carrierCode
+          ? carrierDisplayNames[fulfillment.carrierCode] : null;
+      customerFulfillment = {
+        status: fulfillment.status,
+        expectedShipDate: fulfillment.expectedShipDate,
+        ...(delayedReason ? { delayedReason } : {}),
+        ...(latestMessage ? { customerMessage: latestMessage } : {}),
+        carrier: fulfillment.carrierCode && displayName
+          ? { code: fulfillment.carrierCode, displayName } : null,
+        trackingNumber: fulfillment.trackingNumber,
+        packedAt: fulfillment.packedAt,
+        shippedAt: fulfillment.shippedAt,
+        updatedAt: fulfillment.updatedAt,
+        events: eventRows.map((event) => ({
+          action: event.action,
+          status: event.status,
+          expectedShipDate: event.afterSnapshot.expectedShipDate ?? null,
+          customerMessage: event.customerMessage,
+          occurredAt: event.occurredAt,
+        })),
+      };
+    }
+    shipments.push({ ...shipment, lines: lines.rows, promotions: promotions.rows,
+      ...(customerFulfillment ? { fulfillment: customerFulfillment } : {}) });
   }
   return {
     id: row.id, status: row.status, createdAt: row.createdAt, expiresAt: row.expiresAt,
