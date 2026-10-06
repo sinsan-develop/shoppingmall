@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 실제 RED — 2026-10-06 S5.1 Task8 독립 리뷰 Important 7건 보정
+
+- **판정·기준:** exact clean base `ff1264f87d4fee5c3e9ac53fb92e8e01935bf210`에서 독립 리뷰의 Critical 0 / Important 7 / Minor 1 중 Important 7건에 대한 RED 시험만 추가했다. 제품 구현 파일, schema/migration, 공유 DB, WSL, Docker, 원격은 변경하거나 사용하지 않았다.
+- **실제 Web RED:** `node --import tsx --test apps/web/test/fulfillment-role-screens.test.mjs`는 **11 tests / 5 pass / 6 fail / 0 skip, exit 1**이다. 실패는 판매자 상세 수령인·전화 미표시, 판매자/관리자 더보기 미표시와 중복 제거 helper 부재, 비출고 정정 carrier 3필드 명시적 null builder 부재, 관리자 결제 시작일·종료일 및 공동출고 판매자명·갱신시각 미표시, authoritative reload 성공 전 멱등키 유지 및 4xx/5xx·네트워크 안내 helper 부재, 고객 연속 조회 최신 요청 guard 부재를 각각 재현한다.
+- **실제 API RED·DB 계약:** DB 환경변수를 제거한 `node --import tsx --test apps/api/test/fulfillment-admin-http-db.test.mjs`는 **3 tests / 1 pass / 1 fail / 1 explicit DB skip, exit 1**이다. 비DB route 계약은 통과했고, 승인된 `from`/`to` 포괄 ISO 결제일 parser export가 없어 `expected function / actual undefined`로 실패했다. DB 계약에는 Asia/Seoul 결제일 범위 결과, 잘못된 날짜·역전 범위 400, 공동출고 설정의 `owoolSellerDisplayName`·`updatedAt` 응답을 추가했지만 private PostgreSQL을 만들지 않았으므로 명시적 **미검증**이다.
+- **시험 계약 범위:** nextCursor 이어붙이기는 `shipmentOrderId` 기준 중복 제거와 판매자·관리자 더보기 노출을 요구한다. 성공·409 이후 authoritative reload가 실패하면 같은 body 재시도용 멱등키를 유지하고 reload 성공 뒤에만 해제해야 한다. 4xx 입력 오류와 5xx·네트워크 처리결과 불명은 서로 다른 안내를 요구한다. 고객 주문 연속 조회는 늦게 끝난 이전 응답을 무시해야 한다.
+- **변경 파일:** `apps/web/test/fulfillment-role-screens.test.mjs`, `apps/api/test/fulfillment-admin-http-db.test.mjs`, 이 `WORK_STATUS.md`만 변경했다. 제품 파일 수정은 0이다.
+- **오류 횟수·조치:** 이전 code writer가 RED 시험 작성을 시작하지 못하고 상태 확인만 한 **미착수 오류 1회**를 인수했다. 이번 정적 검사에서 `pnpm exec eslint ...`가 Windows 실행 경로를 찾지 못한 도구 호출 오류 **1회**가 있었고, 저장소 표준 `pnpm lint`로 재실행해 exit 0을 확인했다. 동일 근본 원인 3회 연속은 없다.
+- **미검증·다음:** private PostgreSQL actual DB RED, GREEN 제품 구현, 전체 회귀/typecheck/build, 실제 브라우저, WSL exact-SHA, Oracle/UAT는 미검증이다. 다음은 이 RED를 단일 commit으로 보존한 뒤 Important 7건의 최소 GREEN을 수행하고 private DB·local·WSL exact-SHA gate와 독립 재리뷰 Critical 0 / Important 0을 확인하는 것이다.
+
 ## GREEN 후보 — 2026-10-06 S5.1 Task8 역할별 Flat v2 출고 화면
 
 - **판정·기준:** actual RED commit `083a9e9faa2c783e9664807aded00e175f1676b8`와 이전 writer가 남긴 정상 미추적 WIP `apps/web/app/account/fulfillment-ui.ts`를 삭제·되돌림 없이 인수해 Task8 승인 범위만 구현했다. 현재는 로컬 Web gate를 통과한 **GREEN 후보**이며 S5.1 Stage 전체, 실제 브라우저, WSL 통합, Oracle/UAT 또는 `main` 병합 완료가 아니다.

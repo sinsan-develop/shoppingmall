@@ -50,7 +50,7 @@ function sellerProps(overrides = {}) {
 
 function adminProps(overrides = {}) {
   return {
-    setting: { owoolSellerId: 'seller-a', version: 2,
+    setting: { owoolSellerId: 'seller-a', owoolSellerDisplayName: '공동출고 농가', version: 2,
       updatedAt: '2026-10-06T00:00:00Z' },
     items: [adminItem], selected: adminDetail, statusFilter: 'DELAYED',
     sellerFilter: 'seller-a', busy: false, error: '', message: '',
@@ -58,6 +58,80 @@ function adminProps(overrides = {}) {
     onCorrect: () => {}, ...overrides,
   };
 }
+
+test('seller detail exposes the recipient name and phone needed for shipping', async () => {
+  const { SellerFulfillmentView } =
+    await import('../app/account/seller/orders/page.tsx');
+  const html = renderToStaticMarkup(createElement(SellerFulfillmentView,
+    sellerProps({ items: [], selected: sellerDetail })));
+
+  assert.match(html, /받는 분/);
+  assert.match(html, /010-\*\*\*\*-1234/);
+});
+
+test('seller and admin lists expose cursor pagination without duplicate append', async () => {
+  const { SellerFulfillmentView } =
+    await import('../app/account/seller/orders/page.tsx');
+  const { AdminFulfillmentView } =
+    await import('../app/account/admin/fulfillment/page.tsx');
+  const seller = renderToStaticMarkup(createElement(SellerFulfillmentView,
+    sellerProps({ nextCursor: 'seller-next', onLoadMore: () => {} })));
+  const admin = renderToStaticMarkup(createElement(AdminFulfillmentView,
+    adminProps({ nextCursor: 'admin-next', onLoadMore: () => {} })));
+
+  assert.match(seller, /더보기/);
+  assert.match(admin, /더보기/);
+
+  const { appendUniqueFulfillments } = await import('../app/account/fulfillment-ui.ts');
+  assert.deepEqual(appendUniqueFulfillments(
+    [{ shipmentOrderId: 'a' }, { shipmentOrderId: 'b' }],
+    [{ shipmentOrderId: 'b' }, { shipmentOrderId: 'c' }],
+  ).map((item) => item.shipmentOrderId), ['a', 'b', 'c']);
+});
+
+test('admin non-shipped correction explicitly clears every carrier field', async () => {
+  const { buildAdminCorrection } =
+    await import('../app/account/admin/fulfillment/page.tsx');
+  assert.deepEqual(buildAdminCorrection({
+    status: 'READY', expectedShipDate: '2026-10-09', carrierCode: 'hanjin',
+    carrierName: null, trackingNumber: 'OLD123',
+  }), {
+    status: 'READY', expectedShipDate: '2026-10-09', carrierCode: null,
+    carrierName: null, trackingNumber: null,
+  });
+});
+
+test('admin screen includes paid-date filters and current pooled seller metadata', async () => {
+  const { AdminFulfillmentView } =
+    await import('../app/account/admin/fulfillment/page.tsx');
+  const html = renderToStaticMarkup(createElement(AdminFulfillmentView,
+    adminProps({ items: [], selected: null, fromFilter: '2026-10-01', toFilter: '2026-10-06' })));
+
+  for (const expected of ['결제 시작일', '결제 종료일', 'name="fromFilter"',
+    'name="toFilter"', '공동출고 농가', '2026-10-06']) assert.match(html, new RegExp(expected));
+});
+
+test('idempotency keys survive reload failures and errors distinguish input from unknown outcome', async () => {
+  const { shouldReleaseFulfillmentKey, fulfillmentFailureMessage } =
+    await import('../app/account/fulfillment-ui.ts');
+
+  assert.equal(shouldReleaseFulfillmentKey('reload', false), false);
+  assert.equal(shouldReleaseFulfillmentKey('reload', true), true);
+  assert.match(fulfillmentFailureMessage(422), /입력/);
+  assert.match(fulfillmentFailureMessage(500), /처리 결과를 확인할 수 없습니다/);
+  assert.match(fulfillmentFailureMessage(undefined), /처리 결과를 확인할 수 없습니다/);
+});
+
+test('customer order lookup ignores a late response from an older request', async () => {
+  const { createLatestRequestGuard } =
+    await import('../app/account/fulfillment-ui.ts');
+  const guard = createLatestRequestGuard();
+  const first = guard.begin();
+  const second = guard.begin();
+
+  assert.equal(guard.isLatest(first), false);
+  assert.equal(guard.isLatest(second), true);
+});
 
 test('fulfillment UI reloads authoritative state after success or 409 and uses fixed generic carrier URLs', async () => {
   const { fulfillmentSaveDisposition, carrierTrackingUrl } =

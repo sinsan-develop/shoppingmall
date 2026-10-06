@@ -414,6 +414,21 @@ test('admin fulfillment routes exist before a database is configured', async () 
   }
 });
 
+test('admin paid-date query parser accepts inclusive ISO dates and rejects invalid ranges', async () => {
+  const { parseAdminFulfillmentListQuery } = await import('../src/fulfillment/service.ts');
+  assert.equal(typeof parseAdminFulfillmentListQuery, 'function');
+  assert.deepEqual(parseAdminFulfillmentListQuery({
+    from: '2026-10-01', to: '2026-10-06', limit: '50',
+  }), {
+    from: '2026-10-01', to: '2026-10-06', limit: 50,
+  });
+  for (const query of [
+    { from: '2026-02-30' }, { to: '2026-10-6' },
+    { from: '2026-10-07', to: '2026-10-06' },
+  ]) assert.throws(() => parseAdminFulfillmentListQuery(query),
+    /Invalid fulfillment request/);
+});
+
 test('admin fulfillment HTTP manages singleton ownership, all paid work and corrections', {
   skip: !process.env.DATABASE_URL,
 }, async (context) => {
@@ -481,11 +496,21 @@ test('admin fulfillment HTTP manages singleton ownership, all paid work and corr
     });
 
     await context.test('singleton setting requires active seller grant, version, reason and idempotency', async () => {
-      const initial = (await pool.query(`SELECT owool_seller_id AS "owoolSellerId",version
-        FROM fulfillment_settings WHERE id=1`)).rows[0];
+      const initial = (await pool.query(`SELECT setting.owool_seller_id AS "owoolSellerId",
+        seller.display_name AS "owoolSellerDisplayName",setting.version,
+        setting.updated_at AS "updatedAt"
+        FROM fulfillment_settings setting
+        LEFT JOIN sellers seller ON seller.id=setting.owool_seller_id
+        WHERE setting.id=1`)).rows[0];
       const readResponse = await fetch(settingsPath, { headers: { cookie: cookies.admin } });
       assert.equal(readResponse.status, 200, await readResponse.clone().text());
-      assert.deepEqual(await readResponse.json(), initial);
+      const readSetting = await readResponse.json();
+      assert.deepEqual(readSetting, {
+        owoolSellerId: initial.owoolSellerId,
+        owoolSellerDisplayName: initial.owoolSellerDisplayName,
+        version: initial.version,
+        updatedAt: initial.updatedAt.toISOString(),
+      });
       const pooledOwner = (await pool.query(`SELECT fulfillment_seller_id AS "sellerId"
         FROM shipment_fulfillments WHERE shipment_order_id=$1`,
       [fixture.pooledOrder.shipmentId])).rows[0].sellerId;
@@ -521,15 +546,18 @@ test('admin fulfillment HTTP manages singleton ownership, all paid work and corr
           [fixture.sellerB.accountId]);
       }
       assert.deepEqual((await pool.query(`SELECT owool_seller_id AS "owoolSellerId",version
-        FROM fulfillment_settings WHERE id=1`)).rows[0], initial);
+        FROM fulfillment_settings WHERE id=1`)).rows[0], {
+        owoolSellerId: initial.owoolSellerId, version: initial.version,
+      });
 
       const key = randomUUID();
       const changedResponse = await updateSetting(base, baseBody, cookies.admin, key);
       assert.equal(changedResponse.status, 200, await changedResponse.clone().text());
       const changed = await changedResponse.json();
-      assert.deepEqual(changed, {
-        owoolSellerId: fixture.sellerB.id, version: initial.version + 1,
-      });
+      assert.equal(changed.owoolSellerId, fixture.sellerB.id);
+      assert.equal(changed.owoolSellerDisplayName, fixture.sellerB.name);
+      assert.equal(changed.version, initial.version + 1);
+      assert.match(changed.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
       const replay = await updateSetting(base, baseBody, cookies.admin, key);
       assert.equal(replay.status, 200);
       assert.deepEqual(await replay.json(), changed);
@@ -553,6 +581,7 @@ test('admin fulfillment HTTP manages singleton ownership, all paid work and corr
     await context.test('admin list filters all paid work with stable opaque paging and masked PII', async () => {
       for (const query of ['?status=PAYMENT_PENDING', '?status=bad', '?status=', '?limit=0',
         '?limit=51', '?limit=1.5', '?sellerId=bad', '?categoryId=bad', '?cursor=bad',
+        '?from=2026-02-30', '?to=2026-10-6', '?from=2026-10-07&to=2026-10-06',
         '?unexpected=1']) {
         assert.equal((await fetch(`${listPath}${query}`, {
           headers: { cookie: cookies.admin },
@@ -619,6 +648,20 @@ test('admin fulfillment HTTP manages singleton ownership, all paid work and corr
       assert.equal((await fetch(`${listPath}?limit=50`, {
         headers: { cookie: cookies.admin },
       })).status, 200);
+
+      const paidDateFilter = await fetch(
+        `${listPath}?from=2026-10-06&to=2026-10-06&limit=50`,
+        { headers: { cookie: cookies.admin } },
+      );
+      assert.equal(paidDateFilter.status, 200, await paidDateFilter.clone().text());
+      assert.deepEqual((await paidDateFilter.json()).items.map((item) => item.shipmentOrderId),
+        expected);
+      const outsidePaidDate = await fetch(
+        `${listPath}?from=2026-10-07&to=2026-10-07&limit=50`,
+        { headers: { cookie: cookies.admin } },
+      );
+      assert.equal(outsidePaidDate.status, 200, await outsidePaidDate.clone().text());
+      assert.deepEqual((await outsidePaidDate.json()).items, []);
 
       await pool.query(`UPDATE checkout_orders SET recipient_name='이율' WHERE id=$1`,
         [fixture.sellerBOrder.orderId]);
