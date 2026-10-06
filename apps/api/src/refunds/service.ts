@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { allocateIncrementalRefundWon } from './allocation.js';
 import { providerRefundId, resolveRefundMode, type VerifiedRefund } from './adapter.js';
+import { movePostClaim } from './processor.js';
 import { listRefundCaseSummaries, readAdminRefundCase, readCustomerRefundCase,
   readRefundCase, type RefundCaseView } from './repository.js';
 
@@ -329,7 +330,8 @@ env: { APP_ENV?: string; PAYMENT_MODE?: string } = process.env): Promise<RefundC
   finally { client.release(); }
 }
 
-async function moveToReview(client: PoolClient, caseId: string, attemptId: string, reason: string) {
+async function moveToReview(client: PoolClient, caseId: string, attemptId: string,
+  eventId: string, reason: string) {
   const changed = await client.query<{ status: string }>(`UPDATE refund_cases SET status='REVIEW_REQUIRED'
     WHERE id=$1 AND status='PROCESSING' RETURNING status`, [caseId]);
   await client.query(`UPDATE refund_attempts SET status='REVIEW_REQUIRED',ended_at=clock_timestamp()
@@ -337,6 +339,18 @@ async function moveToReview(client: PoolClient, caseId: string, attemptId: strin
   if (changed.rowCount) await client.query(`INSERT INTO refund_case_events
     (refund_case_id,from_status,to_status,actor_account_id,actor_role,reason)
     VALUES ($1,'PROCESSING','REVIEW_REQUIRED',NULL,'system',$2)`, [caseId, reason]);
+  if (changed.rowCount) await movePostClaim(client, caseId, eventId,
+    'REVIEW_REQUIRED', reason);
+  else {
+    const linked = (await client.query<{ claimId: string | null; adminId: string | null }>(`
+      SELECT post_shipment_claim_id AS "claimId",decision_by AS "adminId"
+      FROM refund_cases WHERE id=$1 AND status='REFUNDED'`, [caseId])).rows[0];
+    if (linked?.claimId && linked.adminId) await client.query(`INSERT INTO audit_events
+      (actor_account_id,active_role,seller_id,action,target_type,target_id,details)
+      VALUES ($1,'admin',NULL,'support.claim_refund_event_conflict',
+        'support_claim',$2,$3::jsonb)`, [linked.adminId,linked.claimId,
+      JSON.stringify({ refundCaseId: caseId,refundEventId: eventId,reason })]);
+  }
 }
 
 export async function recordVerifiedRefundEvent(pool: Pool, attemptId: string,
@@ -373,7 +387,8 @@ export async function recordVerifiedRefundEvent(pool: Pool, attemptId: string,
             (original_event_id,incoming_attempt_id,incoming_fingerprint,reason)
             VALUES ($1,$2,$3,$4)`, [prior.id, attemptId, eventFingerprint,
             prior.attemptId === attemptId ? 'FINGERPRINT_MISMATCH' : 'ATTEMPT_MISMATCH']);
-          await moveToReview(client, attempt.caseId, attemptId, 'Refund event conflict');
+          await moveToReview(client, attempt.caseId, attemptId, prior.id,
+            'Refund event conflict');
           await client.query('COMMIT');
           return null;
         }
@@ -392,7 +407,8 @@ export async function recordVerifiedRefundEvent(pool: Pool, attemptId: string,
           CASE WHEN $10='REVIEW_REQUIRED' THEN clock_timestamp() ELSE NULL END) RETURNING id`,
       [attemptId, verified.provider, verified.eventId, verified.outcome, verified.orderId,
         verified.paymentId, verified.providerRefundId, verified.amountWon, eventFingerprint, status]);
-      if (mismatch) await moveToReview(client, attempt.caseId, attemptId, 'Refund event mismatch');
+      if (mismatch) await moveToReview(client, attempt.caseId, attemptId,
+        inserted.rows[0].id, 'Refund event mismatch');
       await client.query('COMMIT');
       return { id: inserted.rows[0].id, processingStatus: status };
     } catch (error) { await client.query('ROLLBACK'); throw error; }

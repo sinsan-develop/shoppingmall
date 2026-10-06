@@ -8,7 +8,7 @@ import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { ImageQuarantine } from '../catalog/image-quarantine.js';
 import { DatabaseService } from '../db/service.js';
-import { addClaimEvidence, createClaim, getClaim, listClaims, parseClaimPageQuery,
+import { addClaimEvidence, approveClaim, createClaim, getClaim, listClaims, parseClaimPageQuery,
   readClaimEvidence, rejectClaim, replyToClaim } from './claims.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string } };
@@ -62,6 +62,8 @@ async function handle<T>(operation: () => Promise<T>): Promise<T> {
       throw new BadRequestException({ status: 'invalid_image' });
     if (message === 'Support evidence unavailable')
       throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'claim_evidence' });
+    if (message === 'Support refund unavailable')
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'refund_provider' });
     throw error;
   }
 }
@@ -242,10 +244,13 @@ export class AdminSupportClaimController {
         Array.isArray(value) || Object.keys(value).sort().join(',') !== 'decision,reason')
       throw new BadRequestException({ status: 'invalid_support' });
     const body = value as { decision?: unknown; reason?: unknown };
-    if (body.decision !== 'reject' || typeof body.reason !== 'string')
+    if (!['approve','reject'].includes(String(body.decision)) ||
+        typeof body.reason !== 'string')
       throw new BadRequestException({ status: 'invalid_support' });
-    return handle(() => rejectClaim(pool, { claimId, adminAccountId: actor.accountId,
-      reason: body.reason as string, idempotencyKey: key }));
+    const input = { claimId,adminAccountId: actor.accountId,
+      reason: body.reason,idempotencyKey: key };
+    return handle(() => body.decision === 'approve' ? approveClaim(pool, input) :
+      rejectClaim(pool, input));
   }
 
   @Get(':claimId/evidence/:evidenceId')

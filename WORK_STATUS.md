@@ -1,5 +1,17 @@
 # 어울몰 작업현황
 
+## S5.2 POST verified core bridge·PRE 대비 checkpoint — 2026-10-07
+
+- **판정/소유:** 단일 writer 어울, 지정 worktree/branch 유지. Main이 승인 SSH alias로 exact `b629bd7a0ac4f154555fdfffff1581b9b3cca8c6`을 기존 원격 작업 브랜치에 fast-forward push exit0 확인(main/PR 불변)했다고 직접 보고했다. 원격 복구 ref는 **Main 보고 기준**이며 이 세션에서 원격 재조회하지 않았다. 공유 DB·Oracle·실 Provider·credential·push/PR/merge 변경0.
+- **RED→GREEN/핵심:** 기존 processor가 SHIPPED verified POST 환불을 `REVIEW_REQUIRED`로 보내는 RED를 새 격리 v8 실제 DB에서 확인했다. POST claim 연계 case만 SHIPPED verified 결제·환불 사건 검증 후 별도 분기로 처리해 `REFUNDED`로 전이하고, 상품 환불액/line 수량·`restock_mode=none`/배송비0/claim·주문·고객 연결을 재확인한다. claim 최종 상태와 support 사건, refund case 사건의 verified event FK, 관리자 ID의 audit `refundEventId`를 함께 기록한다. SHIPPED 운송장·fulfillment 버전, 원 checkout/shipment 총액, 재고, 교환 대체 발송 건수는 불변이다. FAILED·mismatch·처리 전 중복충돌은 claim도 `REVIEW_REQUIRED`로 이동, 처리 완료 뒤 다른 내용의 같은 event ID 충돌은 `REFUNDED`를 보존하고 감사 충돌을 추가한다. 기존 PRE SHIPPED 승인 거부와 PRE READY 성공→full refund fulfillment `CANCELLED` 경로를 그대로 대비 확인했다.
+- **검증/오류:** 전용 v8 fresh 0000~0018 19/19 뒤 실제 서로 다른 연결의 POST 성공·FAILED·mismatch·중복충돌(처리 전/후)·PRE SHIPPED 거부·PRE READY 성공 **7/7 pass/0 skip**. 매 시험의 owned fixture는 외부 행 사전 검사 후 FK 순서 정확 삭제·핵심 관계 잔류0을 확인한다. 관리자 HTTP approve는 v6 거래 rollback 시험에서 기존 400 RED→고객/판매자 403·관리자 200, 동일키 동일 응답/다른 사유 409, PRE 부분환불 행과 원금액 불변 GREEN 1/1. 로컬 전체 **435 total/305 pass/130 계획된 격리 DB·환경 skip/0 fail**, PR 본문 8/8, root typecheck/lint/build·diff check exit0. 초안 fixture의 SQL 매개변수 타입 오류 1회는 이중 매개변수로 교정했다. 첫 RED 후 v8 재생성 명령은 정확 DB 재생성·부재→생성을 완료했으나 마지막 중복 `pool.end()`로 process exit1이 났고, 이후 19건 migration과 반복 시험으로 실제 재생성을 재확인했다. 초기 PRE SHIPPED 대비 시험의 최종상태 기대값 1회 오류는 POST 성공 기대값으로 교정해 재실행 7/7. 동일 근본 원인 연속 실패3회 없음.
+- **경계/다음:** 관리자 approve HTTP는 `APP_ENV=development`+`PAYMENT_MODE=mock`에서만 모의 환불 **예약** 가능하며, 다른 환경은 503 fail closed다. 실 Provider 접근/환불 성공 아님. Main 읽기 전용 검토대로 이 route는 아직 기존 관리자 refund `executeMock`를 호출하지 않으므로 HTTP 승인만으로 verified 사건·최종 `REFUNDED`까지 도달하지 못한다. 다음 slice에서 기존 loopback-only mock 실행 경계를 재사용해 실제 HTTP→DB 완료/재시도/권한을 닫는다. 관리자 같은 결정키의 **서로 다른 claim 동시 approve** 독립 회귀, 3역할 웹/브라우저, signed fixture/reset, Stage 최종 gate도 남았다. v8 DB·기존 v6/container/network는 후속 격리 시험 중 유지하고 최종 정확 정리·잔류0 확인한다.
+
+## S5.2 POST verified 환불 격리 QA DB 생성 전 계획 — 2026-10-07
+
+- **소유/정확 대상:** 단일 writer 어울. 기존 S5.2 전용 tmpfs PostgreSQL(system ID `7693634051273510955`) 안의 새 DB `shoppingmall_s52_schema_v8_1007` 한 개만 생성한다. 먼저 이름 부재와 system ID를 읽기 전용으로 확인한다. 기존 `shoppingmall_s52_schema_v6_1007`, 공유 WSL `local-postgres/shoppingmall`, Oracle/실 Provider에는 신규 migration·fixture·refund event를 적용하지 않는다. 새 container/network/volume/공개 port/credential 없음.
+- **이유/수명/정리:** fresh 0000~0018 위에 SHIPPED claim→POST refund attempt→검증된 mock 사건→processor 완료와 shipment/재고/원금액 불변을 **서로 다른 실제 연결**로 시험하고, 기존 PRE refund 경로 회귀를 대조하기 위해서다. 가상 계정/상품/주문/claim/payment/refund fixture는 이 DB에서만 만들고 기록된 ID의 FK·외부 참조를 확인한 뒤 정확 대상만 정리한다. 이 slice 검증 종료 시 열린 세션0, system ID와 DB 이름을 다시 확인해 `DROP DATABASE shoppingmall_s52_schema_v8_1007`만 실행하고 `pg_database` 부재/잔류0을 확인한다. 실패 시 추측 삭제 없이 WORK_STATUS에 정확 상태를 남긴다.
+
 ## S5.2 POST 승인 예약 내부 service checkpoint — 2026-10-07
 
 - **판정/담당:** 단일 writer 어울, 지정 S5.2 worktree/branch. Main이 승인 SSH alias로 exact `01bedde`를 원격 작업 브랜치에 push 완료(main/PR 미변경)라고 직접 보고했다. 이 세션에서 원격 재조회는 하지 않았으므로 원격 복구 ref는 **Main 보고 기준 `01bedde`**다. 공유 DB/Oracle/실 Provider/credential·push/PR/merge 변경0.
