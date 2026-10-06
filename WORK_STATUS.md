@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## 검증 완료 — 2026-10-06 S5.1 Task8 역할별 출고 화면·독립 리뷰 보정
+
+- **판정·기준:** 제품 기준 commit `38442f83fa412c578bdeb8126801efccf94e7bec`의 Task8 역할별 출고 화면은 local·private PostgreSQL·WSL exact-SHA gate와 최종 독립 코드 재리뷰를 통과했다. 이는 S5.1 Task8 검증 완료이며 실제 브라우저·Oracle·사용자 인수 또는 S5 전체 완료 판정은 아니다.
+- **local actual:** `pnpm test`는 주 시험 **396 total / 281 pass / 0 fail / 115 DB·환경 skip**, PR 본문 검사는 **8/8 PASS**다. `pnpm typecheck`, `pnpm lint`, `pnpm build`는 exit 0이고 Web build는 **18 routes**를 생성했다.
+- **private DB actual:** WSL-server의 별도 tmpfs PostgreSQL 18.4, database `shoppingmall`, system identifier `7693426971922620454`에 정식 migration runner로 **0000~0015 / drizzle history 16건**을 적용했다. 관리자·판매자 fulfillment HTTP 시험은 **23/23 PASS**이며 Asia/Seoul inclusive from/to, year `0000` HTTP 400·정정 무변경, 설정 표시명·갱신시각, seller list/detail `private, no-store`, 권한·PII·멱등·경합을 실제 SQL/HTTP로 확인했다.
+- **WSL exact-SHA actual:** `/home/daon/deploy/shopping`을 승인된 SSH alias remote의 `38442f8`로 fast-forward하고 Node 24 격리 컨테이너에서 `pnpm test`, `typecheck`, `lint`, `build`를 실행했다. 결과는 local과 동일한 **396 total / 281 pass / 0 fail / 115 skip**, PR **8/8**, typecheck/lint/build exit 0, Web **18 routes**다.
+- **독립 재리뷰:** 첫 리뷰 `C0/I7/M1`, 보정 후 리뷰 `C0/I4/M1`의 지적을 각각 RED→GREEN으로 고정했다. 최종 read-only 재리뷰는 exact `38442f8`에서 **Critical 0 / Important 0 / Minor 0**이며 이전 지적의 실제 코드·시험 연결을 모두 확인했다.
+- **정리:** private DB 시험 후 업무 행 합계는 **0**, singleton은 `fulfillment_settings`, `shipping_policy_global`, `home_content_draft`, `home_content_current` 각각 **1**이었다. 임시 PostgreSQL 컨테이너·Docker network·관련 volume은 **0개**, root 소유 임시 `.pnpm-store`도 정확한 경로만 삭제했다. WSL checkout은 exact SHA에서 clean이고 공유 `local-postgres/shoppingmall`은 접속·변경하지 않았다.
+- **오류 횟수·조치:** PostgreSQL 18 tmpfs mount 경로 오류 1회는 `/var/lib/postgresql`로 수정했다. 원격 migration loop 인용 오류 1회와 수동 SQL 적용으로 Drizzle 이력이 없던 절차 오류 1회는 임시 DB를 재생성하고 정식 migration runner로 교정했다. WSL pnpm 전역 store 설정 오류 1회는 검증된 `corepack pnpm` 실행으로 교정했다. 동일 근본 원인 3회 연속은 없고 제품 결함으로 오인하지 않았다.
+- **미검증·다음:** 실제 브라우저의 고객·판매자·관리자 상호작용, 모바일·키보드·200% 확대, Oracle staging·UAT는 미검증이다. 다음은 Task9의 실제 브라우저 fixture·상호작용 검증 준비이며 외부 서비스 가입·실연동은 구축 완료 후 일괄 처리한다.
+
 ## 로컬 GREEN — 2026-10-06 S5.1 Task8 독립 재리뷰 C0/I4/M1 보정
 
 - **판정·기준:** actual RED `f019e2c9032df050c4010542dc30784c2e98372f`에서 재현한 Important 4건과 Minor 1건을 승인 계약 안의 최소 제품 수정으로 로컬 GREEN으로 복구했다. 새 endpoint/schema/migration/dependency는 없고 공유 DB·WSL·원격에는 접속하거나 push하지 않았다.
