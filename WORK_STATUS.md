@@ -10,7 +10,7 @@
 - **오류·조치:** 원격 PowerShell quoting 오류 **1회**는 무변경으로 종료됐다. 초기 full gate는 schema 환경변수 `PG*` 누락으로 **2 fail**, 환불 fixture fulfillment 누락으로 **1 fail**이 발생했으며 원인을 보정한 fresh full gate가 위 수치로 PASS했다. direct blocker PID 가정 오류는 PMO 승인 아래 실제 PostgreSQL wait queue 조건으로 수정했다. audit 계약은 PMO가 §8.5를 재확인해 approval admin actor로 복구했다. WSL의 host `pnpm` 부재와 비대화형 실행기 경로 문제는 Node 24 container와 corepack으로 보정했다. cache owner 문제는 정확한 `.pnpm-store`만 container에서 삭제했고 다른 경로는 건드리지 않았다.
 - **제품 커밋 계보:** `9d927da` RED → `fdd86ac` actual RED 문서 → `62fd882` initial → `00d79ae` race correction → `1e7662e` audit tests → `1e0d949` actual audit RED 문서 → `5ef6dd5` GREEN이다.
 - **미검증:** 실 PG, Oracle 배포/UAT, 실제 브라우저, 실택배 연동, 대규모 성능은 미검증이며 이 checkpoint가 해당 범위의 PASS를 의미하지 않는다.
-- **자원 정리 경계:** 이 기록 뒤 private 임시 DB와 network의 정확한 정리는 main agent가 수행하고 잔류 0을 별도로 확인할 예정이다. 이 문서 기록 시점에는 해당 정리를 완료로 표시하지 않는다.
+- **자원 정리 완료:** private container `shoppingmall-s51-refund-pg-1006`과 network `shoppingmall-s51-refund-1006`을 정확히 제거했다. 관련 containers/networks/volumes는 각각 **0**이며 WSL Git checkout은 clean이다.
 - **다음 조치:** 승인된 순서의 **Task8 역할별 Flat v2 화면 RED**를 진행한다.
 
 ## GREEN 후보 — 2026-10-06 S5.1 Task7 환불 취소 감사 계약
