@@ -102,11 +102,18 @@ test('question HTTP uses actual customer, seller and admin grants without leakin
         customer,{ messageId: message.id })).status, 403);
       assert.equal((await request(`/admin/support/questions/${question.id}/publish`,'POST',
         admin,{ messageId: message.id })).status, 200);
+      assert.equal((await request(`/admin/support/questions/${question.id}/publish`,'POST',
+        admin,{ messageId: message.id })).status, 200);
+      assert.equal((await client.query(`SELECT count(*)::int AS n FROM support_question_message_events
+        WHERE message_id=$1 AND action='PUBLISHED'`, [message.id])).rows[0].n, 1);
       const publicRows = await (await fetch(base + publicPath)).json();
       assert.deepEqual(publicRows, [{ questionId: question.id,
         question: '구매 전에 배송을 묻습니다', answer: '판매자 답변' }]);
       assert.equal(JSON.stringify(publicRows).includes(customer), false);
       assert.equal(JSON.stringify(publicRows).includes(sellerAccount), false);
+      await client.query('DELETE FROM product_publications WHERE product_id=$1', [product]);
+      assert.deepEqual(await (await fetch(base + publicPath)).json(), []);
+      assert.equal((await request(`/customer/support/questions/${question.id}`,'GET',customer)).status, 200);
       assert.equal((await client.query('SELECT count(*)::int AS n FROM checkout_orders')).rows[0].n,
         ordersBefore);
     } finally {

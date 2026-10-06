@@ -76,6 +76,14 @@ test('pre-purchase question, multiple seller replies and admin publication stay 
       assert.deepEqual(await support.listPublicQuestionAnswers(client, product), []);
       await support.publishQuestionMessage(client, { questionId: question.id,
         messageId: first.id, adminAccountId: admin });
+      const publishedCount = (await client.query(`SELECT count(*)::int AS n
+        FROM support_question_message_events WHERE message_id=$1 AND action='PUBLISHED'`,
+      [first.id])).rows[0].n;
+      await support.publishQuestionMessage(client, { questionId: question.id,
+        messageId: first.id, adminAccountId: admin });
+      assert.equal((await client.query(`SELECT count(*)::int AS n
+        FROM support_question_message_events WHERE message_id=$1 AND action='PUBLISHED'`,
+      [first.id])).rows[0].n, publishedCount, 'same approved answer retry adds no event');
       assert.deepEqual((await support.listPublicQuestionAnswers(client, product)).map((row) => row.answer),
         ['첫 답변']);
       await support.publishQuestionMessage(client, { questionId: question.id,
@@ -88,6 +96,15 @@ test('pre-purchase question, multiple seller replies and admin publication stay 
       assert.deepEqual(history.messages.map((row) => row.body), ['첫 답변','수정 답변']);
       assert.deepEqual(history.messages.map((row) => row.events.map((event) => event.action)),
         [['SUBMITTED','PUBLISHED'],['SUBMITTED','PUBLISHED']]);
+      await client.query("UPDATE product_revisions SET status='rejected' WHERE id=$1", [revision]);
+      assert.deepEqual(await support.listPublicQuestionAnswers(client, product), [],
+        'non-approved current revision cannot expose Q&A');
+      await client.query("UPDATE product_revisions SET status='approved' WHERE id=$1", [revision]);
+      await client.query('DELETE FROM product_publications WHERE product_id=$1', [product]);
+      assert.deepEqual(await support.listPublicQuestionAnswers(client, product), [],
+        'withdrawn catalog product cannot expose its former public Q&A');
+      assert.equal((await support.getCustomerQuestion(client, customer, question.id)).body,
+        '구매 전에 원산지를 묻습니다', 'owner history remains private after withdrawal');
     } finally {
       await client.query('ROLLBACK');
       client.release();

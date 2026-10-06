@@ -116,12 +116,28 @@ export async function publishQuestionMessage(db: Db, input: { questionId: string
       WHERE q.id=$1 AND q.status<>'HIDDEN' AND EXISTS (
         SELECT 1 FROM support_question_messages m
         WHERE m.id=$2 AND m.question_id=q.id AND m.author_role='seller')
+        AND NOT (q.status='PUBLISHED' AND COALESCE((
+          SELECT e.message_id=$2 AND e.action='PUBLISHED'
+          FROM support_question_message_events e
+          JOIN support_question_messages m ON m.id=e.message_id
+          WHERE m.question_id=q.id AND e.action IN ('PUBLISHED','HIDDEN')
+          ORDER BY e.event_seq DESC LIMIT 1),false))
       RETURNING q.id
     ) INSERT INTO support_question_message_events
       (message_id,action,actor_account_id,actor_role)
       SELECT $2,'PUBLISHED',$3,'admin' FROM approved RETURNING id`,
   [input.questionId, input.messageId, input.adminAccountId]);
-  if (!result.rowCount) throw new Error('Support unavailable');
+  if (result.rowCount) return;
+  const alreadyPublished = await db.query(`SELECT 1 FROM support_questions q
+    JOIN support_question_messages m ON m.question_id=q.id AND m.id=$2
+      AND m.author_role='seller'
+    WHERE q.id=$1 AND q.status='PUBLISHED' AND COALESCE((
+      SELECT e.message_id=$2 AND e.action='PUBLISHED'
+      FROM support_question_message_events e
+      JOIN support_question_messages candidate ON candidate.id=e.message_id
+      WHERE candidate.question_id=q.id AND e.action IN ('PUBLISHED','HIDDEN')
+      ORDER BY e.event_seq DESC LIMIT 1),false)`, [input.questionId, input.messageId]);
+  if (!alreadyPublished.rowCount) throw new Error('Support unavailable');
 }
 
 export async function listPublicQuestionAnswers(db: Db, productId: string) {
@@ -129,11 +145,13 @@ export async function listPublicQuestionAnswers(db: Db, productId: string) {
   return (await db.query<{ questionId: string; question: string; answer: string }>(`
     SELECT q.id AS "questionId",q.body AS question,m.body AS answer
     FROM support_questions q
+    JOIN product_publications pub ON pub.product_id=q.product_id
+    JOIN product_revisions r ON r.id=pub.revision_id AND r.product_id=q.product_id
     JOIN LATERAL (SELECT e.message_id,e.action FROM support_question_message_events e
       JOIN support_question_messages candidate ON candidate.id=e.message_id
       WHERE candidate.question_id=q.id AND e.action IN ('PUBLISHED','HIDDEN')
       ORDER BY e.event_seq DESC LIMIT 1) state ON state.action='PUBLISHED'
     JOIN support_question_messages m ON m.id=state.message_id AND m.author_role='seller'
-    WHERE q.product_id=$1 AND q.status<>'HIDDEN'
+    WHERE q.product_id=$1 AND r.status='approved' AND q.status<>'HIDDEN'
     ORDER BY q.created_at,q.id`, [productId])).rows;
 }
