@@ -1,5 +1,17 @@
 # 어울몰 작업현황
 
+## RED 후보 — 2026-10-06 S5.1 Task7 고객 즉시 조회·S4 환불 결합
+
+- **판정·기준:** 신산님이 지정한 `codex/s5-fulfillment-engagement` exact clean base `8a2dd593449398d945f5bc0eaa5f5b63326a230a`에서 Task7 **RED 시험만** 작성했다. 프로젝트 root `AGENTS.md`는 실제로 없으므로 `D:\Project\PMO\AGENTS.md`, Task7 계획, S5.1 계약 §§5~8, 개발환경 문서와 최신 직접 지시를 적용했다. 새 branch/worktree, commit/push, 제품 코드, schema/migration, WSL/Docker/shared DB 접근·변경은 0이다.
+- **고객 조회 RED:** 기존 `GET /customer/checkout/orders/:orderId`에서 seller 403·타 customer 404를 유지하고, 각 shipment의 exact `fulfillment` 구조와 `PAYMENT_CONFIRMED→REPORT_DELAY→ADMIN_CORRECT→RESUME_PACKING→MARK_SHIPPED` 고객용 사건을 실제 HTTP 응답으로 고정했다. `DELAYED`의 공개 지연사유·최신 고객 안내, `hanjin`의 고정 표시명 `한진택배`, 관리자 내부 사유·actor/seller ID·멱등정보·fingerprint·공급자 원문·수령인 PII 중복 비노출을 검증한다. 현재 고객 order repository는 fulfillment를 읽지 않으므로 expected 제품 RED다.
+- **SHIPPED·환불 RED:** 기존 S4 fixture를 migration16 fulfillment `READY` 행까지 확장하고 사건→출고행 FK cleanup 순서를 보존했다. 이미 `SHIPPED`면 관리자 출고 전 approve와 verified refund processor가 각각 거부되고 refund/fulfillment/stock/사건이 전혀 변하지 않아야 한다. 현재 S4 service/processor는 fulfillment 상태를 확인하지 않으므로 두 독립 expected RED다. 기존 S4 assertion은 삭제·완화하지 않았다.
+- **부분·전량 RED:** 부분 verified refund는 fulfillment `READY/version0`와 출고사건0을 유지하고 고객·판매자 detail의 완료수량1/남은수량2를 보여야 한다. 누적 1+2 전량 verified refund는 같은 processor transaction에서 fulfillment `CANCELLED/version1/cancelled_at`, `REFUND_CANCELLED`·`system:refund`·원 refund event UUID 사건을 정확히 1개 만들며 replay 중복0이어야 한다. 현재 customer detail 수량과 processor 취소 결합이 없어 expected RED다. 기존 판매자 공개 필드 `refundedQuantity`는 승인된 Task5 계약을 유지하면서 완료수량 의미로 함께 검증한다.
+- **실제 PG 경합 RED:** 고유 `qa-s5-<8hex>` fixture와 별도 `application_name` 연결을 사용해 외부 거래가 `shipment_orders`를 잠근 동안 refund와 seller/admin SHIPPED 전이가 **둘 다 같은 첫 잠금에서 대기**하는지 `pg_blocking_pids`로 실증한다. 잠금 해제 후 성공은 `refund+CANCELLED` 또는 `ship+refund 거부` 한쪽뿐이고 version/출고사건 정확1, `40P01` 없음, 5초 내 종료를 요구한다. 현재 refund processor는 refund case부터 잠가 shipment order 대기에 참여하지 않으므로 expected RED다.
+- **fixture·안전:** 세 대상 시험은 `S5_PAYMENT_TEST_DB_SYSTEM_ID`와 `pg_control_system()`·DB명 `shoppingmall`, order/fulfillment 관계, migration **16건**, refund schema를 seed 전에 fail-closed 대조한다. 고유 fixture만 FK 역순으로 `finally` 정리하고 fulfillment/global singleton 원값을 복원하도록 작성했다. fixture/setup 오류는 제품 RED로 계산하지 않으며 실제 업무행0·singleton1/1·잠금 대기·cleanup은 actual DB 실행 전까지 미검증이다.
+- **변경 파일:** `apps/api/test/order-customer-http-db.test.mjs`, 새 `apps/api/test/fulfillment-refund-db.test.mjs`, `apps/api/test/refund-processing-db.test.mjs`, 이 `WORK_STATUS.md` 네 파일만 변경했다.
+- **로컬 비DB 검증:** `DATABASE_URL`·`S5_PAYMENT_TEST_DB_SYSTEM_ID`를 제거한 세 대상 loader는 **13 tests / 0 pass / 13 명시 DB skip / 0 fail**이다. 대상 ESLint와 `git diff --check`는 exit 0이다. 이는 문법·로딩·skip 경계만 확인하며 실제 RED/GREEN 근거가 아니다.
+- **오류·미검증·다음:** schema 조회 중 읽기 전용 `rg` 정규식 인용 오류 **1회**가 있었고 단순 문자열 조회로 즉시 보정했다. 파일·Git·DB 변경 영향은 없다. actual private PostgreSQL RED, lock wait, 제품 실패별 수치, fixture cleanup·업무행0·singleton 원복은 controller가 실행해야 한다. 그 결과를 받기 전 제품 GREEN, commit/push, WSL/공유 DB 작업을 시작하지 않는다.
+
 ## 완료 checkpoint — 2026-10-06 S5.1 Task6 관리자 설정·조회·정정 API
 
 - **판정:** branch `codex/s5-fulfillment-engagement`, 최종 제품 SHA `7b798cc9c4c870ee76dc1461134d58b8908fb7aa`에서 **Task6 범위 완료**다. 이는 S5.1 Stage 전체, Task7 이후 범위, shared DB, Oracle, 외부 서비스, 사용자 인수 또는 `main` 병합 완료 판정이 아니다.

@@ -6,18 +6,32 @@ import { createApp } from '../src/app.ts';
 import { AuthRepository } from '../src/auth/repository.ts';
 import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
-import { skipWithoutOrderSchema } from './order-schema-guard.mjs';
+import { assertOrderMutationQaTarget, skipWithoutFulfillmentSchema,
+  skipWithoutOrderSchema } from './order-schema-guard.mjs';
 
 const origin = 'http://127.0.0.1:9091';
+const fingerprint = 'a'.repeat(64);
+
+async function requireTask7Schema(context, pool) {
+  await assertOrderMutationQaTarget(pool, process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID);
+  if (await skipWithoutOrderSchema(context, pool, true)) return false;
+  if (await skipWithoutFulfillmentSchema(context, pool, true)) return false;
+  const migrations = (await pool.query(
+    'SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations',
+  )).rows[0].count;
+  assert.equal(migrations, 16);
+  return true;
+}
+
 test('customer order HTTP is owned, same-origin and idempotent without claiming payment', {
-  skip: !process.env.DATABASE_URL,
+  skip: !process.env.DATABASE_URL || !process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID,
 }, async (context) => {
   const runId = randomBytes(4).toString('hex');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   let seeded = false; let app; let addressId; let deletedId; let foreignAddressId; let otherBuyerId;
   let reservationId; let orderId;
   try {
-    if (await skipWithoutOrderSchema(context, pool)) return;
+    if (!await requireTask7Schema(context, pool)) return;
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);
@@ -81,15 +95,125 @@ test('customer order HTTP is owned, same-origin and idempotent without claiming 
     assert.equal(order.payableWon, body.expectedPayableWon);
     assert.equal((await post()).status, 200);
     assert.equal((await post({ ...body, expectedPayableWon: body.expectedPayableWon - 1 })).status, 409);
-    assert.equal((await fetch(`${url}/${orderId}`, { headers: { cookie: buyer } })).status, 200);
     assert.equal((await fetch(`${url}/${orderId}`, { headers: { cookie: seller } })).status, 403);
     assert.equal((await fetch(`${url}/${orderId}`, { headers: { cookie: otherBuyer } })).status, 404);
     assert.equal((await fetch(`${url}/${randomUUID()}`, { headers: { cookie: buyer } })).status, 404);
+
+    const shipment = (await pool.query(`SELECT s.id,s.seller_id AS "sellerId",
+      r.account_id AS "sellerAccountId" FROM shipment_orders s
+      JOIN account_roles r ON r.seller_id=s.seller_id AND r.role='seller'
+      WHERE s.checkout_order_id=$1`, [orderId])).rows[0];
+    const adminId = (await pool.query(`SELECT account_id FROM account_identities
+      WHERE identifier=$1`, [names.emails[4]])).rows[0].account_id;
+    assert.ok(shipment?.id && shipment.sellerId && shipment.sellerAccountId && adminId);
+    await pool.query(`UPDATE checkout_orders SET status='PAID',paid_at=$2,ended_at=$2 WHERE id=$1`,
+      [orderId, new Date('2026-10-06T01:00:00.000Z')]);
+    await pool.query(`UPDATE shipment_orders SET status='PAID' WHERE id=$1`, [shipment.id]);
+    await pool.query(`UPDATE shipment_fulfillments SET status='DELAYED',
+      expected_ship_date='2026-10-08',updated_at=$2 WHERE shipment_order_id=$1`,
+    [shipment.id, new Date('2026-10-06T01:10:00.000Z')]);
+    const insertEvent = async ({ action, from, to, actorId = null, actorRole = null,
+      actorSellerId = null, reason = null, customerMessage = null, before, after, at }) => {
+      const scope = actorId ?? (action === 'PAYMENT_CONFIRMED' ? 'system:payment' : 'system:refund');
+      await pool.query(`INSERT INTO shipment_fulfillment_events
+        (shipment_order_id,action,from_status,to_status,actor_account_id,actor_role,
+          actor_seller_id,reason,customer_message,before_snapshot,after_snapshot,
+          idempotency_scope,idempotency_key,request_fingerprint,occurred_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13,$14,$15)`, [
+        shipment.id, action, from, to, actorId, actorRole, actorSellerId, reason,
+        customerMessage, JSON.stringify(before), JSON.stringify(after), scope,
+        randomUUID(), fingerprint, new Date(at),
+      ]);
+    };
+    await insertEvent({ action: 'PAYMENT_CONFIRMED', from: 'PAYMENT_PENDING', to: 'READY',
+      before: { status: 'PAYMENT_PENDING', expectedShipDate: null,
+        carrierCode: null, trackingNumber: null },
+      after: { status: 'READY', expectedShipDate: '2026-10-07',
+        carrierCode: null, trackingNumber: null }, at: '2026-10-06T01:00:00.000Z' });
+    await insertEvent({ action: 'REPORT_DELAY', from: 'READY', to: 'DELAYED',
+      actorId: shipment.sellerAccountId, actorRole: 'seller', actorSellerId: shipment.sellerId,
+      reason: '폭우로 수확 지연', customerMessage: '수확이 하루 늦어졌습니다',
+      before: { status: 'READY', expectedShipDate: '2026-10-07',
+        carrierCode: null, trackingNumber: null },
+      after: { status: 'DELAYED', expectedShipDate: '2026-10-08',
+        carrierCode: null, trackingNumber: null }, at: '2026-10-06T01:10:00.000Z' });
+
+    const delayedResponse = await fetch(`${url}/${orderId}`, { headers: { cookie: buyer } });
+    assert.equal(delayedResponse.status, 200);
+    const delayedOrder = await delayedResponse.json();
+    const delayed = delayedOrder.shipments[0].fulfillment;
+    assert.deepEqual(delayed, {
+      status: 'DELAYED', expectedShipDate: '2026-10-08', delayedReason: '폭우로 수확 지연',
+      customerMessage: '수확이 하루 늦어졌습니다', carrier: null, trackingNumber: null,
+      packedAt: null, shippedAt: null, updatedAt: '2026-10-06T01:10:00.000Z',
+      events: [
+        { action: 'PAYMENT_CONFIRMED', status: 'READY', expectedShipDate: '2026-10-07',
+          customerMessage: null, occurredAt: '2026-10-06T01:00:00.000Z' },
+        { action: 'REPORT_DELAY', status: 'DELAYED', expectedShipDate: '2026-10-08',
+          customerMessage: '수확이 하루 늦어졌습니다',
+          occurredAt: '2026-10-06T01:10:00.000Z' },
+      ],
+    });
+
+    await insertEvent({ action: 'ADMIN_CORRECT', from: 'DELAYED', to: 'DELAYED',
+      actorId: adminId, actorRole: 'admin', reason: '관리자 내부 조정 사유',
+      customerMessage: '10월 9일 출고 예정으로 확인했습니다',
+      before: { status: 'DELAYED', expectedShipDate: '2026-10-08',
+        carrierCode: null, trackingNumber: null },
+      after: { status: 'DELAYED', expectedShipDate: '2026-10-09',
+        carrierCode: null, trackingNumber: null }, at: '2026-10-06T01:20:00.000Z' });
+    await insertEvent({ action: 'RESUME_PACKING', from: 'DELAYED', to: 'PACKING',
+      actorId: shipment.sellerAccountId, actorRole: 'seller', actorSellerId: shipment.sellerId,
+      before: { status: 'DELAYED', expectedShipDate: '2026-10-09',
+        carrierCode: null, trackingNumber: null },
+      after: { status: 'PACKING', expectedShipDate: '2026-10-09',
+        carrierCode: null, trackingNumber: null }, at: '2026-10-06T01:30:00.000Z' });
+    await insertEvent({ action: 'MARK_SHIPPED', from: 'PACKING', to: 'SHIPPED',
+      actorId: shipment.sellerAccountId, actorRole: 'seller', actorSellerId: shipment.sellerId,
+      before: { status: 'PACKING', expectedShipDate: '2026-10-09',
+        carrierCode: null, trackingNumber: null },
+      after: { status: 'SHIPPED', expectedShipDate: '2026-10-09',
+        carrierCode: 'hanjin', trackingNumber: 'QA123456' }, at: '2026-10-06T01:40:00.000Z' });
+    await pool.query(`UPDATE shipment_fulfillments SET status='SHIPPED',
+      expected_ship_date='2026-10-09',packed_at=$2,carrier_code='hanjin',carrier_name=NULL,
+      tracking_number='QA123456',first_shipped_at=$3,shipped_at=$3,updated_at=$3
+      WHERE shipment_order_id=$1`, [shipment.id, new Date('2026-10-06T01:30:00.000Z'),
+      new Date('2026-10-06T01:40:00.000Z')]);
+
+    const shippedResponse = await fetch(`${url}/${orderId}`, { headers: { cookie: buyer } });
+    assert.equal(shippedResponse.status, 200);
+    const shipped = (await shippedResponse.json()).shipments[0].fulfillment;
+    assert.deepEqual(Object.keys(shipped).sort(), [
+      'carrier', 'customerMessage', 'events', 'expectedShipDate', 'packedAt',
+      'shippedAt', 'status', 'trackingNumber', 'updatedAt',
+    ].sort());
+    assert.equal(shipped.status, 'SHIPPED');
+    assert.equal(shipped.expectedShipDate, '2026-10-09');
+    assert.deepEqual(shipped.carrier, { code: 'hanjin', displayName: '한진택배' });
+    assert.equal(shipped.trackingNumber, 'QA123456');
+    assert.equal(shipped.customerMessage, '10월 9일 출고 예정으로 확인했습니다');
+    assert.equal(shipped.events.length, 5);
+    for (const event of shipped.events) assert.deepEqual(Object.keys(event).sort(), [
+      'action', 'customerMessage', 'expectedShipDate', 'occurredAt', 'status',
+    ].sort());
+    assert.deepEqual(shipped.events.map(({ action, status }) => ({ action, status })), [
+      { action: 'PAYMENT_CONFIRMED', status: 'READY' },
+      { action: 'REPORT_DELAY', status: 'DELAYED' },
+      { action: 'ADMIN_CORRECT', status: 'DELAYED' },
+      { action: 'RESUME_PACKING', status: 'PACKING' },
+      { action: 'MARK_SHIPPED', status: 'SHIPPED' },
+    ]);
+    const publicFulfillment = JSON.stringify(shipped);
+    for (const secret of ['관리자 내부 조정 사유', adminId, shipment.sellerAccountId,
+      shipment.sellerId, '받는 분', '01000000000', '시험 주소', fingerprint,
+      'idempotency', 'provider']) assert.equal(publicFulfillment.includes(secret), false, secret);
   } finally {
     if (app) await app.close();
     if (orderId) {
       await pool.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=$1', [orderId]);
       await pool.query('DELETE FROM order_status_events WHERE checkout_order_id=$1', [orderId]);
+      await pool.query(`DELETE FROM shipment_fulfillment_events WHERE shipment_order_id IN
+        (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [orderId]);
       await pool.query(`DELETE FROM shipment_order_lines WHERE shipment_order_id IN
         (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [orderId]);
       await pool.query(`DELETE FROM shipment_fulfillments WHERE shipment_order_id IN
