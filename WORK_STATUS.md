@@ -10,6 +10,14 @@
 - **브라우저 준비계약:** 고객·판매자·관리자 역할 흐름, 1920·1440·430 viewport, 가로 넘침과 키보드 조작을 실제 제품 URL에서 확인할 실행기를 준비한다. 실제 브라우저 실행과 공유 `local-postgres/shoppingmall` seed/write는 PMO가 전달한 별도 실행 경계를 지키며, 이번 RED 작성 시점에는 수행하지 않는다.
 - **다음 조치:** fixture 안전·브라우저 실행계약 시험을 실제 RED로 고정한 뒤 최소 GREEN 구현, 로컬 정적 gate, private DB 외부참조 거부·reset 잔류0 검증 순으로 진행한다.
 
+## 로컬 GREEN 후보 — 2026-10-06 S5.1 Task9 격리 출고 브라우저 fixture·실행계약
+
+- **판정:** RED `c6739d5`에서 요구한 전용 fixture와 실제 Chrome 실행기를 구현했다. 현재는 로컬 GREEN 후보이며 private PostgreSQL 외부참조 거부/reset, 실제 브라우저, WSL exact-SHA, 공유 DB, Oracle/UAT는 아직 통과 판정이 아니다.
+- **fixture:** 정확한 `shoppingmall_s5_fulfillment_ui_<runid>` 외 DB를 거부하고 가상 5계정·3판매자·3상품·3결제완료 주문·3발송(직접A/직접B/어울몰 공동)을 만든다. READY·DELAYED·SHIPPED와 결제·출고 사건, 가상 운송장, 공동출고 singleton 이전값을 manifest에 담는다. reset은 manifest·소유권·외부참조·사건 actor·singleton version을 잠금 안에서 검사한 뒤 자료를 역참조 순서로 지우고 singleton을 원복한다.
+- **브라우저 실행기:** 고객 주문 조회 → 판매자 READY→PACKING→SHIPPED → 관리자 DELAYED→READY 정정 → 고객 재조회 흐름과 1920·1440·430 가로 넘침·키보드 focus를 준비했다. `QA_FIXTURE_JSON`, 프로세스 환경의 시험 비밀번호, 격리 Chrome debugging endpoint만 입력받으며 실제 외부 발송·PG·메시지 공급자를 호출하지 않는다.
+- **실제 로컬 검증:** 대상 시험은 **4 tests / 3 pass / 0 fail / 1 private-DB skip**이고 API typecheck·browser script syntax가 통과했다. 전체 `pnpm test`는 주 시험 **400 total / 284 pass / 0 fail / 116 DB·환경 skip**, PR 본문 **8/8 PASS**다. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `git diff --check`는 exit 0이고 Web은 **18 routes**를 생성했다.
+- **다음 조치:** 후보를 안전한 commit으로 보존·별칭 원격에 push한 뒤, WSL 비공개 network `shoppingmall-s51-task9-1006`와 tmpfs PostgreSQL `shoppingmall-s51-task9-pg-1006`, DB `shoppingmall_s5_fulfillment_ui_f5101006`에서 migration 0000~0015, 외부 identity 삭제 거부, 정상 reset 잔류0을 검증한다. 사용 즉시 정확한 컨테이너·network·cache를 제거한다.
+
 ## 검증 완료 — 2026-10-06 S5.1 Task8 역할별 출고 화면·독립 리뷰 보정
 
 - **판정·기준:** 제품 기준 commit `38442f83fa412c578bdeb8126801efccf94e7bec`의 Task8 역할별 출고 화면은 local·private PostgreSQL·WSL exact-SHA gate와 최종 독립 코드 재리뷰를 통과했다. 이는 S5.1 Task8 검증 완료이며 실제 브라우저·Oracle·사용자 인수 또는 S5 전체 완료 판정은 아니다.
