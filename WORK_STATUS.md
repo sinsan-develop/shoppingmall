@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.2 fresh 0018 CHECK 반례·v7 정확 정리 — 2026-10-07
+
+- **판정/담당:** 단일 writer 어울. Main이 승인 SSH alias 원격 `codex/s52-customer-support`에 exact `8f2c655` push 완료(main/PR 미변경)라고 직접 보고했다. 이 세션에서 원격 재조회는 하지 않았으므로 복구 ref는 **Main 보고 기준 `8f2c655`**다. 공유 DB/Oracle/실 Provider/credential·push/PR/merge 변경0.
+- **격리 DB gate:** 사전 등록한 전용 `shoppingmall_s52_schema_v7_1007`(system ID `7693634051273510955`)에서 fresh 0000~0018 19/19 적용·catalog PASS 후, 실제 `refund_cases` INSERT로 PRE REQUESTED/PROCESSING 및 POST REQUESTED/PROCESSING 허용을 확인했다. PRE PROCESSING의 출고 전 증빙 누락은 `refund_cases_state_ck`, POST의 잘못된 policy/배송비 양수/출고 전 증빙은 `refund_cases_post_state_ck`, claim의 다른 고객 연결은 composite `refund_cases_post_claim_fk`가 각각 거부했다. 별도 실제 연결의 관리자 동일 결정키 경합 1건 결정·1건 충돌 역시 재시험 PASS 1/1. 이는 명시한 정상/반례 범위의 제약 검증이지 모든 상태의 형식적 CHECK 동치 증명은 아니다. 기존 v6 PRE 실제 2행 upgrade hash 불변 증거는 앞선 checkpoint에 별도 보존했다.
+- **자원 정리:** v7 시험 fixture의 계정·주문·claim·refund 수 0, DB system ID 일치, 해당 DB 활성 세션 0을 읽기 전용 사전 확인했다. 정확 `DROP DATABASE shoppingmall_s52_schema_v7_1007`만 수행하고 `pg_database` 잔류 **0** 확인. 기존 v6와 전용 PG container/network는 후속 S5.2 동안 유지한다. WSL `docker ps` 조회는 현재 Windows 권한 `E_ACCESSDENIED`여서 container 상태를 새로 단정하지 않으며, Windows PID34192는 조회/종료하지 않았다. CHECK 시험 파일과 이 checkpoint만 새 local commit 대상이다. 관리자 approve·POST 환불 bridge/PRE 회귀, 3역할 웹/브라우저, signed fixture/reset은 계속 미완료다.
+
 ## S5.2 관리자 거절 결정·동시 멱등키 checkpoint — 2026-10-07
 
 - **판정/담당:** 단일 writer 어울, 지정 S5.2 worktree/branch 유지. Main이 승인 SSH alias 원격 작업 브랜치에 exact `4d0780a` push 완료(main/PR 미변경)라고 직접 보고했다. 이번 세션에서 원격 재조회는 하지 않았으므로 원격 복구 ref는 **Main 보고 기준 `4d0780a`**다. 공유 WSL `local-postgres/shoppingmall`·Oracle·실 Provider·credential·push/PR/merge 변경0.

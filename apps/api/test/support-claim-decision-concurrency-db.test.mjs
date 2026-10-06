@@ -7,7 +7,67 @@ import { rejectClaim } from '../src/support/claims.ts';
 const database = 'shoppingmall_s52_schema_v7_1007';
 const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
 
-test('two claims cannot share one admin decision key under concurrent DB connections',
+async function verifyRefundChecks(client, ids) {
+  await client.query('BEGIN');
+  try {
+    const base = `INSERT INTO refund_cases
+      (checkout_order_id,shipment_order_id,requester_account_id,requester_role,
+       reason_code,reason,idempotency_key,request_fingerprint,post_shipment_claim_id,
+       policy_code,status,goods_refund_won,shipping_refund_won,total_refund_won,
+       decided_at,completed_at,decision_by,decision_reason,
+       decision_idempotency_key,decision_fingerprint,
+       pre_shipment_evidence,pre_shipment_confirmed_by,pre_shipment_confirmed_at)
+      VALUES ($1,$2,$3,'customer','quality_issue','격리 제약 시험',$4,$5,$6,$7,$8,
+        $9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`;
+    const fields = ({ claimId = null, requester = ids.customer,
+      policy = claimId ? 'POST_SHIPMENT_TRIAL' : 'PRE_SHIPMENT_V1',
+      status = 'REQUESTED', goods = 0, shipping = 0,
+      decided = false, completed = false, preEvidence = false } = {}) => [
+      ids.order,ids.shipment,requester,randomUUID(),'a'.repeat(64),claimId,policy,
+      status,goods,shipping,goods + shipping,decided ? new Date() : null,
+      completed ? new Date() : null,decided ? ids.admin : null,
+      decided ? '관리자 결정' : null,decided ? randomUUID() : null,
+      decided ? 'b'.repeat(64) : null,
+      preEvidence ? 'ADMIN_CONFIRMED_NOT_DISPATCHED' : null,
+      preEvidence ? ids.admin : null,preEvidence ? new Date() : null,
+    ];
+    const accepts = async (options) => {
+      await client.query('SAVEPOINT state_case');
+      try { await client.query(base, fields(options)); }
+      finally {
+        await client.query('ROLLBACK TO SAVEPOINT state_case');
+        await client.query('RELEASE SAVEPOINT state_case');
+      }
+    };
+    const rejects = async (options, code, constraint) => {
+      await client.query('SAVEPOINT state_case');
+      try {
+        await assert.rejects(() => client.query(base, fields(options)),
+          (error) => error.code === code && error.constraint === constraint);
+      } finally {
+        await client.query('ROLLBACK TO SAVEPOINT state_case');
+        await client.query('RELEASE SAVEPOINT state_case');
+      }
+    };
+    await accepts();
+    await accepts({ status: 'PROCESSING',decided: true,preEvidence: true });
+    await accepts({ claimId: ids.claims[0] });
+    await accepts({ claimId: ids.claims[0],status: 'PROCESSING',goods: 10000,
+      decided: true });
+    await rejects({ status: 'PROCESSING',decided: true },
+      '23514','refund_cases_state_ck');
+    await rejects({ claimId: ids.claims[0],policy: 'PRE_SHIPMENT_V1' },
+      '23514','refund_cases_post_state_ck');
+    await rejects({ claimId: ids.claims[0],shipping: 1 },
+      '23514','refund_cases_post_state_ck');
+    await rejects({ claimId: ids.claims[0],status: 'PROCESSING',decided: true,
+      preEvidence: true }, '23514','refund_cases_post_state_ck');
+    await rejects({ claimId: ids.claims[0],requester: ids.admin },
+      '23503','refund_cases_post_claim_fk');
+  } finally { await client.query('ROLLBACK'); }
+}
+
+test('fresh 0018 PRE/POST constraints and concurrent admin decision keys',
   { skip: !systemId || process.env.S52_SUPPORT_TEST_DB_NAME !== database }, async () => {
     assert.equal(process.env.PGDATABASE, database);
     let arrivals = 0;
@@ -109,6 +169,7 @@ test('two claims cannot share one admin decision key under concurrent DB connect
       }
       await client.query('COMMIT');
       committed = true;
+      await verifyRefundChecks(client, ids);
       const key = randomUUID();
       const results = await Promise.allSettled(ids.claims.map((claimId) =>
         rejectClaim(pool, { claimId,adminAccountId: ids.admin,
