@@ -69,7 +69,12 @@ export async function processVerifiedRefundEvent(pool: Pool, eventId: string) {
       await client.query('COMMIT');
       return { id: event.id, processingStatus: event.processingStatus };
     }
-    if (fulfillment.status === 'SHIPPED') throw new Error('Refund unavailable');
+    if (fulfillment.status === 'SHIPPED') {
+      const result = await review(client, target.id, attempt.id, event.id,
+        'Verified refund cannot be applied after shipment was marked SHIPPED');
+      await client.query('COMMIT');
+      return result;
+    }
     const payment = (await client.query<{ paymentId: string }>(`SELECT e.provider_payment_id AS "paymentId"
       FROM payment_events e JOIN payment_attempts a ON a.id=e.payment_attempt_id
       WHERE a.id=$1 AND a.status='APPROVED' AND e.outcome='APPROVED'

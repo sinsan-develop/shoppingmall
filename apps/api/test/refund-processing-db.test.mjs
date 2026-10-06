@@ -550,7 +550,7 @@ test('SHIPPED fulfillment rejects pre-shipment approval without any mutation', {
   }
 });
 
-test('SHIPPED fulfillment rejects verified refund processing without any mutation', {
+test('SHIPPED fulfillment moves verified refund processing to stable review', {
   skip: !process.env.DATABASE_URL || !process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID,
 }, async (context) => {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
@@ -575,10 +575,26 @@ test('SHIPPED fulfillment rejects verified refund processing without any mutatio
     await pool.query(`UPDATE shipment_fulfillments SET status='SHIPPED',carrier_code='hanjin',
       tracking_number='QAPROCESS1',first_shipped_at=$2,shipped_at=$2,updated_at=$2
       WHERE shipment_order_id=$1`, [ids.shipmentId, shippedAt]);
-    const before = await readTask7MutationState(pool, ids, requested.id);
-    await assert.rejects(() => processVerifiedRefundEvent(pool, event.id),
-      /Refund unavailable|Refund conflict/);
-    assert.deepEqual(await readTask7MutationState(pool, ids, requested.id), before);
+    assert.equal((await processVerifiedRefundEvent(pool, event.id)).processingStatus,
+      'REVIEW_REQUIRED');
+    assert.equal((await processVerifiedRefundEvent(pool, event.id)).processingStatus,
+      'REVIEW_REQUIRED');
+    const state = (await pool.query(`SELECT c.status AS "caseStatus",a.status AS "attemptStatus",
+      e.processing_status AS "eventStatus",c.completed_at AS "completedAt",
+      f.status AS "fulfillmentStatus",f.version AS "fulfillmentVersion"
+      FROM refund_cases c JOIN refund_attempts a ON a.refund_case_id=c.id
+      JOIN refund_events e ON e.refund_attempt_id=a.id
+      JOIN shipment_fulfillments f ON f.shipment_order_id=c.shipment_order_id
+      WHERE c.id=$1 AND e.id=$2`, [requested.id, event.id])).rows[0];
+    assert.deepEqual(state, { caseStatus: 'REVIEW_REQUIRED', attemptStatus: 'REVIEW_REQUIRED',
+      eventStatus: 'REVIEW_REQUIRED', completedAt: null,
+      fulfillmentStatus: 'SHIPPED', fulfillmentVersion: 0 });
+    const reviewEvents = (await pool.query(`SELECT from_status AS "fromStatus",
+      to_status AS "toStatus",reason FROM refund_case_events
+      WHERE refund_case_id=$1 AND refund_event_id=$2 ORDER BY created_at,id`,
+    [requested.id, event.id])).rows;
+    assert.deepEqual(reviewEvents, [{ fromStatus: 'PROCESSING', toStatus: 'REVIEW_REQUIRED',
+      reason: 'Verified refund cannot be applied after shipment was marked SHIPPED' }]);
   } finally {
     await cleanup(pool, ids);
     await pool.end();

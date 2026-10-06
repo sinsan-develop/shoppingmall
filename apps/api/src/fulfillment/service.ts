@@ -5,7 +5,7 @@ import { findAdminCorrectionReplay, findAdminSettingReplay, findSellerTransition
   getAdminFulfillmentDetail, getAdminFulfillmentSetting, getSellerFulfillmentDetail,
   hasActiveSellerGrant, insertAdminCorrectionRecords, insertSellerTransitionRecords,
   listAdminFulfillments, listSellerFulfillments, lockAdminFulfillment,
-  lockAdminFulfillmentSetting, lockSellerFulfillment, updateAdminFulfillment,
+  lockAdminFulfillmentSetting, lockBlockingRefundCases, lockSellerFulfillment, updateAdminFulfillment,
   updateAdminFulfillmentSetting, updateSellerFulfillment, type AdminFulfillmentCursor,
   type SellerFulfillmentCursor } from './repository.js';
 import { validateAdminCorrection, validateSellerTransition } from './rules.js';
@@ -190,6 +190,10 @@ export class SellerFulfillmentService {
         currentSeoulDate: current.currentSeoulDate,
         ...request,
       });
+      if (validated.status === 'SHIPPED' &&
+          await lockBlockingRefundCases(client, shipmentOrderId)) {
+        throw new Error('Fulfillment conflict');
+      }
       const version = await updateSellerFulfillment(client, shipmentOrderId,
         expectedVersion, validated);
       if (version === undefined) throw new Error('Fulfillment conflict');
@@ -495,6 +499,10 @@ export class AdminFulfillmentService {
         reason: body.reason,
         customerMessage: body.customerMessage,
       });
+      if (validated.status === 'SHIPPED' &&
+          await lockBlockingRefundCases(client, shipmentOrderId)) {
+        throw new Error('Fulfillment conflict');
+      }
       const version = await updateAdminFulfillment(
         client, shipmentOrderId, body.expectedVersion, validated,
       );

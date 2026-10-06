@@ -319,7 +319,52 @@ async function settleWithin(promise) {
   });
 }
 
-for (const mode of ['seller', 'admin']) test(`refund and ${mode} SHIPPED race has one winner`, {
+test('seller and admin SHIPPED reject approved, processing and review-required refunds', {
+  skip: !process.env.DATABASE_URL || !process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID,
+}, async (context) => {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
+  const created = [];
+  try {
+    if (!await requireTask7Schema(context, pool)) return;
+    for (const mode of ['seller', 'admin']) {
+      for (const refundStatus of ['APPROVED', 'PROCESSING', 'REVIEW_REQUIRED']) {
+        const ids = await seedPaidOrder(pool, mode === 'seller' ? 'PACKING' : 'READY');
+        created.push(ids);
+        const refund = await prepareVerifiedRefund(pool, ids, 1,
+          `${mode} ${refundStatus} 출고 차단`);
+        if (refundStatus !== 'PROCESSING') await pool.query(
+          'UPDATE refund_cases SET status=$2 WHERE id=$1', [refund.requested.id, refundStatus],
+        );
+        const operation = mode === 'seller'
+          ? new SellerFulfillmentService(pool, { accountId: ids.sellerAccountId,
+            role: 'seller', sellerId: ids.sellerId }).transition(ids.shipmentId, randomUUID(), {
+            targetStatus: 'SHIPPED', expectedVersion: 0, carrierCode: 'hanjin',
+            trackingNumber: `QABLOCK${refundStatus.replaceAll('_', '')}`,
+          })
+          : new AdminFulfillmentService(pool, { accountId: ids.adminId, role: 'admin' })
+            .correct(ids.shipmentId, randomUUID(), { expectedVersion: 0,
+              corrected: { status: 'SHIPPED', carrierCode: 'hanjin',
+                trackingNumber: `QABLOCK${refundStatus.replaceAll('_', '')}` },
+              reason: '미결 환불 출고 차단', customerMessage: '환불 상태를 먼저 확인합니다',
+            });
+        await assert.rejects(operation, /Fulfillment conflict/,
+          `${mode} must block ${refundStatus}`);
+        const fulfillment = (await pool.query(`SELECT status,version,
+          (SELECT count(*)::int FROM shipment_fulfillment_events e
+            WHERE e.shipment_order_id=f.shipment_order_id) AS events
+          FROM shipment_fulfillments f WHERE shipment_order_id=$1`, [ids.shipmentId])).rows[0];
+        assert.deepEqual(fulfillment, {
+          status: mode === 'seller' ? 'PACKING' : 'READY', version: 0, events: 0,
+        });
+      }
+    }
+  } finally {
+    for (const ids of created.reverse()) await cleanup(pool, ids);
+    await pool.end();
+  }
+});
+
+for (const mode of ['seller', 'admin']) test(`refund and ${mode} SHIPPED race converges`, {
   skip: !process.env.DATABASE_URL || !process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID,
 }, async (context) => {
   const suffix = randomBytes(4).toString('hex');
@@ -361,8 +406,6 @@ for (const mode of ['seller', 'admin']) test(`refund and ${mode} SHIPPED race ha
       locker = null;
       settled = await settleWithin(pending);
     }
-    assert.equal(settled.filter(({ status }) => status === 'fulfilled').length, 1);
-    assert.equal(settled.filter(({ status }) => status === 'rejected').length, 1);
     for (const result of settled.filter(({ status }) => status === 'rejected')) {
       assert.notEqual(result.reason?.code, '40P01', 'race must not deadlock');
     }
@@ -373,20 +416,26 @@ for (const mode of ['seller', 'admin']) test(`refund and ${mode} SHIPPED race ha
       idempotency_key::text AS "idempotencyKey" FROM shipment_fulfillment_events
       WHERE shipment_order_id=$1`, [ids.shipmentId])).rows;
     assert.equal(fulfillmentEvents.length, 1);
-    const refundState = (await main.query(`SELECT c.status,e.processing_status AS "eventStatus"
+    const refundState = (await main.query(`SELECT c.status,a.status AS "attemptStatus",
+      e.processing_status AS "eventStatus"
       FROM refund_cases c JOIN refund_attempts a ON a.refund_case_id=c.id
       JOIN refund_events e ON e.refund_attempt_id=a.id WHERE c.id=$1`, [refund.requested.id])).rows[0];
     if (fulfillment.status === 'CANCELLED') {
       assert.equal(settled[0].status, 'fulfilled');
       assert.equal(settled[1].status, 'rejected');
-      assert.deepEqual(refundState, { status: 'REFUNDED', eventStatus: 'APPLIED' });
+      assert.equal(settled.filter(({ status }) => status === 'fulfilled').length, 1);
+      assert.equal(settled.filter(({ status }) => status === 'rejected').length, 1);
+      assert.deepEqual(refundState,
+        { status: 'REFUNDED', attemptStatus: 'SUCCEEDED', eventStatus: 'APPLIED' });
       assert.deepEqual(fulfillmentEvents[0], { action: 'REFUND_CANCELLED',
         idempotency_scope: 'system:refund', idempotencyKey: refund.event.id });
     } else {
       assert.equal(fulfillment.status, 'SHIPPED');
-      assert.equal(settled[0].status, 'rejected');
+      assert.equal(settled[0].status, 'fulfilled');
       assert.equal(settled[1].status, 'fulfilled');
-      assert.deepEqual(refundState, { status: 'PROCESSING', eventStatus: 'PENDING_PROCESSING' });
+      assert.equal(settled[0].value.processingStatus, 'REVIEW_REQUIRED');
+      assert.deepEqual(refundState, { status: 'REVIEW_REQUIRED',
+        attemptStatus: 'REVIEW_REQUIRED', eventStatus: 'REVIEW_REQUIRED' });
       assert.equal(fulfillmentEvents[0].action,
         mode === 'seller' ? 'MARK_SHIPPED' : 'ADMIN_CORRECT');
     }

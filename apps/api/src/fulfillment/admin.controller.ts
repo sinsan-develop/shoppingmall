@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get,
-  Header, HttpCode, Inject, NotFoundException, Param, Patch, Post, Put, Query, Req,
+  Header, HttpCode, Inject, NotFoundException, Param, Post, Put, Query, Req,
   ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
 import type { Pool } from 'pg';
@@ -85,11 +85,6 @@ export class AdminFulfillmentController {
 
   @Put('settings')
   async putSetting(@Req() request: RequestHeaders, @Body() body: unknown) {
-    return this.changeSetting(request, body);
-  }
-
-  @Patch('settings')
-  async patchSetting(@Req() request: RequestHeaders, @Body() body: unknown) {
     return this.changeSetting(request, body);
   }
 

@@ -407,6 +407,16 @@ test('admin fulfillment routes exist before a database is configured', async () 
       assert.equal(response.status, 503);
       assert.equal((await response.json()).dependency, 'database');
     }
+    const writeHeaders = { ...headers, origin, 'content-type': 'application/json',
+      'idempotency-key': randomUUID() };
+    const put = await fetch(`${base}/fulfillment/admin/settings`, {
+      method: 'PUT', headers: writeHeaders, body: JSON.stringify({}),
+    });
+    assert.equal(put.status, 503, 'approved PUT route remains registered');
+    const patch = await fetch(`${base}/fulfillment/admin/settings`, {
+      method: 'PATCH', headers: writeHeaders, body: JSON.stringify({}),
+    });
+    assert.equal(patch.status, 404, 'unapproved PATCH route must not be exposed');
   } finally {
     if (app) await app.close();
     if (saved === undefined) delete process.env.DATABASE_URL;

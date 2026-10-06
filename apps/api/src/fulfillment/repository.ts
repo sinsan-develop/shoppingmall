@@ -393,6 +393,14 @@ export async function updateSellerFulfillment(client: PoolClient, shipmentOrderI
   ])).rows[0]?.version;
 }
 
+export async function lockBlockingRefundCases(client: PoolClient,
+  shipmentOrderId: string): Promise<boolean> {
+  const blocking = await client.query(`SELECT id FROM refund_cases
+    WHERE shipment_order_id=$1 AND status IN ('APPROVED','PROCESSING','REVIEW_REQUIRED')
+    ORDER BY id FOR UPDATE`, [shipmentOrderId]);
+  return Boolean(blocking.rowCount);
+}
+
 export async function insertSellerTransitionRecords(client: PoolClient, input: {
   shipmentOrderId: string;
   accountId: string;
