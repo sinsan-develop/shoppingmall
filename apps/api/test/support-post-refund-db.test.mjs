@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
+import { createApp } from '../src/app.ts';
+import { hashSessionToken } from '../src/auth/credentials.ts';
 import { createClaim, approveClaim } from '../src/support/claims.ts';
 import { MockRefundAdapter } from '../src/refunds/mock-adapter.ts';
 import { createRefundCase, decideRefundCase, recordVerifiedRefundEvent } from
@@ -13,7 +15,7 @@ const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
 const fingerprint = 'a'.repeat(64);
 
 for (const scenario of ['success','failed','mismatch','duplicate_pending',
-  'duplicate_final','pre_shipped','pre_success'])
+  'duplicate_final','pre_shipped','pre_success','http_success'])
 test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserves its shipment contract`, {
   skip: !systemId || process.env.S52_SUPPORT_TEST_DB_NAME !== database,
 }, async () => {
@@ -21,6 +23,9 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
   const pool = new Pool({ max: 6 });
   const ids = {};
   let seeded = false;
+  let app;
+  const previousRuntime = { APP_ENV: process.env.APP_ENV,
+    PAYMENT_MODE: process.env.PAYMENT_MODE };
   try {
     const identity = (await pool.query(`SELECT current_database() AS name,
       system_identifier::text AS system_id FROM pg_control_system()`)).rows[0];
@@ -175,6 +180,68 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
         return;
       }
     }
+    if (scenario === 'http_success') {
+      const claim = await createClaim(pool, { customerAccountId: ids.customer,
+        orderId: ids.order,shipmentOrderId: ids.shipment,optionId: ids.option,
+        kind: 'EXCHANGE',reasonCode: 'wrong_delivery',reason: '오배송 교환 접수',
+        quantity: 1,idempotencyKey: randomUUID() });
+      ids.claim = claim.id;
+      const cookies = {};
+      for (const [role,account,sellerId] of [
+        ['customer',ids.customer,null],['seller',ids.sellerActor,ids.seller],
+        ['admin',ids.admin,null],
+      ]) {
+        const token = randomUUID();
+        await pool.query(`INSERT INTO auth_sessions
+          (token_hash,account_id,role,seller_id,expires_at)
+          VALUES ($1,$2,$3,$4,now()+interval '1 hour')`,
+        [hashSessionToken(token),account,role,sellerId]);
+        cookies[role] = `sm_session=${token}`;
+      }
+      process.env.APP_ENV = 'development';
+      process.env.PAYMENT_MODE = 'mock';
+      app = await createApp();
+      await app.listen(0, '127.0.0.1');
+      const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+      const path = `${base}/admin/support/claims/${claim.id}/decision`;
+      const key = randomUUID();
+      const request = (role, requestKey = key, reason = '관리자 오배송 승인') => fetch(path, { method: 'POST',
+        headers: { cookie: cookies[role],origin: 'http://127.0.0.1:9091',
+          'content-type': 'application/json','idempotency-key': requestKey },
+        body: JSON.stringify({ decision: 'approve',reason }),
+      });
+      assert.equal((await request('customer',randomUUID())).status, 403);
+      assert.equal((await request('seller',randomUUID())).status, 403);
+      const approved = await request('admin');
+      assert.equal(approved.status, 200);
+      assert.equal((await approved.json()).status, 'REFUNDED',
+        'admin HTTP approval must run the verified mock bridge to completion');
+      assert.equal((await (await request('admin')).json()).status, 'REFUNDED');
+      assert.equal((await request('admin',key,'다른 승인 사유')).status, 409);
+      process.env.PAYMENT_MODE = 'real';
+      assert.equal((await request('admin',randomUUID())).status, 404,
+        'non-mock execution must stay closed');
+      process.env.PAYMENT_MODE = 'mock';
+      const rows = (await pool.query(`SELECT
+        (SELECT count(*)::int FROM refund_events e JOIN refund_attempts a
+          ON a.id=e.refund_attempt_id JOIN refund_cases c ON c.id=a.refund_case_id
+          WHERE c.post_shipment_claim_id=$1) AS events,
+        (SELECT count(*)::int FROM audit_events WHERE target_type='support_claim'
+          AND target_id=$1::text AND action='support.claim_refund_applied') AS audits,
+        (SELECT count(*)::int FROM shipment_orders WHERE checkout_order_id=$2) AS shipments`,
+      [claim.id,ids.order])).rows[0];
+      assert.deepEqual(rows, { events: 1,audits: 1,shipments: 1 });
+      const after = (await pool.query(`SELECT o.payable_won AS order_won,
+        s.goods_won AS shipment_goods,s.payable_won AS shipment_won,
+        f.status AS fulfillment_status,f.version,f.carrier_code,f.tracking_number,
+        f.first_shipped_at,f.shipped_at,i.on_hand_quantity,i.sellable_quantity
+        FROM checkout_orders o JOIN shipment_orders s ON s.checkout_order_id=o.id
+        JOIN shipment_fulfillments f ON f.shipment_order_id=s.id
+        JOIN inventory_levels i ON i.option_id=$2 WHERE o.id=$1`,
+      [ids.order,ids.option])).rows[0];
+      assert.deepEqual(after,before);
+      return;
+    }
     const claim = await createClaim(pool, { customerAccountId: ids.customer,
       orderId: ids.order,shipmentOrderId: ids.shipment,optionId: ids.option,
       kind: 'EXCHANGE',reasonCode: 'wrong_delivery',reason: '오배송 교환 접수',
@@ -240,6 +307,11 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
     [event.id])).rows[0].n, 1);
   } finally {
     try {
+      if (app) await app.close();
+      for (const [key,value] of Object.entries(previousRuntime)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
       if (seeded) {
         const client = await pool.connect();
         try {
@@ -300,6 +372,8 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
           await client.query('DELETE FROM products WHERE id=$1', [ids.product]);
           await client.query('DELETE FROM product_categories WHERE id=$1', [ids.category]);
           await client.query('DELETE FROM account_roles WHERE account_id=ANY($1::uuid[])',
+          [[ids.customer,ids.admin,ids.sellerActor]]);
+          await client.query('DELETE FROM auth_sessions WHERE account_id=ANY($1::uuid[])',
           [[ids.customer,ids.admin,ids.sellerActor]]);
           await client.query('DELETE FROM sellers WHERE id=$1', [ids.seller]);
           await client.query('DELETE FROM seller_categories WHERE id=$1', [ids.sellerCategory]);

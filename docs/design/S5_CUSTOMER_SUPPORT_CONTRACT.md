@@ -18,6 +18,7 @@
 - `refund_cases.post_shipment_claim_id`는 nullable UNIQUE composite FK로 `(claim ID,checkout order ID,shipment order ID,requester account ID)`가 동일 claim의 `(ID,checkout order ID,shipment order ID,customer account ID)`를 참조한다. NULL인 기존 PRE 사건은 기존 제약/금액/재입고/fulfillment 취소 로직을 그대로 탄다. POST 사건은 claim 하나에 refund case 최대 하나다. `refund_cases_state_ck`는 POST branch의 pre-shipment 확인 열 NULL을 허용하되 기존 PRE branch를 강화하거나 완화하지 않는다.
 - 초기 정책은 `code=POST_SHIPMENT_TRIAL`, `version=1`이며 버전·효력 시작 시각·관리자 변경 이력을 보존한다. 관리자 결정에는 적용 버전과 상품 환불액 snapshot을 기록한다. POST 승인 수량의 누적 환불액은 해당 `shipment_order_lines.goods_payable_won`의 잔여액 이내이며, 배송비 환급은 0, `refund_case_lines.restock_mode='none'` 및 재입고 수량 0이다. 원 결제·환불 attempt/event와 1:1 연결하고 idempotency와 잠금으로 중복/경합을 차단한다.
 - POST 환불의 verified event는 동일 S4 결제/환불 검증 경계를 거치되 SHIPPED 자체를 거부하지 않는다. 성공해도 출고 상태·운송장, checkout/shipment 원 총액, 다른 발송 묶음, 기존 S4 후속 사건을 변경하지 않는다. PRE 사건의 SHIPPED 거부·배송비·재입고·CANCELLED 전이는 별도 회귀로 보존한다. 실제 Provider 환불은 시험하지 않는다.
+- 관리자 클레임 승인 HTTP는 개발·loopback·mock 환경에서 POST case/attempt 예약 후 기존 관리자 환불과 동일한 mock/no-charge 검증·기록·processor 경로를 실행하고 최종 claim 상태를 반환한다. 같은 결정키 재시도는 기존 사건을 재사용하며 미처리 사건은 재처리할 수 있다. 이 실행 경계 밖의 관리자 승인은 fail closed이고 실 Provider 실행이나 운영 환불 완료를 뜻하지 않는다. 거절은 환불 실행을 호출하지 않는다.
 
 ## HTTP 계약 목표
 

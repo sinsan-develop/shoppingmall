@@ -8,10 +8,12 @@ import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { ImageQuarantine } from '../catalog/image-quarantine.js';
 import { DatabaseService } from '../db/service.js';
+import { executeMockRefundCase, requireLocalMockRefund } from '../refunds/mock-execution.js';
 import { addClaimEvidence, approveClaim, createClaim, getClaim, listClaims, parseClaimPageQuery,
   readClaimEvidence, rejectClaim, replyToClaim } from './claims.js';
 
-type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string } };
+type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string };
+  socket?: { localAddress?: string } };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function poolOrUnavailable(database: DatabaseService): Pool {
@@ -64,6 +66,10 @@ async function handle<T>(operation: () => Promise<T>): Promise<T> {
       throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'claim_evidence' });
     if (message === 'Support refund unavailable')
       throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'refund_provider' });
+    if (['Refund unavailable','Refund attempt unavailable','Refund event unavailable'].includes(message))
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'refund_event' });
+    if (['Refund conflict','Refund event conflict'].includes(message))
+      throw new ConflictException({ status: 'support_conflict' });
     throw error;
   }
 }
@@ -249,8 +255,20 @@ export class AdminSupportClaimController {
       throw new BadRequestException({ status: 'invalid_support' });
     const input = { claimId,adminAccountId: actor.accountId,
       reason: body.reason,idempotencyKey: key };
-    return handle(() => body.decision === 'approve' ? approveClaim(pool, input) :
-      rejectClaim(pool, input));
+    if (body.decision === 'reject') return handle(() => rejectClaim(pool, input));
+    requireLocalMockRefund(request);
+    const reserved = await handle(() => approveClaim(pool, input));
+    if (reserved.status !== 'REFUND_PROCESSING') return reserved;
+    const linked = (await pool.query<{ id: string }>(`SELECT id FROM refund_cases
+      WHERE post_shipment_claim_id=$1 AND decision_by=$2`,
+    [claimId,actor.accountId])).rows[0];
+    if (!linked) throw new ServiceUnavailableException({ status: 'unavailable',
+      dependency: 'refund_case' });
+    await handle(() => executeMockRefundCase(pool, linked.id));
+    const finalClaim = await handle(() => getClaim(pool, 'admin',actor.accountId,
+      undefined,claimId));
+    if (!finalClaim) throw new NotFoundException();
+    return { ...finalClaim,attemptId: reserved.attemptId };
   }
 
   @Get(':claimId/evidence/:evidenceId')

@@ -9,6 +9,7 @@ import { Pool } from 'pg';
 import { createApp } from '../src/app.ts';
 import { DatabaseService } from '../src/db/service.ts';
 import { hashSessionToken } from '../src/auth/credentials.ts';
+import { approveClaim } from '../src/support/claims.ts';
 
 const name = 'shoppingmall_s52_schema_v6_1007';
 const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
@@ -25,8 +26,6 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
     let scanServer;
     const previousUpload = { enabled: process.env.ENABLE_LOCAL_UPLOAD,
       root: process.env.SHOPPINGMALL_UPLOAD_ROOT, port: process.env.CLAMD_PORT };
-    const previousRefund = { appEnv: process.env.APP_ENV,
-      paymentMode: process.env.PAYMENT_MODE };
     try {
       const identity = (await client.query(`SELECT current_database() AS name,
         system_identifier::text AS system_id FROM pg_control_system()`)).rows[0];
@@ -760,23 +759,9 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
         VALUES ($1,'mock',$2,'APPROVED',$3,$4,20000,$5,'APPLIED',now())`,
       [partialPayment,`mock:event:${randomUUID()}`,partiallyRefunded.orderId,
         `mock:payment:${randomUUID()}`,fingerprint]);
-      process.env.APP_ENV = 'development';
-      process.env.PAYMENT_MODE = 'mock';
-      const partialPath = `/admin/support/claims/${remainingClaim.id}/decision`;
-      const partialBody = { decision: 'approve',reason: 'PRE 잔량만 승인' };
-      const partialKey = randomUUID();
-      assert.equal((await reviewRequest(customer, partialPath, 'POST', partialBody,
-        randomUUID())).status, 403);
-      assert.equal((await reviewRequest(sellerSupportAccount, partialPath, 'POST',
-        partialBody, randomUUID())).status, 403);
-      const partialResponse = await reviewRequest(productSellerAccount, partialPath,
-        'POST',partialBody,partialKey);
-      assert.equal(partialResponse.status, 200);
-      const partialApproval = await partialResponse.json();
-      assert.deepEqual(await (await reviewRequest(productSellerAccount, partialPath,
-        'POST',partialBody,partialKey)).json(),partialApproval);
-      assert.equal((await reviewRequest(productSellerAccount, partialPath, 'POST',
-        { ...partialBody,reason: '다른 사유' },partialKey)).status, 409);
+       const partialApproval = await approveClaim(client, { claimId: remainingClaim.id,
+         adminAccountId: productSellerAccount,reason: 'PRE 잔량만 승인',
+         idempotencyKey: randomUUID() }, { APP_ENV: 'development',PAYMENT_MODE: 'mock' });
       assert.equal(partialApproval.goodsRefundWon, 10000);
       assert.deepEqual((await client.query(`SELECT sum(goods_refund_won)::int AS goods,
         sum(shipping_refund_won)::int AS shipping FROM refund_cases
@@ -804,11 +789,6 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       }
       for (const [key, value] of Object.entries({ ENABLE_LOCAL_UPLOAD: previousUpload.enabled,
         SHOPPINGMALL_UPLOAD_ROOT: previousUpload.root, CLAMD_PORT: previousUpload.port })) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
-      for (const [key, value] of Object.entries({ APP_ENV: previousRefund.appEnv,
-        PAYMENT_MODE: previousRefund.paymentMode })) {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
       }

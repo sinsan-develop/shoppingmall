@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.2 관리자 HTTP POST verified 실행 checkpoint — 2026-10-07
+
+- **판정/원격 복구:** 단일 writer 어울, 지정 S5.2 worktree/branch 유지. Main이 exact `6c428898d580312ea432ac312aba1a80faa0ce1a`를 승인 SSH alias의 기존 원격 작업 브랜치에 fast-forward push exit0 확인했다고 직접 보고했다(main/PR 불변). 원격 ref는 Main 보고 기준이며 이 writer는 push/PR/merge를 하지 않았다. 공유 DB·Oracle·실 Provider·credential 변경0.
+- **RED→GREEN/변경:** 기존 관리자 클레임 approve HTTP의 `REFUND_PROCESSING` 예약 응답을 v8 실제 HTTP/DB RED로 확인했다. 기존 관리자 환불의 loopback+development+mock guard와 `MockRefundAdapter`/`NoChargeRefundAdapter`→`recordVerifiedRefundEvent`→`processVerifiedRefundEvent`를 공통 함수로 추출해 PRE route와 POST claim route가 재사용한다. POST HTTP는 승인 예약 뒤 연결 case의 verified mock 환불을 실행하고 최종 claim 상태/attempt ID를 반환한다. 실패·재시도 때 이미 기록된 event는 중복 생성하지 않고 processor로 재진입한다. 고객/판매자 403, 관리자 200→`REFUNDED`, 같은 결정키 재시도, 같은 키 다른 사유 409, non-mock 404 fail closed를 v8 실제 HTTP에서 확인했다. 기존 v6 거래 rollback 시험의 부분환불 예약은 내부 service 경계로 유지하고, 완결 HTTP 시험은 실제 별도 연결 v8에서 수행한다.
+- **검증/오류:** v8 fresh 19 migrations의 POST 성공·FAILED·mismatch·중복충돌 전/후·PRE SHIPPED 거부·PRE READY 성공·실제 HTTP mock 승인 **8/8 pass/0 skip**, v6 support DB/HTTP 회귀 **1/1 pass/0 skip**. 전체 로컬 **436 total/305 pass/131 계획된 DB·환경 skip/0 fail**, PR 본문 8/8, root typecheck/lint/build exit0. 첫 build는 sandbox `.next/trace` EPERM 1회 뒤 동일 worktree 권한 재실행 exit0; HTTP 검산 SQL의 audit target text/UUID 비교 오류 1회는 명시 cast 후 재시험 pass. 동일 근본 원인 연속 실패3회 없음. `git diff --check` 및 최종 commit 상태는 아래 후속 기록 전까지 미확정이다.
+- **미검증/다음:** 다른 두 claim의 동일 관리자 결정키 **동시 approve** 독립 DB 회귀, 실제 3역할 웹/브라우저, S5.2 signed fixture/reset, Stage 전체 gate가 남았다. 실 Provider/운영 Object Storage/공유 DB 완료 주장이 아니다. v8 DB와 기존 v6/전용 컨테이너·네트워크는 후속 격리 시험 중 유지, 종료 때 정확한 DB명/system ID/소유 세션·참조를 확인해 대상만 정리하고 잔류0을 기록한다.
+
 ## S5.2 POST verified core bridge·PRE 대비 checkpoint — 2026-10-07
 
 - **판정/소유:** 단일 writer 어울, 지정 worktree/branch 유지. Main이 승인 SSH alias로 exact `b629bd7a0ac4f154555fdfffff1581b9b3cca8c6`을 기존 원격 작업 브랜치에 fast-forward push exit0 확인(main/PR 불변)했다고 직접 보고했다. 원격 복구 ref는 **Main 보고 기준**이며 이 세션에서 원격 재조회하지 않았다. 공유 DB·Oracle·실 Provider·credential·push/PR/merge 변경0.
