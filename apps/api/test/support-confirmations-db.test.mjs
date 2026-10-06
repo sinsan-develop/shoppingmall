@@ -136,6 +136,53 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
         FROM support_purchase_confirmations WHERE id=$1`, [confirmed.id])).rows[0];
       assert.deepEqual(saved, { product_id: product, shipped_event_id: shipped.shippedEventId,
         customer_account_id: customer });
+      const reviews = await import('../src/support/reviews.ts').catch(() => ({}));
+      assert.equal(typeof reviews.createReview, 'function', 'verified review service must exist');
+      const reviewInput = { confirmationId: confirmed.id, customerAccountId: customer,
+        rating: 4, body: '신선합니다', idempotencyKey: randomUUID() };
+      await assert.rejects(() => reviews.createReview(client,
+        { ...reviewInput, customerAccountId: otherCustomer }), /Support unavailable/);
+      const review = await reviews.createReview(client, reviewInput);
+      assert.equal(review.status, 'PENDING');
+      assert.equal(review.version, 1);
+      assert.equal((await reviews.createReview(client, reviewInput)).id, review.id);
+      await assert.rejects(() => reviews.createReview(client,
+        { ...reviewInput, idempotencyKey: randomUUID() }), /Support conflict/);
+      const secondShipment = await makeShipment(customer, 'SHIPPED');
+      const secondConfirmation = await support.createPurchaseConfirmation(client, {
+        customerAccountId: customer, orderId: secondShipment.orderId,
+        shipmentOrderId: secondShipment.shipmentId, optionId: option,
+        idempotencyKey: randomUUID(),
+      });
+      await assert.rejects(() => reviews.createReview(client,
+        { ...reviewInput, confirmationId: secondConfirmation.id }), /Support conflict/,
+      'same create key cannot bind a second confirmation');
+      await assert.rejects(() => reviews.createReview(client,
+        { ...reviewInput, body: '다른 최초 내용' }), /Support conflict/);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM support_review_events WHERE review_id=$1',
+        [review.id])).rows[0].n, 1);
+      await assert.rejects(() => reviews.editReview(client, { reviewId: review.id,
+        customerAccountId: otherCustomer, rating: 2, body: '타인 수정',
+        idempotencyKey: randomUUID() }), /Support unavailable/);
+      const editInput = { reviewId: review.id, customerAccountId: customer,
+        rating: 5, body: '더 신선합니다', idempotencyKey: randomUUID() };
+      const edited = await reviews.editReview(client, editInput);
+      assert.equal(edited.status, 'PENDING');
+      assert.equal(edited.version, 2);
+      assert.equal((await reviews.editReview(client, editInput)).version, 2,
+        'same edit key and body must not create another event');
+      await assert.rejects(() => reviews.editReview(client,
+        { ...editInput, body: '변조된 재시도' }), /Support conflict/);
+      assert.deepEqual((await client.query(`SELECT action,before_value,after_value
+        FROM support_review_events WHERE review_id=$1 ORDER BY event_seq`, [review.id]))
+        .rows.map(({ action, before_value, after_value }) => ({ action, before_value, after_value })),
+      [
+        { action: 'CREATED', before_value: {}, after_value: { rating: 4, body: '신선합니다',
+          version: 1, idempotencyKey: reviewInput.idempotencyKey } },
+        { action: 'EDITED', before_value: { rating: 4, body: '신선합니다', version: 1 },
+          after_value: { rating: 5, body: '더 신선합니다', version: 2,
+            idempotencyKey: editInput.idempotencyKey } },
+      ]);
       assert.equal((await client.query('SELECT seller_id FROM shipment_orders WHERE id=$1',
         [shipped.shipmentId])).rows[0].seller_id, null);
       assert.equal((await client.query('SELECT seller_id FROM shipment_order_lines WHERE shipment_order_id=$1',
@@ -178,6 +225,44 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
       assert.equal((await client.query(`SELECT count(*)::int AS n
         FROM support_purchase_confirmations WHERE shipment_order_id=$1`,
       [httpShipment.shipmentId])).rows[0].n, 1);
+      const reviewPath = '/customer/support/reviews';
+      const reviewBody = { confirmationId: httpConfirmation.id, rating: 4, text: '웹 리뷰' };
+      const reviewKey = randomUUID();
+      const reviewRequest = (actor, path, method, requestBody, requestKey = reviewKey) =>
+        fetch(base + path, { method, headers: { cookie: cookies.get(actor), origin: 'http://127.0.0.1:9091',
+          'content-type': 'application/json', 'idempotency-key': requestKey },
+        ...(requestBody ? { body: JSON.stringify(requestBody) } : {}) });
+      const foreignReview = await reviewRequest(otherCustomer, reviewPath, 'POST', reviewBody);
+      assert.equal(foreignReview.status, 404, JSON.stringify(await foreignReview.json()));
+      assert.equal((await reviewRequest(fulfillmentAccount, reviewPath, 'POST', reviewBody)).status, 403);
+      const createdReviewResponse = await reviewRequest(customer, reviewPath, 'POST', reviewBody);
+      assert.equal(createdReviewResponse.status, 200);
+      const httpReview = await createdReviewResponse.json();
+      assert.equal(httpReview.status, 'PENDING');
+      assert.equal((await (await reviewRequest(customer, reviewPath, 'POST', reviewBody)).json()).id,
+        httpReview.id);
+      assert.equal((await reviewRequest(customer, reviewPath, 'POST',
+        { ...reviewBody, confirmationId: secondConfirmation.id })).status, 409,
+      'same HTTP key cannot create a review for another confirmation');
+      assert.equal((await reviewRequest(customer, reviewPath, 'POST',
+        { ...reviewBody, text: '변경된 재시도' })).status, 409);
+      const detailPath = `${reviewPath}/${httpReview.id}`;
+      assert.equal((await reviewRequest(otherCustomer, detailPath, 'GET')).status, 404);
+      const editBody = { rating: 5, text: '수정 웹 리뷰' };
+      const editKey = randomUUID();
+      assert.equal((await reviewRequest(customer, detailPath, 'PUT',editBody,editKey)).status, 200);
+      const editRetry = await reviewRequest(customer, detailPath, 'PUT',editBody,editKey);
+      assert.equal(editRetry.status, 200);
+      assert.equal((await editRetry.json()).version, 2);
+      assert.equal((await reviewRequest(customer, detailPath, 'PUT',
+        { ...editBody, text: '변조된 수정' },editKey)).status, 409);
+      const reviewDetail = await (await reviewRequest(customer, detailPath, 'GET')).json();
+      assert.equal(reviewDetail.version, 2);
+      assert.deepEqual(reviewDetail.events.map(({ action }) => action), ['CREATED','EDITED']);
+      assert.equal(JSON.stringify(reviewDetail).includes(reviewKey), false,
+        'create idempotency key must not appear in review history JSON');
+      assert.equal(JSON.stringify(reviewDetail).includes(editKey), false,
+        'internal idempotency key must not appear in review history JSON');
     } finally {
       if (app) await app.close();
       await client.query('ROLLBACK');
