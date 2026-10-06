@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## Task11 보강 private gate GREEN · 독립 재리뷰 대기 — 2026-10-06
+
+- **판정·정확한 기준:** 제품·시험 보강 exact commit `06c5cd9cd578e9dbd61a51ad4f8153c64847db0e`을 승인된 SSH alias로 WSL 지정 checkout에 맞추고 clean 상태에서 검증했다. private PostgreSQL과 exact Git archive 기반 Linux workspace만 사용했으며 공유 `local-postgres/shoppingmall`, 실제 Chrome, 외부서비스, Oracle, PR/main은 접근·변경하지 않았다. 독립 재리뷰 C0/I0 전이므로 Task11 최종 완료로 승격하지 않는다.
+- **private fixture safety:** fresh tmpfs PostgreSQL 18에 migration **0000~0015 / 16건**을 적용하고 system identifier `7693477211968344112`를 고정했다. `qa-fulfillment-ui-fixture-safety-db.test.mjs`는 **1 test / 1 pass / 0 fail / 0 skip**이다. manifest 밖 payment conflict를 reset 전에 거부하고 보존하며, 정상 reset 뒤 manifest 관련 25관계 업무행0과 `fulfillment_settings` 원복을 실제 DB에서 확인했다.
+- **fresh 전체 회귀:** 별도 fresh tmpfs PostgreSQL 18의 system identifier `7693480241867067439`와 migration **16건**에서 **442 total / 422 pass / 0 fail / 20 planned skip**이다. planned skip은 ClamAV와 별도 opt-in shared/private fixture로 PASS에 포함하지 않았다. 종료 시 `accounts|products|orders|shipments|payment attempts|refund cases|audit`은 모두 0이고 설계 singleton `fulfillment_settings|home current|home draft|shipping global`은 각각 1이었다. 외부 mount와 공개 port는 0이다.
+- **정적·빌드 gate:** 동일 exact Git archive를 Node `24.21.0-bookworm-slim`에서 검증했다. `pnpm -r --if-present typecheck`, `eslint apps packages`, `pnpm -r --if-present build`가 모두 exit 0이고 Next.js production build는 **18 routes**를 생성했다. PR 본문 자동화 검사는 **8/8 PASS**다. Windows exact worktree의 `pnpm build`도 18 routes로 exit 0이다.
+- **오류 횟수·근본 원인·조치:** WSL host의 `corepack` 부재 **1회**, migration runner cwd 오류 **1회**, Windows 설치 `node_modules`를 Linux에서 사용한 Sharp native runtime 불일치 **1회**, DB 시험에 `PG*` 환경 누락 **1회**, root script가 호출하는 `pnpm` PATH 누락 **1회**, 격리 `HOME=/workspace/.qa-home` 때문에 Next.js가 workspace root를 거부한 오류 **1회**가 각각 발생했다. 마지막 원인은 Windows exact build 통과와 WSL `HOME=/qa-home` 별도 mount 재실행 통과로 확정했다. 재실행 과정의 PowerShell·cmd 원격 인용 오류 **2회**와 sandbox 쓰기 제한에 따른 Windows build `EPERM` **1회**는 제품/DB 변경 전에 종료했고 표준입력 전달·승인된 외부 실행으로 보정했다. 동일 근본 원인 연속 3회는 없다.
+- **잔류·정리:** 사용한 exact 컨테이너·network·임시 source/home·설치 로그는 모두 제거해 잔류 **0**이다. WSL checkout은 `06c5cd9...`에서 clean이다. 적용 전 shared backup `/tmp/shoppingmall-s51-0015-pre-20261006.dump`은 Task12 rollback 자료이므로 삭제하지 않고 보존한다.
+- **미검증·다음 조치:** actual Chrome의 고객·판매자·관리자 화면, 3 viewport, 전체 Tab 순회, overflow·스크린샷은 아직 실행하지 않았고 shared DB PASS로 표시하지 않는다. exact commit의 I2/M2 fixture 안전과 I3 browser runner 계약을 독립 read-only reviewer가 재검토해 **Critical 0 / Important 0**을 확인해야 한다. 통과하면 결과를 기록·commit·alias push·WSL exact-SHA로 맞춘 뒤 shared 0015 적용 및 exact-SHA 전체 회귀의 별도 승인 패킷을 PMO에 보고한다.
+
 ## Task11 독립 리뷰 I2·I3·M2 TDD 보강 — 2026-10-06
 
 - **판정·범위:** PMO가 승인된 S5.1 Task9/11/12 완료조건 보정으로 확인했다. 같은 `codex/s5-fulfillment-engagement`·기존 worktree의 단일 writer만 사용하며 공개 API/schema/migration·shared DB·외부서비스·Oracle·PR/main은 변경하지 않는다.
