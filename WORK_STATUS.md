@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 실제 RED — 2026-10-06 S5.1 Task6 관리자 설정·조회·정정 API
+
+- **판정:** exact test-only SHA `889dde8d61a9b7c6831fe8f1d73deca0c902a98d`, fresh private PostgreSQL 18.4, migration 16건, system identifier `7693355074431213610`에서 Task6 목표시험은 **10 tests / 0 pass / 10 fail / 0 skip**이었다. 실패는 모두 `fulfillment/admin` 설정·목록·상세·정정 route/controller 부재의 HTTP **404**이며 fixture·앱 기동·schema guard 오류는 0이다.
+- **실패 범위:** DB 미설정 route는 예상 503 대신 404, public/customer/seller 권한 경계는 예상 401/403 대신 404, 관리자 설정·조회·상세·정정·실제 잠금 경합 probe는 예상 200/400/409 대신 route 404로 실패했다. 제품 코드가 아직 없으므로 실제 Lock 대기 assertion에는 도달하지 않았으며 이를 통과로 계산하지 않는다.
+- **격리·정리:** 외부 port·영속 mount 없는 tmpfs PostgreSQL과 전용 network만 사용했다. 실행 후 accounts/roles/identities/sessions/sellers/products/address/reservation/order/shipment/fulfillment/event/audit 등 조회한 업무행은 모두 **0**, `fulfillment_settings=1`, `shipping_policy_global=1`이었다. shared `local-postgres/shoppingmall`, Oracle, 외부 서비스는 접촉하지 않았다. private PostgreSQL/network는 GREEN 재검증까지 active 임시자원이며 종료 후 exact cleanup한다.
+- **오류·다음:** 사전 읽기 전용 관리자 관례 검색에서 PowerShell이 두 glob 인자를 해석하지 못한 명령 오류 **1회**가 있었고, 명시 경로 조회로 즉시 보정했다. 제품·DB 변경은 없다. 다음은 PMO가 지정한 정확 파일의 Task6 GREEN 최소 구현이며 실제 private DB 10/10, 권한 회귀, 전체 gate, 독립 C0/I0 전에는 완료로 판정하지 않는다.
+
 ## RED 후보 — 2026-10-06 S5.1 Task6 관리자 설정·조회·정정 API
 
 - **판정·범위:** 신산님이 지정한 exact base `60ab754ddb6c1f7d9787a06170b8ebf6ac66df3e`, 기존 `codex/s5-fulfillment-engagement` worktree의 clean 상태를 확인한 뒤 Task6 **RED 시험만** 작성했다. 제품 controller/service/repository/module, 기존 시험, schema/migration, 새 branch/worktree, shared DB·WSL·Docker·Oracle·외부 서비스 변경은 0이다.
