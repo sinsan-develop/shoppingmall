@@ -2,15 +2,17 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { validateFulfillmentUiManifest } from '../apps/api/scripts/qa-fulfillment-ui-fixture.ts';
 
 const web = process.env.QA_WEB_BASE;
 const password = process.env.QA_FIXTURE_PASSWORD;
-const fixture = JSON.parse(process.env.QA_FIXTURE_JSON ?? 'null');
+const candidateFixture = JSON.parse(process.env.QA_FIXTURE_JSON ?? 'null');
 const debugging = process.env.QA_CHROME_DEBUGGING ?? 'http://127.0.0.1:9229';
 const evidenceDir = process.env.QA_EVIDENCE_DIR;
-if (!web || !password || !fixture || !Array.isArray(fixture.emails) || fixture.emails.length !== 5 ||
-    !Array.isArray(fixture.orderIds) || fixture.orderIds.length !== 3)
+if (web !== 'http://127.0.0.1:9091' || debugging !== 'http://127.0.0.1:9229' || !password ||
+    process.env.QA_BROWSER_CONSENT !== `S5_ISOLATED_FULFILLMENT_${candidateFixture?.runId ?? ''}`)
   throw new Error('QA fulfillment browser inputs missing');
+const fixture = validateFulfillmentUiManifest(candidateFixture.runId, candidateFixture, password);
 
 const roles = ['customer', 'seller', 'admin'];
 const viewports = [
@@ -19,21 +21,14 @@ const viewports = [
   { width: 430, height: 844, name: '430' },
 ];
 
-const page = await fetch(`${debugging}/json/new?about:blank`, { method: 'PUT' }).then((response) => response.json());
-const socket = new WebSocket(page.webSocketDebuggerUrl);
+let page;
+let socket;
 const pending = new Map();
 let nextId = 1;
-await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
-socket.onmessage = ({ data }) => {
-  const message = JSON.parse(data);
-  if (!message.id || !pending.has(message.id)) return;
-  const request = pending.get(message.id); pending.delete(message.id);
-  if (message.error) request.reject(new Error(message.error.message));
-  else request.resolve(message.result);
-};
 
 function send(method, params = {}) {
   return new Promise((resolve, reject) => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return reject(new Error('Chrome socket unavailable'));
     const callId = nextId++;
     pending.set(callId, { resolve, reject });
     socket.send(JSON.stringify({ id: callId, method, params }));
@@ -109,14 +104,26 @@ async function keyboardAndViewportEvidence(label) {
     assert.equal(dimensions.width, viewport.width);
     assert.ok(dimensions.scrollWidth <= viewport.width,
       `${label} ${viewport.name}px horizontal overflow: ${dimensions.scrollWidth}`);
-    const focusable = await evaluate(`(() => {
-      const element = document.querySelector('input,select,textarea,button,a[href]');
-      if (!element) return false; element.focus(); return document.activeElement === element;
+    const visibleFocusables = await evaluate(`(() => {
+      const selector = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+      const nodes = [...document.querySelectorAll(selector)].filter((node) => {
+        const style = getComputedStyle(node); const rect = node.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      });
+      nodes.forEach((node, index) => node.dataset.qaFocusIndex = String(index));
+      document.body.tabIndex = -1; document.body.focus();
+      return nodes.length;
     })()`);
-    assert.equal(focusable, true);
-    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
-    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
-    assert.equal(await evaluate('document.activeElement !== document.body'), true);
+    assert.ok(visibleFocusables > 0, `${label} has no visible keyboard targets`);
+    const visited = new Set();
+    for (let index = 0; index < visibleFocusables + 2; index += 1) {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+      const active = await evaluate("document.activeElement?.dataset?.qaFocusIndex ?? null");
+      if (active !== null) visited.add(active);
+    }
+    assert.equal(visited.size, visibleFocusables,
+      `${label} ${viewport.name}px keyboard traversal ${visited.size}/${visibleFocusables}`);
     if (evidenceDir) {
       await mkdir(evidenceDir, { recursive: true });
       const image = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
@@ -134,6 +141,19 @@ async function customerOrder(orderId, expectedText) {
 }
 
 try {
+  page = await fetch(`${debugging}/json/new?about:blank`, { method: 'PUT' }).then((response) => {
+    if (!response.ok) throw new Error('Chrome page creation failed');
+    return response.json();
+  });
+  socket = new WebSocket(page.webSocketDebuggerUrl);
+  await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
+  socket.onmessage = ({ data }) => {
+    const message = JSON.parse(data);
+    if (!message.id || !pending.has(message.id)) return;
+    const request = pending.get(message.id); pending.delete(message.id);
+    if (message.error) request.reject(new Error(message.error.message));
+    else request.resolve(message.result);
+  };
   await send('Page.enable'); await send('Runtime.enable');
 
   await login('customer', fixture.emails[0]);
@@ -184,7 +204,7 @@ try {
   console.info('browser: customer, seller and admin fulfillment paths PASS');
   console.info('browser: 1920, 1440, 430 and keyboard checks PASS');
 } finally {
-  socket.close();
-  await fetch(`${debugging}/json/close/${page.id}`).catch(() => undefined);
+  if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
+  if (page?.id) await fetch(`${debugging}/json/close/${page.id}`).catch(() => undefined);
   await new Promise((resolve) => setTimeout(resolve, 100));
 }

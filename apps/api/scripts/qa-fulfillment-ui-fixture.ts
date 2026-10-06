@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { Pool, type PoolClient } from 'pg';
 import { hashPassword } from '../src/auth/credentials.js';
@@ -20,6 +20,8 @@ export type FulfillmentUiManifest = {
   emails: string[];
   accountIds: string[];
   sellerIds: string[];
+  sellerCategoryId: string;
+  productCategoryIds: string[];
   productIds: string[];
   revisionIds: string[];
   optionIds: string[];
@@ -28,7 +30,10 @@ export type FulfillmentUiManifest = {
   shipmentIds: string[];
   addressId: string;
   previousFulfillmentSetting: PreviousSetting;
+  signature: string;
 };
+
+type UnsignedFulfillmentUiManifest = Omit<FulfillmentUiManifest, 'signature'>;
 
 function id(value: string) { return validateQaRunId(value); }
 function prefix(value: string) { return `qa-${id(value)}-fulfillment`; }
@@ -56,12 +61,38 @@ function exactUuidArray(value: unknown, length: number) {
     value.every((entry) => typeof entry === 'string' && uuid.test(entry));
 }
 
-export function validateFulfillmentUiManifest(value: string, candidate: unknown): FulfillmentUiManifest {
+function manifestPayload(manifest: UnsignedFulfillmentUiManifest) {
+  return JSON.stringify([
+    manifest.runId, manifest.emails, manifest.accountIds, manifest.sellerIds,
+    manifest.sellerCategoryId, manifest.productCategoryIds, manifest.productIds,
+    manifest.revisionIds, manifest.optionIds, manifest.orderIds, manifest.reservationIds,
+    manifest.shipmentIds, manifest.addressId, manifest.previousFulfillmentSetting,
+  ]);
+}
+
+export function signFulfillmentUiManifest(manifest: UnsignedFulfillmentUiManifest, password: string) {
+  if (typeof password !== 'string' || password.length < 12)
+    throw new Error('QA_FIXTURE_PASSWORD must be set');
+  return createHmac('sha256', password).update(manifestPayload(manifest)).digest('hex');
+}
+
+export function validateFulfillmentUiSystemTarget(value: string, expectedSystemId: string | undefined,
+  actual: { databaseName?: string; systemId?: string }) {
+  if (!/^\d{10,}$/.test(expectedSystemId ?? '') || actual.systemId !== expectedSystemId ||
+      actual.databaseName !== fulfillmentUiDatabaseName(value))
+    throw new Error('Fulfillment UI fixture requires its exact database system identifier and name');
+  return { databaseName: actual.databaseName, systemId: actual.systemId };
+}
+
+export function validateFulfillmentUiManifest(value: string, candidate: unknown,
+  password: string): FulfillmentUiManifest {
   const manifest = candidate as Partial<FulfillmentUiManifest> | null;
   const previous = manifest?.previousFulfillmentSetting as Partial<PreviousSetting> | undefined;
   if (!manifest || manifest.runId !== id(value) ||
       JSON.stringify(manifest.emails) !== JSON.stringify(fulfillmentUiEmails(value)) ||
       !exactUuidArray(manifest.accountIds, 5) || !exactUuidArray(manifest.sellerIds, 3) ||
+      typeof manifest.sellerCategoryId !== 'string' || !uuid.test(manifest.sellerCategoryId) ||
+      !exactUuidArray(manifest.productCategoryIds, 5) ||
       !exactUuidArray(manifest.productIds, 3) || !exactUuidArray(manifest.revisionIds, 3) ||
       !exactUuidArray(manifest.optionIds, 3) || !exactUuidArray(manifest.orderIds, 3) ||
       !exactUuidArray(manifest.reservationIds, 3) || !exactUuidArray(manifest.shipmentIds, 3) ||
@@ -70,9 +101,15 @@ export function validateFulfillmentUiManifest(value: string, candidate: unknown)
         (typeof previous.owoolSellerId === 'string' && uuid.test(previous.owoolSellerId))) ||
       !(previous.updatedBy === null || (typeof previous.updatedBy === 'string' && uuid.test(previous.updatedBy))) ||
       !Number.isInteger(previous.version) || Number(previous.version) < 0 ||
-      typeof previous.updatedAt !== 'string' || Number.isNaN(Date.parse(previous.updatedAt))) {
+      typeof previous.updatedAt !== 'string' || Number.isNaN(Date.parse(previous.updatedAt)) ||
+      typeof manifest.signature !== 'string' || !/^[0-9a-f]{64}$/.test(manifest.signature)) {
     throw new Error('Fulfillment UI reset requires exact creation manifest');
   }
+  const { signature, ...unsigned } = manifest as FulfillmentUiManifest;
+  const expected = Buffer.from(signFulfillmentUiManifest(unsigned, password), 'hex');
+  const supplied = Buffer.from(signature, 'hex');
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied))
+    throw new Error('Fulfillment UI reset manifest signature mismatch');
   return manifest as FulfillmentUiManifest;
 }
 
@@ -139,6 +176,7 @@ async function seedFixture(client: PoolClient, value: string, password: string):
   const productIds: string[] = [];
   const revisionIds: string[] = [];
   const optionIds: string[] = [];
+  const productCategoryIds: string[] = [];
   const majorIds = new Map<string, string>();
   for (const spec of productSpecs) {
     let majorId = majorIds.get(spec.major);
@@ -147,10 +185,12 @@ async function seedFixture(client: PoolClient, value: string, password: string):
         'INSERT INTO product_categories(name) VALUES ($1) RETURNING id',
         [`${fixturePrefix}-${spec.major}`])).rows[0].id;
       majorIds.set(spec.major, majorId);
+      productCategoryIds.push(majorId);
     }
     const minorId = (await client.query<{ id: string }>(
       'INSERT INTO product_categories(parent_id,name) VALUES ($1,$2) RETURNING id',
       [majorId, `${fixturePrefix}-${spec.item}`])).rows[0].id;
+    productCategoryIds.push(minorId);
     const productId = (await client.query<{ id: string }>(
       'INSERT INTO products(seller_id,category_id) VALUES ($1,$2) RETURNING id',
       [sellerIds[spec.sellerIndex], minorId])).rows[0].id;
@@ -274,17 +314,36 @@ async function seedFixture(client: PoolClient, value: string, password: string):
       `qa-${runId}-fulfillment-payment-${index}`, payableWon, fingerprint, paidAt]);
   }
 
-  return { runId, emails, accountIds, sellerIds, productIds, revisionIds, optionIds,
-    orderIds, reservationIds, shipmentIds, addressId, previousFulfillmentSetting };
+  const unsigned = { runId, emails, accountIds, sellerIds, sellerCategoryId, productCategoryIds,
+    productIds, revisionIds, optionIds, orderIds, reservationIds, shipmentIds, addressId,
+    previousFulfillmentSetting };
+  return { ...unsigned, signature: signFulfillmentUiManifest(unsigned, password) };
 }
 
 async function assertResetOwnership(client: PoolClient, manifest: FulfillmentUiManifest) {
   await client.query("SET LOCAL lock_timeout = '1s'");
   await client.query("SET LOCAL statement_timeout = '5s'");
   await client.query('SELECT id FROM accounts WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [manifest.accountIds]);
+  await client.query('SELECT id FROM seller_categories WHERE id=$1 FOR UPDATE', [manifest.sellerCategoryId]);
   await client.query('SELECT id FROM sellers WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [manifest.sellerIds]);
+  await client.query('SELECT id FROM product_categories WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+    [manifest.productCategoryIds]);
   await client.query('SELECT id FROM products WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [manifest.productIds]);
+  await client.query('SELECT id FROM product_revisions WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+    [manifest.revisionIds]);
+  await client.query('SELECT id FROM product_options WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+    [manifest.optionIds]);
+  await client.query('SELECT id FROM customer_addresses WHERE id=$1 FOR UPDATE', [manifest.addressId]);
+  await client.query('SELECT id FROM checkout_reservations WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+    [manifest.reservationIds]);
   await client.query('SELECT id FROM checkout_orders WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [manifest.orderIds]);
+  await client.query('SELECT id FROM shipment_orders WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+    [manifest.shipmentIds]);
+  await client.query(`SELECT shipment_order_id FROM shipment_fulfillments
+    WHERE shipment_order_id=ANY($1::uuid[]) ORDER BY shipment_order_id FOR UPDATE`, [manifest.shipmentIds]);
+  await client.query(`SELECT id FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[])
+    ORDER BY id FOR UPDATE`, [manifest.orderIds]);
+  await client.query('LOCK TABLE audit_events IN SHARE ROW EXCLUSIVE MODE');
 
   const identities = await client.query<{ account_id: string; kind: string; identifier: string }>(
     'SELECT account_id,kind,identifier FROM account_identities WHERE account_id=ANY($1::uuid[]) ORDER BY account_id',
@@ -302,6 +361,16 @@ async function assertResetOwnership(client: PoolClient, manifest: FulfillmentUiM
     const sellerId = index > 0 && index < 4 ? manifest.sellerIds[index - 1] : null;
     return index < 0 || row.role !== role || row.seller_id !== sellerId;
   })) throw new Error('Fulfillment UI fixture contains foreign role or ownership data');
+
+  const sellers = await client.query<{ id: string; category_id: string }>(
+    'SELECT id,category_id FROM sellers WHERE id=ANY($1::uuid[])', [manifest.sellerIds]);
+  const categories = await client.query<{ id: string; parent_id: string | null; name: string }>(
+    `SELECT id,parent_id,name FROM product_categories
+      WHERE id=ANY($1::uuid[]) OR name LIKE $2`,
+    [manifest.productCategoryIds, `${prefix(manifest.runId)}-%`]);
+  if (sellers.rows.length !== 3 || sellers.rows.some((row) => row.category_id !== manifest.sellerCategoryId) ||
+      categories.rows.length !== 5 || categories.rows.some((row) => !manifest.productCategoryIds.includes(row.id)))
+    throw new Error('Fulfillment UI fixture contains foreign category or ownership data');
 
   const scope = (await client.query<{
     accounts: number; sellers: number; products: number; revisions: number; options: number;
@@ -350,16 +419,38 @@ async function assertResetOwnership(client: PoolClient, manifest: FulfillmentUiM
   [manifest.shipmentIds, manifest.accountIds, manifest.sellerIds]);
   if (eventActors.rowCount) throw new Error('Fulfillment UI fixture has a foreign event actor');
 
+  const audits = await client.query<{ id: string; actor_account_id: string; active_role: string;
+    seller_id: string | null; action: string; target_type: string; target_id: string }>(
+    `SELECT id,actor_account_id,active_role,seller_id,action,target_type,target_id FROM audit_events
+      WHERE actor_account_id=ANY($1::uuid[]) ORDER BY id`, [manifest.accountIds]);
+  const allowedAudit = audits.rows.every((row) => {
+    const accountIndex = manifest.accountIds.indexOf(row.actor_account_id);
+    if (row.action === 'auth.login' && row.target_type === 'account' && row.target_id === row.actor_account_id) {
+      const expectedRole = accountIndex === 0 ? 'customer' : accountIndex === 4 ? 'admin' : 'seller';
+      const expectedSeller = accountIndex > 0 && accountIndex < 4 ? manifest.sellerIds[accountIndex - 1] : null;
+      return row.active_role === expectedRole && row.seller_id === expectedSeller;
+    }
+    if (row.action === 'fulfillment.seller_transition' && row.target_type === 'shipment_order')
+      return accountIndex > 0 && accountIndex < 4 && row.active_role === 'seller' &&
+        row.seller_id === manifest.sellerIds[accountIndex - 1] && manifest.shipmentIds.includes(row.target_id);
+    if (row.action === 'fulfillment.admin_correction' && row.target_type === 'shipment_order')
+      return accountIndex === 4 && row.active_role === 'admin' && row.seller_id === null &&
+        manifest.shipmentIds.includes(row.target_id);
+    return false;
+  });
+  if (!allowedAudit) throw new Error('Fulfillment UI fixture has foreign audit ownership data');
+
   const setting = (await client.query<{ owool_seller_id: string | null; updated_by: string | null; version: number }>(
     'SELECT owool_seller_id,updated_by,version FROM fulfillment_settings WHERE id=1 FOR UPDATE')).rows[0];
   if (!setting || setting.owool_seller_id !== manifest.sellerIds[2] ||
       setting.updated_by !== manifest.accountIds[4] ||
       setting.version !== manifest.previousFulfillmentSetting.version + 1)
     throw new Error('Fulfillment UI setting ownership differs from creation manifest');
+  return audits.rows.map((row) => row.id);
 }
 
 async function resetFixture(client: PoolClient, manifest: FulfillmentUiManifest) {
-  await assertResetOwnership(client, manifest);
+  const auditIds = await assertResetOwnership(client, manifest);
   await client.query(`DELETE FROM payment_event_conflicts WHERE original_event_id IN
     (SELECT e.id FROM payment_events e JOIN payment_attempts a ON a.id=e.payment_attempt_id
       WHERE a.checkout_order_id=ANY($1::uuid[])) OR incoming_attempt_id IN
@@ -380,38 +471,42 @@ async function resetFixture(client: PoolClient, manifest: FulfillmentUiManifest)
     WHERE id=1`, [manifest.previousFulfillmentSetting.owoolSellerId,
     manifest.previousFulfillmentSetting.updatedBy, manifest.previousFulfillmentSetting.version,
     manifest.previousFulfillmentSetting.updatedAt]);
-  await client.query('DELETE FROM audit_events WHERE actor_account_id=ANY($1::uuid[])', [manifest.accountIds]);
+  if (auditIds.length) await client.query('DELETE FROM audit_events WHERE id=ANY($1::uuid[])', [auditIds]);
   await client.query('DELETE FROM auth_sessions WHERE account_id=ANY($1::uuid[])', [manifest.accountIds]);
   await client.query('DELETE FROM product_publications WHERE product_id=ANY($1::uuid[])', [manifest.productIds]);
   await client.query('DELETE FROM inventory_levels WHERE option_id=ANY($1::uuid[])', [manifest.optionIds]);
   await client.query('DELETE FROM product_options WHERE id=ANY($1::uuid[])', [manifest.optionIds]);
   await client.query('DELETE FROM product_revisions WHERE id=ANY($1::uuid[])', [manifest.revisionIds]);
   await client.query('DELETE FROM products WHERE id=ANY($1::uuid[])', [manifest.productIds]);
-  const categoryPrefix = `${prefix(manifest.runId)}-%`;
-  await client.query('DELETE FROM product_categories WHERE name LIKE $1 AND parent_id IS NOT NULL', [categoryPrefix]);
-  await client.query('DELETE FROM product_categories WHERE name LIKE $1', [categoryPrefix]);
+  await client.query('DELETE FROM product_categories WHERE id=ANY($1::uuid[]) AND parent_id IS NOT NULL',
+    [manifest.productCategoryIds]);
+  await client.query('DELETE FROM product_categories WHERE id=ANY($1::uuid[])', [manifest.productCategoryIds]);
   await client.query('DELETE FROM account_roles WHERE account_id=ANY($1::uuid[])', [manifest.accountIds]);
   await client.query('DELETE FROM account_identities WHERE account_id=ANY($1::uuid[])', [manifest.accountIds]);
   await client.query('DELETE FROM accounts WHERE id=ANY($1::uuid[])', [manifest.accountIds]);
   await client.query('DELETE FROM sellers WHERE id=ANY($1::uuid[])', [manifest.sellerIds]);
-  await client.query('DELETE FROM seller_categories WHERE name=$1', [`${prefix(manifest.runId)}-sellers`]);
+  await client.query('DELETE FROM seller_categories WHERE id=$1', [manifest.sellerCategoryId]);
   return { accounts: 5, sellers: 3, products: 3, orders: 3, shipments: 3 };
 }
 
 export async function runFulfillmentUiFixture(action: 'seed' | 'reset', value: string,
-  databaseUrl: string, password?: string, manifestJson?: string) {
+  databaseUrl: string, password?: string, manifestJson?: string, expectedSystemId?: string) {
   const runId = id(value);
   validateFulfillmentUiTarget(databaseUrl, runId);
   if (action !== 'seed' && action !== 'reset') throw new Error('Invalid QA action');
-  if (action === 'seed' && (!password || password.length < 12)) throw new Error('QA_FIXTURE_PASSWORD must be set');
+  if (!password || password.length < 12) throw new Error('QA_FIXTURE_PASSWORD must be set');
   const manifest = action === 'reset'
-    ? validateFulfillmentUiManifest(runId, JSON.parse(manifestJson ?? 'null')) : null;
+    ? validateFulfillmentUiManifest(runId, JSON.parse(manifestJson ?? 'null'), password) : null;
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       await client.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+      const actualTarget = (await client.query<{ databaseName: string; systemId: string }>(
+        `SELECT current_database() AS "databaseName",system_identifier::text AS "systemId"
+          FROM pg_control_system()`)).rows[0];
+      validateFulfillmentUiSystemTarget(runId, expectedSystemId, actualTarget);
       const result = action === 'seed'
         ? await seedFixture(client, runId, password!) : await resetFixture(client, manifest!);
       await client.query('COMMIT');
@@ -428,7 +523,8 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   if (action !== 'seed' && action !== 'reset')
     throw new Error('usage: qa-fulfillment-ui-fixture.ts seed|reset');
   runFulfillmentUiFixture(action, process.env.QA_RUN_ID ?? '', process.env.DATABASE_URL ?? '',
-    process.env.QA_FIXTURE_PASSWORD, process.env.QA_FIXTURE_JSON)
+    process.env.QA_FIXTURE_PASSWORD, process.env.QA_FIXTURE_JSON,
+    process.env.S5_FULFILLMENT_UI_DB_SYSTEM_ID)
     .then((result) => { process.stdout.write(`${JSON.stringify(result)}\n`); })
     .catch((error) => {
       process.stderr.write(`${error instanceof Error ? error.message : 'Fulfillment UI fixture failed'}\n`);

@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 로컬 GREEN — 2026-10-06 S5.1 Task9 독립 리뷰 C1/I6/M0 보정
+
+- **판정:** 독립 리뷰의 Critical 1건과 Important 6건을 시험으로 RED 고정한 뒤 격리 fixture·브라우저 실행계약을 최소 보정했다. 현재 로컬 gate는 GREEN이지만 private PostgreSQL 재검증·독립 재리뷰·실제 Chrome 검증은 아직 남아 있어 Task9 완료 판정이 아니다.
+- **격리 강화:** fixture는 정확한 DB 이름과 PostgreSQL system identifier를 함께 대조하고, 비밀번호 HMAC으로 서명한 creation manifest에 판매자 분류·상품 분류 ID까지 포함한다. reset은 생성한 부모·자식·감사 관계를 잠근 뒤 manifest 밖 identity·category·audit·참조를 삭제 전에 거부하며, 정확한 manifest ID만 역참조 순서로 제거한다.
+- **브라우저 강화:** Web은 `http://127.0.0.1:9091`, Chrome DevTools는 `http://127.0.0.1:9229`만 허용하고 `S5_ISOLATED_FULFILLMENT_<runId>` 동의값과 서명 manifest를 요구한다. 화면의 보이는 활성 focus 요소 전체를 실제 Tab 순회로 확인하며, page/socket 생성 중 실패도 runner 정리 경계 안에서 닫는다. 컨테이너·network·터널·Chrome process/profile·evidence와 fixture reset은 외부 orchestration이 `trap/finally`로 정리한다.
+- **대상 검증:** 보정 대상 시험은 **5 tests / 4 pass / 0 fail / 1 private-DB skip**이고 API typecheck와 browser script syntax가 통과했다.
+- **전체 로컬 gate:** `pnpm test` 주 시험은 **401 total / 285 pass / 0 fail / 116 DB·환경 skip**, PR 본문 검사는 **8/8 PASS**다. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `git diff --check`는 모두 exit 0이고 Web build는 **18 routes**를 생성했다.
+- **변경 파일:** `apps/api/scripts/qa-fulfillment-ui-fixture.ts`, `scripts/qa-fulfillment-browser.mjs`, 이 `WORK_STATUS.md`다. schema/migration·제품 공개 API·dependency 변경은 없다.
+- **다음 조치:** 이 GREEN을 안전한 commit으로 보존하고 별칭 원격에 명시적으로 push한 뒤 WSL exact-SHA를 맞춘다. 새 private tmpfs PostgreSQL에서 wrong system ID·foreign identity·foreign category/audit 거부와 정상 reset 잔류0을 실제 검증하고, 독립 재리뷰 C0/I0 뒤 PMO에 실제 browser 실행계획을 보고한다. 공유 `local-postgres/shoppingmall`과 외부 공급자는 계속 제외한다.
+
 ## 실제 RED 준비 — 2026-10-06 S5.1 Task9 독립 리뷰 C1/I6/M0 보정
 
 - **판정:** exact `3f222a50d206567ec0488cafeb50b6cf254461de` 읽기 전용 독립 리뷰는 **Critical 1 / Important 6 / Minor 0**이다. 실제 브라우저 실행 승인 요청 전에 모두 해소해야 하며 private DB 앞선 1/1 PASS만으로 안전·브라우저 gate를 통과 처리하지 않는다.
