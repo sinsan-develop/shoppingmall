@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { basename, join, resolve } from 'node:path';
 import test from 'node:test';
 import { Pool } from 'pg';
 import { createApp } from '../src/app.ts';
 import { DatabaseService } from '../src/db/service.ts';
 import { hashSessionToken } from '../src/auth/credentials.ts';
+import { ImageQuarantine } from '../src/catalog/image-quarantine.ts';
 
 const name = 'shoppingmall_s52_schema_v6_1007';
 const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
 const fingerprint = 'a'.repeat(64);
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
 
 test('manual confirmation requires own paid SHIPPED line and reuses its idempotency key',
   { skip: !systemId }, async () => {
@@ -16,6 +22,10 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
     const pool = new Pool();
     const client = await pool.connect();
     let app;
+    let uploadRoot;
+    let scanServer;
+    const previousUpload = { enabled: process.env.ENABLE_LOCAL_UPLOAD,
+      root: process.env.SHOPPINGMALL_UPLOAD_ROOT, port: process.env.CLAMD_PORT };
     try {
       const identity = (await client.query(`SELECT current_database() AS name,
         system_identifier::text AS system_id FROM pg_control_system()`)).rows[0];
@@ -43,6 +53,9 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
       fulfillmentAccount])).rows[0].id;
       const option = (await client.query(`INSERT INTO product_options
         (revision_id,name,price_won) VALUES ($1,'기본',10000) RETURNING id`, [revision])).rows[0].id;
+      await client.query(`INSERT INTO product_publications
+        (product_id,revision_id,published_by_account_id) VALUES ($1,$2,$3)`,
+      [product, revision, fulfillmentAccount]);
       const makeShipment = async (owner, status) => {
         const address = (await client.query(`INSERT INTO customer_addresses
           (account_id,label,recipient_name,phone,postal_code,line1)
@@ -192,6 +205,7 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
       for (const [account, role, sellerId] of [
         [customer, 'customer', null], [otherCustomer, 'customer', null],
         [fulfillmentAccount, 'seller', fulfillmentSeller],
+        [productSellerAccount, 'admin', null],
       ]) {
         await client.query(`INSERT INTO account_roles(account_id,role,seller_id)
           VALUES ($1,$2,$3)`, [account, role, sellerId]);
@@ -263,10 +277,133 @@ test('manual confirmation requires own paid SHIPPED line and reuses its idempote
         'create idempotency key must not appear in review history JSON');
       assert.equal(JSON.stringify(reviewDetail).includes(editKey), false,
         'internal idempotency key must not appear in review history JSON');
+      const publicPath = `/catalog/products/${product}/customer-reviews`;
+      for (const invalid of ['limit=0','limit=51','cursor=bad','limit=abc'])
+        assert.equal((await fetch(`${base}${publicPath}?${invalid}`)).status, 400);
+      assert.equal((await fetch(`${base}${publicPath}?limit=50`)).status, 200);
+      assert.deepEqual(await (await fetch(base + publicPath)).json(),
+        { items: [], nextCursor: null }, 'PENDING review must not be public');
+      const approvalPath = `/admin/support/reviews/${httpReview.id}/approve`;
+      assert.equal((await reviewRequest(customer, approvalPath, 'POST', {})).status, 403);
+      assert.equal((await reviewRequest(fulfillmentAccount, approvalPath, 'POST', {})).status, 403);
+      const image = (await client.query(`INSERT INTO support_review_images
+        (review_id,object_key,mime_type,size_bytes)
+        VALUES ($1,$2,'image/webp',100) RETURNING id`,
+      [httpReview.id, `quarantine/${randomUUID()}.webp`])).rows[0].id;
+      assert.equal((await reviewRequest(productSellerAccount, approvalPath, 'POST', {})).status,
+        503, 'image without scan PASS must fail closed');
+      assert.deepEqual(await (await fetch(base + publicPath)).json(),
+        { items: [], nextCursor: null });
+      await client.query(`UPDATE support_review_images SET scan_status='PASS',
+        scanned_at=now() WHERE id=$1`, [image]);
+      assert.equal((await reviewRequest(productSellerAccount, approvalPath, 'POST', {},
+        randomUUID())).status, 503,
+      'DB PASS flag alone cannot approve a missing image file');
+      uploadRoot = await mkdtemp(join(tmpdir(), 'shoppingmall-upload-s52-review-'));
+      process.env.ENABLE_LOCAL_UPLOAD = '1';
+      process.env.SHOPPINGMALL_UPLOAD_ROOT = uploadRoot;
+      const store = new ImageQuarantine(uploadRoot);
+      const staged = await store.put(png, 'image/png');
+      const imagePath = join(uploadRoot, staged.objectKey);
+      const originalBytes = await readFile(imagePath);
+      await client.query(`UPDATE support_review_images
+        SET object_key=$2,mime_type=$3,size_bytes=$4,scan_status='PENDING',scanned_at=NULL
+        WHERE id=$1`, [image, staged.objectKey, staged.mimeType, staged.sizeBytes]);
+      let scanVerdict = 'stream: TEST FOUND\0';
+      let scanFrames = 0;
+      scanServer = createServer((socket) => socket.once('data', (frame) => {
+        if (frame.subarray(0, 10).toString() === 'zINSTREAM\0') scanFrames++;
+        socket.end(scanVerdict);
+      }));
+      await new Promise((done, reject) => {
+        scanServer.once('error', reject);
+        scanServer.listen(0, '127.0.0.1', done);
+      });
+      process.env.CLAMD_PORT = String(scanServer.address().port);
+      assert.equal((await reviewRequest(productSellerAccount, approvalPath, 'POST', {},
+        randomUUID())).status, 503, 'scanner rejection must leave review private');
+      assert.equal((await client.query('SELECT scan_status FROM support_review_images WHERE id=$1',
+        [image])).rows[0].scan_status, 'PENDING');
+      scanVerdict = 'stream: OK\0';
+      const approved = await reviewRequest(productSellerAccount, approvalPath, 'POST', {});
+      assert.equal(approved.status, 200);
+      assert.equal((await approved.json()).status, 'APPROVED');
+      assert.ok(scanFrames >= 2, 'approval must send actual file bytes to the scanner');
+      assert.equal((await reviewRequest(productSellerAccount, approvalPath, 'POST', {})).status, 200);
+      const published = await (await fetch(base + publicPath)).json();
+      assert.equal(published.items.length, 1);
+      assert.equal(published.items[0].id, httpReview.id);
+      assert.equal(published.items[0].body, editBody.text);
+      assert.deepEqual(published.items[0].imageIds, [image]);
+      assert.equal(JSON.stringify(published).includes(customer), false);
+      assert.equal(JSON.stringify(published).includes(reviewKey), false);
+      assert.equal(JSON.stringify(published).includes(staged.objectKey), false);
+      const imagePublicPath = `${publicPath}/${httpReview.id}/images/${image}`;
+      assert.equal((await fetch(base + imagePublicPath)).status, 200);
+      await writeFile(imagePath, Buffer.from('tampered'));
+      assert.equal((await fetch(base + imagePublicPath)).status, 503,
+        'file changed after approval must not be served');
+      await writeFile(imagePath, originalBytes);
+      assert.equal((await fetch(base + imagePublicPath)).status, 200);
+      await client.query('DELETE FROM product_publications WHERE product_id=$1', [product]);
+      assert.deepEqual(await (await fetch(base + publicPath)).json(),
+        { items: [], nextCursor: null }, 'withdrawn publication must hide reviews');
+      await client.query(`INSERT INTO product_publications
+        (product_id,revision_id,published_by_account_id) VALUES ($1,$2,$3)`,
+      [product, revision, fulfillmentAccount]);
+      const reeditKey = randomUUID();
+      assert.equal((await reviewRequest(customer, detailPath, 'PUT',
+        { rating: 3, text: '재수정 웹 리뷰' }, reeditKey)).status, 200);
+      assert.deepEqual(await (await fetch(base + publicPath)).json(),
+        { items: [], nextCursor: null }, 'edit must require new approval');
+      assert.equal((await fetch(base + imagePublicPath)).status, 404);
+      assert.equal((await reviewRequest(productSellerAccount, approvalPath, 'POST', {},
+        randomUUID())).status, 200);
+      assert.equal((await (await fetch(base + publicPath)).json()).items[0].body, '재수정 웹 리뷰');
+      const reportPath = `${detailPath}/reports`;
+      assert.equal((await reviewRequest(fulfillmentAccount, reportPath, 'POST',
+        { reason: '허위 리뷰' })).status, 403);
+      assert.equal((await reviewRequest(otherCustomer, reportPath, 'POST',
+        { reason: '허위 리뷰' })).status, 200);
+      assert.equal((await reviewRequest(otherCustomer, reportPath, 'POST',
+        { reason: '허위 리뷰' })).status, 200);
+      assert.equal((await reviewRequest(otherCustomer, reportPath, 'POST',
+        { reason: '다른 사유' })).status, 409);
+      const hidePath = `/admin/support/reviews/${httpReview.id}/hide`;
+      assert.equal((await reviewRequest(customer, hidePath, 'POST',
+        { reason: '숨김' })).status, 403);
+      assert.equal((await reviewRequest(productSellerAccount, hidePath, 'POST',
+        { reason: '운영 검토' })).status, 200);
+      assert.equal((await reviewRequest(productSellerAccount, hidePath, 'POST',
+        { reason: '운영 검토' })).status, 200);
+      assert.equal((await reviewRequest(productSellerAccount, hidePath, 'POST',
+        { reason: '변경된 사유' })).status, 409);
+      assert.deepEqual(await (await fetch(base + publicPath)).json(),
+        { items: [], nextCursor: null }, 'HIDDEN review must disappear immediately');
+      const actions = (await client.query(`SELECT action FROM support_review_events
+        WHERE review_id=$1 ORDER BY event_seq`, [httpReview.id])).rows.map((row) => row.action);
+      assert.deepEqual(actions, ['CREATED','EDITED','APPROVED','EDITED','APPROVED','REPORTED','HIDDEN']);
+      const hiddenDetail = await (await reviewRequest(customer, detailPath, 'GET')).json();
+      assert.equal(JSON.stringify(hiddenDetail).includes(reviewKey), false);
+      assert.equal(JSON.stringify(hiddenDetail).includes(reeditKey), false);
+      assert.equal(JSON.stringify(hiddenDetail).includes('허위 리뷰'), false,
+        'another customer report reason must remain admin-private');
     } finally {
       if (app) await app.close();
       await client.query('ROLLBACK');
       client.release();
       await pool.end();
+      if (scanServer) await new Promise((done) => scanServer.close(done));
+      if (uploadRoot) {
+        assert.equal(resolve(uploadRoot).startsWith(resolve(tmpdir()) + '\\'), true);
+        assert.match(basename(uploadRoot), /^shoppingmall-upload-s52-review-/);
+        await rm(uploadRoot, { recursive: true });
+        await assert.rejects(() => access(uploadRoot), { code: 'ENOENT' });
+      }
+      for (const [key, value] of Object.entries({ ENABLE_LOCAL_UPLOAD: previousUpload.enabled,
+        SHOPPINGMALL_UPLOAD_ROOT: previousUpload.root, CLAMD_PORT: previousUpload.port })) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
     }
   });

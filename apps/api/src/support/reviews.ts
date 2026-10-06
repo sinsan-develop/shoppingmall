@@ -1,5 +1,8 @@
 import { Pool } from 'pg';
+import { createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
+import type { ImageQuarantine } from '../catalog/image-quarantine.js';
+import type { parseQuestionPageQuery } from './questions.js';
 
 type Db = Pool | PoolClient;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -150,7 +153,8 @@ export async function getCustomerReview(db: Db, customerAccountId: string, revie
     beforeValue: Record<string, unknown>; afterValue: Record<string, unknown>;
     occurredAt: Date }>(`SELECT action,actor_role AS "actorRole",reason,
       before_value AS "beforeValue",after_value AS "afterValue",occurred_at AS "occurredAt"
-    FROM support_review_events WHERE review_id=$1 ORDER BY event_seq`, [reviewId])).rows;
+    FROM support_review_events WHERE review_id=$1 AND action<>'REPORTED'
+    ORDER BY event_seq`, [reviewId])).rows;
   const content = (value: Record<string, unknown>) => ({
     ...(typeof value.rating === 'number' ? { rating: value.rating } : {}),
     ...(typeof value.body === 'string' ? { body: value.body } : {}),
@@ -161,4 +165,206 @@ export async function getCustomerReview(db: Db, customerAccountId: string, revie
     beforeValue: content(event.beforeValue), afterValue: content(event.afterValue),
     occurredAt: event.occurredAt,
   })) };
+}
+
+async function inReviewTransaction<T>(db: Db, operation: (client: PoolClient) => Promise<T>): Promise<T> {
+  if (!(db instanceof Pool)) return operation(db as PoolClient);
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await operation(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+}
+
+export async function approveReview(db: Db, input: { reviewId: string; adminAccountId: string;
+  idempotencyKey: string; store?: ImageQuarantine;
+  scan?: (bytes: Buffer) => Promise<void> }) {
+  if (!uuid.test(input.reviewId) || !uuid.test(input.adminAccountId) ||
+      !uuid.test(input.idempotencyKey))
+    throw new Error('Invalid support request');
+  return inReviewTransaction(db, async (client) => {
+    const review = (await client.query<ReviewRow & { rating: number; body: string }>(`
+      SELECT id,status,version,rating,body FROM support_reviews WHERE id=$1 FOR UPDATE`,
+    [input.reviewId])).rows[0];
+    if (!review) throw new Error('Support unavailable');
+    await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
+      [`support-review-approve:${input.adminAccountId}:${input.idempotencyKey}`]);
+    const retry = (await client.query<{ reviewId: string; version: number }>(`
+      SELECT review_id AS "reviewId",(after_value->>'version')::int AS version
+      FROM support_review_events WHERE action='APPROVED' AND actor_account_id=$1
+        AND after_value->>'idempotencyKey'=$2`,
+    [input.adminAccountId, input.idempotencyKey])).rows[0];
+    if (retry) {
+      if (retry.reviewId !== review.id) throw new Error('Support conflict');
+      return { id: review.id, status: 'APPROVED', version: retry.version };
+    }
+    if (review.status !== 'PENDING') throw new Error('Support conflict');
+    const images = (await client.query<{ id: string; objectKey: string }>(`
+      SELECT id,object_key AS "objectKey" FROM support_review_images
+      WHERE review_id=$1 ORDER BY id FOR UPDATE`, [review.id])).rows;
+    const imageHashes: Record<string, string> = {};
+    for (const image of images) {
+      if (!input.store || !input.scan) throw new Error('Support scan unavailable');
+      try {
+        const bytes = await input.store.read(image.objectKey);
+        await input.scan(bytes);
+        const digest = createHash('sha256').update(bytes).digest('hex');
+        const current = await input.store.read(image.objectKey);
+        if (createHash('sha256').update(current).digest('hex') !== digest)
+          throw new Error('Support scan unavailable');
+        imageHashes[image.id] = digest;
+        await client.query(`UPDATE support_review_images
+          SET scan_status='PASS',scanned_at=now() WHERE id=$1`, [image.id]);
+      } catch { throw new Error('Support scan unavailable'); }
+    }
+    await client.query(`UPDATE support_reviews SET status='APPROVED',approved_by=$2,
+      approved_at=now(),updated_at=now() WHERE id=$1`, [review.id, input.adminAccountId]);
+    await client.query(`INSERT INTO support_review_events
+      (review_id,action,actor_account_id,actor_role,before_value,after_value)
+      VALUES ($1,'APPROVED',$2,'admin',$3::jsonb,$4::jsonb)`,
+    [review.id, input.adminAccountId,
+      JSON.stringify({ status: review.status, version: review.version }),
+      JSON.stringify({ status: 'APPROVED', version: review.version,
+        idempotencyKey: input.idempotencyKey, imageHashes })]);
+    return { id: review.id, status: 'APPROVED', version: review.version };
+  });
+}
+
+export async function reportReview(db: Db, input: {
+  reviewId: string; customerAccountId: string; reason: string;
+}) {
+  if (!uuid.test(input.reviewId) || !uuid.test(input.customerAccountId) ||
+      typeof input.reason !== 'string' || !input.reason.trim() ||
+      input.reason.trim().length > 500) throw new Error('Invalid support request');
+  const reason = input.reason.trim();
+  return inReviewTransaction(db, async (client) => {
+    const review = (await client.query(`SELECT id FROM support_reviews
+      WHERE id=$1 AND status='APPROVED'`, [input.reviewId])).rows[0];
+    if (!review) throw new Error('Support unavailable');
+    const created = (await client.query<{ id: string }>(`INSERT INTO support_review_reports
+      (review_id,reporter_account_id,reason) VALUES ($1,$2,$3)
+      ON CONFLICT (review_id,reporter_account_id) DO NOTHING RETURNING id`,
+    [input.reviewId, input.customerAccountId, reason])).rows[0];
+    if (created) {
+      await client.query(`INSERT INTO support_review_events
+        (review_id,action,actor_account_id,actor_role,reason)
+        VALUES ($1,'REPORTED',$2,'customer',$3)`,
+      [input.reviewId, input.customerAccountId, reason]);
+      return { id: created.id };
+    }
+    const existing = (await client.query<{ id: string; reason: string }>(`
+      SELECT id,reason FROM support_review_reports
+      WHERE review_id=$1 AND reporter_account_id=$2`,
+    [input.reviewId, input.customerAccountId])).rows[0];
+    if (!existing) throw new Error('Support unavailable');
+    if (existing.reason !== reason) throw new Error('Support conflict');
+    return { id: existing.id };
+  });
+}
+
+export async function hideReview(db: Db, input: {
+  reviewId: string; adminAccountId: string; reason: string; idempotencyKey: string;
+}) {
+  if (!uuid.test(input.reviewId) || !uuid.test(input.adminAccountId) ||
+      !uuid.test(input.idempotencyKey) ||
+      typeof input.reason !== 'string' || !input.reason.trim() ||
+      input.reason.trim().length > 500) throw new Error('Invalid support request');
+  const reason = input.reason.trim();
+  return inReviewTransaction(db, async (client) => {
+    const review = (await client.query<ReviewRow>(`
+      SELECT id,status,version
+      FROM support_reviews WHERE id=$1 FOR UPDATE`, [input.reviewId])).rows[0];
+    if (!review) throw new Error('Support unavailable');
+    await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
+      [`support-review-hide:${input.adminAccountId}:${input.idempotencyKey}`]);
+    const retry = (await client.query<{ reviewId: string; reason: string; version: number }>(`
+      SELECT review_id AS "reviewId",reason,(after_value->>'version')::int AS version
+      FROM support_review_events WHERE action='HIDDEN' AND actor_account_id=$1
+        AND after_value->>'idempotencyKey'=$2`,
+    [input.adminAccountId, input.idempotencyKey])).rows[0];
+    if (retry) {
+      if (retry.reviewId !== review.id || retry.reason !== reason)
+        throw new Error('Support conflict');
+      return { id: review.id, status: 'HIDDEN', version: retry.version };
+    }
+    if (review.status === 'HIDDEN') {
+      throw new Error('Support conflict');
+    }
+    await client.query(`UPDATE support_reviews SET status='HIDDEN',hidden_by=$2,
+      hidden_at=now(),hidden_reason=$3,updated_at=now() WHERE id=$1`,
+    [review.id, input.adminAccountId, reason]);
+    await client.query(`INSERT INTO support_review_events
+      (review_id,action,actor_account_id,actor_role,reason,before_value,after_value)
+      VALUES ($1,'HIDDEN',$2,'admin',$3,$4::jsonb,$5::jsonb)`,
+    [review.id, input.adminAccountId, reason,
+      JSON.stringify({ status: review.status, version: review.version }),
+      JSON.stringify({ status: 'HIDDEN', version: review.version,
+        idempotencyKey: input.idempotencyKey })]);
+    return { id: review.id, status: 'HIDDEN', version: review.version };
+  });
+}
+
+export async function listPublicReviews(db: Db, productId: string,
+  page: ReturnType<typeof parseQuestionPageQuery> = { limit: 20 }) {
+  if (!uuid.test(productId)) throw new Error('Invalid support request');
+  const results = (await db.query<{ id: string; rating: number; body: string;
+    version: number; createdAt: Date; cursorTime: string; imageIds: string[] }>(`
+    SELECT r.id,r.rating,r.body,r.version,
+    r.created_at AS "createdAt",
+    COALESCE((SELECT array_agg(image.id ORDER BY image.id) FROM support_review_images image
+      WHERE image.review_id=r.id AND image.scan_status='PASS'),ARRAY[]::uuid[]) AS "imageIds",
+    to_char(r.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "cursorTime"
+    FROM support_reviews r
+    JOIN product_publications pub ON pub.product_id=r.product_id
+    JOIN product_revisions revision ON revision.id=pub.revision_id
+      AND revision.product_id=r.product_id
+    WHERE r.product_id=$1 AND r.status='APPROVED' AND revision.status='approved'
+      AND NOT EXISTS (SELECT 1 FROM support_review_images image
+        WHERE image.review_id=r.id AND image.scan_status<>'PASS')
+      AND ($2::timestamptz IS NULL OR
+        (r.created_at,r.id)<($2::timestamptz,$3::uuid))
+    ORDER BY r.created_at DESC,r.id DESC LIMIT $4`,
+  [productId, page.cursor?.createdAt ?? null, page.cursor?.id ?? null,
+    page.limit + 1])).rows;
+  const rows = results.slice(0, page.limit);
+  const last = rows.at(-1);
+  return { items: rows.map(({ id, rating, body, version, createdAt, imageIds }) =>
+    ({ id, rating, body, version, createdAt, imageIds })),
+    nextCursor: results.length > page.limit && last ? Buffer.from(JSON.stringify({
+      createdAt: last.cursorTime, id: last.id,
+    })).toString('base64url') : null };
+}
+
+export async function readPublicReviewImage(db: Db, input: {
+  productId: string; reviewId: string; imageId: string; store: ImageQuarantine;
+}) {
+  if (![input.productId, input.reviewId, input.imageId].every((id) => uuid.test(id)))
+    throw new Error('Invalid support request');
+  const image = (await db.query<{ objectKey: string; imageHashes: Record<string, string> }>(`
+    SELECT image.object_key AS "objectKey",event.after_value->'imageHashes' AS "imageHashes"
+    FROM support_review_images image
+    JOIN support_reviews review ON review.id=image.review_id
+    JOIN product_publications pub ON pub.product_id=review.product_id
+    JOIN product_revisions revision ON revision.id=pub.revision_id
+      AND revision.product_id=review.product_id
+    JOIN LATERAL (SELECT after_value FROM support_review_events
+      WHERE review_id=review.id AND action='APPROVED'
+      ORDER BY event_seq DESC LIMIT 1) event ON true
+    WHERE review.product_id=$1 AND review.id=$2 AND image.id=$3
+      AND review.status='APPROVED' AND image.scan_status='PASS'
+      AND revision.status='approved'`,
+  [input.productId, input.reviewId, input.imageId])).rows[0];
+  if (!image || !/^[0-9a-f]{64}$/.test(image.imageHashes?.[input.imageId] ?? ''))
+    throw new Error('Support unavailable');
+  try {
+    const bytes = await input.store.read(image.objectKey);
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    if (digest !== image.imageHashes[input.imageId]) throw new Error('Support image unavailable');
+    return bytes;
+  } catch { throw new Error('Support image unavailable'); }
 }
