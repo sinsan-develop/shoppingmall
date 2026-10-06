@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## Task9 정합화 완료 — 2026-10-06 fixture/runner 준비·private DB 안전검증
+
+- **판정:** PMO가 승인 계획을 재확인해 private Chrome 실행 요청을 철회했다. Task9는 fixture·runner 준비와 private DB 안전검증까지 완료했으며 실제 Chrome은 **미실행**이다. 이 상태를 화면·viewport·키보드 PASS로 승격하지 않는다.
+- **근거:** 현재 exact SHA 이전 코드 gate는 local 제품 **405 total / 289 pass / 116 환경 skip / 0 fail**, PR body 8/8, typecheck/lint/build 18 routes PASS다. private DB safety는 migration16, 1/1 PASS, 외부 identity/audit/category 보존·거부, late insert 잠금/FK 거부, reset 업무행0·singleton1, 임시자원0다. 최종 독립 review는 C0/I0/M0다.
+- **산출물:** 실제 파일명 기준 fixture·runner·시험과 실행 경계를 `docs/S5_FULFILLMENT_DEVELOPMENT_TEST_GUIDE.md`에 고정했다. runner는 준비됐지만 Task11 승인 전에는 실행하지 않는다.
+- **계획 정정:** 아래 과거 기록 중 private Chrome 실행을 다음 조치로 적은 문구는 당시 제안 이력이며 현재 지시가 아니다. 승인 계획 Task9 line 281, Task11 line 320, Task12 lines 324~328을 우선한다.
+- **다음 조치:** 이미 검증된 Task9 private fixture 안전시험은 반복하지 않는다. Task10의 fresh 0000~0015, 0000~0014→0015 upgrade, S5.1 목표·전체 gate, 잔류·임시자원0, WSL exact-SHA, 독립 C0/I0를 수행한 뒤 Task11 공유 DB 적용 승인 패킷을 PMO에 보고한다.
+
 ## 독립 리뷰 통과 — 2026-10-06 S5.1 Task9 실제 Chrome 실행 전 gate
 
 - **판정·기준:** exact commit `553d4af28bbe30d975fadb80a5dae547ac936f9a`의 읽기 전용 최종 독립 재리뷰는 **Critical 0 / Important 0 / Minor 0**이다. reviewer가 관련 단위·계약시험을 별도로 실행해 **8/8 PASS**했고 현재 HEAD·clean 상태를 확인했다.
