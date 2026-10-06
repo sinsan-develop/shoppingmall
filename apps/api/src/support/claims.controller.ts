@@ -9,7 +9,7 @@ import { AuthRepository } from '../auth/repository.js';
 import { ImageQuarantine } from '../catalog/image-quarantine.js';
 import { DatabaseService } from '../db/service.js';
 import { addClaimEvidence, createClaim, getClaim, listClaims, parseClaimPageQuery,
-  readClaimEvidence, replyToClaim } from './claims.js';
+  readClaimEvidence, rejectClaim, replyToClaim } from './claims.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string } };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -228,6 +228,24 @@ export class AdminSupportClaimController {
       undefined, claimId));
     if (!claim) throw new NotFoundException();
     return claim;
+  }
+
+  @Post(':claimId/decision')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async decide(@Req() request: RequestHeaders, @Param('claimId') claimId: string,
+    @Body() value: unknown) {
+    requireOrigin(request);
+    const { pool, actor } = await context(this.database, request, 'admin');
+    const key = request.headers['idempotency-key'];
+    if (!key || !uuid.test(key) || !value || typeof value !== 'object' ||
+        Array.isArray(value) || Object.keys(value).sort().join(',') !== 'decision,reason')
+      throw new BadRequestException({ status: 'invalid_support' });
+    const body = value as { decision?: unknown; reason?: unknown };
+    if (body.decision !== 'reject' || typeof body.reason !== 'string')
+      throw new BadRequestException({ status: 'invalid_support' });
+    return handle(() => rejectClaim(pool, { claimId, adminAccountId: actor.accountId,
+      reason: body.reason as string, idempotencyKey: key }));
   }
 
   @Get(':claimId/evidence/:evidenceId')

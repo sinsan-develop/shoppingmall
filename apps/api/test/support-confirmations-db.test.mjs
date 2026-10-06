@@ -673,6 +673,32 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
         'a sixth private claim image must be refused');
       assert.equal((await client.query(`SELECT count(*)::int AS n FROM support_claim_evidence
         WHERE claim_id=$1`, [httpClaim.id])).rows[0].n, 5);
+      const decisionPath = `/admin/support/claims/${httpClaim.id}/decision`;
+      const decisionKey = randomUUID();
+      const rejectBody = { decision: 'reject', reason: '비공개 증빙과 답변을 검토했습니다' };
+      assert.equal((await reviewRequest(customer, decisionPath, 'POST', rejectBody,
+        randomUUID())).status, 403);
+      assert.equal((await reviewRequest(sellerSupportAccount, decisionPath, 'POST', rejectBody,
+        randomUUID())).status, 403);
+      const rejectionResponse = await reviewRequest(productSellerAccount, decisionPath,
+        'POST', rejectBody, decisionKey);
+      assert.equal(rejectionResponse.status, 200);
+      const rejected = await rejectionResponse.json();
+      assert.equal(rejected.status, 'REJECTED');
+      assert.equal(rejected.goodsRefundWon, 0);
+      assert.equal((await (await reviewRequest(productSellerAccount, decisionPath,
+        'POST', rejectBody, decisionKey)).json()).id, httpClaim.id);
+      assert.equal((await reviewRequest(productSellerAccount, decisionPath, 'POST',
+        { ...rejectBody, reason: '다른 결정' }, decisionKey)).status, 409);
+      assert.equal((await reviewRequest(productSellerAccount,
+        `/admin/support/claims/${remainingClaim.id}/decision`, 'POST', rejectBody,
+        decisionKey)).status, 409);
+      assert.equal((await reply(sellerSupportAccount, '결정 후 새 답변', randomUUID())).status, 409);
+      const rejectedDetail = await (await reviewRequest(customer,
+        customerClaimPath, 'GET')).json();
+      assert.equal(rejectedDetail.events.filter((event) => event.action === 'REJECTED').length, 1);
+      assert.equal((await client.query(`SELECT count(*)::int AS n FROM refund_cases
+        WHERE post_shipment_claim_id=$1`, [httpClaim.id])).rows[0].n, 0);
     } finally {
       if (app) await app.close();
       await client.query('ROLLBACK');

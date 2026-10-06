@@ -13,6 +13,7 @@ const isolatedDatabases = new Set([
   'shoppingmall_s52_schema_v4_1007',
   'shoppingmall_s52_schema_v5_1007',
   'shoppingmall_s52_schema_v6_1007',
+  'shoppingmall_s52_schema_v7_1007',
 ]);
 
 test('0016~0018 create private support relations without changing existing orders', {

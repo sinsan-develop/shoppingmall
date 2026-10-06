@@ -160,14 +160,15 @@ export async function getClaim(db: Db, scope: ClaimScope, actorAccountId: string
   const claim = (await db.query<{ id: string; orderId: string; shipmentOrderId: string;
     optionId: string; productId: string; customerAccountId: string; sellerId: string;
     kind: string; reasonCode: string; reason: string; quantity: number; status: string;
-    policyVersionId: string | null; decisionReason: string | null;
+    policyVersionId: string | null; decisionReason: string | null; goodsRefundWon: number;
     decidedAt: Date | null; createdAt: Date }>(`
     SELECT c.id,c.checkout_order_id AS "orderId",
       c.shipment_order_id AS "shipmentOrderId",c.option_id AS "optionId",
       c.product_id AS "productId",c.customer_account_id AS "customerAccountId",
       c.seller_id AS "sellerId",c.kind,c.reason_code AS "reasonCode",
       c.reason,c.quantity,c.status,c.policy_version_id AS "policyVersionId",
-      c.decision_reason AS "decisionReason",c.decided_at AS "decidedAt",
+      c.decision_reason AS "decisionReason",c.goods_refund_won AS "goodsRefundWon",
+      c.decided_at AS "decidedAt",
       c.created_at AS "createdAt" FROM support_claims c
     WHERE c.id=$1 AND ${where}`,
   scope === 'admin' ? [claimId] : scope === 'customer' ?
@@ -326,4 +327,75 @@ export async function readClaimEvidence(db: Db, input: { claimId: string;
   if (!evidence) throw new Error('Support unavailable');
   try { return await input.store.read(evidence.objectKey); }
   catch { throw new Error('Support evidence unavailable'); }
+}
+
+export async function rejectClaim(db: Db, input: { claimId: string;
+  adminAccountId: string; reason: string; idempotencyKey: string }) {
+  if (![input.claimId,input.adminAccountId,input.idempotencyKey]
+    .every((id) => uuid.test(id)) || typeof input.reason !== 'string' ||
+    !input.reason.trim() || input.reason.trim().length > 500)
+    throw new Error('Invalid support request');
+  const reason = input.reason.trim();
+  const fingerprint = createHash('sha256').update(JSON.stringify({
+    decision: 'reject',reason,
+  })).digest('hex');
+  const ownsTransaction = db instanceof Pool;
+  const client = ownsTransaction ? await db.connect() : db as PoolClient;
+  try {
+    if (ownsTransaction) await client.query('BEGIN');
+    const admin = await client.query(`SELECT 1 FROM accounts actor
+      JOIN account_roles role_grant ON role_grant.account_id=actor.id
+      WHERE actor.id=$1 AND actor.disabled_at IS NULL AND role_grant.role='admin'`,
+    [input.adminAccountId]);
+    if (!admin.rowCount) throw new Error('Support unavailable');
+    // Serialize the decision key before taking a claim row lock. The same key may
+    // target two different claim rows, so a row lock alone cannot prevent races.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
+      [`support-claim-decision:${input.adminAccountId}:${input.idempotencyKey}`]);
+    const claim = (await client.query<{ status: string; decisionBy: string | null;
+      decisionIdempotencyKey: string | null; decisionFingerprint: string | null }>(`
+      SELECT status,decision_by AS "decisionBy",
+        decision_idempotency_key AS "decisionIdempotencyKey",
+        decision_fingerprint AS "decisionFingerprint"
+      FROM support_claims WHERE id=$1 FOR UPDATE`, [input.claimId])).rows[0];
+    if (!claim) throw new Error('Support unavailable');
+    const reused = (await client.query<{ id: string }>(`SELECT id FROM support_claims
+      WHERE decision_by=$1 AND decision_idempotency_key=$2`,
+    [input.adminAccountId,input.idempotencyKey])).rows[0];
+    if (reused && reused.id !== input.claimId) throw new Error('Support conflict');
+    if (claim.decisionBy) {
+      if (claim.decisionBy !== input.adminAccountId ||
+          claim.decisionIdempotencyKey !== input.idempotencyKey ||
+          claim.decisionFingerprint !== fingerprint)
+        throw new Error('Support conflict');
+      const prior = await getClaim(client, 'admin', input.adminAccountId, undefined, input.claimId);
+      if (ownsTransaction) await client.query('COMMIT');
+      return prior!;
+    }
+    if (!['REQUESTED','SELLER_REPLIED'].includes(claim.status))
+      throw new Error('Support conflict');
+    const policy = (await client.query<{ id: string }>(`SELECT id FROM support_policy_versions
+      WHERE code='POST_SHIPMENT_TRIAL' AND effective_at<=now()
+      ORDER BY version DESC LIMIT 1`, [])).rows[0];
+    if (!policy) throw new Error('Support unavailable');
+    await client.query(`UPDATE support_claims SET status='REJECTED',
+      policy_version_id=$2,decision_by=$3,decision_reason=$4,
+      decided_at=clock_timestamp(),decision_idempotency_key=$5,decision_fingerprint=$6
+      WHERE id=$1`, [input.claimId,policy.id,input.adminAccountId,reason,
+      input.idempotencyKey,fingerprint]);
+    await client.query(`INSERT INTO support_claim_events
+      (claim_id,action,actor_account_id,actor_role,reason,before_status,after_status)
+      VALUES ($1,'REJECTED',$2,'admin',$3,$4,'REJECTED')`,
+    [input.claimId,input.adminAccountId,reason,claim.status]);
+    const result = await getClaim(client, 'admin', input.adminAccountId, undefined, input.claimId);
+    if (ownsTransaction) await client.query('COMMIT');
+    return result!;
+  } catch (error) {
+    if (ownsTransaction) await client.query('ROLLBACK');
+    if (error && typeof error === 'object' && 'code' in error &&
+        error.code === '23505' && 'constraint' in error &&
+        error.constraint === 'support_claims_decision_author_key_uq')
+      throw new Error('Support conflict');
+    throw error;
+  } finally { if (ownsTransaction) client.release(); }
 }

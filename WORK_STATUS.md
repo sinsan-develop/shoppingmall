@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## S5.2 관리자 거절 결정·동시 멱등키 checkpoint — 2026-10-07
+
+- **판정/담당:** 단일 writer 어울, 지정 S5.2 worktree/branch 유지. Main이 승인 SSH alias 원격 작업 브랜치에 exact `4d0780a` push 완료(main/PR 미변경)라고 직접 보고했다. 이번 세션에서 원격 재조회는 하지 않았으므로 원격 복구 ref는 **Main 보고 기준 `4d0780a`**다. 공유 WSL `local-postgres/shoppingmall`·Oracle·실 Provider·credential·push/PR/merge 변경0.
+- **변경 전→후:** 관리자 결정 API는 미구현이었다. 현재 관리자 활성 grant만 `POST /admin/support/claims/:claimId/decision`의 **reject**를 사용해 정책 버전·사유·작성자·시각·사건을 기록한다. 동일 대상/키/본문 재시도는 같은 결정, 다른 대상 또는 본문은 409다. 고객·판매자는 결정 권한이 없다. `approve`/POST 환불은 아직 구현하지 않았으므로 이 route의 승인 결정은 받지 않는다.
+- **경합 RED→GREEN:** 서로 다른 두 claim에 동일 admin+Idempotency-Key를 별도 실제 DB 연결에서 동시에 사용하면, 기존 claim 행 `FOR UPDATE`만으로 두 요청의 reused-key 조회가 모두 비어 보이고 한쪽이 DB UNIQUE `23505`를 그대로 던지는 RED를 격리 v7에서 확인했다. 결정 키 advisory transaction lock을 **claim 행 lock 이전**에 잡고, 해당 UNIQUE `23505` 방어 매핑을 `Support conflict`→HTTP 409로 추가했다. 경합 시험 barrier는 둘째 도착 시 또는 첫 도착 200ms 후 해제해 GREEN에서 잠금 대기와 교착되지 않는다. 동일 시험 GREEN 1/1, v7 schema 시험 1/1, v6 기존 support DB/HTTP·schema 2/2. v7 경합 fixture는 정확 생성 ID의 claim/event/order/account 등을 거래에서 제거하고 잔류0을 시험했다. 전체 로컬 **428 total/305 pass/123 계획된 환경 skip/0 fail**, PR 본문 8/8, root typecheck/lint/build·diff check exit0. 첫 build는 `.next/trace` EPERM으로 실패했고 동일 명령 권한 승격 재실행에서 PASS했다. 초안 결함 1회 RED, 동일 근본 원인 연속 실패3회 없음.
+- **격리 자원/미검증:** 사전 등록한 `shoppingmall_s52_schema_v7_1007`을 기존 전용 tmpfs PG(system ID `7693634051273510955`)에 생성했고 fresh 0000~0018 **19/19 적용**, 실제 catalog/schema gate PASS를 확인했다. v7은 CHECK 반례 시험까지 유지 후 정확 DB만 drop·부재 확인 예정이며, 기존 v6/container/network는 후속 독립 작업 중 유지한다. PRE 실제 행 upgrade 불변은 기존 v6에서 별도 확인됐으나 v7의 CHECK 본문 동치 반례, approve/POST refund, 3역할 웹/브라우저, signed fixture/reset은 아직 이 checkpoint에서 미검증/미완료다. 승인 결정 구현 시 같은 결정키 선행 잠금·UNIQUE 충돌 매핑을 공통 적용하고 실제 동시 요청으로 확인한다.
+
+## S5.2 fresh migration·동시 결정 QA DB 사전 등록 — 2026-10-07
+
+- **생성 전 계획/소유:** 단일 writer 어울. 기존 S5.2 전용 tmpfs PostgreSQL `shoppingmall-s52-schema-1007-pg` 안에만 정확한 새 DB `shoppingmall_s52_schema_v7_1007`을 만들 예정이며, 같은 `shoppingmall-s52-schema-1007-net` 외 새 컨테이너/네트워크/volume/공개 포트는 없다. 생성 전 이름 부재와 전용 PG system ID `7693634051273510955`를 확인한다. 이유는 0000~0018 fresh migration, PRE 자료 불변/CHECK 반례 및 두 claim에 같은 관리자 결정키를 쓰는 **서로 다른 실제 DB 연결의 경합**을 기존 v6 rollback 시험과 독립 검증하기 위해서다. 수명은 이 검증 절편 완료 때까지이며, 임시 가상 fixture 외 참조/소유권을 확인하고 정확한 DB 이름·system ID에만 연결된 세션을 닫은 뒤 `DROP DATABASE shoppingmall_s52_schema_v7_1007`로 정리한다. 정리 후 `pg_database` 부재 확인. 기존 v6와 공유 WSL `local-postgres/shoppingmall`은 유지/미접근한다. 실패 시 추측 삭제하지 않고 상태를 보고한다.
+
 ## S5.2 비공개 클레임 증빙·0018 checkpoint — 2026-10-07
 
 - **판정/담당:** 단일 writer 어울, 기존 `codex/s52-customer-support` worktree 유지. Main이 승인 SSH alias 원격 작업 브랜치에 exact `94f4d12` push 완료(main/PR 미변경)라고 직접 보고했으며, 이 세션에서 원격 재조회는 하지 않았다. 따라서 원격 복구 ref는 **Main 보고 기준 `94f4d12`**다. 공유 DB·Oracle·실 Provider·credential·push/PR/merge 변경0.
