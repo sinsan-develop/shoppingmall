@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## Task11 보강 최종 독립 재리뷰 통과 — 2026-10-06
+
+- **판정:** exact commit `d2c0e3ca4a0910c4d34f19738998272664a8a7e3`의 지정 범위 최종 독립 read-only 재리뷰는 **Critical 0 / Important 0 / Minor 0**이며 C0/I0 gate 통과 가능 판정이다.
+- **확인 근거:** fixture의 production `PAYMENT_PENDING→READY` cutoff 계산과 고객 API/DOM 예상일·READY 확인, seller B 실제 목록 fetch delay 사용+로딩 DOM·503·정상 DELAYED·SHIPPED 빈 결과, payment attempt/event 참조 순서, fulfillment version/status/event, payment conflict·소유권·PII·25관계 reset·singleton 원복에 새 finding이 없다.
+- **actual 증거:** main agent의 private safety **1/1 PASS**, 전체 회귀 **443 total / 423 pass / 20 planned skip / 0 fail**, typecheck·lint·build, PR 본문 **8/8 PASS**, 업무행·임시자원 잔류0을 유지한다. reviewer는 이를 재실행하지 않고 정적 코드·계약만 독립 검토했다.
+- **미검증·다음 조치:** actual Chrome은 아직 실행하지 않았으며 화면·viewport·키보드·overflow·screenshot PASS로 표시하지 않는다. 이 리뷰 기록을 commit·alias push·WSL exact-SHA로 맞춘 뒤 shared baseline·backup·migration hash를 재확인하여 PMO에 `0015 적용 + exact-SHA 전체 회귀`의 별도 승인을 요청한다. 승인 전 shared DB 쓰기와 격리 Chrome을 시작하지 않는다.
+
 ## Task11 독립 재리뷰 보정 private gate GREEN — 2026-10-06
 
 - **판정·정확한 기준:** exact commit `a9b1c544cdc12739a70ddb3464b3938e42c83a63`을 local/origin/WSL에 맞춘 뒤 fresh private PostgreSQL 18과 exact Git archive Linux workspace에서 보정 gate를 통과했다. shared `local-postgres/shoppingmall`, 실제 Chrome, 외부서비스, Oracle, PR/main은 접근·변경하지 않았다. 독립 최종 재리뷰 C0/I0 전이므로 Task11 완료로 승격하지 않는다.
