@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## private DB GREEN — 2026-10-06 S5.1 Task9 독립 재리뷰 I3 보정
+
+- **판정·기준:** exact commit `496cf1d69efaec933bbbd4ad34b7dd999f251fd7`을 WSL 지정 checkout에 맞추고, 비공개 network `shoppingmall-s51-task9-review2-1006`, tmpfs PostgreSQL 18 `shoppingmall-s51-task9-review2-pg-1006`, 전용 DB `shoppingmall_s5_fulfillment_ui_f5101006`에서만 검증했다. 공유 `local-postgres/shoppingmall`은 접속·변경하지 않았다.
+- **실제 DB 결과:** migration **0000~0015 / 16건** 적용 후 safety DB 시험은 **1 test / 1 pass / 0 fail / 0 skip**이다. foreign identity, 독립 foreign audit, 독립 foreign category가 각각 reset 전에 거부되고 자료·주문이 보존됐다. reset이 audit lock에서 대기하는 동안 두 번째 연결의 late identity insert가 fixture account 부모 잠금에 대기했으며, reset commit 뒤 FK `23503`으로 실패했다.
+- **잔류·정리:** 최종 `migrations|accounts|identities|sellers|seller categories|product categories|products|checkout orders|shipment orders|shipment fulfillments|audit events|fulfillment settings`는 **16|0|0|0|0|0|0|0|0|0|0|1**이다. exact PostgreSQL container·network 잔류 0과 WSL checkout clean을 확인했다. 외부 공개 port·영속 volume은 만들지 않았다.
+- **다음 조치:** 이 실제 증거를 commit·push하고 WSL exact-SHA를 다시 맞춘 뒤 읽기 전용 독립 재리뷰에서 Critical/Important 0을 확인한다. 그 전에는 실제 Chrome·PMO 실행 요청을 진행하지 않는다.
+
 ## 로컬 GREEN — 2026-10-06 S5.1 Task9 독립 재리뷰 I3 보정
 
 - **판정:** RED `c44d256fba44a3abc7d6ea88a4f0d363c7fad05b`에서 고정한 CDP 연결·정리 결함을 공용 helper로 보정했고, foreign audit/category 도달성 및 두 연결 late insert 경합 시험을 추가했다. 로컬 gate는 GREEN이지만 private DB 실제 경합·독립 재리뷰·실제 Chrome은 아직 남아 있다.
