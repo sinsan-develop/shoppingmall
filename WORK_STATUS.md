@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## Task12 격리 exact-SHA 실제 Chrome 실행 승인·자원 계획 — 2026-10-06
+
+- **승인 판정:** 신산님의 최신 직접 지시 `계속하자`를 직전 보고의 정확한 승인 요청인 **격리 actual Chrome 범위 승인**으로 적용한다. PMO 공통 규칙에 따라 최신 직접 지시가 우선하며, 공유 DB fixture·외부 Provider·Oracle/UAT·PR/main은 이번 범위에 포함하지 않는다.
+- **고정 기준:** 제품 코드는 검증 완료 commit `16a0d97143ffc6e47cf3b44280ff795af75c08d6`과 동일하고, 실행 전 local/origin/WSL의 현재 exact SHA·clean·제품 diff 0을 다시 확인한다. 실제 화면은 현재 branch의 같은 제품 소스로만 실행한다.
+- **격리 데이터 자원:** run ID `f5121006`, DB `shoppingmall_s5_fulfillment_ui_f5121006`, private network `shoppingmall-s51-browser-f5121006-net`, tmpfs PostgreSQL container `shoppingmall-s51-browser-f5121006-pg`를 사용한다. 공유 `local-postgres/shoppingmall`에는 seed/write하지 않고 실행 전후 migration16·singleton·업무행 baseline만 읽기 확인한다.
+- **서비스·브라우저 자원:** WSL loopback Web `127.0.0.1:9091`, API `127.0.0.1:9092`, Windows SSH loopback tunnel, 격리 Chrome CDP `127.0.0.1:9229`와 전용 임시 profile만 사용한다. 외부 공개 port·실 결제·실배송·실 알림은 생성하지 않는다.
+- **증거·수명·정리:** 가상 5계정·3판매자·3상품·3주문·3발송, 서명 manifest, 시험 비밀번호, 역할별 3 viewport screenshot과 runner 로그는 이번 검증 동안만 유지한다. 성공·실패 모두 fixture reset과 manifest 관련 업무행 0을 확인한 뒤 API/Web/DB container·network·임시 Linux source/home·tunnel·Chrome process/profile·manifest/password·임시 evidence를 제거하고 정확한 잔류 0을 기록한다. 공유 DB rollback backup 2개는 이번 임시자원이 아니므로 보존한다.
+- **검증 항목:** 고객 READY 조회, 판매자 A 포장·출고와 고객 즉시 운송장, 판매자 B 로딩·503·정상 지연·빈 상태, 공동출고 담당 판매자 처리, 관리자 DELAYED→READY 정정과 고객 안내, 1920×1080·1440×900·430×844 가로 overflow·보이는 활성 요소 전체 Tab 순회를 실제 Chrome에서 확인한다. 200% 확대는 승인된 계획대로 Oracle UAT-03 미검증으로 유지한다.
+
 ## Task11 공유 개발 DB 0015 적용·exact-SHA 전체 회귀 완료 — 2026-10-06
 
 - **승인·범위:** PMO가 exact commit `16a0d97143ffc6e47cf3b44280ff795af75c08d6`의 `apps/api/migrations/0015_s5_fulfillment.sql` 1회 적용과 같은 SHA의 공유 DB 전체 회귀·baseline·잔류 검증을 조건부 승인했다. 대상은 `WSL-server`의 `local-postgres/shoppingmall`뿐이며 공유 DB Chrome fixture, 실제 Chrome, 외부 Provider·Oracle·UAT, PR/main은 실행하지 않았다.
