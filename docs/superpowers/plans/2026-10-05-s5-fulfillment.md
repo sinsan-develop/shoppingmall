@@ -101,7 +101,7 @@
 
 **GREEN**
 
-- 기존 주문 snapshot 삽입 거래 안에서 설정·정책을 잠그고 각 발송 주문의 `PAYMENT_PENDING` 출고행을 함께 생성한다.
+- 기존 주문 snapshot 삽입 거래를 `REPEATABLE READ`로 유지해 한 일관 snapshot에서 담당자·cutoff를 확정하고 각 발송 주문의 `PAYMENT_PENDING` 출고행을 원자적으로 함께 생성한다. account의 `FOR NO KEY UPDATE`와 sellers·account_roles/accounts의 active-owner 유효성 `FOR SHARE`는 유지하되, 변경 가능한 source인 `fulfillment_settings`·`shipping_policy_global`·`seller_shipping_policies`에는 `FOR SHARE`를 사용하지 않는다.
 - S3 견적 금액·정책 선택 규칙은 변경하지 않는다.
 
 **검증·commit**

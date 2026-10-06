@@ -1,5 +1,22 @@
 # 어울몰 작업현황
 
+## S5.1 PMO 승인 docs 보정 독립 재리뷰 PASS — 2026-10-07
+
+- **판정:** PMO 승인 docs-only 정본 보정의 독립 재리뷰 결과는 **Critical 0 / Important 0 / Minor 1, Stage gate PASS**다. 첫 리뷰의 I1 계약/계획 잠금 의미와 I2 최종 검증 증거 불일치는 해소됐다.
+- **범위·검증:** 기존 승인된 dirty 8문서만 변경됐고 제품 코드 diff는 0이다. `git diff --check`와 PR 본문 validator **8/8 PASS**를 확인했다. reviewer는 기존 테스트·PostgreSQL·actual Chrome을 재실행하지 않고 문서 diff와 기존 증거의 정합성만 읽기 전용으로 검토했다.
+- **유지 Minor:** 판매자·관리자 상세의 여러 `SELECT`가 하나의 read-only snapshot이 아니어서 동시 정정/환불 중 상태·수량·사건이 일시적으로 서로 다른 시점에서 섞일 수 있는 M1은 후속으로 유지한다. `expectedVersion`은 쓰기 훼손을 막지만 읽기 일관성까지 보장하지 않는다.
+- **미완료 경계:** Oracle/UAT·PR·병합, 실제 택배·문자·메일·푸시·PG 등 외부 연동, 실제 200% 확대와 S5.2~S5.4는 미검증·미완료다. 이번 PASS는 그 범위를 완료로 승격하지 않는다.
+- **다음 정확한 조치:** 이 dirty 8문서의 docs-only commit·승인 SSH alias push·WSL exact-SHA sync를 수행한 뒤 `pr-create` 요청만 진행한다. 제품 코드·DB·서비스·Chrome 추가 변경 또는 재실행은 이 다음 조치에 포함하지 않는다.
+
+## S5.1 첫 독립 Stage review BLOCK · PMO 승인 docs-only 정본 보정 — 2026-10-06
+
+- **판정:** 첫 독립 Stage review 결과는 **Critical 0 / Important 2 / Minor 1, BLOCK**이다. PMO가 I1 계약/계획 잠금 의미, I2 최종 검증 증거, Minor 읽기 snapshot 위험의 docs-only 정본 보정을 승인했으며 제품 코드·schema·migration·공개 계약 확장 없이 허용 문서만 수정한다. 이 보정 뒤 독립 재리뷰가 필요하다.
+- **I1 정정:** S5 계약 §5와 구현계획 Task3의 낡은 “공동출고 설정·배송정책 행 잠금”을 승인된 Fix Round 3 사실로 교체했다. 주문 거래의 `REPEATABLE READ` 한 snapshot에서 담당자·cutoff를 고정하고 account `FOR NO KEY UPDATE`, sellers·account_roles/accounts active-owner 유효성 `FOR SHARE`는 유지한다. 변경 가능한 `fulfillment_settings`·`shipping_policy_global`·`seller_shipping_policies` source에는 `FOR SHARE`를 사용하지 않으며 주문/출고 원자성은 유지한다.
+- **I2 정정:** S5.1 정본의 최종 제품·QA SHA를 `943a8cd99307f968ca21cbeaf283f610b2e52448`로 맞췄다. local/WSL 각각 415 total / 298 pass / 117 planned skip / 0 fail, 격리 PostgreSQL 18.4 migration16 관련 DB/HTTP 38/38, 별도 격리 DB의 Chrome 154 3역할·1920/1440/430·키보드 PASS·screenshot9, signed reset 25관계 합계0/settings1, run `f5141006` 자원0이며 공유 DB는 읽기 전용 사후 확인에서 불변이다. actual Chrome을 공유 DB 증거로 확대하지 않는다.
+- **미해결 Minor/후속:** 판매자·관리자 상세의 여러 `SELECT`는 하나의 read-only snapshot으로 묶이지 않아 동시 정정/환불 중 상태·수량·사건이 서로 다른 시점에서 일시적으로 섞일 수 있다. `expectedVersion`은 쓰기 훼손을 막지만 읽기 일관성까지 보장하지 않는다. 제품 코드는 이번 docs-only 범위에서 수정하지 않으며 후속 설계·구현·회귀시험 대상으로 남긴다.
+- **미완료 경계:** Oracle/UAT·PR·병합, 실제 택배·문자·메일·푸시·PG, 실제 200% 확대와 S5.2~S5.4는 미검증·미완료다. 이번 보정은 S5 전체 완료 선언이나 새 계약 승인이 아니다.
+- **검증·다음 조치:** 허용 파일 8개만 변경되어 허용 밖 diff 0이고, `git diff --check`와 PR 본문 validator **8/8 PASS**를 확인했다. SHA·수치·actual Chrome 격리 DB·미검증 경계 self-review를 마쳤으며 변경을 commit/push하지 않고 독립 Stage 재리뷰로 전달한다.
+
 ## Task12 fix round 2·3 최종 exact-code-SHA gate GREEN · 독립 Stage review 대기 — 2026-10-06
 
 - **판정·기준:** 환불–출고 경합, 계약 밖 PATCH 제거, 판매자·관리자 화면 stale 응답 방지와 실제 Chrome hydration 대기를 보정한 최종 제품·QA commit `943a8cd99307f968ca21cbeaf283f610b2e52448`을 작업 branch·SSH alias 원격·WSL 지정 checkout에 일치시키고 clean 상태에서 최종 gate를 수행했다. 구현·격리 DB·실제 Chrome·signed reset·임시자원 정리는 GREEN이다. 독립 Stage review와 Oracle release candidate/UAT·PR 병합은 아직 남아 있으므로 S5 전체 완료로 선언하지 않는다.

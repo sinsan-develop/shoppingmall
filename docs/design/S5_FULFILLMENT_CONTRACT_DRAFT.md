@@ -58,7 +58,7 @@ PMO 조건·보완 승인: WORK_PLAN의 “추적 링크”는 운송장 자동�
 | `shipment_fulfillments` | `shipment_order_id` PK/FK; 고정 `fulfillment_seller_id` FK; `PAYMENT_PENDING/READY/PACKING/DELAYED/SHIPPED/CANCELLED`; 마감시간 snapshot·고정 timezone `Asia/Seoul`; 예상 출고일; 택배사 코드·기타 택배사명·운송장; 포장/최초 출고/현재 출고/취소 시각; 낙관적 잠금 `version>=0`; 생성/변경 시각. 상태별 필수값·금지값 check. |
 | `shipment_fulfillment_events` | UUID PK; 발송 주문 FK; 행위 `PAYMENT_CONFIRMED/START_PACKING/REPORT_DELAY/RESUME_PACKING/MARK_SHIPPED/ADMIN_CORRECT/REFUND_CANCELLED`; 전/후 상태; actor account·활성 역할·seller(서버 사건은 nullable); 사유·고객 안내; 개인정보 없는 before/after JSON snapshot; non-null 멱등 범위·UUID 멱등키·64자 요청 지문; 시각. `shipment_order_id+idempotency_scope+idempotency_key` unique, 같은 키 다른 지문 거부. 사용자 요청의 범위는 account ID, 서버 사건의 범위는 `system:payment` 또는 `system:refund`이며 원 결제/환불 사건 UUID를 키로 쓴다. |
 
-- 출고 행은 주문 snapshot 생성 거래에서 함께 만든다. 공동출고 설정과 배송정책 행을 잠그고 담당자·마감시간을 확정한다. 주문/출고 행 중 하나만 저장되는 상태를 허용하지 않는다.
+- 출고 행은 주문 snapshot 생성 거래에서 함께 만든다. 주문 거래는 `REPEATABLE READ`의 한 일관 snapshot에서 공동출고 담당자와 직접/공동출고 마감시간을 확정한다. account의 `FOR NO KEY UPDATE`와 sellers·account_roles/accounts의 active-owner 유효성 `FOR SHARE`는 유지하되, 변경 가능한 source인 `fulfillment_settings`·`shipping_policy_global`·`seller_shipping_policies`에는 `FOR SHARE`를 사용하지 않는다. 주문/출고 행의 원자성은 유지하며 둘 중 하나만 저장되는 상태를 허용하지 않는다.
 - 결제 processor는 결제 검증·주문 `PAID` 처리와 같은 거래에서 출고를 `READY`로 바꾸고 최초 예상 출고일과 사건을 기록한다. 중복 결제 사건은 출고 사건을 추가 생성하지 않는다.
 - S4 환불 processor는 출고 행과 같은 발송의 환불 사례를 고정 순서로 잠근다. 현재 `SHIPPED`이면 사례·시도·사건을 원자적으로 `REVIEW_REQUIRED`로 확정하고 같은 사건 재호출에도 그 상태를 반환한다. 검증 완료 환불수량이 발송 주문 전 수량과 같아지면 같은 거래에서 `CANCELLED`와 사건을 한 번 기록한다.
 - 사건의 before/after에는 상태, 예상일, 택배사 코드, 운송장 번호만 포함한다. 고객 이름·전화·주소, 내부 인증정보, 공급자 원문은 저장하지 않는다.

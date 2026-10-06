@@ -6,7 +6,7 @@
 - 공유 대상은 `WSL-server`의 Docker container `local-postgres`, database `shoppingmall`이다.
 - PostgreSQL은 `pgvector/pgvector:0.8.2-pg15`, 실제 server version은 `15.18`이다.
 - 과거 패킷 제품 기준 commit은 `553d4af28bbe30d975fadb80a5dae547ac936f9a`, 승인 실행 제품 commit은 `16a0d97143ffc6e47cf3b44280ff795af75c08d6`이다. 적용 뒤 공유 DB는 migration16·`fulfillment_settings=1`·출고/사건0·기존 업무행0이며 rollback은 실행하지 않았다.
-- 두 적용 전 backup은 보존 중이다. 제품 SHA `39f3fe89f20b96a61e447545f7a691704c2c479f`의 별도 격리 actual Chrome과 signed reset·임시자원0까지 완료했지만, fix round 2 commit의 actual Chrome·Oracle/UAT는 별도 미검증이다.
+- 두 적용 전 backup은 보존 중이다. 최종 제품·QA SHA `943a8cd99307f968ca21cbeaf283f610b2e52448`의 local/WSL 전체 gate, 별도 격리 PostgreSQL·actual Chrome, signed reset·run `f5141006` 자원0까지 완료했다. Oracle/UAT·PR·병합과 외부 Provider·200% 확대는 미검증이다.
 
 ## 2. 적용 대상 migration
 
@@ -98,11 +98,20 @@ docker exec -i RESTORE_CONTAINER \
 
 외부 PG·택배 API·문자·메일·푸시, Oracle/UAT, 운영 전환은 이 승인 범위에 포함하지 않는다.
 
-## 9. 2026-10-06 승인 범위 실행 결과
+## 9. 2026-10-06 공유 DB 승인 범위 실행 당시 결과
 
 - PMO가 위 1번 중 `0015 적용 + exact-SHA 전체 회귀`만 승인해 제품 commit `16a0d97143ffc6e47cf3b44280ff795af75c08d6`에서 실행했다. 위 2번의 격리 actual Chrome은 이번 승인 밖이므로 실행하지 않았다.
 - 기존 백업을 덮어쓰지 않고 `/tmp/shoppingmall-s51-0015-pre-20261006T100738Z.dump`를 추가 생성했다. SHA-256 `f956f40dcb7aa2b469e5c409e1b56eab3ef25239918eaf5e037916bcfd47af2f`, 165,682 bytes, 0600, TOC348/TABLE DATA51이며 일회성 PostgreSQL15 실제 복원에서 migration15·발송주문0·singleton1/1/1을 확인했다.
 - 정식 migration runner 1회 적용 후 migration16, 신규 3관계, `fulfillment_settings=1`, 출고·사건0이며 기존 50관계 행수 해시는 적용 전후 동일하다. rollback은 실행하지 않았다.
 - 실제 공유 DB system identifier를 다섯 mutation guard에 고정한 Linux exact archive 전체 회귀는 **443 total / 423 pass / 20 planned skip / 0 fail**, PR 본문 **8/8 PASS**다. typecheck·lint·API/Next build도 통과했고 Next는 18 routes를 생성했다.
 - 종료 뒤 public 53관계 행수는 시험 전과 같고 singleton 1/1/1/1, 나머지 업무행0이다. 모든 임시 source/home/container는 제거해 잔류0이며 WSL checkout은 exact SHA·clean이다.
-- 기존 백업과 새 백업은 Task12 전체 성공·merged-main smoke·복구 불필요 확인 전까지 보존한다. 실제 Chrome·외부 Provider·Oracle/UAT·PR/main은 여전히 미검증이다.
+- 당시 checkpoint에서 기존 백업과 새 백업은 Task12 전체 성공·merged-main smoke·복구 불필요 확인 전까지 보존하기로 했고 실제 Chrome·외부 Provider·Oracle/UAT·PR/main은 미검증이었다. 이후 actual Chrome 완료 사실은 아래 최종 증거에 구분해 기록한다.
+
+## 10. 2026-10-06 최종 제품·QA 증거
+
+- 최종 제품·QA SHA는 `943a8cd99307f968ca21cbeaf283f610b2e52448`이다. Windows와 WSL에서 각각 전체 Node 시험 **415 total / 298 pass / 117 planned DB·환경 skip / 0 fail**을 확인했다.
+- 별도 격리 PostgreSQL 18.4 migration16의 관련 실제 DB/HTTP 시험은 **38/38 PASS, fail0, skip0**다.
+- actual Chrome은 공유 DB가 아닌 별도 격리 DB에서 수행했다. Chrome 154의 고객·판매자·관리자 경로와 1920/1440/430·키보드가 PASS했고 screenshot 9개를 확인했다.
+- signed reset 뒤 manifest 관련 25개 관계 합계0·`fulfillment_settings=1`, run `f5141006` 전용 자원·포트 잔류0이다.
+- 공유 `local-postgres/shoppingmall`은 읽기 전용 사후 확인에서 migration16·settings1·fulfillments0·events0·핵심 업무행0으로 불변이다. 적용 전 backup 2개도 보존 중이다.
+- Oracle/UAT·PR·병합, 실제 택배·문자·메일·푸시·PG, 실제 200% 확대와 S5.2~S5.4는 미검증·미완료다.

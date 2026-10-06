@@ -118,11 +118,11 @@ S2 상품 조회 화면은 S1 웹 기반에 의존한다. S3는 S2의 판매 가
 - 범위·비범위: 배송사 자동 동기화는 후속 후보. 문자·메일·Android 푸시의 실제 시험 수신은 U0 계정/비용/Secret 확인 뒤 U3 인수 필수 검증으로 지정. 개발은 mock/가능한 시험 채널만 검증.
 - 선행·수정 대상: S4의 출고 전 환불 core 완료·Stage PR 병합; S5.1의 실제 출고 사실 이후 S5.2에서 출고 후 심사·증빙/환불을 검증한다. `fulfillment/`, `support/`, `notifications/`, 고객·판매자·관리자 화면.
 - [x] S5.1 RED/GREEN: 타 판매자 출고 거부, 출고·운송장 고객 즉시 표시, 마감 후 다음 출고 가능일, 관리자 사유·고객 정정 안내, 출고 전 환불과 배송 경쟁의 안정 상태를 시험하고 구현했다.
-- [x] S5.1 통합 검증: API/실제 PostgreSQL/고객·판매자·관리자 actual Chrome에서 주문 상태·고객 안내, 3 viewport·키보드를 대조했고 signed reset·임시자원0을 확인했다. fix round 2 commit의 actual Chrome과 독립 review는 후속 gate로 남는다.
+- [x] S5.1 통합 검증: 최종 제품·QA SHA `943a8cd99307f968ca21cbeaf283f610b2e52448`에서 Windows/WSL 각각 415 total / 298 pass / 117 planned skip / 0 fail, 격리 PostgreSQL 18.4 migration16의 관련 DB/HTTP 38/38, 별도 격리 DB의 Chrome 154 고객·판매자·관리자와 1920/1440/430·키보드·screenshot 9개를 확인했다. signed reset 뒤 25관계 합계0·settings1, run `f5141006` 자원0이며 공유 DB는 읽기 전용 사후 확인에서 불변이다.
 - [ ] S5.2~S5.4 RED/GREEN·통합: 문의/리뷰/클레임·출고 후 심사/환불, 알림 작업·재시도, 기존 예외 목록과 관리자 관제 요약·처리 목록은 미구현이다. 이 범위를 구현·검증하기 전 S5 전체 완료로 표시하지 않는다.
 - QA·정리: 가상 운송장·연락처·문의·증빙 사용; 실제 발송 금지, 전송 작업/파일 정리 확인.
 - rollback·승인: 고객 정보·증빙 저장/알림 credential·권한 변경 승인. 고객에게 이미 표시된 상태는 삭제하지 않고 정정 이력으로 바로잡음.
-- 시작 기록: S5 Stage는 진행 중이다. 첫 절편 S5.1의 이행 기능은 제품 SHA `39f3fe89f20b96a61e447545f7a691704c2c479f`에서 actual Chrome·signed reset·자원0까지 검증했고, 이후 fix round 2는 환불–배송 경쟁·PUT-only·UI stale response 보정을 수행한다. S5.2 문의/리뷰/클레임·출고 후 심사/환불, S5.3 알림, S5.4 관제는 미구현이며 신규 공개 API·schema/migration·고객정보/증빙·권한·알림 credential/실비용은 별도 승인 전 구현하지 않는다. 완료 기록: **S5.1 이행 기능 구현·검증 완료, S5 전체 미완료**.
+- 시작 기록: S5 Stage는 진행 중이다. 첫 절편 S5.1 이행 기능은 최종 제품·QA SHA `943a8cd99307f968ca21cbeaf283f610b2e52448`에서 local/WSL 전체 gate, 격리 PostgreSQL 18.4 관련 DB/HTTP 38/38, 별도 격리 DB의 actual Chrome 3역할·3 viewport·키보드, signed reset·run `f5141006` 자원0까지 검증했다. actual Chrome은 공유 DB 검증이 아니며 공유 DB는 migration16·settings1·업무행0으로 읽기 전용 확인에서 불변이다. Oracle/UAT·PR·병합, 실제 택배·문자·메일·푸시·PG, 200% 확대는 미검증이다. S5.2 문의/리뷰/클레임·출고 후 심사/환불, S5.3 알림, S5.4 관제는 미구현이며 신규 공개 API·schema/migration·고객정보/증빙·권한·알림 credential/실비용은 별도 승인 전 구현하지 않는다. 완료 기록: **S5.1 이행 기능 구현·검증 완료, S5 전체 미완료**.
 - 완료: 담당 발송과 고객 표시·정정·이력, 지연·클레임 안내 및 확정된 관제 요약·목록이 실제 웹/API/DB에서 일치. 자동 경보·점검 스위치·판매자 강제 정지는 구현/합격 조건 밖.
 
 ### S6 — 판매자별 정산 자료와 완료 표시

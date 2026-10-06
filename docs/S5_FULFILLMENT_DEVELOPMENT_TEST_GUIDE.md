@@ -2,10 +2,12 @@
 
 ## 현재 판정
 
-- 제품 SHA `39f3fe89f20b96a61e447545f7a691704c2c479f`에서 별도 격리 DB actual Chrome을 실행해 고객·판매자·관리자 경로와 1920×1080·1440×900·430×844·키보드 검사를 통과했다. 역할 경로 PASS와 viewport/keyboard PASS 두 runner 문구, screenshot 9개를 확인했다.
-- signed reset 뒤 manifest 관련 25개 관계는 모두 0, `fulfillment_settings(id=1)`은 1행이며 전용 container·network·tunnel·Chrome/profile·secret·manifest·evidence는 모두 0이다.
-- 공유 개발 DB는 승인된 0015 적용 완료 상태로 migration16·settings1·fulfillments0·events0·핵심 업무행0이며, 적용 전 rollback backup 2개는 보존 중이다.
-- 위 결과는 `39f3fe89...`의 S5.1 actual Chrome 이력이다. 이후 fix round 2 commit의 actual Chrome·독립 review·Oracle/UAT는 재검증 전까지 미검증이며 S5 전체 완료로 해석하지 않는다.
+- 최종 제품·QA SHA `943a8cd99307f968ca21cbeaf283f610b2e52448`에서 Windows와 WSL은 각각 전체 Node 시험 **415 total / 298 pass / 117 planned DB·환경 skip / 0 fail**이고 typecheck·lint·build·diff-check가 통과했다.
+- 격리 PostgreSQL 18.4 migration16에서 관련 실제 DB/HTTP 시험 **38/38 PASS, fail0, skip0**를 확인했다.
+- 같은 SHA의 별도 격리 DB와 Chrome 154에서 고객·판매자·관리자 경로, 1920×1080·1440×900·430×844·키보드 검사가 PASS했다. 역할 경로와 viewport/keyboard 두 runner PASS 문구, screenshot 9개를 확인했다.
+- signed reset 뒤 manifest 관련 25개 관계 합계는 0, `fulfillment_settings(id=1)`은 1행이며 run `f5141006`의 전용 container·network·tunnel·Chrome/profile·secret·manifest·evidence·포트 자원은 모두 0이다.
+- 공유 개발 DB는 actual Chrome에 사용하지 않았다. 읽기 전용 사후 확인에서 migration16·settings1·fulfillments0·events0·핵심 업무행0으로 불변이며 적용 전 rollback backup 2개는 보존 중이다.
+- Oracle/UAT·PR·병합, 실제 택배·문자·메일·푸시·PG, 실제 200% 확대는 미검증이고 S5.2~S5.4는 미구현이므로 S5 전체 완료로 해석하지 않는다.
 
 ## 고정 경계
 
@@ -43,7 +45,7 @@ private tmpfs DB에서만 다음을 검증한다.
 
 ## 승인 후 실제 Chrome 시나리오와 재실행 절차
 
-Task11 승인 뒤 Task12에서 아래 순서로 실행해 `39f3fe89...`에서 PASS·signed reset·자원0을 확인했다. 후속 commit을 검증할 때도 같은 절차를 반복한다.
+Task11 승인 뒤 Task12에서 아래 순서로 실행했고 최종 제품·QA SHA `943a8cd99307f968ca21cbeaf283f610b2e52448`에서 PASS·signed reset·run `f5141006` 자원0을 확인했다. 후속 commit을 검증할 때도 같은 절차를 반복한다.
 
 1. 승인된 백업과 0015 공유 적용, 공유 DB exact-SHA 전체 회귀·잔류0을 확인한다.
 2. 로컬·원격·WSL checkout의 exact SHA와 clean 상태를 확인한다.
