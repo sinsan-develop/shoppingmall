@@ -30,9 +30,9 @@
 | 공개 | `GET /catalog/products/:productId/customer-reviews`; `GET /catalog/products/:productId/questions` | 승인 리뷰·검사 PASS 이미지 참조만; 문의는 질문 본문+관리자가 마지막으로 선택·공개 승인한 답변 한 건만, account ID·비공개 metadata 제외 |
 | 고객 | `POST /customer/support/questions` | productId, text → 비공개 문의·담당 seller snapshot |
 | 고객 | `POST /customer/support/claims` | orderId, shipmentOrderId, optionId, kind, reasonCode, reason, quantity → claim ID |
-| 고객 | `GET /customer/support/questions`, `GET /customer/support/claims/:id` | 자기 건만, 저장 key 제외 |
-| 판매자 | `GET /seller/support/questions`, `GET /seller/support/claims`; `POST .../:id/replies` | 상품/품목 seller snapshot과 활성 account seller grant 일치 필요, 답변 멱등키 재시도는 동일 message |
-| 관리자 | `POST /admin/support/reviews/:id/approve`, `POST /admin/support/reviews/:id/hide`; `POST /admin/support/questions/:id/publish`; `POST /admin/support/claims/:id/decision` | 검사 PASS 공개, 사유 있는 숨김/신고 이력, 판매자 답변 공개 승인, 최종 사유·정책 버전·환불 실행 |
+| 고객 | `GET /customer/support/questions`, `GET /customer/support/claims/:id` | 문의 목록은 본인 건만 기본 20/최대 50, `created_at,id` 내림차순 `limit/cursor`와 `items/nextCursor`; 저장 key 제외 |
+| 판매자 | `GET /seller/support/questions`, `GET /seller/support/claims`; `POST .../:id/replies` | 문의 목록은 담당 seller snapshot과 활성 grant 범위의 동일 페이지 계약, 답변 멱등키 재시도는 동일 message |
+| 관리자 | `GET /admin/support/questions?status=ANSWERED`, `GET /admin/support/questions/:id`; `POST /admin/support/reviews/:id/approve`, `POST /admin/support/reviews/:id/hide`; `POST /admin/support/questions/:id/publish`; `POST /admin/support/claims/:id/decision` | 문의 승인 대기 목록은 동일 페이지 계약과 `status=ANSWERED` 필터, 상세는 질문·판매자 메시지 ID/사건 이력으로 승인 대상 확인; 공개 실행은 관리자만. 검사 PASS 공개, 사유 있는 숨김/신고 이력, 최종 사유·정책 버전·환불 실행 |
 | 권한별 | `POST/GET .../:id/images` 또는 `.../:id/evidence` | raw 이미지 5MiB 이하, MIME·재인코딩 검사, key 비노출 |
 
 정확한 이미지 경로와 응답 DTO는 기존 catalog image controller와의 충돌을 확인해 API RED 시험에서 고정한다. 이 표는 구현 중 결정할 세부 경로의 출발점이며, 변경은 `WORK_STATUS.md`에 근거를 남긴다.

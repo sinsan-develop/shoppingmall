@@ -1,13 +1,14 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException,
-  Get, Header, HttpCode, Inject, NotFoundException, Param, Post, Req,
+  Get, Header, HttpCode, Inject, NotFoundException, Param, Post, Query, Req,
   ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { AccessContext } from '../access.js';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
-import { createQuestion, getCustomerQuestion, getSellerQuestion,
-  listPublicQuestionAnswers, publishQuestionMessage, replyToQuestion } from './questions.js';
+import { createQuestion, getAdminQuestion, getCustomerQuestion, getSellerQuestion,
+  listAdminQuestions, listCustomerQuestions, listPublicQuestionAnswers, listSellerQuestions,
+  parseQuestionPageQuery, publishQuestionMessage, replyToQuestion } from './questions.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string } };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -55,6 +56,13 @@ async function handle<T>(operation: () => Promise<T>): Promise<T> {
 export class CustomerSupportQuestionController {
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
 
+  @Get()
+  @Header('Cache-Control', 'private, no-store')
+  async list(@Req() request: RequestHeaders, @Query() query: Record<string, unknown>) {
+    const { pool, actor } = await context(this.database, request, 'customer');
+    return handle(() => listCustomerQuestions(pool, actor.accountId, parseQuestionPageQuery(query)));
+  }
+
   @Post()
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
@@ -81,6 +89,14 @@ export class CustomerSupportQuestionController {
 @Controller('seller/support/questions')
 export class SellerSupportQuestionController {
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  @Get()
+  @Header('Cache-Control', 'private, no-store')
+  async list(@Req() request: RequestHeaders, @Query() query: Record<string, unknown>) {
+    const { pool, actor } = await context(this.database, request, 'seller');
+    return handle(() => listSellerQuestions(pool, actor.sellerId!, actor.accountId,
+      parseQuestionPageQuery(query)));
+  }
 
   @Get(':questionId')
   @Header('Cache-Control', 'private, no-store')
@@ -109,6 +125,22 @@ export class SellerSupportQuestionController {
 @Controller('admin/support/questions')
 export class AdminSupportQuestionController {
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  @Get()
+  @Header('Cache-Control', 'private, no-store')
+  async list(@Req() request: RequestHeaders, @Query() query: Record<string, unknown>) {
+    const { pool } = await context(this.database, request, 'admin');
+    return handle(() => listAdminQuestions(pool, parseQuestionPageQuery(query, true)));
+  }
+
+  @Get(':questionId')
+  @Header('Cache-Control', 'private, no-store')
+  async detail(@Req() request: RequestHeaders, @Param('questionId') questionId: string) {
+    const { pool } = await context(this.database, request, 'admin');
+    const result = await handle(() => getAdminQuestion(pool, questionId));
+    if (!result) throw new NotFoundException();
+    return result;
+  }
 
   @Post(':questionId/publish')
   @HttpCode(200)

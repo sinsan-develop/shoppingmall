@@ -39,13 +39,15 @@ export async function createQuestion(db: Db, input: {
 }
 
 async function loadQuestion(db: Db, questionId: string, actorId: string,
-  scope: 'customer_account_id' | 'seller_id') {
-  if (!uuid.test(questionId) || !uuid.test(actorId)) throw new Error('Invalid support request');
+  scope: 'customer_account_id' | 'seller_id' | 'admin') {
+  if (!uuid.test(questionId) || (scope !== 'admin' && !uuid.test(actorId)))
+    throw new Error('Invalid support request');
   const question = (await db.query<{ id: string; productId: string; sellerId: string;
     customerAccountId: string; body: string; status: string }>(`SELECT id,
       product_id AS "productId",seller_id AS "sellerId",
       customer_account_id AS "customerAccountId",body,status
-      FROM support_questions WHERE id=$1 AND ${scope}=$2`, [questionId, actorId])).rows[0];
+      FROM support_questions WHERE id=$1 ${scope === 'admin' ? '' : `AND ${scope}=$2`}`,
+  scope === 'admin' ? [questionId] : [questionId, actorId])).rows[0];
   if (!question) return undefined;
   const messages = (await db.query<{ id: string; body: string; authorRole: string;
     createdAt: Date }>(`SELECT id,body,author_role AS "authorRole",created_at AS "createdAt"
@@ -67,6 +69,86 @@ export function getCustomerQuestion(db: Db, customerAccountId: string, questionI
 
 export function getSellerQuestion(db: Db, sellerId: string, questionId: string) {
   return loadQuestion(db, questionId, sellerId, 'seller_id');
+}
+
+export function getAdminQuestion(db: Db, questionId: string) {
+  return loadQuestion(db, questionId, '', 'admin');
+}
+
+type QuestionCursor = { createdAt: string; id: string };
+type QuestionPage = { limit: number; cursor?: QuestionCursor; status?: string };
+type QuestionSummary = { id: string; productId: string; body: string;
+  status: string; createdAt: Date };
+
+export function parseQuestionPageQuery(query: Record<string, unknown>, admin = false): QuestionPage {
+  if (!query || Object.keys(query).some((key) =>
+    !['limit','cursor',...(admin ? ['status'] : [])].includes(key)))
+    throw new Error('Invalid support request');
+  if (query.status !== undefined && (typeof query.status !== 'string' ||
+      !['OPEN','ANSWERED','PUBLISHED','HIDDEN'].includes(query.status)))
+    throw new Error('Invalid support request');
+  const limit = query.limit === undefined ? 20 :
+    typeof query.limit === 'string' && /^[1-9]\d?$/.test(query.limit) ? Number(query.limit) : NaN;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error('Invalid support request');
+  let cursor: QuestionCursor | undefined;
+  if (query.cursor !== undefined) {
+    if (typeof query.cursor !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(query.cursor))
+      throw new Error('Invalid support request');
+    try {
+      const value = JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')) as QuestionCursor;
+      if (!value || typeof value !== 'object' || Object.keys(value).sort().join(',') !== 'createdAt,id' ||
+          !uuid.test(value.id) || typeof value.createdAt !== 'string' ||
+          !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/.test(value.createdAt) ||
+          !Number.isFinite(Date.parse(value.createdAt)) ||
+          new Date(value.createdAt).toISOString().slice(0, 23) !== value.createdAt.slice(0, 23))
+        throw new Error('Invalid support request');
+      cursor = value;
+    } catch { throw new Error('Invalid support request'); }
+  }
+  return { limit, cursor, ...(query.status ? { status: query.status as string } : {}) };
+}
+
+async function listQuestions(db: Db, scope: 'customer' | 'seller' | 'admin',
+  ids: string[], page: QuestionPage) {
+  if (ids.some((id) => !uuid.test(id))) throw new Error('Invalid support request');
+  const where = scope === 'customer' ? 'q.customer_account_id=$1' :
+    scope === 'seller' ? `q.seller_id=$1 AND EXISTS (SELECT 1 FROM account_roles r
+      WHERE r.account_id=$2 AND r.role='seller' AND r.seller_id=q.seller_id)` : 'true';
+  const timeIndex = ids.length + 1;
+  const idIndex = ids.length + 2;
+  const statusIndex = ids.length + 3;
+  const limitIndex = ids.length + 4;
+  const result = await db.query<QuestionSummary & { cursorTime: string }>(`
+    SELECT q.id,q.product_id AS "productId",q.body,q.status,
+      q.created_at AS "createdAt",
+      to_char(q.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "cursorTime"
+    FROM support_questions q WHERE ${where}
+      AND ($${timeIndex}::timestamptz IS NULL OR
+        (q.created_at,q.id)<($${timeIndex}::timestamptz,$${idIndex}::uuid))
+      AND ($${statusIndex}::text IS NULL OR q.status=$${statusIndex}::text)
+    ORDER BY q.created_at DESC,q.id DESC LIMIT $${limitIndex}`,
+  [...ids, page.cursor?.createdAt ?? null, page.cursor?.id ?? null,
+    page.status ?? null, page.limit + 1]);
+  const rows = result.rows.slice(0, page.limit);
+  const last = rows.at(-1);
+  return { items: rows.map(({ id, productId, body, status, createdAt }) =>
+    ({ id, productId, body, status, createdAt })),
+    nextCursor: result.rows.length > page.limit && last ? Buffer.from(JSON.stringify({
+      createdAt: last.cursorTime, id: last.id,
+    })).toString('base64url') : null };
+}
+
+export function listCustomerQuestions(db: Db, customerAccountId: string, page: QuestionPage) {
+  return listQuestions(db, 'customer', [customerAccountId], page);
+}
+
+export function listSellerQuestions(db: Db, sellerId: string, actorAccountId: string,
+  page: QuestionPage) {
+  return listQuestions(db, 'seller', [sellerId, actorAccountId], page);
+}
+
+export function listAdminQuestions(db: Db, page: QuestionPage) {
+  return listQuestions(db, 'admin', [], page);
 }
 
 export async function replyToQuestion(db: Db, input: { questionId: string;

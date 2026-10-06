@@ -79,6 +79,62 @@ test('question HTTP uses actual customer, seller and admin grants without leakin
       assert.equal(created.status, 200);
       const question = await created.json();
       assert.equal(question.sellerId, seller);
+      const otherCreated = await request('/customer/support/questions','POST',otherCustomer,
+        { productId: product, text: '다른 고객의 비공개 문의' },randomUUID());
+      assert.equal(otherCreated.status, 200);
+      const otherQuestion = await otherCreated.json();
+      const ownSecondResponse = await request('/customer/support/questions','POST',customer,
+        { productId: product, text: '고객의 두 번째 문의' },randomUUID());
+      assert.equal(ownSecondResponse.status, 200);
+      const ownSecond = await ownSecondResponse.json();
+      const ownList = await request('/customer/support/questions','GET',customer);
+      assert.equal(ownList.status, 200);
+      assert.deepEqual(new Set((await ownList.json()).items.map(({ id }) => id)),
+        new Set([question.id,ownSecond.id]));
+      assert.deepEqual((await (await request('/customer/support/questions','GET',otherCustomer))
+        .json()).items.map(({ id }) => id), [otherQuestion.id]);
+      const ownPage = await (await request('/customer/support/questions?limit=1','GET',customer)).json();
+      assert.equal(ownPage.items.length, 1);
+      assert.ok(ownPage.nextCursor);
+      const ownNext = await (await request(`/customer/support/questions?limit=1&cursor=${ownPage.nextCursor}`,
+        'GET',customer)).json();
+      assert.deepEqual(new Set([ownPage.items[0].id,ownNext.items[0].id]),
+        new Set([question.id,ownSecond.id]));
+      assert.equal(ownNext.nextCursor, null);
+      const sellerList = await request('/seller/support/questions','GET',sellerAccount);
+      assert.equal(sellerList.status, 200);
+      assert.deepEqual(new Set((await sellerList.json()).items.map(({ id }) => id)),
+        new Set([question.id,otherQuestion.id,ownSecond.id]));
+      assert.deepEqual((await (await request('/seller/support/questions','GET',otherSellerAccount))
+        .json()).items, []);
+      const sellerPage = await (await request('/seller/support/questions?limit=1','GET',sellerAccount)).json();
+      assert.equal(sellerPage.items.length, 1);
+      assert.ok(sellerPage.nextCursor);
+      const adminList = await request('/admin/support/questions?limit=1','GET',admin);
+      assert.equal(adminList.status, 200);
+      const firstPage = await adminList.json();
+      assert.equal(firstPage.items.length, 1);
+      assert.ok(firstPage.nextCursor);
+      const secondPage = await (await request(`/admin/support/questions?limit=1&cursor=${firstPage.nextCursor}`,
+        'GET',admin)).json();
+      assert.equal(secondPage.items.length, 1);
+      assert.ok(secondPage.nextCursor);
+      const thirdPage = await (await request(`/admin/support/questions?limit=1&cursor=${secondPage.nextCursor}`,
+        'GET',admin)).json();
+      assert.equal(thirdPage.items.length, 1);
+      assert.equal(thirdPage.nextCursor, null);
+      assert.deepEqual(new Set([firstPage.items[0].id,secondPage.items[0].id,thirdPage.items[0].id]),
+        new Set([question.id,otherQuestion.id,ownSecond.id]));
+      assert.equal((await request('/admin/support/questions?limit=0','GET',admin)).status, 400);
+      assert.equal((await request('/admin/support/questions?limit=50','GET',admin)).status, 200);
+      assert.equal((await request('/admin/support/questions?limit=51','GET',admin)).status, 400);
+      assert.equal((await request('/admin/support/questions?cursor=bad','GET',admin)).status, 400);
+      assert.equal((await request('/seller/support/questions?limit=51','GET',sellerAccount)).status, 400);
+      assert.equal((await request('/customer/support/questions?limit=0','GET',customer)).status, 400);
+      assert.equal((await request('/customer/support/questions?status=ANSWERED','GET',customer)).status, 400);
+      assert.deepEqual((await (await request('/admin/support/questions?status=ANSWERED','GET',admin))
+        .json()).items, []);
+      assert.equal((await request('/admin/support/questions','GET',customer)).status, 403);
       assert.equal((await request(`/customer/support/questions/${question.id}`,'GET',otherCustomer)).status, 404);
       assert.equal((await request(`/seller/support/questions/${question.id}`,'GET',otherSellerAccount)).status, 404);
       assert.equal((await request(`/seller/support/questions/${question.id}/replies`,'POST',
@@ -90,6 +146,18 @@ test('question HTTP uses actual customer, seller and admin grants without leakin
         sellerAccount,{ text: '판매자 답변' },replyKey);
       assert.equal(answer.status, 200);
       const message = await answer.json();
+      assert.equal((await request(`/admin/support/questions/${question.id}`,'GET',customer)).status, 403);
+      assert.equal((await request(`/admin/support/questions/${question.id}`,'GET',sellerAccount)).status, 403);
+      const pending = await request('/admin/support/questions?status=ANSWERED','GET',admin);
+      assert.equal(pending.status, 200);
+      assert.deepEqual((await pending.json()).items.map(({ id }) => id), [question.id]);
+      const adminDetail = await request(`/admin/support/questions/${question.id}`,'GET',admin);
+      assert.equal(adminDetail.status, 200);
+      const reviewable = await adminDetail.json();
+      assert.equal(reviewable.body, '구매 전에 배송을 묻습니다');
+      assert.deepEqual(reviewable.messages.map(({ id, body }) => ({ id, body })),
+        [{ id: message.id, body: '판매자 답변' }]);
+      assert.deepEqual(reviewable.messages[0].events.map(({ action }) => action), ['SUBMITTED']);
       const retry = await request(`/seller/support/questions/${question.id}/replies`,'POST',
         sellerAccount,{ text: '판매자 답변' },replyKey);
       assert.equal(retry.status, 200);
@@ -106,6 +174,10 @@ test('question HTTP uses actual customer, seller and admin grants without leakin
         admin,{ messageId: message.id })).status, 200);
       assert.equal((await client.query(`SELECT count(*)::int AS n FROM support_question_message_events
         WHERE message_id=$1 AND action='PUBLISHED'`, [message.id])).rows[0].n, 1);
+      const approvedDetail = await (await request(`/admin/support/questions/${question.id}`,
+        'GET',admin)).json();
+      assert.deepEqual(approvedDetail.messages[0].events.map(({ action }) => action),
+        ['SUBMITTED','PUBLISHED']);
       const publicRows = await (await fetch(base + publicPath)).json();
       assert.deepEqual(publicRows, [{ questionId: question.id,
         question: '구매 전에 배송을 묻습니다', answer: '판매자 답변' }]);
