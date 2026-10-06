@@ -201,6 +201,9 @@ env: { APP_ENV?: string; PAYMENT_MODE?: string } = process.env): Promise<RefundC
       shipping_fee_won AS "shippingFeeWon",shipping_support_won AS "shippingSupportWon",
       payable_won AS "payableWon" FROM shipment_orders WHERE id=$1 FOR UPDATE`,
     [located.shipmentOrderId])).rows[0];
+    const fulfillment = (await client.query<{ status: string }>(`SELECT status
+      FROM shipment_fulfillments WHERE shipment_order_id=$1 FOR UPDATE`,
+    [located.shipmentOrderId])).rows[0];
     await client.query(`SELECT option_id FROM shipment_order_lines
       WHERE shipment_order_id=$1 ORDER BY option_id FOR UPDATE`, [located.shipmentOrderId]);
     await client.query(`SELECT id FROM refund_cases
@@ -210,7 +213,7 @@ env: { APP_ENV?: string; PAYMENT_MODE?: string } = process.env): Promise<RefundC
       `SELECT id,status,checkout_order_id AS "checkoutOrderId",shipment_order_id AS "shipmentOrderId",
        decision_idempotency_key AS "decisionIdempotencyKey",decision_fingerprint AS "decisionFingerprint"
        FROM refund_cases WHERE id=$1`, [input.caseId])).rows[0];
-    if (!target || order?.status !== 'PAID' || shipment?.status !== 'PAID')
+    if (!target || order?.status !== 'PAID' || shipment?.status !== 'PAID' || !fulfillment)
       throw new Error('Refund unavailable');
     if (target.status !== 'REQUESTED') {
       if (target.decisionIdempotencyKey !== input.idempotencyKey ||
@@ -233,6 +236,8 @@ env: { APP_ENV?: string; PAYMENT_MODE?: string } = process.env): Promise<RefundC
       await client.query('COMMIT');
       return view!;
     }
+    if (input.decision === 'approve' && fulfillment.status === 'SHIPPED')
+      throw new Error('Refund unavailable');
     if (resolveRefundMode(env) !== 'mock' || !input.preShipmentConfirmed ||
         input.preShipmentEvidence !== 'ADMIN_CONFIRMED_NOT_DISPATCHED')
       throw new Error('Refund unavailable');

@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## GREEN 후보 — 2026-10-06 S5.1 Task7 고객 즉시 조회·S4 환불 결합
+
+- **판정·인수:** 신산님이 지정한 유일한 Task7 code-writer가 exact clean base `fdd86ac4e582cb247a52b6fc9ff28ed773f8c362`에서 기존 actual RED 13건(6 pass/7 fail)을 인수했다. `D:\Project\shoppingmall2\.worktrees\s5-fulfillment-engagement`의 기존 branch만 사용했고 새 branch/worktree, OneDrive, 공유 DB, WSL, Docker, commit/push는 사용하지 않았다. 이 기록은 **로컬 정적 GREEN 후보**이며 actual DB GREEN이나 Task7 완료 판정이 아니다.
+- **고객 조회 구현:** `apps/api/src/orders/repository.ts`에서 기존 repeatable-read 주문 snapshot 안에 발송 묶음별 고객용 fulfillment 상태·예상일·현재 지연사유·최신 고객안내·택배사 표시명·운송장·포장/출고/변경시각·고객용 사건을 추가했다. 내부 actor/seller ID, 멱등 범위/키, fingerprint, 관리자 내부 사유, 공급자 원문과 배송지 PII 중복은 선택하지 않는다. 주문 품목에는 `REFUNDED` 누적 `completedRefundQuantity`와 `remainingQuantity`를 추가했다.
+- **환불 승인·집행 구현:** `apps/api/src/refunds/service.ts`와 `apps/api/src/refunds/processor.ts`에서 `shipment_orders→shipment_fulfillments→refund_cases` 상대 잠금 순서를 고정했다. 신규 approve와 pending verified processor는 현재 fulfillment가 `SHIPPED`이면 거래 rollback 예외로 거부한다. verified 성공 후 현재 건까지 `REFUNDED` 수량이 발송 주문 전량일 때만 같은 거래에서 `CANCELLED`, `version+1`, `cancelled_at`과 `REFUND_CANCELLED/system:refund/원 refund event UUID` 사건 1개 및 개인정보 없는 감사 이력을 기록한다. 부분 환불과 이미 처리된 replay는 fulfillment 사건을 만들지 않는다.
+- **변경 파일:** `apps/api/src/orders/repository.ts`, `apps/api/src/refunds/service.ts`, `apps/api/src/refunds/processor.ts`, `WORK_STATUS.md`만 수정했다. 기존 RED 시험 3파일과 schema/migration/endpoint/계약은 수정하지 않았다.
+- **로컬 검증:** DB 환경변수를 제거한 세 대상 loader는 **13 tests / 0 pass / 0 fail / 13 explicit skip**, API `tsc --noEmit` 통과, 허용 제품 3파일 ESLint 통과, `git diff --check` 통과다. 최초 `pnpm exec eslint ...`은 Windows에서 실행 파일을 찾지 못해 1회 exit 1이었고, 저장소의 `node_modules\.bin\eslint.CMD`로 같은 3파일을 재실행해 exit 0을 확인했다. 이는 제품 오류가 아니며 파일 우회 수정은 없었다.
+- **미검증·다음 조치:** actual private PostgreSQL의 목표 13건 GREEN, seller/admin 경합의 양쪽 `shipment_orders` 대기·한쪽 성공·무교착, 전체 S4/Task6 회귀, 전체 gate, 실행 후 업무행0·singleton1/1·임시자원 cleanup0은 controller가 검증해야 한다. 실패 시 해당 실제 출력과 현재 diff를 기준으로 같은 허용 범위에서 보완하며, 그 전에는 commit/push 또는 완료 판정을 하지 않는다.
+
 ## 실제 RED — 2026-10-06 S5.1 Task7 고객 즉시 조회·S4 환불 결합
 
 - **판정·기준:** controller가 exact test SHA `9d927daf01c5640ce974ba26197d23bac5cc0d50`를 WSL private tmpfs PostgreSQL **18.4**, migration **16건**, system identifier `7693381525225517100`에서 실행했다. 결과는 **13 tests / 6 pass / 7 fail / 0 skip, exit 1**이며 schema·fixture·setup·cleanup harness 오류는 **0**이다. 따라서 Task7은 의도한 제품 기능 부재를 실제 PostgreSQL에서 재현한 **유효한 RED**이고 GREEN·완료가 아니다.
