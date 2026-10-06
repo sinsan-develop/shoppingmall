@@ -17,6 +17,7 @@
 - **브라우저 실행기:** 고객 주문 조회 → 판매자 READY→PACKING→SHIPPED → 관리자 DELAYED→READY 정정 → 고객 재조회 흐름과 1920·1440·430 가로 넘침·키보드 focus를 준비했다. `QA_FIXTURE_JSON`, 프로세스 환경의 시험 비밀번호, 격리 Chrome debugging endpoint만 입력받으며 실제 외부 발송·PG·메시지 공급자를 호출하지 않는다.
 - **실제 로컬 검증:** 대상 시험은 **4 tests / 3 pass / 0 fail / 1 private-DB skip**이고 API typecheck·browser script syntax가 통과했다. 전체 `pnpm test`는 주 시험 **400 total / 284 pass / 0 fail / 116 DB·환경 skip**, PR 본문 **8/8 PASS**다. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `git diff --check`는 exit 0이고 Web은 **18 routes**를 생성했다.
 - **다음 조치:** 후보를 안전한 commit으로 보존·별칭 원격에 push한 뒤, WSL 비공개 network `shoppingmall-s51-task9-1006`와 tmpfs PostgreSQL `shoppingmall-s51-task9-pg-1006`, DB `shoppingmall_s5_fulfillment_ui_f5101006`에서 migration 0000~0015, 외부 identity 삭제 거부, 정상 reset 잔류0을 검증한다. 사용 즉시 정확한 컨테이너·network·cache를 제거한다.
+- **실DB 첫 오류·조치:** 첫 WSL tmpfs 실행은 migration **16건** 적용 뒤 fixture 시험이 seed 전에 `Expected isolated S3 QA database`로 중단됐다. 원인은 기존 `assertOrderMutationQaTarget`이 S3 전용으로 DB 이름 `shoppingmall`만 허용하는 데 있었다. 새 S5 시험은 정확한 `shoppingmall_s5_fulfillment_ui_<runid>`와 전달된 system identifier를 직접 대조하도록 보정한다. 제품·DB 자료 변경은 없고 종료 trap으로 컨테이너·network는 잔류 0, WSL checkout은 clean이다. 동일 근본 원인 1회다.
 
 ## 검증 완료 — 2026-10-06 S5.1 Task8 역할별 출고 화면·독립 리뷰 보정
 

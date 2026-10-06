@@ -3,10 +3,10 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
 import {
+  fulfillmentUiDatabaseName,
   fulfillmentUiEmails,
   runFulfillmentUiFixture,
 } from '../scripts/qa-fulfillment-ui-fixture.ts';
-import { assertOrderMutationQaTarget } from './order-schema-guard.mjs';
 
 const databaseUrl = process.env.DATABASE_URL;
 const systemId = process.env.S5_FULFILLMENT_UI_TEST_DB_SYSTEM_ID;
@@ -18,7 +18,13 @@ test('fulfillment fixture refuses a foreign identity and leaves it intact, then 
     const pool = new Pool({ connectionString: databaseUrl });
     let manifest;
     try {
-      await assertOrderMutationQaTarget(pool, systemId);
+      assert.match(systemId, /^\d{10,}$/);
+      const target = (await pool.query(`SELECT system_identifier::text AS "systemId",
+        current_database() AS "databaseName" FROM pg_control_system()`)).rows[0];
+      assert.deepEqual(target, {
+        systemId,
+        databaseName: fulfillmentUiDatabaseName(runId),
+      });
       manifest = await runFulfillmentUiFixture('seed', runId, databaseUrl, password);
       assert.equal(manifest.accountIds.length, 5);
       assert.equal(manifest.sellerIds.length, 3);
