@@ -7,8 +7,10 @@
 - **변경 범위:** `apps/api/test/fulfillment-admin-http-db.test.mjs`에 기존 suite와 fixture·cleanup·system-ID/migration guard·lock assertion을 재사용하는 assertion/subtest만 추가했다. 이 `WORK_STATUS.md`에는 제품 구현 전 NON-GREEN/RED 후보만 기록했다. 새 branch/worktree, commit/push, 제품 코드, schema/migration, shared DB, WSL, Docker 변경·접근은 0이다.
 - **로컬 loader:** `DATABASE_URL`과 `S5_ADMIN_TEST_DB_SYSTEM_ID`를 제거한 로컬 실행은 **2 tests / 1 route pass / 1 expected DB skip / 0 fail**이다. 이는 문법·로딩·DB 미설정 route만 확인하며 actual RED 또는 GREEN 증거가 아니다.
 - **test-preflight 보정:** 신규 SHIPPED 정정 subtest의 운송장 준비값과 기대값을 0015 영숫자 제약·API 정규화 결과에 맞춰 `OTHERBEFORE`/`OTHERAFTER`로 일치시켰다. 이는 actual DB 제품 RED 실행 전 test harness 보정이며 제품 결함 보정이나 RED 통과 증거가 아니다.
-- **예상 actual RED 원인:** 현재 제품은 2글자 이름 `이율`을 `이**율`로 반환해 원문 두 글자를 모두 노출하고, 관리자 GET 3개에 cache 금지 헤더가 없다. 관리자 정정 감사 details는 before/after/customerMessage를 보존하지 않고 snapshot에 `carrierName`이 없으며, `SHIPPED→SHIPPED` 정정 때 `shipped_at`을 현재 시각으로 덮어쓴다. fresh private DB actual RED는 controller가 별도로 실행·기록해야 한다.
-- **미검증·다음:** actual private DB RED, fixture cleanup·잔류0, 각 신규 assertion의 실제 실패 메시지는 이번 금지 범위 때문에 미실행이다. 제품 보정·재검토는 별도 PMO 지시 전 시작하지 않는다. 독립 리뷰 Minor 1건인 상세 multi-SELECT 시점 불일치도 이번 RED 범위 밖이며 미해결이다.
+- **actual RED 환경·결과:** exact SHA `dd239001e4420e0dccaa8ad5ef668a576339da07`, fresh private PostgreSQL **18.4**, migration **16건**, system identifier `7693368997398884396`에서 `fulfillment-admin-http-db.test.mjs`는 **12 tests / 8 pass / 4 fail / 0 skip, exit 1**이었다. 부모 suite를 포함한 4 fail이며 harness/setup 오류는 0이다.
+- **재현된 Important 4건:** (a) 관리자 GET settings/list/detail 3개 응답 모두 cache 금지 헤더가 없었다. (b) 2글자 이름 `이율`이 `이**율`로 반환되어 양끝 원문이 모두 노출됐다. (c) `audit_events.details`의 before/after/customerMessage가 `undefined`였고 `carrierName` 전후값도 보존되지 않았다. (d) `first_shipped_at`은 보존됐지만 `shipped_at`이 `2026-10-06T02:59:00.000Z`에서 `2026-10-06T02:01:28.297Z`로 덮어써졌다. 따라서 제품 Important 4건을 actual private DB에서 재현했고 Task6는 계속 **NON-GREEN**이다.
+- **사후 정리·자원:** 실행 후 accounts부터 audit까지 확인한 업무행은 모두 **0**, `fulfillment_settings=1`, `shipping_policy_global=1`이다. 전용 private PostgreSQL/network는 GREEN 재검증까지 active이며, shared DB·Oracle·외부 서비스는 접촉하지 않았다.
+- **미검증·다음:** 제품 보정·actual GREEN·active 전용 PG/network 정리는 별도 PMO 지시 전 시작하지 않는다. 독립 리뷰 Minor 1건인 상세 multi-SELECT 시점 불일치도 이번 RED 범위 밖이며 미해결이다.
 
 ## GREEN 후보 — 2026-10-06 S5.1 Task6 관리자 설정·조회·정정 API
 
