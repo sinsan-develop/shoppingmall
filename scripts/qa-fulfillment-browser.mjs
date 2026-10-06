@@ -25,6 +25,7 @@ const viewports = [
 let page;
 let socket;
 let commandChannel;
+let sellerFaultIdentifier;
 
 function send(method, params = {}) {
   if (!commandChannel) return Promise.reject(new Error('Chrome socket unavailable'));
@@ -75,6 +76,39 @@ async function clickText(text) {
 
 async function clearSession() {
   await send('Storage.clearDataForOrigin', { origin: new URL(web).origin, storageTypes: 'cookies,local_storage' });
+}
+
+async function clearSellerListFault() {
+  if (!sellerFaultIdentifier) return;
+  await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: sellerFaultIdentifier });
+  sellerFaultIdentifier = undefined;
+}
+
+async function installSellerListFault(mode) {
+  assert.ok(['delay', 'error'].includes(mode));
+  await clearSellerListFault();
+  const result = await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (...args) => {
+      const url = String(args[0] instanceof Request ? args[0].url : args[0]);
+      if (!globalThis.__qaSellerListFaultUsed && url.includes('/fulfillment/seller/shipments?')) {
+        globalThis.__qaSellerListFaultUsed = true;
+        if (${JSON.stringify(mode)} === 'delay') await new Promise((resolve) => setTimeout(resolve, 800));
+        if (${JSON.stringify(mode)} === 'error') return new Response('{}', {
+          status: 503, headers: { 'content-type': 'application/json' },
+        });
+      }
+      return originalFetch(...args);
+    };
+  })();` });
+  sellerFaultIdentifier = result.identifier;
+}
+
+async function assertSellerCannotAccess(shipmentId) {
+  const status = await evaluate(`fetch(${JSON.stringify(`http://127.0.0.1:9092/fulfillment/seller/shipments/`)} +
+    encodeURIComponent(${JSON.stringify(shipmentId)}), { credentials: 'include', cache: 'no-store' })
+    .then((response) => response.status)`);
+  assert.equal(status, 404, `seller unexpectedly accessed shipment ${shipmentId}`);
 }
 
 async function login(role, email) {
@@ -146,9 +180,14 @@ try {
   await keyboardAndViewportEvidence('customer-ready');
 
   await login('seller', fixture.emails[1]);
+  await installSellerListFault('delay');
   await navigate('/account/seller/orders');
+  await waitFor("document.body.innerText.includes('판매자 권한 확인 중')", 'seller loading state');
   await waitFor("document.body.innerText.includes('판매자 주문 출고') && document.body.innerText.includes('READY')",
     'seller fulfillment list');
+  await clearSellerListFault();
+  await assertSellerCannotAccess(fixture.shipmentIds[1]);
+  await assertSellerCannotAccess(fixture.shipmentIds[2]);
   await evaluate(`document.querySelector('.fulfillment-list-button')?.click(); true`);
   await waitFor("document.body.innerText.includes('받는 분 가상고객')", 'seller detail');
   await clickText('포장 시작');
@@ -159,6 +198,28 @@ try {
   await waitFor("document.body.innerText.includes('SHIPPED') && document.body.innerText.includes('최신 정보를 반영')",
     'seller shipped');
   await keyboardAndViewportEvidence('seller-shipped');
+
+  await login('seller', fixture.emails[2]);
+  await installSellerListFault('error');
+  await navigate('/account/seller/orders');
+  await waitFor("document.body.innerText.includes('출고 목록을 불러오지 못했습니다')", 'seller error state');
+  await clearSellerListFault();
+  await navigate('/account');
+  await navigate('/account/seller/orders');
+  await waitFor("document.body.innerText.includes('DELAYED') && document.body.innerText.includes('2026-10-10') && document.body.innerText.includes('휴무일 미반영')",
+    'seller-b delayed cutoff result');
+  assert.equal(await setInput('#seller-status-filter', 'SHIPPED'), true);
+  await clickText('조회');
+  await waitFor("document.body.innerText.includes('처리할 발송 주문이 없습니다')", 'seller empty state');
+
+  await login('seller', fixture.emails[3]);
+  await navigate('/account/seller/orders');
+  await waitFor("document.body.innerText.includes('SHIPPED') && document.body.innerText.includes('2026-10-08')",
+    'owool fulfillment seller list');
+  await assertSellerCannotAccess(fixture.shipmentIds[0]);
+  await evaluate(`document.querySelector('.fulfillment-list-button')?.click(); true`);
+  await waitFor(`document.body.innerText.includes(${JSON.stringify(`QA${fixture.runId.toUpperCase()}`)})`,
+    'owool seller sees assigned shipment');
 
   await login('admin', fixture.emails[4]);
   await navigate('/account/admin/fulfillment');
@@ -189,6 +250,7 @@ try {
   console.info('browser: customer, seller and admin fulfillment paths PASS');
   console.info('browser: 1920, 1440, 430 and keyboard checks PASS');
 } finally {
+  await clearSellerListFault().catch(() => undefined);
   const cleanupErrors = await closeCdpPage({ debugging, page, socket });
   await new Promise((resolve) => setTimeout(resolve, 100));
   if (cleanupErrors.length) throw new AggregateError(cleanupErrors, 'Chrome cleanup failed');

@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## Task11 독립 리뷰 I2·I3·M2 TDD 보강 — 2026-10-06
+
+- **판정·범위:** PMO가 승인된 S5.1 Task9/11/12 완료조건 보정으로 확인했다. 같은 `codex/s5-fulfillment-engagement`·기존 worktree의 단일 writer만 사용하며 공개 API/schema/migration·shared DB·외부서비스·Oracle·PR/main은 변경하지 않는다.
+- **RED:** fixture preflight의 payment event 잠금·외부 payment conflict 거부와 Chrome runner의 타판매자404·공동출고 seller·cutoff 결과·로딩/오류/빈 상태 계약을 먼저 추가했다. 대상 시험은 **5 total / 3 pass / 2 fail**, 실패 2건은 정확히 기존 보호·시나리오 부재였다.
+- **GREEN 후보:** reset preflight가 QA payment attempts와 events를 잠그고 이를 참조하는 manifest 밖 `payment_event_conflicts`가 하나라도 있으면 삭제 전에 transaction을 거부한다. 실제 DB safety 시험에는 conflict 보존과 manifest 관련 25관계 잔류0·`fulfillment_settings` 원복 단언을 추가했다. browser runner는 seller A의 seller B/공동출고 404, seller B의 로딩·503 오류·SHIPPED 필터 빈 상태·`2026-10-10` 잠정일, 어울몰 seller의 공동출고 `SHIPPED`·운송장을 실제 browser fetch/DOM으로 확인하도록 보강했다.
+- **로컬 검증:** runner 구문, fixture/browser/CDP 계약 **9 pass / 0 fail**, 전체 `pnpm typecheck`, `pnpm lint`, `git diff --check` exit 0이다. actual private DB safety와 실제 Chrome은 아직 실행 전이며 PASS로 표시하지 않는다.
+- **변경 파일:** `apps/api/scripts/qa-fulfillment-ui-fixture.ts`, `apps/api/test/qa-fulfillment-ui-fixture.test.mjs`, `apps/api/test/qa-fulfillment-ui-fixture-safety-db.test.mjs`, `apps/web/test/qa-fulfillment-browser-contract.test.mjs`, `scripts/qa-fulfillment-browser.mjs`, 이 작업현황이다.
+- **오류 횟수·조치:** PowerShell이 remote command substitution/SQL quoting을 로컬 처리한 읽기 전용 baseline 명령1회와 WSL sync 명령1회는 DB 쓰기·checkout 변경 전에 실패했고 literal here-string 전달로 재실행해 통과했다. 잘못 지정한 migration 경로1회는 실제 파일을 검색해 Windows/WSL hash 일치로 교정했다. 저장소에 없는 root `tsc` 직접 명령1회는 코드 검사 전에 실패했고 표준 `pnpm typecheck`가 통과했다. 동일 근본 원인 연속 3회는 없다.
+- **다음 조치:** 후보를 commit·alias push하고 WSL exact SHA를 맞춘 뒤 fresh private tmpfs 0000~0015에서 외부 payment conflict 보존·late insert·전 관계 잔류0과 전체 회귀를 검증한다. 그 후 독립 재리뷰 C0/I0와 exact shared 적용 승인 패킷 갱신을 수행한다.
+
 ## Task11 A안 독립 문서·계약 검토 보정 — 2026-10-06
 
 - **판정:** exact docs commit `e423da6a3c0880a1d358abb255d56cfbae4871e8`의 독립 읽기 전용 검토는 C0/I3/M2다. 어울이 실제 코드와 대조해 다섯 건 모두 사실로 판정했다. 핵심 A안 경계와 docs-only 성격은 일치한다.

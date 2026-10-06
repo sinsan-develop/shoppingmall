@@ -23,6 +23,15 @@ test('fulfillment browser runner covers three roles, three viewports and keyboar
   assert.match(source, /visited\.size/);
   assert.match(source, /let page/);
   assert.match(source, /finally/);
+  assert.match(source, /assertSellerCannotAccess/);
+  assert.match(source, /installSellerListFault/);
+  assert.match(source, /fixture\.emails\[2\]/);
+  assert.match(source, /fixture\.emails\[3\]/);
+  assert.match(source, /fixture\.shipmentIds\[2\]/);
+  assert.match(source, /처리할 발송 주문이 없습니다/);
+  assert.match(source, /판매자 권한 확인 중/);
+  assert.match(source, /출고 목록을 불러오지 못했습니다/);
+  assert.match(source, /2026-10-10/);
   assert.doesNotMatch(source, /const pending = new Map/);
   assert.doesNotMatch(source, /sms|email provider|push provider|payment provider/i);
 });

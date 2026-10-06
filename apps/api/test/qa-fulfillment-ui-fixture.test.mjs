@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   fulfillmentUiDatabaseName,
@@ -10,6 +11,7 @@ import {
 } from '../scripts/qa-fulfillment-ui-fixture.ts';
 
 const uuid = (digit) => `${digit.repeat(8)}-${digit.repeat(4)}-${digit.repeat(4)}-${digit.repeat(4)}-${digit.repeat(12)}`;
+const fixtureSourceUrl = new URL('../scripts/qa-fulfillment-ui-fixture.ts', import.meta.url);
 
 test('fulfillment browser fixture is bound to one exact isolated database and five virtual roles', () => {
   assert.equal(fulfillmentUiDatabaseName('A1B2C3D4'), 'shoppingmall_s5_fulfillment_ui_a1b2c3d4');
@@ -79,4 +81,13 @@ test('fulfillment fixture runtime target requires the exact private database and
   assert.throws(() => validateFulfillmentUiSystemTarget('a1b2c3d4', '999999999999', {
     databaseName: 'shoppingmall_s5_fulfillment_ui_a1b2c3d4', systemId: '123456789012',
   }));
+});
+
+test('fulfillment reset preflight locks payment events and rejects unowned payment conflicts', async () => {
+  const source = await readFile(fixtureSourceUrl, 'utf8');
+  const ownership = source.slice(source.indexOf('async function assertResetOwnership'),
+    source.indexOf('async function resetFixture'));
+  assert.match(ownership, /SELECT id FROM payment_events[\s\S]*FOR UPDATE/);
+  assert.match(ownership, /FROM payment_event_conflicts/);
+  assert.match(ownership, /foreign payment conflict/i);
 });

@@ -343,6 +343,9 @@ async function assertResetOwnership(client: PoolClient, manifest: FulfillmentUiM
     WHERE shipment_order_id=ANY($1::uuid[]) ORDER BY shipment_order_id FOR UPDATE`, [manifest.shipmentIds]);
   await client.query(`SELECT id FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[])
     ORDER BY id FOR UPDATE`, [manifest.orderIds]);
+  await client.query(`SELECT id FROM payment_events WHERE payment_attempt_id IN
+    (SELECT id FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[])) ORDER BY id FOR UPDATE`,
+  [manifest.orderIds]);
   await client.query('LOCK TABLE audit_events IN SHARE ROW EXCLUSIVE MODE');
 
   const identities = await client.query<{ account_id: string; kind: string; identifier: string }>(
@@ -411,6 +414,15 @@ async function assertResetOwnership(client: PoolClient, manifest: FulfillmentUiM
     LIMIT 1`, [manifest.accountIds[0], manifest.reservationIds, manifest.addressId,
     manifest.orderIds, manifest.shipmentIds, manifest.productIds, manifest.optionIds, manifest.sellerIds]);
   if (foreign.rowCount) throw new Error('Fulfillment UI fixture has a foreign reference');
+
+  const paymentConflicts = await client.query(`SELECT c.id FROM payment_event_conflicts c
+    JOIN payment_events e ON e.id=c.original_event_id
+    JOIN payment_attempts original_attempt ON original_attempt.id=e.payment_attempt_id
+    JOIN payment_attempts incoming_attempt ON incoming_attempt.id=c.incoming_attempt_id
+    WHERE original_attempt.checkout_order_id=ANY($1::uuid[])
+       OR incoming_attempt.checkout_order_id=ANY($1::uuid[])
+    LIMIT 1`, [manifest.orderIds]);
+  if (paymentConflicts.rowCount) throw new Error('Fulfillment UI fixture has a foreign payment conflict');
 
   const eventActors = await client.query(`SELECT 1 FROM shipment_fulfillment_events
     WHERE shipment_order_id=ANY($1::uuid[]) AND
