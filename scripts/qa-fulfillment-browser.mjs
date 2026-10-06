@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { validateFulfillmentUiManifest } from '../apps/api/scripts/qa-fulfillment-ui-fixture.ts';
-import { closeCdpPage, openCdpPage } from './qa-browser-cdp.mjs';
+import { closeCdpPage, createCdpCommandChannel, openCdpPage } from './qa-browser-cdp.mjs';
 
 const web = process.env.QA_WEB_BASE;
 const password = process.env.QA_FIXTURE_PASSWORD;
@@ -24,16 +24,11 @@ const viewports = [
 
 let page;
 let socket;
-const pending = new Map();
-let nextId = 1;
+let commandChannel;
 
 function send(method, params = {}) {
-  return new Promise((resolve, reject) => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) return reject(new Error('Chrome socket unavailable'));
-    const callId = nextId++;
-    pending.set(callId, { resolve, reject });
-    socket.send(JSON.stringify({ id: callId, method, params }));
-  });
+  if (!commandChannel) return Promise.reject(new Error('Chrome socket unavailable'));
+  return commandChannel.send(method, params);
 }
 
 async function evaluate(expression) {
@@ -143,13 +138,7 @@ async function customerOrder(orderId, expectedText) {
 
 try {
   ({ page, socket } = await openCdpPage({ debugging }));
-  socket.onmessage = ({ data }) => {
-    const message = JSON.parse(data);
-    if (!message.id || !pending.has(message.id)) return;
-    const request = pending.get(message.id); pending.delete(message.id);
-    if (message.error) request.reject(new Error(message.error.message));
-    else request.resolve(message.result);
-  };
+  commandChannel = createCdpCommandChannel(socket);
   await send('Page.enable'); await send('Runtime.enable');
 
   await login('customer', fixture.emails[0]);

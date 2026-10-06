@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 로컬 GREEN — 2026-10-06 S5.1 Task9 CDP 명령 무한대기 보정
+
+- **판정:** RED `c3bcb497071de6fe901b8c7a8ced379fe9fddc70`의 개별 CDP 명령 무한대기와 socket 종료 시 pending 미정리를 공용 command channel로 최소 보정했다. 실제 Chrome과 독립 최종 재리뷰는 아직 남아 있어 Task9 완료는 아니다.
+- **구현:** 각 CDP 명령은 기본 5초 timeout을 갖고 timeout·동기 send 오류 때 자신의 pending entry를 제거한다. 유효 응답은 timer를 해제하고, socket error/close 또는 잘못된 JSON은 모든 pending timer를 해제한 뒤 즉시 reject한다. fulfillment browser runner는 자체 pending map을 제거하고 이 channel을 사용한다.
+- **대상·전체 검증:** CDP/runner 대상은 **5 tests / 5 pass / 0 fail / 0 skip**이다. 전체 `pnpm test`는 주 시험 **405 total / 289 pass / 0 fail / 116 DB·환경 skip**, PR 본문 **8/8 PASS**다. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `git diff --check`는 exit 0이고 Web은 **18 routes**를 생성했다.
+- **변경 파일:** `scripts/qa-browser-cdp.mjs`, `scripts/qa-fulfillment-browser.mjs`, 앞선 RED 시험 2파일, 이 `WORK_STATUS.md`다. schema/migration·공개 API·제품 화면·dependency 변경은 없다.
+- **다음 조치:** GREEN commit·push와 WSL exact-SHA 동기화 뒤 읽기 전용 독립 최종 재리뷰 C0/I0를 확인한다. 통과할 때만 PMO에 실제 browser 실행계획을 보고한다.
+
 ## 실제 RED 준비 — 2026-10-06 S5.1 Task9 CDP 명령 무한대기 보정
 
 - **판정:** exact `12b00f65b3a9b52920868826e8b3737a55f842a5` 읽기 전용 재리뷰는 **Critical 0 / Important 1 / Minor 0**이다. 직전 I3은 해소됐으나 WebSocket 연결 뒤 개별 CDP 명령의 응답 제한시간과 close/error 시 pending 전체 reject가 없어 실제 Chrome 실행 전 보정이 필요하다.
