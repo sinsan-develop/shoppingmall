@@ -44,6 +44,35 @@ export function createLatestRequestGuard() {
   };
 }
 
+export function createFulfillmentRequestCoordinator(onBusy: (busy: boolean) => void) {
+  const latest = new Map<string, number>();
+  let pending = 0;
+  let reportedBusy = false;
+  const reportBusy = () => {
+    const busy = pending > 0;
+    if (busy !== reportedBusy) {
+      reportedBusy = busy;
+      onBusy(busy);
+    }
+  };
+  return {
+    begin(lane: string) {
+      const token = (latest.get(lane) ?? 0) + 1;
+      latest.set(lane, token);
+      pending += 1;
+      reportBusy();
+      return token;
+    },
+    isLatest(lane: string, token: number) { return latest.get(lane) === token; },
+    invalidate(lane: string) { latest.set(lane, (latest.get(lane) ?? 0) + 1); },
+    finish() {
+      if (pending > 0) pending -= 1;
+      reportBusy();
+    },
+    pendingCount() { return pending; },
+  };
+}
+
 export function carrierTrackingUrl(code: string | null | undefined): string | null {
   return code ? trackingUrls[code] ?? null : null;
 }

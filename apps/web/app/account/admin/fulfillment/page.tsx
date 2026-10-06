@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { appendUniqueFulfillments, fulfillmentFailureMessage, fulfillmentSaveDisposition,
-  shouldReleaseFulfillmentKey } from '../../fulfillment-ui';
+import {
+  appendUniqueFulfillments, createFulfillmentRequestCoordinator, fulfillmentFailureMessage,
+  fulfillmentSaveDisposition, shouldReleaseFulfillmentKey,
+} from '../../fulfillment-ui';
 
 type FulfillmentStatus = 'READY' | 'PACKING' | 'DELAYED' | 'SHIPPED' | 'CANCELLED';
 type CarrierCode = 'cj_logistics' | 'korea_post' | 'hanjin' | 'lotte' | 'other';
@@ -214,6 +216,8 @@ export default function AdminFulfillmentPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const keys = useRef(new Map<string, string>());
+  const requests = useRef<ReturnType<typeof createFulfillmentRequestCoordinator> | null>(null);
+  if (requests.current === null) requests.current = createFulfillmentRequestCoordinator(setBusy);
 
   function roleFailure(response: Response) {
     if (response.status === 401 || response.status === 403) { setState('unauthorized'); return true; }
@@ -221,35 +225,66 @@ export default function AdminFulfillmentPage() {
   }
   async function loadSetting(signal?: AbortSignal) {
     if (!apiOrigin) throw new Error('API unavailable');
-    const response = await fetch(`${apiOrigin}/fulfillment/admin/settings`,
-      { credentials: 'include', cache: 'no-store', signal });
-    if (roleFailure(response)) return false;
-    if (!response.ok) throw new Error('Setting unavailable');
-    setSetting(await response.json() as Setting); return true;
+    const request = requests.current!.begin('setting');
+    try {
+      const response = await fetch(`${apiOrigin}/fulfillment/admin/settings`,
+        { credentials: 'include', cache: 'no-store', signal });
+      if (!requests.current!.isLatest('setting', request)) return false;
+      if (roleFailure(response)) return false;
+      if (!response.ok) throw new Error('Setting unavailable');
+      const next = await response.json() as Setting;
+      if (!requests.current!.isLatest('setting', request)) return false;
+      setSetting(next); return true;
+    } catch (error) {
+      if (!requests.current!.isLatest('setting', request)) return false;
+      throw error;
+    } finally { requests.current!.finish(); }
   }
-  async function loadList(next: Filters = filters, signal?: AbortSignal, cursor?: string) {
+  async function loadList(next: Filters = filters, signal?: AbortSignal, cursor?: string,
+    failureMessage?: string) {
     if (!apiOrigin) throw new Error('API unavailable');
-    const query = new URLSearchParams({ limit: '50' });
-    if (next.status) query.set('status', next.status);
-    if (next.sellerId) query.set('sellerId', next.sellerId);
-    if (next.from) query.set('from', next.from);
-    if (next.to) query.set('to', next.to);
-    if (cursor) query.set('cursor', cursor);
-    const response = await fetch(`${apiOrigin}/fulfillment/admin/shipments?${query}`,
-      { credentials: 'include', cache: 'no-store', signal });
-    if (roleFailure(response)) return false;
-    if (!response.ok) throw new Error('List unavailable');
-    const result = await response.json() as { items: AdminItem[]; nextCursor: string | null };
-    setItems((current) => cursor ? appendUniqueFulfillments(current, result.items) : result.items);
-    setNextCursor(result.nextCursor); return true;
+    const request = requests.current!.begin('list');
+    try {
+      const query = new URLSearchParams({ limit: '50' });
+      if (next.status) query.set('status', next.status);
+      if (next.sellerId) query.set('sellerId', next.sellerId);
+      if (next.from) query.set('from', next.from);
+      if (next.to) query.set('to', next.to);
+      if (cursor) query.set('cursor', cursor);
+      const response = await fetch(`${apiOrigin}/fulfillment/admin/shipments?${query}`,
+        { credentials: 'include', cache: 'no-store', signal });
+      if (!requests.current!.isLatest('list', request)) return false;
+      if (roleFailure(response)) return false;
+      if (!response.ok) throw new Error('List unavailable');
+      const result = await response.json() as { items: AdminItem[]; nextCursor: string | null };
+      if (!requests.current!.isLatest('list', request)) return false;
+      setItems((current) => cursor ? appendUniqueFulfillments(current, result.items) : result.items);
+      setNextCursor(result.nextCursor); return true;
+    } catch (error) {
+      if (!requests.current!.isLatest('list', request)) return false;
+      if (error instanceof Error && error.name === 'AbortError') throw error;
+      if (failureMessage) { setError(failureMessage); return false; }
+      throw error;
+    } finally { requests.current!.finish(); }
   }
-  async function loadDetail(id: string, signal?: AbortSignal) {
+  async function loadDetail(id: string, signal?: AbortSignal, failureMessage?: string) {
     if (!apiOrigin) throw new Error('API unavailable');
-    const response = await fetch(`${apiOrigin}/fulfillment/admin/shipments/${encodeURIComponent(id)}`,
-      { credentials: 'include', cache: 'no-store', signal });
-    if (roleFailure(response)) return false;
-    if (!response.ok) throw new Error('Detail unavailable');
-    setSelected(await response.json() as AdminDetail); return true;
+    const request = requests.current!.begin('detail');
+    try {
+      const response = await fetch(`${apiOrigin}/fulfillment/admin/shipments/${encodeURIComponent(id)}`,
+        { credentials: 'include', cache: 'no-store', signal });
+      if (!requests.current!.isLatest('detail', request)) return false;
+      if (roleFailure(response)) return false;
+      if (!response.ok) throw new Error('Detail unavailable');
+      const detail = await response.json() as AdminDetail;
+      if (!requests.current!.isLatest('detail', request)) return false;
+      setSelected(detail); return true;
+    } catch (error) {
+      if (!requests.current!.isLatest('detail', request)) return false;
+      if (error instanceof Error && error.name === 'AbortError') throw error;
+      if (failureMessage) { setError(failureMessage); return false; }
+      throw error;
+    } finally { requests.current!.finish(); }
   }
 
   useEffect(() => {
@@ -271,20 +306,25 @@ export default function AdminFulfillmentPage() {
   }, []);
 
   async function write(url: string, method: 'PUT' | 'POST', body: object,
-    identity: string, reload: () => Promise<boolean>, success: string) {
+    identity: string, reload: () => Promise<boolean>, success: string, invalidates: string[]) {
     if (!apiOrigin || busy) return;
     const key = keys.current.get(identity) ?? crypto.randomUUID();
-    keys.current.set(identity, key); setBusy(true); setError(''); setMessage('');
+    keys.current.set(identity, key);
+    for (const lane of invalidates) requests.current!.invalidate(lane);
+    const request = requests.current!.begin('mutation');
+    setError(''); setMessage('');
     try {
       const response = await fetch(`${apiOrigin}${url}`, { method, credentials: 'include',
         headers: { 'content-type': 'application/json', 'idempotency-key': key }, body: JSON.stringify(body) });
       const disposition = fulfillmentSaveDisposition(response.status);
+      if (!requests.current!.isLatest('mutation', request)) return;
       if (disposition === 'unauthorized') {
         if (shouldReleaseFulfillmentKey(disposition, false, response.status)) keys.current.delete(identity);
         setState('unauthorized'); return;
       }
       if (disposition === 'reload') {
         const reloaded = await reload();
+        if (!requests.current!.isLatest('mutation', request)) return;
         if (shouldReleaseFulfillmentKey(disposition, reloaded)) keys.current.delete(identity);
         if (!reloaded) throw new Error('Authoritative reload unavailable');
         setMessage(response.status === 409 ? '다른 처리로 상태가 변경되어 최신 정보를 다시 불러왔습니다' : success);
@@ -292,8 +332,9 @@ export default function AdminFulfillmentPage() {
       }
       if (shouldReleaseFulfillmentKey(disposition, false, response.status)) keys.current.delete(identity);
       setError(fulfillmentFailureMessage(response.status));
-    } catch { setError(fulfillmentFailureMessage()); }
-    finally { setBusy(false); }
+    } catch {
+      if (requests.current!.isLatest('mutation', request)) setError(fulfillmentFailureMessage());
+    } finally { requests.current!.finish(); }
   }
 
   return <main id="main-content" tabIndex={-1} className="shell account-shell">
@@ -307,22 +348,20 @@ export default function AdminFulfillmentPage() {
       onSaveSetting={(sellerId, reason) => {
         const body = { owoolSellerId: sellerId, expectedVersion: setting.version, reason };
         void write('/fulfillment/admin/settings', 'PUT', body, `setting|${JSON.stringify(body)}`,
-          () => loadSetting(), '공동출고 담당 판매자 설정을 저장했습니다');
+          () => loadSetting(), '공동출고 담당 판매자 설정을 저장했습니다', ['setting']);
       }} onFilter={(next) => { setFilters(next); setItems([]); setNextCursor(null);
-        setSelected(null); setBusy(true); setError('');
-        void loadList(next).catch(() => setError('발송 주문 목록을 불러오지 못했습니다'))
-          .finally(() => setBusy(false)); }}
-      onLoadMore={() => { if (!nextCursor) return; setBusy(true); setError('');
-        void loadList(filters, undefined, nextCursor)
-          .catch(() => setError('발송 주문 목록을 더 불러오지 못했습니다'))
-          .finally(() => setBusy(false)); }}
-      onSelect={(id) => { setBusy(true); setError(''); void loadDetail(id)
-        .catch(() => setError('발송 주문 상세를 불러오지 못했습니다')).finally(() => setBusy(false)); }}
+        requests.current!.invalidate('detail'); setSelected(null); setError('');
+        void loadList(next, undefined, undefined, '발송 주문 목록을 불러오지 못했습니다'); }}
+      onLoadMore={() => { if (!nextCursor) return; setError('');
+        void loadList(filters, undefined, nextCursor,
+          '발송 주문 목록을 더 불러오지 못했습니다'); }}
+      onSelect={(id) => { setError('');
+        void loadDetail(id, undefined, '발송 주문 상세를 불러오지 못했습니다'); }}
       onCorrect={(body) => { if (!selected) return; const id = selected.shipmentOrderId;
         void write(`/fulfillment/admin/shipments/${encodeURIComponent(id)}/corrections`, 'POST', body,
           `correction|${id}|${JSON.stringify(body)}`,
           () => Promise.all([loadDetail(id), loadList(filters)]).then((results) => results.every(Boolean)),
-          '출고 정정을 저장하고 최신 정보를 반영했습니다');
+          '출고 정정을 저장하고 최신 정보를 반영했습니다', ['list', 'detail']);
       }} /> : null}
   </main>;
 }

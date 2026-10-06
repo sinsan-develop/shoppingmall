@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { appendUniqueFulfillments, fulfillmentFailureMessage, fulfillmentSaveDisposition,
-  shouldReleaseFulfillmentKey } from '../../fulfillment-ui';
+import {
+  appendUniqueFulfillments, createFulfillmentRequestCoordinator, fulfillmentFailureMessage,
+  fulfillmentSaveDisposition, shouldReleaseFulfillmentKey,
+} from '../../fulfillment-ui';
 
 type FulfillmentStatus = 'READY' | 'PACKING' | 'DELAYED' | 'SHIPPED' | 'CANCELLED';
 type CarrierCode = 'cj_logistics' | 'korea_post' | 'hanjin' | 'lotte' | 'other';
@@ -164,30 +166,58 @@ export default function SellerFulfillmentPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const keys = useRef(new Map<string, string>());
+  const requests = useRef<ReturnType<typeof createFulfillmentRequestCoordinator> | null>(null);
+  if (requests.current === null) requests.current = createFulfillmentRequestCoordinator(setBusy);
 
-  async function loadList(status = statusFilter, signal?: AbortSignal, cursor?: string) {
+  async function loadList(status = statusFilter, signal?: AbortSignal, cursor?: string,
+    failureMessage?: string) {
     if (!apiOrigin) throw new Error('API unavailable');
-    const query = new URLSearchParams({ limit: '50' });
-    if (status) query.set('status', status);
-    if (cursor) query.set('cursor', cursor);
-    const response = await fetch(`${apiOrigin}/fulfillment/seller/shipments?${query}`,
-      { credentials: 'include', cache: 'no-store', signal });
-    if (response.status === 401 || response.status === 403) { setState('unauthorized'); return false; }
-    if (!response.ok) throw new Error('Fulfillment list unavailable');
-    const result = await response.json() as { items: SellerItem[]; nextCursor: string | null };
-    setItems((current) => cursor ? appendUniqueFulfillments(current, result.items) : result.items);
-    setNextCursor(result.nextCursor);
-    return true;
+    const request = requests.current!.begin('list');
+    try {
+      const query = new URLSearchParams({ limit: '50' });
+      if (status) query.set('status', status);
+      if (cursor) query.set('cursor', cursor);
+      const response = await fetch(`${apiOrigin}/fulfillment/seller/shipments?${query}`,
+        { credentials: 'include', cache: 'no-store', signal });
+      if (!requests.current!.isLatest('list', request)) return false;
+      if (response.status === 401 || response.status === 403) {
+        setState('unauthorized'); return false;
+      }
+      if (!response.ok) throw new Error('Fulfillment list unavailable');
+      const result = await response.json() as { items: SellerItem[]; nextCursor: string | null };
+      if (!requests.current!.isLatest('list', request)) return false;
+      setItems((current) => cursor ? appendUniqueFulfillments(current, result.items) : result.items);
+      setNextCursor(result.nextCursor);
+      return true;
+    } catch (error) {
+      if (!requests.current!.isLatest('list', request)) return false;
+      if (error instanceof Error && error.name === 'AbortError') throw error;
+      if (failureMessage) { setError(failureMessage); return false; }
+      throw error;
+    } finally { requests.current!.finish(); }
   }
 
-  async function loadDetail(id: string, signal?: AbortSignal) {
+  async function loadDetail(id: string, signal?: AbortSignal, failureMessage?: string) {
     if (!apiOrigin) throw new Error('API unavailable');
-    const response = await fetch(`${apiOrigin}/fulfillment/seller/shipments/${encodeURIComponent(id)}`,
-      { credentials: 'include', cache: 'no-store', signal });
-    if (response.status === 401 || response.status === 403) { setState('unauthorized'); return false; }
-    if (!response.ok) throw new Error('Fulfillment detail unavailable');
-    setSelected(await response.json() as SellerDetail);
-    return true;
+    const request = requests.current!.begin('detail');
+    try {
+      const response = await fetch(`${apiOrigin}/fulfillment/seller/shipments/${encodeURIComponent(id)}`,
+        { credentials: 'include', cache: 'no-store', signal });
+      if (!requests.current!.isLatest('detail', request)) return false;
+      if (response.status === 401 || response.status === 403) {
+        setState('unauthorized'); return false;
+      }
+      if (!response.ok) throw new Error('Fulfillment detail unavailable');
+      const detail = await response.json() as SellerDetail;
+      if (!requests.current!.isLatest('detail', request)) return false;
+      setSelected(detail);
+      return true;
+    } catch (error) {
+      if (!requests.current!.isLatest('detail', request)) return false;
+      if (error instanceof Error && error.name === 'AbortError') throw error;
+      if (failureMessage) { setError(failureMessage); return false; }
+      throw error;
+    } finally { requests.current!.finish(); }
   }
 
   useEffect(() => {
@@ -211,12 +241,16 @@ export default function SellerFulfillmentPage() {
     const identity = `${selected.shipmentOrderId}|${JSON.stringify(input)}`;
     const key = keys.current.get(identity) ?? crypto.randomUUID();
     keys.current.set(identity, key);
-    setBusy(true); setError(''); setMessage('');
+    requests.current!.invalidate('list');
+    requests.current!.invalidate('detail');
+    const request = requests.current!.begin('mutation');
+    setError(''); setMessage('');
     try {
       const response = await fetch(`${apiOrigin}/fulfillment/seller/shipments/${encodeURIComponent(
         selected.shipmentOrderId)}/transitions`, { method: 'POST', credentials: 'include',
         headers: { 'content-type': 'application/json', 'idempotency-key': key }, body: JSON.stringify(input) });
       const disposition = fulfillmentSaveDisposition(response.status);
+      if (!requests.current!.isLatest('mutation', request)) return;
       if (disposition === 'unauthorized') {
         if (shouldReleaseFulfillmentKey(disposition, false, response.status)) keys.current.delete(identity);
         setState('unauthorized'); return;
@@ -225,6 +259,7 @@ export default function SellerFulfillmentPage() {
         const reloaded = (await Promise.all([
           loadList(statusFilter), loadDetail(selected.shipmentOrderId),
         ])).every(Boolean);
+        if (!requests.current!.isLatest('mutation', request)) return;
         if (shouldReleaseFulfillmentKey(disposition, reloaded)) keys.current.delete(identity);
         if (!reloaded) throw new Error('Authoritative reload unavailable');
         setMessage(response.status === 409 ? '다른 처리로 상태가 변경되어 최신 정보를 다시 불러왔습니다'
@@ -233,8 +268,9 @@ export default function SellerFulfillmentPage() {
       }
       if (shouldReleaseFulfillmentKey(disposition, false, response.status)) keys.current.delete(identity);
       setError(fulfillmentFailureMessage(response.status));
-    } catch { setError(fulfillmentFailureMessage()); }
-    finally { setBusy(false); }
+    } catch {
+      if (requests.current!.isLatest('mutation', request)) setError(fulfillmentFailureMessage());
+    } finally { requests.current!.finish(); }
   }
 
   return <main id="main-content" tabIndex={-1} className="shell account-shell">
@@ -246,15 +282,13 @@ export default function SellerFulfillmentPage() {
     {state === 'ready' ? <SellerFulfillmentView items={items} selected={selected}
       statusFilter={statusFilter} nextCursor={nextCursor} busy={busy} error={error} message={message}
       onFilter={(next) => { setStatusFilter(next); setItems([]); setNextCursor(null);
-        setSelected(null); setBusy(true); setError('');
-        void loadList(next).catch(() => setError('출고 목록을 불러오지 못했습니다'))
-          .finally(() => setBusy(false)); }}
-      onLoadMore={() => { if (!nextCursor) return; setBusy(true); setError('');
-        void loadList(statusFilter, undefined, nextCursor)
-          .catch(() => setError('출고 목록을 더 불러오지 못했습니다'))
-          .finally(() => setBusy(false)); }}
-      onSelect={(id) => { setBusy(true); setError(''); void loadDetail(id)
-        .catch(() => setError('출고 상세를 불러오지 못했습니다')).finally(() => setBusy(false)); }}
+        requests.current!.invalidate('detail'); setSelected(null); setError('');
+        void loadList(next, undefined, undefined, '출고 목록을 불러오지 못했습니다'); }}
+      onLoadMore={() => { if (!nextCursor) return; setError('');
+        void loadList(statusFilter, undefined, nextCursor,
+          '출고 목록을 더 불러오지 못했습니다'); }}
+      onSelect={(id) => { setError('');
+        void loadDetail(id, undefined, '출고 상세를 불러오지 못했습니다'); }}
       onTransition={(input) => void transition(input)} /> : null}
   </main>;
 }
