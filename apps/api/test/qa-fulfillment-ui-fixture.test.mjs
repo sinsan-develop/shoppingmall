@@ -91,3 +91,12 @@ test('fulfillment reset preflight locks payment events and rejects unowned payme
   assert.match(ownership, /FROM payment_event_conflicts/);
   assert.match(ownership, /foreign payment conflict/i);
 });
+
+test('fulfillment fixture derives the initial ship date through the production payment cutoff path', async () => {
+  const source = await readFile(fixtureSourceUrl, 'utf8');
+  assert.match(source, /import \{ openPaymentFulfillments \} from ['"]\.\.\/src\/fulfillment\/repository\.js['"]/);
+  assert.match(source, /VALUES \(\$1,\$2,'PAYMENT_PENDING','14:00'\)/);
+  assert.match(source, /openPaymentFulfillments\(client,[\s\S]*paymentEventId,[\s\S]*paidAt\)/);
+  assert.match(source, /2026-10-06T04:58:00\.000Z/);
+  assert.match(source, /fulfillmentUiExpectedShipDate = '2026-10-07'/);
+});

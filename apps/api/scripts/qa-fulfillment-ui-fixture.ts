@@ -2,11 +2,12 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { Pool, type PoolClient } from 'pg';
 import { hashPassword } from '../src/auth/credentials.js';
+import { openPaymentFulfillments } from '../src/fulfillment/repository.js';
 import { validateQaRunId } from './qa-fixture.js';
 
 const fingerprint = '5'.repeat(64);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const expectedShipDate = '2026-10-08';
+export const fulfillmentUiExpectedShipDate = '2026-10-07';
 
 type PreviousSetting = {
   owoolSellerId: string | null;
@@ -230,7 +231,7 @@ async function seedFixture(client: PoolClient, value: string, password: string):
   const shipmentIds: string[] = [];
   const statuses = ['READY', 'DELAYED', 'SHIPPED'];
   for (const [index, spec] of productSpecs.entries()) {
-    const createdAt = new Date(Date.parse('2026-10-06T00:00:00.000Z') + index * 60_000);
+    const createdAt = new Date(Date.parse('2026-10-06T04:58:00.000Z') + index * 60_000);
     const paidAt = new Date(createdAt.getTime() + 120_000);
     const reservationId = (await client.query<{ id: string }>(`INSERT INTO checkout_reservations
       (account_id,idempotency_key,status,created_at,expires_at,ended_at)
@@ -264,54 +265,55 @@ async function seedFixture(client: PoolClient, value: string, password: string):
     [shipmentId, productIds[index], optionIds[index], sellerIds[spec.sellerIndex],
       `${fixturePrefix}-${spec.item}`, spec.priceWon]);
 
-    const status = statuses[index];
-    const delayedDate = status === 'DELAYED' ? '2026-10-10' : expectedShipDate;
-    await client.query(`INSERT INTO shipment_fulfillments
-      (shipment_order_id,fulfillment_seller_id,status,cutoff_time,expected_ship_date,carrier_code,
-        carrier_name,tracking_number,packed_at,first_shipped_at,shipped_at,version,created_at,updated_at)
-      VALUES ($1,$2,$3,'14:00',$4,$5,NULL,$6,$7,$8,$8,$9,$10,$10)`, [
-      shipmentId, sellerIds[spec.sellerIndex], status, delayedDate,
-      status === 'SHIPPED' ? 'hanjin' : null, status === 'SHIPPED' ? `QA${runId.toUpperCase()}` : null,
-      status === 'SHIPPED' ? new Date(paidAt.getTime() + 60_000) : null,
-      status === 'SHIPPED' ? new Date(paidAt.getTime() + 120_000) : null,
-      status === 'READY' ? 0 : status === 'DELAYED' ? 1 : 2, paidAt,
-    ]);
-    await insertFulfillmentEvent(client, { shipmentId, action: 'PAYMENT_CONFIRMED',
-      from: 'PAYMENT_PENDING', to: 'READY', before: snapshot('PAYMENT_PENDING', null, null, null),
-      after: snapshot('READY', expectedShipDate, null, null), occurredAt: paidAt });
-    if (status === 'DELAYED') await insertFulfillmentEvent(client, {
-      shipmentId, action: 'REPORT_DELAY', from: 'READY', to: 'DELAYED',
-      before: snapshot('READY', expectedShipDate, null, null),
-      after: snapshot('DELAYED', delayedDate, null, null), actorAccountId: accountIds[2],
-      actorSellerId: sellerIds[1], role: 'seller', reason: '가상 산지 출고 일정 조정',
-      customerMessage: '가상 시험 주문의 출고 예정일이 조정되었습니다',
-      occurredAt: new Date(paidAt.getTime() + 60_000),
-    });
-    if (status === 'SHIPPED') {
-      const packedAt = new Date(paidAt.getTime() + 60_000);
-      const shippedAt = new Date(paidAt.getTime() + 120_000);
-      await insertFulfillmentEvent(client, { shipmentId, action: 'START_PACKING', from: 'READY', to: 'PACKING',
-        before: snapshot('READY', expectedShipDate, null, null),
-        after: snapshot('PACKING', expectedShipDate, null, null), actorAccountId: accountIds[3],
-        actorSellerId: sellerIds[2], role: 'seller', occurredAt: packedAt });
-      await insertFulfillmentEvent(client, { shipmentId, action: 'MARK_SHIPPED', from: 'PACKING', to: 'SHIPPED',
-        before: snapshot('PACKING', expectedShipDate, null, null),
-        after: snapshot('SHIPPED', expectedShipDate, 'hanjin', `QA${runId.toUpperCase()}`),
-        actorAccountId: accountIds[3], actorSellerId: sellerIds[2], role: 'seller', occurredAt: shippedAt });
-    }
-    await client.query(`INSERT INTO order_status_events(checkout_order_id,status,reason,created_at)
-      VALUES ($1,'PAID','출고 QA 모의 결제 승인',$2)`, [orderId, paidAt]);
     const attemptId = (await client.query<{ id: string }>(`INSERT INTO payment_attempts
       (checkout_order_id,provider,provider_order_id,requested_won,idempotency_key,request_fingerprint,
         status,created_at,ended_at)
       VALUES ($1,'mock',$2,$3,$4,$5,'APPROVED',$6,$6) RETURNING id`,
     [orderId, `qa-${runId}-fulfillment-${index}`, payableWon, randomUUID(), fingerprint, paidAt])).rows[0].id;
-    await client.query(`INSERT INTO payment_events
+    const paymentEventId = (await client.query<{ id: string }>(`INSERT INTO payment_events
       (payment_attempt_id,provider,provider_event_id,outcome,verified_order_id,provider_payment_id,
         amount_won,event_fingerprint,received_at,processing_status,processed_at)
-      VALUES ($1,'mock',$2,'APPROVED',$3,$4,$5,$6,$7,'APPLIED',$7)`,
+      VALUES ($1,'mock',$2,'APPROVED',$3,$4,$5,$6,$7,'APPLIED',$7) RETURNING id`,
     [attemptId, `qa-${runId}-fulfillment-event-${index}`, orderId,
-      `qa-${runId}-fulfillment-payment-${index}`, payableWon, fingerprint, paidAt]);
+      `qa-${runId}-fulfillment-payment-${index}`, payableWon, fingerprint, paidAt])).rows[0].id;
+
+    await client.query(`INSERT INTO shipment_fulfillments
+      (shipment_order_id,fulfillment_seller_id,status,cutoff_time)
+      VALUES ($1,$2,'PAYMENT_PENDING','14:00')`, [shipmentId, sellerIds[spec.sellerIndex]]);
+    await openPaymentFulfillments(client, [{ shipmentOrderId: shipmentId, cutoffTime: '14:00' }],
+      paymentEventId, paidAt);
+
+    const status = statuses[index];
+    const delayedDate = '2026-10-10';
+    if (status === 'DELAYED') {
+      const delayedAt = new Date(paidAt.getTime() + 60_000);
+      await client.query(`UPDATE shipment_fulfillments SET status='DELAYED',expected_ship_date=$2,
+        version=version+1,updated_at=$3 WHERE shipment_order_id=$1`, [shipmentId, delayedDate, delayedAt]);
+      await insertFulfillmentEvent(client, {
+        shipmentId, action: 'REPORT_DELAY', from: 'READY', to: 'DELAYED',
+        before: snapshot('READY', fulfillmentUiExpectedShipDate, null, null),
+        after: snapshot('DELAYED', delayedDate, null, null), actorAccountId: accountIds[2],
+        actorSellerId: sellerIds[1], role: 'seller', reason: '가상 산지 출고 일정 조정',
+        customerMessage: '가상 시험 주문의 출고 예정일이 조정되었습니다', occurredAt: delayedAt,
+      });
+    }
+    if (status === 'SHIPPED') {
+      const packedAt = new Date(paidAt.getTime() + 60_000);
+      const shippedAt = new Date(paidAt.getTime() + 120_000);
+      await client.query(`UPDATE shipment_fulfillments SET status='SHIPPED',carrier_code='hanjin',
+        tracking_number=$2,packed_at=$3,first_shipped_at=$4,shipped_at=$4,version=version+2,updated_at=$4
+        WHERE shipment_order_id=$1`, [shipmentId, `QA${runId.toUpperCase()}`, packedAt, shippedAt]);
+      await insertFulfillmentEvent(client, { shipmentId, action: 'START_PACKING', from: 'READY', to: 'PACKING',
+        before: snapshot('READY', fulfillmentUiExpectedShipDate, null, null),
+        after: snapshot('PACKING', fulfillmentUiExpectedShipDate, null, null), actorAccountId: accountIds[3],
+        actorSellerId: sellerIds[2], role: 'seller', occurredAt: packedAt });
+      await insertFulfillmentEvent(client, { shipmentId, action: 'MARK_SHIPPED', from: 'PACKING', to: 'SHIPPED',
+        before: snapshot('PACKING', fulfillmentUiExpectedShipDate, null, null),
+        after: snapshot('SHIPPED', fulfillmentUiExpectedShipDate, 'hanjin', `QA${runId.toUpperCase()}`),
+        actorAccountId: accountIds[3], actorSellerId: sellerIds[2], role: 'seller', occurredAt: shippedAt });
+    }
+    await client.query(`INSERT INTO order_status_events(checkout_order_id,status,reason,created_at)
+      VALUES ($1,'PAID','출고 QA 모의 결제 승인',$2)`, [orderId, paidAt]);
   }
 
   const unsigned = { runId, emails, accountIds, sellerIds, sellerCategoryId, productCategoryIds,

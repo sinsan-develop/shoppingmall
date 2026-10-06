@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## Task11 독립 재리뷰 C0/I2/M0 보정 GREEN 후보 — 2026-10-06
+
+- **리뷰 판정:** exact HEAD `81386c0572c3c8365c0f594fffb1c577f4decd53` 독립 read-only 재리뷰는 **Critical 0 / Important 2 / Minor 0**으로 gate 불통과였다. payment conflict 보호·25관계 잔류0·singleton 원복, 타판매자404·503·빈 상태·공동출고 seller는 해소됐지만, fixture의 고정 예상일이 production cutoff 경로를 거치지 않은 점과 seller A의 초기 권한 문구만으로 seller B 목록 로딩을 주장한 점이 남았다.
+- **실제 RED:** production `openPaymentFulfillments` 호출·cutoff 이후 결제시각·계산 예상일 계약과 seller B delay fault 사용 확인을 먼저 추가했다. 대상 시험은 **6 total / 4 pass / 2 fail**이며 두 실패는 정확히 위 Important 두 건의 기존 구현 부재였다.
+- **최소 GREEN 후보:** fixture는 `PAYMENT_PENDING` fulfillment를 만든 뒤 production `openPaymentFulfillments`로 결제시각 `2026-10-06T05:00:00Z` 이후의 서울 14:00 cutoff를 계산해 최초 예상일 `2026-10-07`과 `PAYMENT_CONFIRMED` 사건을 생성한다. DELAYED/SHIPPED 가상 상태만 그 뒤 별도 전이로 만든다. runner는 고객 API/DOM에서 계산 예상일과 READY를 확인하고, seller B의 실제 list fetch가 delay fault를 사용한 동안 로딩 DOM을 함께 단언한 후 503·정상 DELAYED·빈 상태를 확인한다.
+- **로컬 검증:** fixture/browser 계약 **6/6 PASS**, runner `node --check`, API/Web typecheck, 변경 4파일 ESLint, `git diff --check`는 모두 exit 0이다. actual private DB safety·전체 회귀·실제 Chrome은 아직 재실행 전이며 PASS로 표시하지 않는다.
+- **변경 파일:** `apps/api/scripts/qa-fulfillment-ui-fixture.ts`, `apps/api/test/qa-fulfillment-ui-fixture.test.mjs`, `apps/web/test/qa-fulfillment-browser-contract.test.mjs`, `scripts/qa-fulfillment-browser.mjs`, 이 작업현황이다. 공개 API/schema/migration/dependency 변경은 0이다.
+- **다음 조치:** 후보를 commit·alias push·WSL exact-SHA로 맞추고 fresh private PostgreSQL에서 fixture safety와 전체 회귀·typecheck·lint·build·잔류0·임시자원0을 재검증한다. 통과한 exact commit만 독립 재리뷰 C0/I0에 제출한다. shared DB·실제 Chrome은 별도 승인 전 실행하지 않는다.
+
 ## Task11 보강 private gate GREEN · 독립 재리뷰 대기 — 2026-10-06
 
 - **판정·정확한 기준:** 제품·시험 보강 exact commit `06c5cd9cd578e9dbd61a51ad4f8153c64847db0e`을 승인된 SSH alias로 WSL 지정 checkout에 맞추고 clean 상태에서 검증했다. private PostgreSQL과 exact Git archive 기반 Linux workspace만 사용했으며 공유 `local-postgres/shoppingmall`, 실제 Chrome, 외부서비스, Oracle, PR/main은 접근·변경하지 않았다. 독립 재리뷰 C0/I0 전이므로 Task11 최종 완료로 승격하지 않는다.

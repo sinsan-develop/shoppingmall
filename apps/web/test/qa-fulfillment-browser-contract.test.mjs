@@ -28,6 +28,9 @@ test('fulfillment browser runner covers three roles, three viewports and keyboar
   assert.match(source, /fixture\.emails\[2\]/);
   assert.match(source, /fixture\.emails\[3\]/);
   assert.match(source, /fixture\.shipmentIds\[2\]/);
+  assert.match(source, /fixture\.emails\[2\][\s\S]*installSellerListFault\('delay'\)/);
+  assert.match(source, /__qaSellerListFaultUsed === true/);
+  assert.match(source, /customerOrder\(fixture\.orderIds\[0\], fulfillmentUiExpectedShipDate\)/);
   assert.match(source, /처리할 발송 주문이 없습니다/);
   assert.match(source, /판매자 권한 확인 중/);
   assert.match(source, /출고 목록을 불러오지 못했습니다/);

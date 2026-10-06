@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { validateFulfillmentUiManifest } from '../apps/api/scripts/qa-fulfillment-ui-fixture.ts';
+import { fulfillmentUiExpectedShipDate,
+  validateFulfillmentUiManifest } from '../apps/api/scripts/qa-fulfillment-ui-fixture.ts';
 import { closeCdpPage, createCdpCommandChannel, openCdpPage } from './qa-browser-cdp.mjs';
 
 const web = process.env.QA_WEB_BASE;
@@ -176,16 +177,14 @@ try {
   await send('Page.enable'); await send('Runtime.enable');
 
   await login('customer', fixture.emails[0]);
-  await customerOrder(fixture.orderIds[0], 'READY');
+  await customerOrder(fixture.orderIds[0], fulfillmentUiExpectedShipDate);
+  await waitFor("document.body.innerText.includes('READY')", 'customer sees ready fulfillment');
   await keyboardAndViewportEvidence('customer-ready');
 
   await login('seller', fixture.emails[1]);
-  await installSellerListFault('delay');
   await navigate('/account/seller/orders');
-  await waitFor("document.body.innerText.includes('판매자 권한 확인 중')", 'seller loading state');
   await waitFor("document.body.innerText.includes('판매자 주문 출고') && document.body.innerText.includes('READY')",
     'seller fulfillment list');
-  await clearSellerListFault();
   await assertSellerCannotAccess(fixture.shipmentIds[1]);
   await assertSellerCannotAccess(fixture.shipmentIds[2]);
   await evaluate(`document.querySelector('.fulfillment-list-button')?.click(); true`);
@@ -200,9 +199,17 @@ try {
   await keyboardAndViewportEvidence('seller-shipped');
 
   await login('seller', fixture.emails[2]);
+  await installSellerListFault('delay');
+  await navigate('/account/seller/orders');
+  await waitFor("globalThis.__qaSellerListFaultUsed === true && document.body.innerText.includes('판매자 권한 확인 중')",
+    'seller-b active list loading state');
+  await waitFor("document.body.innerText.includes('DELAYED') && document.body.innerText.includes('2026-10-10')",
+    'seller-b delayed fulfillment after loading');
+  await clearSellerListFault();
   await installSellerListFault('error');
   await navigate('/account/seller/orders');
-  await waitFor("document.body.innerText.includes('출고 목록을 불러오지 못했습니다')", 'seller error state');
+  await waitFor("globalThis.__qaSellerListFaultUsed === true && document.body.innerText.includes('출고 목록을 불러오지 못했습니다')",
+    'seller-b active error state');
   await clearSellerListFault();
   await navigate('/account');
   await navigate('/account/seller/orders');
