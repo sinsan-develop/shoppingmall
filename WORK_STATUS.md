@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## RED 후보 — 2026-10-06 S5.1 Task6 관리자 설정·조회·정정 API
+
+- **판정·범위:** 신산님이 지정한 exact base `60ab754ddb6c1f7d9787a06170b8ebf6ac66df3e`, 기존 `codex/s5-fulfillment-engagement` worktree의 clean 상태를 확인한 뒤 Task6 **RED 시험만** 작성했다. 제품 controller/service/repository/module, 기존 시험, schema/migration, 새 branch/worktree, shared DB·WSL·Docker·Oracle·외부 서비스 변경은 0이다.
+- **권한·설정 계약:** `fulfillment/admin/settings`와 관리자 발송 조회·상세·정정은 public 401, customer/seller 403이며 `x-role: admin` 위조가 권한을 높이지 않아야 한다. 공동출고 singleton 설정은 활성 account의 seller grant, same-Origin, UUID 멱등키, `expectedVersion`, 내부 `reason`을 요구한다. 같은 key+같은 본문은 같은 응답과 감사 1건, 같은 key+다른 본문과 stale version은 409이며, 설정 변경 뒤에도 기존 주문의 `fulfillment_seller_id`는 불변이어야 한다.
+- **조회·정정 계약:** 관리자 목록은 결제완료 발송 전체를 담당 판매자·상품 카테고리·상태로 filter하고 기본20/최대50, `(paid_at, shipment id)` 불투명 keyset, 이름·전화 마스킹과 주소 미노출을 지킨다. 상세에서만 기존 배송지 최소 범위와 현재값·품목·출고사건을 제공하고 내부 actor·멱등 fingerprint·불필요 식별자를 제외한다. 정정은 기존 `validateAdminCorrection` 계약에 따라 before/after, 내부 reason, customerMessage, `ADMIN_CORRECT` 사건과 감사를 같은 거래에 정확히 1회 저장하며 PII를 사건·감사에 복제하지 않는다.
+- **경합·실패 안전:** 별도 거래가 출고행을 `FOR UPDATE`로 선점한 뒤 두 HTTP 정정을 동시에 시작하고 `pg_stat_activity`·`pg_locks`·`pg_blocking_pids`의 실제 Lock 대기 사슬을 관측하지 못하면 실패하게 했다. 다른 키는 `200 1/409 1`, 같은 키는 동일 성공 2건이며 두 경우 version/event/audit `1/1/1`을 요구한다. 불완전 `SHIPPED`, `CANCELLED`, 허용 밖 필드, 낡은 version·Origin·key 오류는 zero mutation이어야 한다.
+- **fixture·정리:** 매 run `qa-<8hex>` 가상 고객·판매자 A/B·어울몰 판매자·관리자와 PAID 직접/공동출고 주문 25건만 사용한다. seed 전에 `S5_ADMIN_TEST_DB_SYSTEM_ID`와 `pg_control_system()`·DB명 `shoppingmall`, migration 16건을 fail-closed 대조한다. `finally`에서 run 소유 사건→출고→주문→예약→주소→catalog/account를 FK 순서로 정리하고 `fulfillment_settings`와 global shipping singleton을 원값으로 복원하도록 작성했다.
+- **변경 파일:** 신규 `apps/api/test/fulfillment-admin-http-db.test.mjs`, 이 `WORK_STATUS.md`만 변경했다. 제품 코드는 수정하지 않았다.
+- **현재 로컬 RED:** `DATABASE_URL`을 제거한 loader는 **2 tests / 0 pass / 1 expected fail / 1 DB skip**이다. 실패는 첫 관리자 fulfillment route가 아직 없어 예상 503 대신 **404**가 반환된 제품 RED이며, 앱 기동·test loader 오류는 0이다. DB skip은 RED/PASS 증거가 아니다. 대상 ESLint와 `git diff --check`는 exit 0이다.
+- **미검증·다음:** fresh private PostgreSQL actual RED, fixture 전수 실행, system-ID/migration gate, 실제 lock wait, singleton 원복·업무행 잔류0은 **미검증**이다. test-only diff 검토 뒤 controller가 exact SHA의 private migration16 DB에서 예상 route/controller 부재 404, harness 오류 0, cleanup과 잔류0을 확인해야 한다. 그 actual RED 확인과 별도 배정 전에는 Task6 GREEN 제품 구현을 시작하지 않는다.
+
 ## 완료 checkpoint — 2026-10-06 S5.1 Task5 판매자 목록·상세·전이 API
 
 - **판정:** 제품·시험 SHA `5ad995fc9d6ba34d40575c5ba740f289762de2e4`, cursor 경계 문서 SHA `e13c7165475c21c1219076cf19168c61aea12f47`에서 **Task5 범위 완료**다. 이는 S5.1 Stage, 고객 주문 조회, 환불 결합, UI, 공유 DB, Oracle, 사용자 인수 또는 `main` 병합 완료가 아니다.
