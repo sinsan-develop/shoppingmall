@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 독립 리뷰 통과 — 2026-10-06 S5.1 Task9 실제 Chrome 실행 전 gate
+
+- **판정·기준:** exact commit `553d4af28bbe30d975fadb80a5dae547ac936f9a`의 읽기 전용 최종 독립 재리뷰는 **Critical 0 / Important 0 / Minor 0**이다. reviewer가 관련 단위·계약시험을 별도로 실행해 **8/8 PASS**했고 현재 HEAD·clean 상태를 확인했다.
+- **해소 확인:** CDP 명령별 5초 timeout·pending 제거, socket error/close 전체 reject, runner의 공용 command channel 연결을 확인했다. 앞선 exact DB system ID, HMAC manifest, category/audit 정확 소유권, 두 연결 late insert 잠금, exact loopback·run consent, 전체 키보드 순회와 초기화 실패 정리 보정에도 회귀가 없다.
+- **현재 경계:** 이는 fixture·runner code review gate 통과이며 실제 Chrome의 고객·판매자·관리자 화면, 1920×1080·1440×900·430×844 viewport, 가로 넘침·전체 Tab 순회·스크린샷 PASS는 아니다.
+- **다음 조치:** PMO에 exact SHA, private tmpfs DB와 loopback API/Web·Windows SSH tunnel·격리 Chrome, 가상 계정·운송장, 실패 포함 fixture reset 및 container/network/tunnel/process/profile/evidence 정리 계획을 보고하고 지시를 받아 실제 browser 검증을 수행한다.
+
 ## 로컬 GREEN — 2026-10-06 S5.1 Task9 CDP 명령 무한대기 보정
 
 - **판정:** RED `c3bcb497071de6fe901b8c7a8ced379fe9fddc70`의 개별 CDP 명령 무한대기와 socket 종료 시 pending 미정리를 공용 command channel로 최소 보정했다. 실제 Chrome과 독립 최종 재리뷰는 아직 남아 있어 Task9 완료는 아니다.
