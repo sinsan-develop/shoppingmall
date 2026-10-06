@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Pool } from 'pg';
+import { getTableColumns, getTableName } from 'drizzle-orm';
+import { getTableConfig } from 'drizzle-orm/pg-core';
+import * as schema from '../src/db/schema.ts';
 
 const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
 const expectedDatabase = process.env.S52_SUPPORT_TEST_DB_NAME;
@@ -32,6 +35,52 @@ test('0016/0017 create private support relations without changing existing order
     ]])).rows.map((row) => row.relation);
     assert.equal(existing.length, 13);
     assert.ok(existing.every(Boolean), `missing S5.2 relation: ${JSON.stringify(existing)}`);
+    const declared = [
+      schema.supportPolicyVersions, schema.supportPurchaseConfirmations,
+      schema.supportReviews, schema.supportReviewEvents, schema.supportReviewImages,
+      schema.supportReviewReports, schema.supportQuestions, schema.supportQuestionMessages,
+      schema.supportQuestionMessageEvents, schema.supportClaims, schema.supportClaimEvents,
+      schema.supportClaimMessages, schema.supportClaimEvidence,
+    ];
+    for (const table of declared) {
+      assert.ok(table, 'every 0016 support table must have a Drizzle declaration');
+      const tableName = getTableName(table);
+      const declaredColumns = Object.values(getTableColumns(table))
+        .map((column) => ({ column_name: column.name,
+          data_type: column.getSQLType(), is_nullable: column.notNull ? 'NO' : 'YES' }))
+        .sort((a, b) => a.column_name.localeCompare(b.column_name));
+      const actualColumns = (await pool.query(`SELECT column_name,
+        CASE data_type WHEN 'timestamp with time zone' THEN 'timestamp with time zone'
+          ELSE data_type END AS data_type,is_nullable FROM information_schema.columns
+        WHERE table_schema='public' AND table_name=$1 ORDER BY column_name`, [tableName])).rows;
+      assert.deepEqual(declaredColumns, actualColumns, `${tableName} column drift`);
+      const config = getTableConfig(table);
+      const relationCounts = (await pool.query(`SELECT contype,count(*)::int AS n
+        FROM pg_constraint WHERE conrelid=$1::regclass AND contype IN ('f','u')
+        GROUP BY contype`, [tableName])).rows;
+      const countFor = (kind) => relationCounts.find(({ contype }) => contype === kind)?.n ?? 0;
+      assert.equal(config.foreignKeys.length, countFor('f'), `${tableName} FK drift`);
+      assert.equal(config.uniqueConstraints.length +
+        Object.values(getTableColumns(table)).filter((column) => column.isUnique).length,
+      countFor('u'), `${tableName} UNIQUE drift`);
+      const actualChecks = (await pool.query(`SELECT conname FROM pg_constraint
+        WHERE conrelid=$1::regclass AND contype='c' ORDER BY conname`, [tableName]))
+        .rows.map(({ conname }) => conname);
+      assert.deepEqual(config.checks.map(({ name }) => name).sort(), actualChecks,
+        `${tableName} CHECK drift`);
+      const actualIndexes = (await pool.query(`SELECT indexname FROM pg_indexes
+        WHERE schemaname='public' AND tablename=$1`, [tableName]))
+        .rows.map(({ indexname }) => indexname);
+      for (const item of config.indexes) assert.ok(actualIndexes.includes(item.config.name),
+        `${tableName} missing index ${item.config.name}`);
+    }
+    assert.ok(Object.values(getTableColumns(schema.refundCases))
+      .some((column) => column.name === 'post_shipment_claim_id'),
+    'refund_cases POST bridge must be declared');
+    const refundConfig = getTableConfig(schema.refundCases);
+    assert.ok(refundConfig.foreignKeys.some((fk) => fk.getName() === 'refund_cases_post_claim_fk'));
+    assert.ok(refundConfig.checks.some(({ name }) => name === 'refund_cases_post_state_ck'));
+    assert.ok(refundConfig.indexes.some((item) => item.config.name === 'refund_cases_post_claim_uq'));
     const migrationCount = (await pool.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations')).rows[0].n;
     assert.equal(migrationCount, 18);
     const claimReplyKey = (await pool.query(`SELECT is_nullable FROM information_schema.columns

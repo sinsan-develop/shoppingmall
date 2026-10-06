@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.2 Drizzle schema/catalog 정합 checkpoint — 2026-10-07
+
+- **판정/담당:** 단일 writer 어울, 기존 S5.2 worktree/branch 유지. Main이 승인 SSH alias 원격 작업 브랜치에 exact `b9fd176` push 완료(main/PR 미변경)라고 직접 보고했다. 이 세션에서 원격 재조회는 하지 않았으므로 복구 ref는 **Main 보고 기준 `b9fd176`**다. 공유 DB·Oracle·실 Provider·credential·push/PR/merge 변경0.
+- **RED→GREEN:** `apps/api/src/db/schema.ts`에서 0016의 13개 support 관계와 0017 답변키/부분 UNIQUE, `refund_cases.post_shipment_claim_id`/composite FK·POST CHECK가 누락된 실제 RED를 격리 DB catalog 시험으로 재현했다. 선언을 보강하고 `support-schema-db.test.mjs`에서 각 관계의 전체 열 이름·SQL 타입·NULL 여부, CHECK 이름, FK/UNIQUE 건수, 명시 인덱스를 격리 v6 실제 catalog와 대조했다. `refund_cases` POST 열/FK/CHECK/인덱스 선언도 검사한다. 격리 schema/문의/리뷰/클레임 DB+HTTP **4/4 pass·0 skip**, 로컬 전체 **427 total/305 pass/122 계획된 DB·환경 skip/0 fail**, PR 본문 **8/8**, typecheck/lint/build·diff check exit0. UNIQUE 초안 시험은 Drizzle 컬럼 `.unique()`를 table-level 집계에서 빠뜨려 1회 RED가 났고, 컬럼 UNIQUE까지 합산해 실제 catalog와 일치시켰다(동일 근본 원인 연속 1회).
+- **범위/다음:** 이는 **선언과 격리 v6 catalog의 구조 정합** 결과이며 CHECK 본문 전체의 동치성이나 `drizzle-kit` schema diff, 새 fresh 0000~0017 적용, 공유 정식 DB/E2E 완료를 주장하지 않는다. Stage gate에서 fresh migration과 SQL 제약 반례를 별도 확인한다. 관리자 최종 결정·비공개 증빙·POST 환불 1:1 bridge/PRE 회귀·3역할 웹/브라우저·signed fixture/reset 미완료. 기존 격리 PG/네트워크는 다음 slice 동안 유지하고 최종 정확 정리한다.
+
 ## S5.2 판매자 클레임 답변·0017 checkpoint — 2026-10-07
 
 - **판정/소유:** 단일 writer 어울의 시작 HEAD `1c78d07`; Main이 승인 SSH alias 원격 `codex/s52-customer-support`에 exact `1c78d07` push 완료(main/PR 미변경)라고 직접 보고했다. 이 세션의 원격 재조회는 없으므로 원격 복구 ref는 **Main 보고 기준**이다. 로컬 새 commit은 아래 gate 후 수행한다. 공유 WSL `local-postgres/shoppingmall`·Oracle·실 Provider·secret/credential·push/PR/merge 변경0.
