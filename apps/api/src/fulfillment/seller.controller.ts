@@ -1,5 +1,5 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get,
-  HttpCode, Inject, NotFoundException, Param, Post, Query, Req, ServiceUnavailableException,
+  Header, HttpCode, Inject, NotFoundException, Param, Post, Query, Req, ServiceUnavailableException,
   UnauthorizedException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { canAccess } from '../access.js';
@@ -58,12 +58,14 @@ export class SellerFulfillmentController {
   }
 
   @Get()
+  @Header('Cache-Control', 'private, no-store')
   async list(@Req() request: RequestHeaders, @Query() query: Record<string, unknown>) {
     const { service } = await this.context(request);
     return this.handle(() => service.list(query));
   }
 
   @Get(':shipmentOrderId')
+  @Header('Cache-Control', 'private, no-store')
   async detail(@Req() request: RequestHeaders, @Param('shipmentOrderId') shipmentOrderId: string) {
     const { service } = await this.context(request);
     if (!uuid.test(shipmentOrderId)) {

@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## 로컬 GREEN — 2026-10-06 S5.1 Task8 독립 재리뷰 C0/I4/M1 보정
+
+- **판정·기준:** actual RED `f019e2c9032df050c4010542dc30784c2e98372f`에서 재현한 Important 4건과 Minor 1건을 승인 계약 안의 최소 제품 수정으로 로컬 GREEN으로 복구했다. 새 endpoint/schema/migration/dependency는 없고 공유 DB·WSL·원격에는 접속하거나 push하지 않았다.
+- **구현:** 판매자 상세는 목록의 마스킹 필드가 아니라 실제 상세 응답 `address.recipientName/address.phone`을 표시한다. 관리자 결제일 query와 출고 정정 날짜 검증은 연도 `0000`을 거부하면서 유효한 윤년 날짜를 유지한다. 판매자 목록·주소 상세 GET은 `Cache-Control: private, no-store`를 선언한다.
+- **경합·재시도:** 공동출고 담당 input key를 권위 설정의 `version:owoolSellerId`에 묶어 409 재조회로 설정이 바뀌면 최신 UUID를 기준으로 재마운트한다. 성공·409는 권위 재조회 성공 후, 확정적 4xx는 응답 확인 즉시 같은 identity의 멱등키를 해제하며 5xx·network·권위 재조회 실패만 기존 키를 유지한다. 이 규칙을 판매자·관리자 실제 write 경로에 연결했다.
+- **변경 파일:** `apps/web/app/account/seller/orders/page.tsx`, `apps/web/app/account/admin/fulfillment/page.tsx`, `apps/web/app/account/fulfillment-ui.ts`, `apps/api/src/fulfillment/service.ts`, `apps/api/src/fulfillment/rules.ts`, `apps/api/src/fulfillment/seller.controller.ts`, `WORK_STATUS.md`.
+- **대상 GREEN:** DB 없는 대상 시험은 **26 tests / 24 pass / 0 fail / 2 explicit DB skip**이다. 사용자 지시의 24건은 실제 통과 건수이며, 총계에는 private DB가 필요한 admin/seller HTTP 상위 시험 2건이 명시적 skip으로 포함된다.
+- **전체 local gate:** `pnpm test` 주 시험은 **396 total / 281 pass / 0 fail / 115 DB·환경 skip**, PR 본문 검사는 **8/8 PASS**다. `pnpm typecheck`, `pnpm lint`, `git diff --check`는 exit 0이다. `pnpm build`는 API build와 Web **18 routes**를 생성하며 exit 0이다.
+- **오류 횟수·조치:** 최초 build는 제한 실행환경이 `apps/web/.next/trace-build` 쓰기를 차단한 `EPERM` 1회로 중단됐다. 제품 변경 없이 동일 명령을 작업 폴더 쓰기 권한으로 재실행해 통과했다. 동일 근본 원인 3회 연속은 없다.
+- **미검증·다음:** private PostgreSQL의 seller GET cache header와 연도 0000 HTTP 400/무변경, 실제 브라우저의 409 입력 재마운트, WSL exact-SHA, Oracle/UAT는 **미검증**이다. main agent가 격리 DB·브라우저·WSL gate와 독립 재리뷰를 수행해야 하며 이번 기록은 S5.1 Stage 전체 완료 판정이 아니다.
+
 ## 실제 RED — 2026-10-06 S5.1 Task8 독립 재리뷰 C0/I4/M1 보정
 
 - **판정·기준:** 기준 HEAD `fa8f5ed793869097a159013f8a1dd5be315d135d`에서 독립 재리뷰 Important 4건과 Minor 1건을 실제 사용자/API 계약으로 재현하는 시험만 추가했다. 제품 코드, schema/migration, endpoint, dependency는 변경하지 않았다.

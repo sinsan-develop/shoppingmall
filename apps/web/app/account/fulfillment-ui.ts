@@ -23,8 +23,10 @@ export function appendUniqueFulfillments<T extends { shipmentOrderId: string }>(
 
 export function shouldReleaseFulfillmentKey(
   disposition: FulfillmentSaveDisposition, authoritativeReloadSucceeded: boolean,
+  responseStatus?: number,
 ): boolean {
-  return disposition === 'reload' && authoritativeReloadSucceeded;
+  if (disposition === 'reload') return authoritativeReloadSucceeded;
+  return responseStatus !== undefined && responseStatus >= 400 && responseStatus < 500;
 }
 
 export function fulfillmentFailureMessage(status?: number): string {

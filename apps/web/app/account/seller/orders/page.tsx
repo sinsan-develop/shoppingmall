@@ -11,11 +11,11 @@ type SellerItem = {
   expectedShipDate: string; recipientName: string; phone: string;
   carrierCode: CarrierCode | null; carrierName: string | null; trackingNumber: string | null;
 };
-type SellerDetail = SellerItem & {
+type SellerDetail = Omit<SellerItem, 'recipientName' | 'phone'> & {
   customerMessage: string | null;
   amounts: { goodsWon: number; goodsDiscountWon?: number; shippingFeeWon?: number;
     shippingSupportWon?: number; shippingWon?: number; payableWon: number };
-  address: { recipientName?: string; phone?: string; postalCode: string; line1: string; line2: string | null };
+  address: { recipientName: string; phone: string; postalCode: string; line1: string; line2: string | null };
   lines: { id?: string; optionId?: string; productName: string; optionName: string;
     quantity?: number; originalQuantity?: number; refundedQuantity?: number; remainingQuantity?: number }[];
 };
@@ -127,7 +127,7 @@ export function SellerFulfillmentView({ items, selected, statusFilter, busy, err
       {!selected ? <p>확인할 발송 주문을 선택해 주세요</p> : <div key={`${selected.shipmentOrderId}-${selected.version}`}>
         <p><strong>{selected.status}</strong> · 버전 {selected.version}</p>
         <p>잠정 예상일 {selected.expectedShipDate} · 휴무일 미반영</p>
-        <p>받는 분 {selected.recipientName} · {selected.phone}</p>
+        <p>받는 분 {selected.address.recipientName} · {selected.address.phone}</p>
         <p>{selected.address.postalCode} {selected.address.line1} {selected.address.line2}</p>
         <p>결제금액 {won(selected.amounts.payableWon)}</p>
         <ul className="fulfillment-lines">{selected.lines.map((line, index) => <li
@@ -213,7 +213,10 @@ export default function SellerFulfillmentPage() {
         selected.shipmentOrderId)}/transitions`, { method: 'POST', credentials: 'include',
         headers: { 'content-type': 'application/json', 'idempotency-key': key }, body: JSON.stringify(input) });
       const disposition = fulfillmentSaveDisposition(response.status);
-      if (disposition === 'unauthorized') { setState('unauthorized'); return; }
+      if (disposition === 'unauthorized') {
+        if (shouldReleaseFulfillmentKey(disposition, false, response.status)) keys.current.delete(identity);
+        setState('unauthorized'); return;
+      }
       if (disposition === 'reload') {
         const reloaded = (await Promise.all([
           loadList(statusFilter), loadDetail(selected.shipmentOrderId),
@@ -224,6 +227,7 @@ export default function SellerFulfillmentPage() {
           : '출고 상태를 저장하고 최신 정보를 반영했습니다');
         return;
       }
+      if (shouldReleaseFulfillmentKey(disposition, false, response.status)) keys.current.delete(identity);
       setError(fulfillmentFailureMessage(response.status));
     } catch { setError(fulfillmentFailureMessage()); }
     finally { setBusy(false); }

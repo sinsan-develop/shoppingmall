@@ -107,7 +107,8 @@ export function AdminFulfillmentView({ setting, items, selected, statusFilter, s
       <h2>출고 운영 관리</h2>
       <form className="account-form" onSubmit={saveSetting}>
         <label htmlFor="owool-seller-id">공동출고 담당 판매자</label>
-        <input id="owool-seller-id" name="owoolSellerId" defaultValue={setting.owoolSellerId ?? ''}
+        <input key={`${setting.version}:${setting.owoolSellerId ?? ''}`}
+          id="owool-seller-id" name="owoolSellerId" defaultValue={setting.owoolSellerId ?? ''}
           placeholder="판매자 UUID" required />
         <p>현재 판매자 {setting.owoolSellerDisplayName ?? '미지정'}</p>
         <p>설정 버전 {setting.version}</p>
@@ -278,7 +279,10 @@ export default function AdminFulfillmentPage() {
       const response = await fetch(`${apiOrigin}${url}`, { method, credentials: 'include',
         headers: { 'content-type': 'application/json', 'idempotency-key': key }, body: JSON.stringify(body) });
       const disposition = fulfillmentSaveDisposition(response.status);
-      if (disposition === 'unauthorized') { setState('unauthorized'); return; }
+      if (disposition === 'unauthorized') {
+        if (shouldReleaseFulfillmentKey(disposition, false, response.status)) keys.current.delete(identity);
+        setState('unauthorized'); return;
+      }
       if (disposition === 'reload') {
         const reloaded = await reload();
         if (shouldReleaseFulfillmentKey(disposition, reloaded)) keys.current.delete(identity);
@@ -286,6 +290,7 @@ export default function AdminFulfillmentPage() {
         setMessage(response.status === 409 ? '다른 처리로 상태가 변경되어 최신 정보를 다시 불러왔습니다' : success);
         return;
       }
+      if (shouldReleaseFulfillmentKey(disposition, false, response.status)) keys.current.delete(identity);
       setError(fulfillmentFailureMessage(response.status));
     } catch { setError(fulfillmentFailureMessage()); }
     finally { setBusy(false); }
