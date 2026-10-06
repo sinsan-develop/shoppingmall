@@ -39,7 +39,8 @@ export function createCdpCommandChannel(socket, {
     const request = pending.get(message.id);
     pending.delete(message.id);
     clearTimeout(request.timer);
-    if (message.error) request.reject(new Error(message.error.message));
+    if (message.error) request.reject(new Error(
+      `Chrome command failed: ${request.method}: ${message.error.message}`));
     else request.resolve(message.result);
   };
   socket.onerror = () => rejectAll('Chrome socket failed');
@@ -57,7 +58,7 @@ export function createCdpCommandChannel(socket, {
           pending.delete(callId);
           reject(new Error(`Chrome command timed out: ${method}`));
         }, timeoutMs);
-        pending.set(callId, { resolve, reject, timer });
+        pending.set(callId, { resolve, reject, timer, method });
         try { socket.send(JSON.stringify({ id: callId, method, params })); }
         catch (error) {
           clearTimeout(timer);

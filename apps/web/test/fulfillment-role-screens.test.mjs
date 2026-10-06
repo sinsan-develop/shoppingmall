@@ -74,6 +74,17 @@ test('seller detail exposes the recipient name and phone needed for shipping', a
   assert.doesNotMatch(html, /undefined/);
 });
 
+test('seller shipped detail exposes the saved carrier and tracking number', async () => {
+  const { SellerFulfillmentView } =
+    await import('../app/account/seller/orders/page.tsx');
+  const html = renderToStaticMarkup(createElement(SellerFulfillmentView,
+    sellerProps({ selected: { ...sellerDetail, status: 'SHIPPED',
+      carrierCode: 'hanjin', trackingNumber: 'TRACK123' } })));
+
+  assert.match(html, /택배사 hanjin/);
+  assert.match(html, /운송장 TRACK123/);
+});
+
 test('seller and admin lists expose cursor pagination without duplicate append', async () => {
   const { SellerFulfillmentView } =
     await import('../app/account/seller/orders/page.tsx');

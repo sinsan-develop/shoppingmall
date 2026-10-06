@@ -42,7 +42,7 @@ async function evaluate(expression) {
 async function waitFor(expression, label, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    try { if (await evaluate(expression)) return; }
+    try { if (await evaluate(`Boolean(${expression})`)) return; }
     catch (error) { if (!String(error).includes('context')) throw error; }
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
@@ -221,7 +221,7 @@ try {
 
   await login('seller', fixture.emails[3]);
   await navigate('/account/seller/orders');
-  await waitFor("document.body.innerText.includes('SHIPPED') && document.body.innerText.includes('2026-10-08')",
+  await waitFor(`document.body.innerText.includes('SHIPPED') && document.body.innerText.includes(${JSON.stringify(fulfillmentUiExpectedShipDate)})`,
     'owool fulfillment seller list');
   await assertSellerCannotAccess(fixture.shipmentIds[0]);
   await evaluate(`document.querySelector('.fulfillment-list-button')?.click(); true`);

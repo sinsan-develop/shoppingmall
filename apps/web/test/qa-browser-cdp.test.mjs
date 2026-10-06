@@ -37,6 +37,18 @@ test('CDP command rejects on response timeout', async () => {
   assert.equal(channel.pendingCount(), 0);
 });
 
+test('CDP command error identifies the failed method', async () => {
+  let sent;
+  const socket = { readyState: 1, send(value) { sent = JSON.parse(value); } };
+  const channel = createCdpCommandChannel(socket, { WebSocketImpl: { OPEN: 1 }, timeoutMs: 1_000 });
+  const request = channel.send('Runtime.evaluate', { expression: 'document.body' });
+  socket.onmessage({ data: JSON.stringify({ id: sent.id,
+    error: { message: 'Object reference chain is too long' } }) });
+  await assert.rejects(request,
+    /Chrome command failed: Runtime\.evaluate: Object reference chain is too long/);
+  assert.equal(channel.pendingCount(), 0);
+});
+
 test('CDP socket close rejects every pending command', async () => {
   const socket = { readyState: 1, send() {} };
   const channel = createCdpCommandChannel(socket, { WebSocketImpl: { OPEN: 1 }, timeoutMs: 1_000 });

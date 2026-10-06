@@ -130,6 +130,10 @@ export function SellerFulfillmentView({ items, selected, statusFilter, busy, err
         <p>받는 분 {selected.address.recipientName} · {selected.address.phone}</p>
         <p>{selected.address.postalCode} {selected.address.line1} {selected.address.line2}</p>
         <p>결제금액 {won(selected.amounts.payableWon)}</p>
+        {selected.status === 'SHIPPED' ? <>
+          <p>택배사 {selected.carrierCode}{selected.carrierName ? ` · ${selected.carrierName}` : ''}</p>
+          <p>운송장 {selected.trackingNumber}</p>
+        </> : null}
         <ul className="fulfillment-lines">{selected.lines.map((line, index) => <li
           key={line.optionId ?? line.id ?? `${line.productName}-${index}`}>
           <strong>{line.productName}</strong> · {line.optionName} ·

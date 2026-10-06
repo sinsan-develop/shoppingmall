@@ -35,6 +35,9 @@ test('fulfillment browser runner covers three roles, three viewports and keyboar
   assert.match(source, /판매자 권한 확인 중/);
   assert.match(source, /출고 목록을 불러오지 못했습니다/);
   assert.match(source, /2026-10-10/);
+  assert.ok(source.includes('if (await evaluate(`Boolean(${expression})`)) return;'));
+  assert.ok((source.match(/fulfillmentUiExpectedShipDate/g) ?? []).length >= 3);
+  assert.doesNotMatch(source, /2026-10-08/);
   assert.doesNotMatch(source, /const pending = new Map/);
   assert.doesNotMatch(source, /sms|email provider|push provider|payment provider/i);
 });
