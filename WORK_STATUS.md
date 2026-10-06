@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.2 동일 관리자 결정키 동시 approve·v8 정확 정리 — 2026-10-07
+
+- **판정/복구 ref:** Main이 exact `25ab0c7e4b5be36105ed341ec2c938a7b4d4f6aa`를 승인 SSH alias 기존 원격 작업 브랜치에 fast-forward push exit0 확인했다고 직접 보고했다(main/PR 불변). 이는 Main 보고 기준 원격 복구 ref이며 writer는 push/PR/merge를 하지 않았다. 현재 writer의 동시 결정 시험 변경은 이 ref 이후 로컬 dirty로 수행했다.
+- **실제 DB 경합:** 전용 v8의 PAID/SHIPPED 동일 발송에 수량 2·결제 20,000원, 품목별 수량 1의 서로 다른 클레임 2건을 만들었다. 같은 관리자·같은 결정 UUID를 두 연결에서 동시에 `approveClaim`에 제출해 한 건만 예약, 다른 건 `Support conflict`, 최종 refund case/attempt/결정 건수 각1, 탈락 claim `REQUESTED`, 원 주문·발송 금액/운송장/재고 불변을 확인했다. winner 재시도는 같은 예약, loser 재시도는 계속 충돌이다. 테스트는 barrier 없이 실제 Promise 동시 호출하고 완료를 기다리므로 선행 advisory lock 때문에 교착을 만들지 않는다. 이 검증은 **DB service 동시성**이며 두 요청의 HTTP 동시성으로 확대 주장하지 않는다.
+- **검증/정리:** v8 전체 POST/PRE/HTTP/동시성 **9/9 pass/0 skip**. 매 시험의 owned fixture 정확 정리 뒤 v8의 accounts/auth_sessions/checkout/shipment/claims·메시지·사건/refund case·attempt·event·conflict/audit/payment 관련 15관계 count0, DB명과 system ID `7693634051273510955`, 열린 v8 session0을 읽기 전용 확인했다. 사전 등록한 **`shoppingmall_s52_schema_v8_1007` 한 DB만** DROP했고 `pg_database` 잔류0을 재확인했다. 기존 v6 DB 및 S5.2 전용 컨테이너/네트워크는 아직 후속 QA용으로 보존; 공유 DB/Oracle/실 Provider 불변이다. 새 자원 없음.
+- **로컬 gate/다음:** 전체 `pnpm test` **437 total/305 pass/132 계획된 DB·환경 skip/0 fail**, PR 본문 8/8, `git diff --check` exit0. 앱 코드는 바로 위 checkpoint 이후 불변이며 root typecheck/lint/build PASS 근거는 바로 위 절이다. 동시 결정키의 HTTP 경합, 3역할 실제 웹/브라우저, 전용 signed fixture/reset, Stage 최종 gate는 남았다. 안전 commit은 이 절의 파일 검증 후 수행한다.
+
 ## S5.2 관리자 HTTP POST verified 실행 checkpoint — 2026-10-07
 
 - **판정/원격 복구:** 단일 writer 어울, 지정 S5.2 worktree/branch 유지. Main이 exact `6c428898d580312ea432ac312aba1a80faa0ce1a`를 승인 SSH alias의 기존 원격 작업 브랜치에 fast-forward push exit0 확인했다고 직접 보고했다(main/PR 불변). 원격 ref는 Main 보고 기준이며 이 writer는 push/PR/merge를 하지 않았다. 공유 DB·Oracle·실 Provider·credential 변경0.

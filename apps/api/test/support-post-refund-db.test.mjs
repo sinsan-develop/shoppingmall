@@ -15,13 +15,15 @@ const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
 const fingerprint = 'a'.repeat(64);
 
 for (const scenario of ['success','failed','mismatch','duplicate_pending',
-  'duplicate_final','pre_shipped','pre_success','http_success'])
+  'duplicate_final','pre_shipped','pre_success','http_success','concurrent_decision'])
 test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserves its shipment contract`, {
   skip: !systemId || process.env.S52_SUPPORT_TEST_DB_NAME !== database,
 }, async () => {
   assert.equal(process.env.PGDATABASE, database);
   const pool = new Pool({ max: 6 });
   const ids = {};
+  const quantity = scenario === 'concurrent_decision' ? 2 : 1;
+  const totalWon = 10000 * quantity;
   let seeded = false;
   let app;
   const previousRuntime = { APP_ENV: process.env.APP_ENV,
@@ -74,27 +76,27 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
           now()+interval '1 hour',now()-interval '1 hour') RETURNING id`,
       [ids.customer,randomUUID()])).rows[0].id;
       await client.query(`INSERT INTO checkout_reservation_lines(reservation_id,option_id,quantity)
-        VALUES ($1,$2,1)`, [ids.reservation,ids.option]);
+        VALUES ($1,$2,$3)`, [ids.reservation,ids.option,quantity]);
       ids.order = (await client.query(`INSERT INTO checkout_orders
         (account_id,reservation_id,idempotency_key,request_fingerprint,address_id,
          recipient_name,phone,postal_code,line1,goods_won,goods_discount_won,
          shipping_fee_won,shipping_support_won,payable_won,status,
          created_at,expires_at,ended_at,paid_at)
         VALUES ($1,$2,$3,$4,$5,'가상고객','01000000000','12345','가상 주소',
-          10000,0,0,0,10000,'PAID',now()-interval '2 hours',
+          $6,0,0,0,$6,'PAID',now()-interval '2 hours',
           now()+interval '1 hour',now()-interval '1 hour',now()-interval '1 hour')
         RETURNING id`, [ids.customer,ids.reservation,randomUUID(),fingerprint,
-          ids.address])).rows[0].id;
+          ids.address,totalWon])).rows[0].id;
       ids.shipment = (await client.query(`INSERT INTO shipment_orders
         (checkout_order_id,shipment_key,shipping_mode,seller_id,goods_won,
          goods_discount_won,shipping_fee_won,shipping_support_won,payable_won,status)
-        VALUES ($1,$2,'owool_fulfillment',NULL,10000,0,0,0,10000,'PAID') RETURNING id`,
-      [ids.order,`owool:${randomUUID()}`])).rows[0].id;
+        VALUES ($1,$2,'owool_fulfillment',NULL,$3,0,0,0,$3,'PAID') RETURNING id`,
+      [ids.order,`owool:${randomUUID()}`,totalWon])).rows[0].id;
       await client.query(`INSERT INTO shipment_order_lines
         (shipment_order_id,product_id,option_id,seller_id,product_name,option_name,
          unit_price_won,quantity,goods_discount_won,goods_payable_won)
-        VALUES ($1,$2,$3,$4,'POST 환불 시험','기본',10000,1,0,10000)`,
-      [ids.shipment,ids.product,ids.option,ids.seller]);
+        VALUES ($1,$2,$3,$4,'POST 환불 시험','기본',10000,$5,0,$6)`,
+      [ids.shipment,ids.product,ids.option,ids.seller,quantity,totalWon]);
       if (scenario === 'pre_success') await client.query(`INSERT INTO shipment_fulfillments
         (shipment_order_id,fulfillment_seller_id,status,expected_ship_date)
         VALUES ($1,$2,'READY','2026-10-10')`, [ids.shipment,ids.seller]);
@@ -116,14 +118,15 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
       ids.paymentAttempt = (await client.query(`INSERT INTO payment_attempts
         (checkout_order_id,provider,provider_order_id,requested_won,idempotency_key,
          request_fingerprint,status,ended_at)
-        VALUES ($1,'mock',$2,10000,$3,$4,'APPROVED',now()) RETURNING id`,
-      [ids.order,`mock:order:${ids.order}`,randomUUID(),fingerprint])).rows[0].id;
+        VALUES ($1,'mock',$2,$5,$3,$4,'APPROVED',now()) RETURNING id`,
+      [ids.order,`mock:order:${ids.order}`,randomUUID(),fingerprint,totalWon])).rows[0].id;
       ids.paymentId = `mock:payment:${randomUUID()}`;
       await client.query(`INSERT INTO payment_events
         (payment_attempt_id,provider,provider_event_id,outcome,verified_order_id,
          provider_payment_id,amount_won,event_fingerprint,processing_status,processed_at)
-        VALUES ($1,'mock',$2,'APPROVED',$3,$4,10000,$5,'APPLIED',now())`,
-      [ids.paymentAttempt,`mock:event:${randomUUID()}`,ids.order,ids.paymentId,fingerprint]);
+        VALUES ($1,'mock',$2,'APPROVED',$3,$4,$6,$5,'APPLIED',now())`,
+      [ids.paymentAttempt,`mock:event:${randomUUID()}`,ids.order,ids.paymentId,fingerprint,
+        totalWon]);
       await client.query('COMMIT');
       seeded = true;
     } catch (error) { await client.query('ROLLBACK'); throw error; }
@@ -137,6 +140,48 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
       JOIN shipment_fulfillments f ON f.shipment_order_id=s.id
       JOIN inventory_levels i ON i.option_id=$2 WHERE o.id=$1`,
     [ids.order,ids.option])).rows[0];
+    if (scenario === 'concurrent_decision') {
+      const first = await createClaim(pool, { customerAccountId: ids.customer,
+        orderId: ids.order,shipmentOrderId: ids.shipment,optionId: ids.option,
+        kind: 'RETURN',reasonCode: 'damaged',reason: '첫 번째 훼손 품목',
+        quantity: 1,idempotencyKey: randomUUID() });
+      ids.claim = first.id;
+      const second = await createClaim(pool, { customerAccountId: ids.customer,
+        orderId: ids.order,shipmentOrderId: ids.shipment,optionId: ids.option,
+        kind: 'RETURN',reasonCode: 'damaged',reason: '두 번째 훼손 품목',
+        quantity: 1,idempotencyKey: randomUUID() });
+      ids.claimTwo = second.id;
+      const key = randomUUID();
+      const decide = (claimId) => approveClaim(pool, { claimId,
+        adminAccountId: ids.admin,reason: '동시 결정키 경합',idempotencyKey: key },
+      { APP_ENV: 'development',PAYMENT_MODE: 'mock' });
+      const results = await Promise.allSettled([decide(first.id),decide(second.id)]);
+      assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+      assert.equal(results.filter((result) => result.status === 'rejected' &&
+        result.reason.message === 'Support conflict').length, 1);
+      const winner = results[0].status === 'fulfilled' ? first.id : second.id;
+      const loser = winner === first.id ? second.id : first.id;
+      assert.equal((await decide(winner)).status, 'REFUND_PROCESSING');
+      await assert.rejects(() => decide(loser), /Support conflict/);
+      assert.deepEqual((await pool.query(`SELECT
+        (SELECT count(*)::int FROM refund_cases WHERE checkout_order_id=$1) AS cases,
+        (SELECT count(*)::int FROM refund_attempts a JOIN refund_cases c
+          ON c.id=a.refund_case_id WHERE c.checkout_order_id=$1) AS attempts,
+        (SELECT count(*)::int FROM support_claims WHERE decision_by=$2) AS decisions`,
+      [ids.order,ids.admin])).rows[0], { cases: 1,attempts: 1,decisions: 1 });
+      assert.equal((await pool.query(`SELECT status FROM support_claims WHERE id=$1`,
+        [loser])).rows[0].status, 'REQUESTED');
+      const after = (await pool.query(`SELECT o.payable_won AS order_won,
+        s.goods_won AS shipment_goods,s.payable_won AS shipment_won,
+        f.status AS fulfillment_status,f.version,f.carrier_code,f.tracking_number,
+        f.first_shipped_at,f.shipped_at,i.on_hand_quantity,i.sellable_quantity
+        FROM checkout_orders o JOIN shipment_orders s ON s.checkout_order_id=o.id
+        JOIN shipment_fulfillments f ON f.shipment_order_id=s.id
+        JOIN inventory_levels i ON i.option_id=$2 WHERE o.id=$1`,
+      [ids.order,ids.option])).rows[0];
+      assert.deepEqual(after,before);
+      return;
+    }
     if (scenario === 'pre_success' || scenario === 'pre_shipped') {
       const pre = await createRefundCase(pool, {
         actorAccountId: ids.customer,actorRole: 'customer',
@@ -316,18 +361,22 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
+          const ownedClaims = [ids.claim,ids.claimTwo].filter(Boolean);
           const foreign = (await client.query(`SELECT
             (SELECT count(*)::int FROM accounts WHERE id<>ALL($1::uuid[])) AS accounts,
             (SELECT count(*)::int FROM checkout_orders WHERE id<>$2) AS orders,
             (SELECT count(*)::int FROM support_claims
-              WHERE id<>coalesce($3::uuid,id)) AS claims,
+              WHERE id<>ALL($3::uuid[])) AS claims,
             (SELECT count(*)::int FROM refund_cases
-              WHERE post_shipment_claim_id IS DISTINCT FROM $3::uuid) AS refunds`,
-          [[ids.customer,ids.admin,ids.sellerActor],ids.order,ids.claim ?? null])).rows[0];
+              WHERE checkout_order_id<>$2 OR
+                (post_shipment_claim_id IS NOT NULL
+                  AND post_shipment_claim_id<>ALL($3::uuid[]))) AS refunds`,
+          [[ids.customer,ids.admin,ids.sellerActor],ids.order,ownedClaims])).rows[0];
           assert.deepEqual(foreign, { accounts: 0,orders: 0,claims: 0,refunds: 0 },
             'never remove foreign fixture rows');
           await client.query(`DELETE FROM audit_events
-            WHERE target_type='support_claim' AND target_id=$1`, [ids.claim ?? null]);
+            WHERE target_type='support_claim' AND target_id=ANY($1::text[])`,
+          [ownedClaims]);
           await client.query(`DELETE FROM audit_events
             WHERE target_type='shipment_order' AND target_id=$1`, [ids.shipment]);
           await client.query(`DELETE FROM refund_event_conflicts WHERE original_event_id IN
@@ -344,11 +393,12 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
           await client.query(`DELETE FROM refund_case_lines WHERE refund_case_id IN
             (SELECT id FROM refund_cases WHERE checkout_order_id=$1)`, [ids.order]);
           await client.query('DELETE FROM refund_cases WHERE checkout_order_id=$1', [ids.order]);
-          await client.query('DELETE FROM support_claim_events WHERE claim_id=$1',
-          [ids.claim ?? null]);
-          await client.query('DELETE FROM support_claim_messages WHERE claim_id=$1',
-          [ids.claim ?? null]);
-          await client.query('DELETE FROM support_claims WHERE id=$1', [ids.claim ?? null]);
+          await client.query('DELETE FROM support_claim_events WHERE claim_id=ANY($1::uuid[])',
+          [ownedClaims]);
+          await client.query('DELETE FROM support_claim_messages WHERE claim_id=ANY($1::uuid[])',
+          [ownedClaims]);
+          await client.query('DELETE FROM support_claims WHERE id=ANY($1::uuid[])',
+          [ownedClaims]);
           await client.query('DELETE FROM payment_events WHERE payment_attempt_id=$1',
           [ids.paymentAttempt]);
           await client.query('DELETE FROM payment_attempts WHERE id=$1',
