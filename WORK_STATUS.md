@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## Task11 독립 재리뷰 보정 private gate GREEN — 2026-10-06
+
+- **판정·정확한 기준:** exact commit `a9b1c544cdc12739a70ddb3464b3938e42c83a63`을 local/origin/WSL에 맞춘 뒤 fresh private PostgreSQL 18과 exact Git archive Linux workspace에서 보정 gate를 통과했다. shared `local-postgres/shoppingmall`, 실제 Chrome, 외부서비스, Oracle, PR/main은 접근·변경하지 않았다. 독립 최종 재리뷰 C0/I0 전이므로 Task11 완료로 승격하지 않는다.
+- **fixture safety actual:** 전용 DB `shoppingmall_s5_fulfillment_ui_f5111006`에 migration **0000~0015 / 16건**을 적용했다. production cutoff 경로로 3개 fulfillment를 열고 외부 identity/audit/category/payment conflict 사전 거부·보존, late child 잠금/FK 거부, 정상 reset의 25관계 업무행0·`fulfillment_settings` 원복을 포함한 safety 시험은 **1 test / 1 pass / 0 fail / 0 skip**이다.
+- **fresh 전체 회귀:** 별도 fresh `shoppingmall` DB, system identifier `7693488660502057008`, migration **16건**에서 **443 total / 423 pass / 0 fail / 20 planned skip**이다. planned skip은 ClamAV·shared fixture·별도 opt-in UI safety처럼 이번 전체 gate에서 의도적으로 제외한 환경 시험이며 PASS로 계산하지 않았다. 종료 시 `accounts|products|orders|shipments|payment attempts|refund cases|audit=0|0|0|0|0|0|0`, singleton `fulfillment settings|home current|home draft|shipping global=1|1|1|1`이다.
+- **정적·빌드 gate:** 같은 exact archive에서 recursive typecheck, 전체 ESLint, API/Next.js production build가 exit 0이고 Web은 **18 routes**를 생성했다. PR 본문 자동화는 **8/8 PASS**다.
+- **오류 횟수·조치:** WSL sync 명령의 PowerShell command-substitution 선해석 **1회**는 fetch 전 종료해 인용 없는 clean guard로 보정했다. 첫 private gate의 PostgreSQL 18 tmpfs 구 경로(`/var/lib/postgresql/data`) 사용 **1회**는 컨테이너 시작 로그로 공식 18+ 경로 변경을 확인하고 `/var/lib/postgresql`로 수정했다. 첫 전체 회귀의 격리 system-ID 환경변수 일부 누락 **1회**는 안전장치가 mutation 전 차단해 **408 total / 371 pass / 2 guard fail / 35 skip**으로 종료했으며, 5개 정확한 system-ID를 명시한 fresh 재실행이 위 443/423/0/20으로 통과했다. 동일 근본 원인 연속 3회는 없다.
+- **잔류·정리:** 성공·실패·진단에 사용한 exact container/network/temp source/home은 모두 제거해 잔류 **0**이다. WSL checkout은 `a9b1c54...` clean이다. shared rollback backup은 승인 절차에 따라 그대로 보존한다.
+- **다음 조치:** exact commit의 production cutoff seed와 seller B active loading 증거를 독립 read-only reviewer가 재검토해 **Critical 0 / Important 0**을 판정해야 한다. 통과하면 결과를 기록·commit·alias push·WSL exact-SHA로 맞추고 shared 0015+전체 회귀 적용 승인 패킷을 PMO에 보고한다.
+
 ## Task11 독립 재리뷰 C0/I2/M0 보정 GREEN 후보 — 2026-10-06
 
 - **리뷰 판정:** exact HEAD `81386c0572c3c8365c0f594fffb1c577f4decd53` 독립 read-only 재리뷰는 **Critical 0 / Important 2 / Minor 0**으로 gate 불통과였다. payment conflict 보호·25관계 잔류0·singleton 원복, 타판매자404·503·빈 상태·공동출고 seller는 해소됐지만, fixture의 고정 예상일이 production cutoff 경로를 거치지 않은 점과 seller A의 초기 권한 문구만으로 seller B 목록 로딩을 주장한 점이 남았다.
