@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## S5.2 WSL exact-SHA checkout 동기화 예외·복구 — 2026-10-07
+
+- **기준/오류 1회:** Main의 지정 WSL checkout은 시작 시 clean `main@59c3e86`이었다. 승인 SSH alias의 원격 작업 브랜치 `da3d4455599b5474468bc8781e89a2490f95fa35` fetch는 성공했으나 `git switch --track -c codex/s52-customer-support origin/...`에서 tracking 설정 오류로 exit 1이 발생했다. 이 명령 직후 index/worktree가 대상 tree로 staged 전환돼 있었으므로 성공한 checkout으로 간주하지 않았다. WSL fetch refspec 또는 tracking setup 불일치는 **추측**이며 원인은 확정되지 않았다.
+- **읽기 전용 대조·복구:** 대상 `da3d445` 대비 `git diff --cached --name-only`, `git diff --name-only`, untracked 출력이 모두 0임을 확인한 뒤 `git switch --no-track -c codex/s52-customer-support da3d4455599b5474468bc8781e89a2490f95fa35`가 exit 0이었다. 최종 WSL HEAD는 정확 `da3d445`, `git status --short --branch`는 clean, diff checks 0이다. 오류·복구 과정의 제품 코드, DB, 공유 데이터 변경은 0이며 실제 Chrome·공유 DB·Oracle 검증 완료를 뜻하지 않는다. 승인 대기 GET/API·의존 UI 5파일은 로컬 미커밋 상태로만 보존하고 이번 문서 커밋에서 제외한다.
+
 ## S5.2 fixture 임시 경로 PMO §7 보정 — 2026-10-07
 
 - **판정/근거:** 전용 DB signed seed→지원/모의환불→reset 4/4 PASS, 전체 로컬 451건/318 pass/133 계획 skip/0 fail·PR 본문 8 pass, typecheck/lint/build PASS를 얻었으나 당시 Windows 파일 root가 `C:\Users\cyhuh\AppData\Local\Temp`였다. PMO AGENTS §7의 Windows 공통 임시 root `D:\tmp`와 불일치하므로 이 fixture 경로의 최종 gate로 주장하지 않는다. 이전 정확 파일 `shoppingmall-s52-support-ui-a52c1007-recovery.json`과 폴더 `shoppingmall-upload-s52-support-ui-a52c1007`는 읽기 전용 확인 시 모두 부재0; 그 밖의 OS temp 자료는 조회·변경·정리하지 않았다.
