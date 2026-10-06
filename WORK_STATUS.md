@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.1 일반 내부 Stage 병합 gate 분류 정정 — 2026-10-07
+
+- **PMO 정정 판정:** PR #13/S5.1은 **일반 내부 Stage**이며 현재 독립 재리뷰 **Critical 0 / Important 0**이다. exact PR head의 CI 성공 조건을 충족하면 자동화 절차로 병합할 수 있다. 직전 기록의 “신산님 UAT 승인 전 PR #13 병합 금지”는 Oracle release candidate/UAT 경계를 이번 내부 Stage의 병합 gate로 잘못 분류한 것이며 PMO가 이를 정정했다.
+- **현재 기준:** local branch `codex/s5-fulfillment-engagement`의 현재 head는 `a706f341876c5ed83aeb94204859dc5358de7d9f`이고 clean에서 이 docs-only 정정을 시작했다. 제품 코드·schema·migration·API·기존 승인 범위는 변경하지 않는다.
+- **제품·QA 증거 불변:** 제품·QA SHA `943a8cd99307f968ca21cbeaf283f610b2e52448`의 local/WSL 각각 **415 total / 298 pass / 117 planned skip / 0 fail**, 격리 PostgreSQL 18.4 migration16 관련 DB/HTTP **38/38**, Chrome 154 고객·판매자·관리자 역할 경로와 1920/1440/430·키보드 PASS, signed reset 25관계 합계0·run 자원0 증거는 그대로다.
+- **별도 후속·미검증:** Oracle staging/release candidate와 신산님 UAT, 실제 택배·문자·메일·푸시·PG 등 Provider 연동, 실제 200% 확대는 S8 전체 개발 완료 후보 이후 별도 승인·인수 절차다. S5.2~S5.4와 상세 read snapshot M1도 미검증·미완료로 유지하며, 어느 항목도 이번 PR #13의 병합 gate가 아니다.
+- **다음 정확한 절차:** PR exact head와 CI 성공을 확인한 뒤 자동화 병합 → merged-main smoke → branch/worktree·요청 ref 정리를 수행한다. Oracle RC/UAT 패킷은 S8 전체 개발 완료 후보 이후 별도 승인 경계에서 준비한다.
+
 ## S5.1 PR #13 생성 완료 · Oracle RC 승인 패킷 준비 대기 — 2026-10-07
 
 - **PR 생성:** PR #13 `https://github.com/sinsan-develop/shoppingmall/pull/13` 생성을 완료했다. 생성 당시 exact head는 `84a37641c1df7ad2b873a9493b4ff6db16661d59`이며 GitHub verify는 `completed/success`다. `pr-create` tag는 자동 삭제됐고 `pr-request`와 병합은 사용하지 않았다.

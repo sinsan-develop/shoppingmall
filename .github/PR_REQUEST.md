@@ -30,7 +30,7 @@ S5.1 출고 이행 기능과 최종 Stage review finding 보정을 통합한다.
 
 ## 미검증
 
-- 첫 독립 Stage review는 **Critical 0 / Important 2 / Minor 1, BLOCK**이었고, PMO 승인 docs-only 정본 보정의 독립 재리뷰는 **Critical 0 / Important 0 / Minor 1, Stage gate PASS**다. I1/I2는 해소됐으며 Oracle release candidate 배포, 신산님 UAT, 실제 택배사·문자·메일·푸시·PG, 실제 200% 확대는 미검증이다.
+- 첫 독립 Stage review는 **Critical 0 / Important 2 / Minor 1, BLOCK**이었고, PMO 승인 docs-only 정본 보정의 독립 재리뷰는 **Critical 0 / Important 0 / Minor 1, Stage gate PASS**다. I1/I2는 해소됐다. PMO 판정상 PR #13/S5.1은 일반 내부 Stage이므로 exact head의 CI 성공 조건을 충족하면 병합 가능하다. Oracle staging/UAT, 실제 택배사·문자·메일·푸시·PG, 실제 200% 확대는 S8 전체 개발 완료 후보 이후 별도 승인·인수 절차의 미검증 범위이며 이번 PR의 병합 gate가 아니다.
 - 판매자·관리자 상세의 여러 `SELECT`는 하나의 read-only snapshot으로 묶이지 않아 동시 정정/환불 중 상태·수량·사건이 서로 다른 시점에서 일시적으로 섞일 수 있다. `expectedVersion`은 쓰기 훼손을 막지만 이 읽기 일관성 위험까지 제거하지 않으므로 미해결 Minor 후속이다.
 - actual Chrome은 별도 격리 DB 증거이며 공유 개발 DB를 브라우저가 사용했다는 뜻이 아니다.
 - S5.2 문의/리뷰/클레임·출고 후 심사/환불, S5.3 알림, S5.4 관제는 미구현이며 S5 전체 완료가 아니다.
