@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 실제 RED — 2026-10-06 S5.1 Task7 고객 즉시 조회·S4 환불 결합
+
+- **판정·기준:** controller가 exact test SHA `9d927daf01c5640ce974ba26197d23bac5cc0d50`를 WSL private tmpfs PostgreSQL **18.4**, migration **16건**, system identifier `7693381525225517100`에서 실행했다. 결과는 **13 tests / 6 pass / 7 fail / 0 skip, exit 1**이며 schema·fixture·setup·cleanup harness 오류는 **0**이다. 따라서 Task7은 의도한 제품 기능 부재를 실제 PostgreSQL에서 재현한 **유효한 RED**이고 GREEN·완료가 아니다.
+- **재현된 제품 RED 7건:** (1) 고객 detail의 `completedRefundQuantity`가 `undefined`, (2) 누적 전량 환불 뒤 fulfillment가 `READY/version 0/cancelled false`로 남음, (3) seller SHIPPED 경합에서 refund가 `shipment_orders` 첫 잠금 waiter에 참여하지 않음, (4) admin SHIPPED 경합도 동일, (5) 고객 주문 shipment의 `fulfillment`가 `undefined`, (6) 현재 `SHIPPED`인데 관리자 출고 전 환불 approve가 거부되지 않음, (7) 현재 `SHIPPED`인데 verified refund processor가 거부되지 않음이다.
+- **기존 회귀·분리:** 기존 S4 환불 시험 **6/6 pass**로 기존 금액 snapshot·배송비 1회·재고 복원·판매중지 검토·환불수량 경합·0원/실패 사건 assertion을 약화하지 않았음을 확인했다. 7 fail은 모두 Task7 신규 계약이며 DB 준비 실패나 기존 S4 회귀가 아니다.
+- **사후 데이터·공유 경계:** 실행 후 accounts/roles/identities/sessions/sellers/products/addresses/reservations/orders/shipment_orders/fulfillments/fulfillment events/audit 및 환불 6개 관계의 업무행은 모두 **0**이다. singleton은 `fulfillment_settings=1`, `shipping_policy_global=1`로 원복됐다. shared `local-postgres/shoppingmall`은 접근·변경하지 않았다.
+- **격리 자원:** GREEN 재검증까지 controller가 private tmpfs PostgreSQL `shoppingmall-s51-refund-pg-1006`과 internal network `shoppingmall-s51-refund-1006`만 유지한다. 외부 공개 port·영속 volume·실사용 자료는 없으며 GREEN 성공·실패·중단 후 정확한 두 자원을 제거하고 접두 container/network/volume 잔류0을 확인해야 한다.
+- **다음 최소 GREEN:** 공개 endpoint·schema/migration을 바꾸지 않고 승인된 Task7 제품 allowlist에서만 진행한다. `orders/repository.ts`는 기존 고객 order snapshot에 exact fulfillment·고객용 사건·환불완료/남은수량을 추가하되 내부 reason/actor/idempotency/fingerprint·공급자 원문·PII 중복을 제외한다. `refunds/service.ts`와 `refunds/processor.ts`는 `shipment_orders→shipment_fulfillments→refund_cases` 고정 잠금 순서를 사용해 `SHIPPED` approve/process를 zero mutation으로 거부하고, verified 누적 전량 환불만 같은 transaction에서 `CANCELLED/version+1/cancelled_at`과 `REFUND_CANCELLED system:refund` 사건 1개를 기록한다. 부분 환불은 fulfillment 상태·version·사건을 바꾸지 않는다. 이후 동일 13건 actual GREEN, lock wait·양쪽 성공 금지·무교착, S4/Task6 회귀, 전체 gate와 cleanup0을 재검증한다.
+- **현재 제한:** 이 기록은 actual RED와 다음 최소 조치만 확정한다. 제품 코드, 시험, schema/migration, commit/push, WSL checkout, private/shared DB, Docker 자원에는 이번 문서 갱신에서 손대지 않는다.
+
 ## RED 후보 — 2026-10-06 S5.1 Task7 고객 즉시 조회·S4 환불 결합
 
 - **판정·기준:** 신산님이 지정한 `codex/s5-fulfillment-engagement` exact clean base `8a2dd593449398d945f5bc0eaa5f5b63326a230a`에서 Task7 **RED 시험만** 작성했다. 프로젝트 root `AGENTS.md`는 실제로 없으므로 `D:\Project\PMO\AGENTS.md`, Task7 계획, S5.1 계약 §§5~8, 개발환경 문서와 최신 직접 지시를 적용했다. 새 branch/worktree, commit/push, 제품 코드, schema/migration, WSL/Docker/shared DB 접근·변경은 0이다.
