@@ -17,12 +17,14 @@ import { SellerFulfillmentController } from './fulfillment/seller.controller.js'
 import { AdminFulfillmentController } from './fulfillment/admin.controller.js';
 import { AdminSupportQuestionController, CustomerSupportQuestionController,
   PublicSupportQuestionController, SellerSupportQuestionController } from './support/questions.controller.js';
+import { CustomerSupportConfirmationController } from './support/confirmations.controller.js';
 
 @Module({ controllers: [HealthController, AuthController, CustomerController, CustomerCartController,
   CustomerReservationController, AdminReservationController, CatalogController, ShippingController,
   HomeAdminController, HomePublicController, PromotionAdminController, CustomerPromotionController,
   CustomerOrderController, CustomerRefundController, AdminRefundController,
   SellerFulfillmentController, AdminFulfillmentController, CustomerSupportQuestionController,
-  SellerSupportQuestionController, AdminSupportQuestionController, PublicSupportQuestionController],
+  SellerSupportQuestionController, AdminSupportQuestionController, PublicSupportQuestionController,
+  CustomerSupportConfirmationController],
   providers: [DatabaseService] })
 export class AppModule {}
