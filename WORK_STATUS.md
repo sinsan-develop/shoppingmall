@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.3 원사건-알림 작업 트랜잭션 접점 준비 — 2026-10-08
+
+- **담당·경계:** 어울 단일 writer. `queueNotificationEvent(client,event)` 내부 helper만 추가하고 주문/결제/배송/재고 원사건의 실제 호출은 아직 연결하지 않는다. 공유 `local-postgres/shoppingmall`의 0019 적용은 신산님 직접 승인 질문 대기이며, 답변 전 공유 DB에 쓰지 않는다. 새 공개 API·실 채널·Oracle 변경 없음.
+- **RED→GREEN:** 모듈 부재 RED 뒤 원사건 ID·고객·활성 재입고 판정→검증 신원 기반 채널→고유 작업 등록을 호출자의 기존 `PoolClient`에 묶는 helper를 구현했다. 표적 3/3 pass와 API 타입 검사 exit0. 새 작업을 별도 트랜잭션으로 커밋하지 않아 원사건 rollback 시 함께 취소할 수 있다. 실제 원사건 흐름/공유 DB 연결은 아직 미검증·미구현이다.
+- **로컬 전체 gate:** `pnpm test` 517 total/375 pass/142 계획 환경 skip/0 fail, PR 본문 8/8 pass. `pnpm build` API/Next 22 route, `pnpm typecheck`, `pnpm lint` exit0. 기존 단위/격리 DB 증거를 실제 주문·결제·배송·재고 훅 PASS로 간주하지 않는다.
+
 ## S5.3 개발 전용 모의 알림 실행 진행 — 2026-10-08
 
 - **담당·경계:** 어울 단일 writer. `NOTIFICATION_MODE=mock`은 `APP_ENV=development`, 비운영 `NODE_ENV`, loopback `API_HOST`를 모두 요구하고 기본은 disabled다. 외부 Provider 호출·실 연락처 조회·공개 API·자동 scheduler는 없고 명시적 QA 호출만 가능하다. 모의 `SUCCEEDED`는 실제 수신 증거가 아니며 공유/운영 DB에 적용하지 않는다.
