@@ -38,3 +38,14 @@ test('admin support claims use a private role page and expose the approved mock 
   assert.match(source,/idempotency-key/);
   assert.match(source,/credentials: 'include'/);
 });
+
+test('processing claim offers a bounded mock refund resume action', () => {
+  const html = renderToStaticMarkup(createElement(AdminSupportClaimsView, {
+    items: [],selected: { ...claim,status: 'REFUND_PROCESSING' },busy: false,
+    message: '',statusFilter: '',nextCursor: null,onFilter: () => {},
+    onMore: () => {},onSelect: () => {},onDecide: () => {},onResume: () => {},
+  }));
+  assert.match(html,/모의 환불 재개/);
+  assert.doesNotMatch(html,/승인·모의 환불 실행/);
+  assert.doesNotMatch(html,/승인 사유/);
+});

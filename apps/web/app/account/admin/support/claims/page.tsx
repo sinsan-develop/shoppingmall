@@ -16,11 +16,12 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
 export function AdminSupportClaimsView({ items,selected,busy,message,statusFilter,nextCursor,
-  onFilter,onMore,onSelect,onDecide }: {
+  onFilter,onMore,onSelect,onDecide,onResume }: {
   items: Summary[]; selected?: Detail; busy: boolean; message: string;
   statusFilter: string; nextCursor: string | null;
   onFilter: (status: string) => void; onMore: () => void; onSelect: (id: string) => void;
   onDecide: (decision: 'approve' | 'reject',reason: string) => void;
+  onResume: () => void;
 }) {
   const submit = (event: FormEvent<HTMLFormElement>, decision: 'approve' | 'reject') => {
     event.preventDefault();
@@ -92,6 +93,11 @@ export function AdminSupportClaimsView({ items,selected,busy,message,statusFilte
             <textarea id="claim-reject-reason" name="reason" maxLength={500} rows={3} required />
             <button type="submit" className="secondary-button" disabled={busy}>반려</button>
           </form>
+        </div> : null}
+        {selected.status === 'REFUND_PROCESSING' ? <div className="account-form">
+          <p>이미 승인된 환불 건의 결과만 재확인합니다. 새 환불 요청은 생성하지 않습니다.</p>
+          <button type="button" className="primary-button" disabled={busy}
+            onClick={onResume}>모의 환불 재개</button>
         </div> : null}
       </>}
     </section>
@@ -208,6 +214,35 @@ export default function AdminSupportClaimsPage() {
     finally { setBusy(false); }
   }
 
+  async function resume() {
+    if (!apiOrigin || !selected || selected.status !== 'REFUND_PROCESSING' || busy) return;
+    const id = selected.id;
+    setBusy(true); setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/admin/support/claims/${encodeURIComponent(id)}/refund-resume`, {
+        method: 'POST',credentials: 'include',
+      });
+      if (response.status === 401 || response.status === 403) {
+        setState('unauthorized'); return;
+      }
+      if (response.status === 404) {
+        setMessage('요청 또는 로컬 모의 환불 환경을 확인해 주세요'); return;
+      }
+      if (response.status === 409) {
+        setMessage('환불 상태가 변경됐습니다. 상세를 다시 확인해 주세요');
+        await loadDetail(id).catch(() => {}); return;
+      }
+      if (!response.ok) {
+        setMessage('환불 결과를 확인하지 못했습니다. 상태를 확인한 뒤 재개해 주세요'); return;
+      }
+      setSelected(await response.json() as Detail);
+      try { await loadList(statusFilter); }
+      catch { setMessage('환불 결과는 반영됐지만 목록을 새로고침하지 못했습니다'); return; }
+      setMessage('모의 환불 결과를 반영했습니다');
+    } catch { setMessage('환불 결과를 확인하지 못했습니다. 상태를 확인한 뒤 재개해 주세요'); }
+    finally { setBusy(false); }
+  }
+
   return <main id="main-content" tabIndex={-1} className="shell account-shell">
     <a className="text-link" href="/account">내 계정으로</a>
     <h1>고객지원 클레임 관리</h1>
@@ -216,6 +251,7 @@ export default function AdminSupportClaimsPage() {
     {state === 'unavailable' ? <p role="alert">고객지원 클레임에 연결할 수 없습니다</p> : null}
     {state === 'ready' ? <AdminSupportClaimsView items={items} selected={selected}
       busy={busy} message={message} statusFilter={statusFilter} nextCursor={nextCursor}
-      onFilter={filter} onMore={more} onSelect={select} onDecide={decide} /> : null}
+      onFilter={filter} onMore={more} onSelect={select} onDecide={decide}
+      onResume={resume} /> : null}
   </main>;
 }

@@ -15,7 +15,8 @@ const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
 const fingerprint = 'a'.repeat(64);
 
 for (const scenario of ['success','failed','mismatch','duplicate_pending',
-  'duplicate_final','pre_shipped','pre_success','http_success','concurrent_decision'])
+  'duplicate_final','pre_shipped','pre_success','http_success','http_resume',
+  'concurrent_decision'])
 test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserves its shipment contract`, {
   skip: !systemId || process.env.S52_SUPPORT_TEST_DB_NAME !== database,
 }, async () => {
@@ -225,7 +226,7 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
         return;
       }
     }
-    if (scenario === 'http_success') {
+    if (scenario === 'http_success' || scenario === 'http_resume') {
       const claim = await createClaim(pool, { customerAccountId: ids.customer,
         orderId: ids.order,shipmentOrderId: ids.shipment,optionId: ids.option,
         kind: 'EXCHANGE',reasonCode: 'wrong_delivery',reason: '오배송 교환 접수',
@@ -249,6 +250,7 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
       await app.listen(0, '127.0.0.1');
       const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
       const path = `${base}/admin/support/claims/${claim.id}/decision`;
+      const resumePath = `${base}/admin/support/claims/${claim.id}/refund-resume`;
       const key = randomUUID();
       const request = (role, requestKey = key, reason = '관리자 오배송 승인') => fetch(path, { method: 'POST',
         headers: { cookie: cookies[role],origin: 'http://127.0.0.1:9091',
@@ -257,6 +259,37 @@ test(`${scenario === 'pre_success' ? 'PRE' : 'POST'} refund ${scenario} preserve
       });
       assert.equal((await request('customer',randomUUID())).status, 403);
       assert.equal((await request('seller',randomUUID())).status, 403);
+      if (scenario === 'http_resume') {
+        const pending = await approveClaim(pool, { claimId: claim.id,
+          adminAccountId: ids.admin,reason: '오배송 재개 시험',
+          idempotencyKey: randomUUID() });
+        assert.equal(pending.status, 'REFUND_PROCESSING');
+        const resume = (role, origin = 'http://127.0.0.1:9091') => fetch(resumePath, {
+          method: 'POST',headers: { cookie: cookies[role],origin },
+        });
+        assert.equal((await resume('customer')).status, 403);
+        assert.equal((await resume('seller')).status, 403);
+        assert.equal((await resume('admin','http://evil.invalid')).status, 403);
+        process.env.PAYMENT_MODE = 'real';
+        assert.equal((await resume('admin')).status, 404);
+        process.env.PAYMENT_MODE = 'mock';
+        const completed = await resume('admin');
+        assert.equal(completed.status, 200);
+        assert.equal((await completed.json()).status, 'REFUNDED');
+        assert.equal((await (await resume('admin')).json()).status, 'REFUNDED');
+        const counts = (await pool.query(`SELECT
+          (SELECT count(*)::int FROM refund_cases WHERE post_shipment_claim_id=$1) AS cases,
+          (SELECT count(*)::int FROM refund_attempts a JOIN refund_cases c
+            ON c.id=a.refund_case_id WHERE c.post_shipment_claim_id=$1) AS attempts,
+          (SELECT count(*)::int FROM refund_events e JOIN refund_attempts a
+            ON a.id=e.refund_attempt_id JOIN refund_cases c ON c.id=a.refund_case_id
+            WHERE c.post_shipment_claim_id=$1) AS events,
+          (SELECT count(*)::int FROM audit_events WHERE target_type='support_claim'
+            AND target_id=$1::text AND action='support.claim_refund_applied') AS audits`,
+        [claim.id])).rows[0];
+        assert.deepEqual(counts, { cases: 1,attempts: 1,events: 1,audits: 1 });
+        return;
+      }
       const approved = await request('admin');
       assert.equal(approved.status, 200);
       assert.equal((await approved.json()).status, 'REFUNDED',

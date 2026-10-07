@@ -273,6 +273,36 @@ export class AdminSupportClaimController {
     return { ...finalClaim,attemptId: reserved.attemptId };
   }
 
+  @Post(':claimId/refund-resume')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async resumeRefund(@Req() request: RequestHeaders, @Param('claimId') claimId: string) {
+    requireOrigin(request);
+    const { pool, actor } = await context(this.database, request, 'admin');
+    requireLocalMockRefund(request);
+    if (!uuid.test(claimId)) throw new BadRequestException({ status: 'invalid_support' });
+    const claim = await handle(() => getClaim(pool, 'admin', actor.accountId,
+      undefined, claimId));
+    if (!claim) throw new NotFoundException();
+    const linked = (await pool.query<{ id: string; status: string }>(`SELECT c.id,c.status
+      FROM refund_cases c JOIN support_claims s ON s.id=c.post_shipment_claim_id
+      WHERE s.id=$1 AND s.decision_by IS NOT NULL AND c.decision_by=s.decision_by
+        AND c.checkout_order_id=s.checkout_order_id
+        AND c.shipment_order_id=s.shipment_order_id
+        AND c.requester_account_id=s.customer_account_id
+        AND c.goods_refund_won=s.goods_refund_won AND c.shipping_refund_won=0
+        AND c.total_refund_won=s.goods_refund_won`, [claimId])).rows[0];
+    if (!linked) throw new ConflictException({ status: 'support_conflict' });
+    if (claim.status === 'REFUNDED' && linked.status === 'REFUNDED') return claim;
+    if (claim.status !== 'REFUND_PROCESSING' || linked.status !== 'PROCESSING')
+      throw new ConflictException({ status: 'support_conflict' });
+    await handle(() => executeMockRefundCase(pool, linked.id));
+    const finalClaim = await handle(() => getClaim(pool, 'admin', actor.accountId,
+      undefined, claimId));
+    if (!finalClaim) throw new NotFoundException();
+    return finalClaim;
+  }
+
   @Get(':claimId/evidence/:evidenceId')
   @Header('Cache-Control', 'private, no-store')
   @Header('X-Content-Type-Options', 'nosniff')
