@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## S5.3 재입고 신청 취소 후 모의 발송 차단 검증 진행 — 2026-10-08
+
+- **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support` worktree. 이미 생성된 재입고 작업을 고객이 취소한 뒤 mock worker가 성공이나 `notified`로 기록하지 않고 `SUBSCRIPTION_INACTIVE`로 종료하는지 실 PostgreSQL에서 확인한다. 제품·공개 API·schema·공유 DB·실 채널은 변경하지 않는 기존 계약 회귀다.
+- **격리 QA 자원 사전 등록:** WSL-server의 정확 이름 internal network `shoppingmall-s53-restock-cancel-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-cancel-1008-pg` 안 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-cancel-1008-node`만 쓴다. 외부 포트·영속 volume 없음. 동명0→migration20/system ID→실 DB 시험→소유 QA 행0→정확 자원 제거·잔류0 순서이며 실패해도 공유 DB로 우회하지 않는다.
+
 ## S5.3 재입고 모의 발송 정상·재품절 실 DB 회귀 진행 — 2026-10-08
 
 - **담당·범위:** 어울 단일 writer, 기존 작업 브랜치. 직전 변경의 실 PostgreSQL 검증을 확대해 판매 가능 상태의 mock 성공은 신청 `notified`/완료 시각을 기록하고, 작업 생성 후 다시 품절되면 `RESTOCK_UNAVAILABLE`로 종료하면서 신청은 active로 유지하는지 확인한다. 제품·공개 API·schema·공유 DB·실 채널 변경은 없다.

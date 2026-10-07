@@ -126,6 +126,30 @@ test('only approved zero-to-sellable public stock queues an active restock reque
       await soldOutWorker.query('ROLLBACK');
       soldOutWorker.release();
     }
+
+    const cancelled = await new CustomerEngagement(pool).cancelRestockSubscription(
+      { accountId: customerId, role: 'customer' }, subscriptionId);
+    assert.deepEqual(cancelled, { id: subscriptionId, status: 'cancelled' });
+    const cancelledWorker = await pool.connect();
+    try {
+      await cancelledWorker.query('BEGIN');
+      const now = (await cancelledWorker.query('SELECT clock_timestamp() AS now')).rows[0].now;
+      assert.deepEqual(await runMockNotificationOnce(cancelledWorker, new Date(now.getTime() + 1000), {
+        APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
+        NOTIFICATION_MODE: 'mock',
+      }), { processed: true });
+      const afterCancel = (await cancelledWorker.query(`SELECT j.status AS "jobStatus",
+        a.status AS "attemptStatus",a.error_code AS "errorCode",
+        s.status AS "subscriptionStatus",s.notified_at AS "notifiedAt"
+        FROM notification_jobs j JOIN notification_attempts a ON a.job_id=j.id
+        JOIN restock_subscriptions s ON s.id=j.restock_subscription_id
+        WHERE j.restock_subscription_id=$1`, [subscriptionId])).rows[0];
+      assert.deepEqual(afterCancel, { jobStatus: 'FAILED', attemptStatus: 'PERMANENT_FAILURE',
+        errorCode: 'SUBSCRIPTION_INACTIVE', subscriptionStatus: 'cancelled', notifiedAt: null });
+    } finally {
+      await cancelledWorker.query('ROLLBACK');
+      cancelledWorker.release();
+    }
   } finally {
     if (subscriptionId) {
       const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j
