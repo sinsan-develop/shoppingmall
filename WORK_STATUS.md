@@ -5,6 +5,7 @@
 - **담당·경계:** 어울 단일 writer. `queueNotificationEvent(client,event)` 내부 helper만 추가하고 주문/결제/배송/재고 원사건의 실제 호출은 아직 연결하지 않는다. 공유 `local-postgres/shoppingmall`의 0019 적용은 신산님 직접 승인 질문 대기이며, 답변 전 공유 DB에 쓰지 않는다. 새 공개 API·실 채널·Oracle 변경 없음.
 - **RED→GREEN:** 모듈 부재 RED 뒤 원사건 ID·고객·활성 재입고 판정→검증 신원 기반 채널→고유 작업 등록을 호출자의 기존 `PoolClient`에 묶는 helper를 구현했다. 표적 3/3 pass와 API 타입 검사 exit0. 새 작업을 별도 트랜잭션으로 커밋하지 않아 원사건 rollback 시 함께 취소할 수 있다. 실제 원사건 흐름/공유 DB 연결은 아직 미검증·미구현이다.
 - **로컬 전체 gate:** `pnpm test` 517 total/375 pass/142 계획 환경 skip/0 fail, PR 본문 8/8 pass. `pnpm build` API/Next 22 route, `pnpm typecheck`, `pnpm lint` exit0. 기존 단위/격리 DB 증거를 실제 주문·결제·배송·재고 훅 PASS로 간주하지 않는다.
+- **WSL 지정 checkout 표적 시험:** `8cbd8f697169999cda4329b2dc644a00d77e8765`를 SSH alias push→`/home/daon/deploy/shopping` ff-only 동일 SHA/clean으로 맞추고 기존 WSL Node v18.19.1에서 표적 `notification-event-queue.test.mjs` 3/3 pass/0 skip. 새 컨테이너·DB·프로세스·파일 생성 없이 읽기/실행만 했다. 이 시험은 실제 원사건 연결/공유 DB/실 발송 검증이 아니다.
 
 ## S5.3 개발 전용 모의 알림 실행 진행 — 2026-10-08
 
