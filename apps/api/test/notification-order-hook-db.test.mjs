@@ -10,11 +10,11 @@ import { submitPendingOrder } from '../src/orders/service.ts';
 test('new order queues one transactional notice in its commit but invalid and repeated submissions do not', {
   skip: !process.env.S53_ORDER_TEST_DB_SYSTEM_ID,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_s53_order_1008');
+  assert.equal(process.env.PGDATABASE, 'shoppingmall');
   const pool = new Pool();
   const identity = (await pool.query(`SELECT current_database() AS name,
     system_identifier::text AS system_id FROM pg_control_system()`)).rows[0];
-  assert.equal(identity.name, 'shoppingmall_s53_order_1008');
+  assert.equal(identity.name, 'shoppingmall');
   assert.equal(identity.system_id, process.env.S53_ORDER_TEST_DB_SYSTEM_ID);
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`)).rows[0].n, 20);
   const runId = randomBytes(4).toString('hex');
