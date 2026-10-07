@@ -1,4 +1,4 @@
-// Actual Chrome/CDP QA against the run-scoped S5.2 isolated database only.
+// Actual Chrome/CDP QA against a run-scoped S5.2 signed fixture.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { lstat, readdir, realpath, writeFile } from 'node:fs/promises';
@@ -20,7 +20,7 @@ const password = process.env.QA_FIXTURE_PASSWORD;
 if (!candidate?.runId || !password) throw new Error('Signed S5.2 fixture is required');
 const fixture = validateSupportUiManifest(candidate.runId,candidate,password);
 const resumeTarget = assertSupportResumeTarget(process.env,fixture.runId);
-const { web,debugging,evidenceDir,attempt } =
+const { web,debugging,evidenceDir,attempt,imageFlow } =
   assertSupportBrowserBounds(process.env,fixture.runId);
 const api = 'http://127.0.0.1:9092';
 const widths = [
@@ -117,10 +117,12 @@ async function browserJson(route,options = {}) {
 
 async function evidence(label) {
   const headings = { 'customer-claim':'#customer-claim-detail-title',
+    'customer-review-image':'section[aria-label$="고객지원"]',
     'seller-claim':'#seller-claims-detail-title',
     'admin-claim':'#claim-detail-heading',
     'admin-claim-pending':'#claim-detail-heading',
-    'admin-review-hidden':'#admin-review-detail-title' };
+    'admin-review-hidden':'#admin-review-detail-title',
+    'admin-review-pending':'#admin-review-detail-title' };
   for (const size of widths) {
     await send('Emulation.setDeviceMetricsOverride',{
       width:size.width,height:size.height,deviceScaleFactor:1,mobile:size.width===430,
@@ -179,6 +181,24 @@ async function uploadClaimEvidence() {
   })()`),true);
 }
 
+async function uploadReviewImage() {
+  const selector=`#review-image-${fixture.optionId}`;
+  await hydrated(selector);
+  assert.equal(await evaluate(`(async () => {
+    const input=document.querySelector(${JSON.stringify(selector)});
+    const canvas=document.createElement('canvas'); canvas.width=2; canvas.height=2;
+    canvas.getContext('2d').fillRect(0,0,2,2);
+    const blob=await new Promise((resolve)=>canvas.toBlob(resolve,'image/png'));
+    if (!blob || !input) return false;
+    const files=new DataTransfer();
+    files.items.add(new File([blob],'qa-review-image.png',{type:'image/png'}));
+    input.files=files.files;
+    input.dispatchEvent(new Event('change',{bubbles:true}));
+    input.closest('form').requestSubmit();
+    return true;
+  })()`),true);
+}
+
 async function assertEvidenceResponse(route,expectedStatus) {
   const status=await evaluate(`fetch(${JSON.stringify(api+route)},
     {credentials:'include',cache:'no-store'}).then((response)=>response.status)`);
@@ -190,7 +210,7 @@ assert.ok(evidenceStat.isDirectory()&&!evidenceStat.isSymbolicLink());
 assert.equal((await realpath(evidenceDir)).toLowerCase(),path.resolve(evidenceDir).toLowerCase());
 const existingEvidence=await readdir(evidenceDir);
 if (existingEvidence.some((name) =>
-  !/^(?:r[1-9]-)?(?:customer-claim|seller-claim|admin-claim|admin-claim-pending|admin-review-hidden)-(?:1920|1440|430)\.png$/.test(name)))
+  !/^(?:r[1-9]-)?(?:customer-claim|customer-review-image|seller-claim|admin-claim|admin-claim-pending|admin-review-hidden|admin-review-pending)-(?:1920|1440|430)\.png$/.test(name)))
   throw new Error('S5.2 evidence folder contains an unrelated file');
 
 try {
@@ -252,6 +272,17 @@ try {
   assert.equal(confirmation.status,200);
   assert.ok(confirmation.body.reviewId);
   const review={ body:{ id:confirmation.body.reviewId } };
+  let reviewImageRoute;
+  if (imageFlow) {
+    await uploadReviewImage();
+    await waitFor("document.body.innerText.includes('리뷰 사진을 등록했습니다')",
+      'customer review image upload');
+    reviewImageRoute=await evaluate(`new URL(document.querySelector(
+      'a[href*="/customer/support/reviews/"][href*="/images/"]')?.href).pathname`);
+    assert.match(reviewImageRoute,new RegExp(`^/customer/support/reviews/${review.body.id}/images/`));
+    await assertEvidenceResponse(reviewImageRoute,200);
+    await evidence('customer-review-image');
+  }
 
   await navigate('/account/customer');
   await setInput('#pending-order-id',fixture.orderId);
@@ -287,6 +318,7 @@ try {
   await assertEvidenceResponse(evidenceRoute,200);
 
   await login('customer',fixture.emails[1]);
+  if (reviewImageRoute) await assertEvidenceResponse(reviewImageRoute,404);
   await assertEvidenceResponse(evidenceRoute,404);
   assert.equal((await browserJson(`/customer/support/claims/${claimId}`)).status,404);
 
@@ -351,41 +383,53 @@ try {
   await evidence('admin-claim');
 
   await navigate('/account/admin/support/reviews');
-  await inspectListDetail(
-    () => waitFor("document.body.innerText.includes('가상 구매 확인 리뷰')",
-      'admin pending review list'),
-    () => click('section[aria-labelledby="admin-reviews-list-title"] button'),
-    () => waitFor("document.body.innerText.includes('이미지가 없습니다')",
-      'text-only review detail'));
-  await click('section[aria-labelledby="admin-review-detail-title"] button');
-  await waitFor("document.body.innerText.includes('리뷰를 공개했습니다')",'admin review approval');
+  if (imageFlow) {
+    await inspectListDetail(
+      () => waitFor("document.body.innerText.includes('가상 구매 확인 리뷰')",
+        'admin image review list'),
+      () => click('section[aria-labelledby="admin-reviews-list-title"] button'),
+      () => waitFor(`document.body.innerText.includes(${JSON.stringify(reviewImageRoute?.split('/').at(-2))})`,
+        'admin private review image detail'));
+    await evidence('admin-review-pending');
+  } else {
+    await inspectListDetail(
+      () => waitFor("document.body.innerText.includes('가상 구매 확인 리뷰')",
+        'admin pending review list'),
+      () => click('section[aria-labelledby="admin-reviews-list-title"] button'),
+      () => waitFor("document.body.innerText.includes('이미지가 없습니다')",
+        'text-only review detail'));
+    await click('section[aria-labelledby="admin-review-detail-title"] button');
+    await waitFor("document.body.innerText.includes('리뷰를 공개했습니다')",'admin review approval');
 
-  await login('customer',fixture.emails[1]);
-  await navigate(`/products/${fixture.productId}`);
-  await waitFor("document.body.innerText.includes('가상 구매 확인 리뷰')",'public review');
-  await setInput(`#review-report-${review.body.id}`,'가상 고객 신고 사유');
-  await submit(`#review-report-${review.body.id}`);
-  await waitFor("document.body.innerText.includes('신고가 접수되었습니다')",'customer report');
+    await login('customer',fixture.emails[1]);
+    await navigate(`/products/${fixture.productId}`);
+    await waitFor("document.body.innerText.includes('가상 구매 확인 리뷰')",'public review');
+    await setInput(`#review-report-${review.body.id}`,'가상 고객 신고 사유');
+    await submit(`#review-report-${review.body.id}`);
+    await waitFor("document.body.innerText.includes('신고가 접수되었습니다')",'customer report');
 
-  await login('admin',fixture.emails[4]);
-  await navigate('/account/admin/support/reviews');
-  await setInput('#admin-review-status','APPROVED');
-  await inspectListDetail(
-    () => waitFor("document.body.innerText.includes('가상 구매 확인 리뷰')",
-      'admin reported review list'),
-    () => click('section[aria-labelledby="admin-reviews-list-title"] button'),
-    () => waitFor("document.body.innerText.includes('가상 고객 신고 사유')",
-      'admin report history'));
-  await setInput('#admin-review-hide-reason','가상 운영 숨김 사유');
-  await submit('#admin-review-hide-reason');
-  await waitFor("document.body.innerText.includes('리뷰를 숨겼습니다')",'admin review hide');
-  await evidence('admin-review-hidden');
-  await login('customer',fixture.emails[1]);
-  await navigate(`/products/${fixture.productId}`);
-  await waitFor("document.body.innerText.includes('공개된 리뷰가 없습니다')",'hidden review excluded');
+    await login('admin',fixture.emails[4]);
+    await navigate('/account/admin/support/reviews');
+    await setInput('#admin-review-status','APPROVED');
+    await inspectListDetail(
+      () => waitFor("document.body.innerText.includes('가상 구매 확인 리뷰')",
+        'admin reported review list'),
+      () => click('section[aria-labelledby="admin-reviews-list-title"] button'),
+      () => waitFor("document.body.innerText.includes('가상 고객 신고 사유')",
+        'admin report history'));
+    await setInput('#admin-review-hide-reason','가상 운영 숨김 사유');
+    await submit('#admin-review-hide-reason');
+    await waitFor("document.body.innerText.includes('리뷰를 숨겼습니다')",'admin review hide');
+    await evidence('admin-review-hidden');
+    await login('customer',fixture.emails[1]);
+    await navigate(`/products/${fixture.productId}`);
+    await waitFor("document.body.innerText.includes('공개된 리뷰가 없습니다')",'hidden review excluded');
+  }
 
   console.info('browser: S5.2 customer, product seller, owool seller and admin paths PASS');
-  console.info('browser: Q&A, private claim evidence, mock refund, text review report/hide PASS');
+  console.info('browser: Q&A, private claim evidence and mock refund PASS');
+  console.info(imageFlow ? 'browser: review image upload and private admin review PASS' :
+    'browser: text review report/hide PASS');
   if (resumeTarget) console.info('browser: pending claim resumed through the admin button PASS');
   console.info('browser: 1920, 1440, 430 and keyboard checks PASS');
 } finally {

@@ -12,10 +12,11 @@ export function assertSupportBrowserBounds(env,runId,platform = process.platform
       env.QA_CHROME_DEBUGGING !== 'http://127.0.0.1:9229' ||
       !(isolated || shared) ||
       env.QA_EVIDENCE_DIR !== evidenceDir ||
+      ![undefined,'1'].includes(env.QA_REVIEW_IMAGE) ||
       !/^r[1-9]$/.test(env.QA_BROWSER_ATTEMPT ?? ''))
     throw new Error('S5.2 browser inputs must match the signed QA run');
   return { web:env.QA_WEB_BASE,debugging:env.QA_CHROME_DEBUGGING,
-    evidenceDir,attempt:env.QA_BROWSER_ATTEMPT };
+    evidenceDir,attempt:env.QA_BROWSER_ATTEMPT,imageFlow:env.QA_REVIEW_IMAGE === '1' };
 }
 
 export function assertSupportResumeTarget(env,runId) {

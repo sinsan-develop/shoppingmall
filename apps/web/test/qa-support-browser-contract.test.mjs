@@ -45,6 +45,15 @@ test('formal shared S5.2 browser requires a separate matching opt-in and no resu
     QA_SUPPORT_FLOW:'resume' },runId));
 });
 
+test('S5.2 image browser variant is explicit and exercises the customer file form', () => {
+  assert.equal(assertSupportBrowserBounds({ ...good,QA_REVIEW_IMAGE:'1' },runId,'win32').imageFlow,true);
+  assert.throws(() => assertSupportBrowserBounds({ ...good,QA_REVIEW_IMAGE:'yes' },runId,'win32'));
+  const source = readFileSync(new URL('../../../scripts/qa-support-browser.mjs',import.meta.url),'utf8');
+  assert.match(source,/#review-image-\$\{fixture\.optionId\}/);
+  assert.match(source,/customer-review-image/);
+  assert.match(source,/admin-review-pending/);
+});
+
 test('refund-resume browser flow is limited to its isolated PostgreSQL and system ID', () => {
   const env = { ...good,QA_SUPPORT_FLOW:'resume',
     DATABASE_URL:'postgresql://postgres:test-only@127.0.0.1:15439/shoppingmall_s52_support_ui_a52c1007',
