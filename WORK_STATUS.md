@@ -6,6 +6,7 @@
 - **RED→GREEN:** `recoverExpiredNotificationJob` export 부재 RED 뒤 만료 임대와 해당 `STARTED` 시도를 함께 잠가 안전 오류 코드 `LEASE_EXPIRED`로 닫고, 1회차 1분/2회차 5분 재시도 또는 3회차 실패 종료를 같은 SQL 문에서 기록하도록 구현했다. 단위시험 2/2 pass와 API 타입 검사 exit0. 실제 DB의 복구/경쟁은 아직 미검증이다.
 - **격리 DB 자원 사전 등록:** WSL-server internal network `shoppingmall-s53-recover-1008-net`, tmpfs PG15 `shoppingmall-s53-recover-1008-pg` DB `shoppingmall_s53_recover_1008`, 일회용 Node24 runner `shoppingmall-s53-recover-1008-node`만 사용한다. 외부 포트·영속 volume 없음, source read-only. 생성 전 동명 자원0 → DB system ID/migration20 → 만료 전 무조치·만료 복구·오래된 worker 거부·재시도 성공 → rollback/업무행0 → 정확 container/network/volume 잔류0으로 검증한다. 공유 DB·Oracle·실 채널은 접촉하지 않는다.
 - **로컬 전체 gate:** `pnpm test` 506 total/366 pass/140 계획 환경 skip/0 fail, PR 본문 8/8 pass. `pnpm build` API/Next 22 route, `pnpm typecheck`, `pnpm lint` exit0. 실제 DB 복구 시험은 아직 실행 전이며 140 skip은 DB PASS가 아니다.
+- **격리 DB 결과·정리:** `f050248fcdfdf1ee63c83600b862c248b32330c3`를 SSH alias push→WSL 지정 checkout ff-only 동일 SHA/clean으로 맞췄다. 동명 자원0 확인 후 전용 internal network/PG15 tmpfs DB `shoppingmall_s53_recover_1008` system ID `7694008831331672103`에 migration20 적용. source-read-only Node24의 실제 복구 SQL 시험 **1/1 pass/0 skip**: 임대 만료 전 무조치, 만료 복구와 첫 시도 `LEASE_EXPIRED`, 기존 worker 뒤늦은 성공 거부, 다음 시도 성공. rollback 후 migration20/작업0/시도0/계정0, mount `[]`·data tmpfs만·외부 포트0·internal 연결 PG1 확인. 정확 PG/network 제거 뒤 동명 container/network/volume0. 공유 DB·Oracle·실 Provider는 변경하지 않았다. 세 번째 만료의 terminal FAIL과 재입고 성공 전환의 실제 DB 시험, 원사건·mock 발송 연결은 추가 검증이 필요하다.
 
 ## S5.3 발송 결과·재시도 원자 기록 진행 — 2026-10-08
 
