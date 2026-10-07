@@ -228,24 +228,30 @@ try {
   await login('customer',fixture.emails[0]);
   await navigate(`/products/${fixture.productId}`);
   await waitFor("document.body.innerText.includes('가상 산지의 상품입니다')",'public Q&A');
-  const confirmation=await browserJson('/customer/support/confirmations',{
-    method:'POST',headers:{ 'content-type':'application/json',
-      'idempotency-key':crypto.randomUUID() },
-    body:JSON.stringify({ orderId:fixture.orderId,shipmentOrderId:fixture.shipmentId,
-      optionId:fixture.optionId }),
-  });
-  assert.equal(confirmation.status,200,'approved API-assisted purchase confirmation');
-  const review=await browserJson('/customer/support/reviews',{
-    method:'POST',headers:{ 'content-type':'application/json',
-      'idempotency-key':crypto.randomUUID() },
-    body:JSON.stringify({ confirmationId:confirmation.body.id,rating:5,
-      text:'가상 구매 확인 리뷰' }),
-  });
-  assert.equal(review.status,200,'approved API-assisted text review');
+  await navigate('/account/customer');
+  await setInput('#pending-order-id',fixture.orderId);
+  await submit('#pending-order-id');
+  await waitFor(`(() => { const button=document.querySelector('section[aria-label$="고객지원"] button');
+    return button && !button.disabled && button.textContent.includes('구매확정'); })()`,
+  'customer manual confirmation ready');
+  await click('section[aria-label$="고객지원"] button');
+  await waitFor("document.body.innerText.includes('구매확정을 기록했습니다')",
+    'customer manual confirmation');
+  await setInput(`#review-text-${fixture.optionId}`,'가상 구매 확인 리뷰');
+  await submit(`#review-text-${fixture.optionId}`);
+  await waitFor("document.body.innerText.includes('리뷰를 저장했습니다')",'customer review UI save');
+  const confirmation=await browserJson(`/customer/support/confirmations/${fixture.shipmentId}/${fixture.optionId}`);
+  assert.equal(confirmation.status,200);
+  assert.ok(confirmation.body.reviewId);
+  const review={ body:{ id:confirmation.body.reviewId } };
 
   await navigate('/account/customer');
   await setInput('#pending-order-id',fixture.orderId);
   await submit('#pending-order-id');
+  await waitFor(`document.querySelector(${JSON.stringify(`#review-text-${fixture.optionId}`)})?.value===
+    '가상 구매 확인 리뷰'`,'confirmed review restored after page navigation');
+  assert.equal(await evaluate(`document.querySelector('section[aria-label$="고객지원"] button')
+    ?.textContent?.includes('구매확정')??false`),false);
   await waitFor(`document.querySelector(${JSON.stringify(`#claim-reason-${fixture.optionId}`)})`,
     'customer SHIPPED claim form');
   await setInput(`#claim-code-${fixture.optionId}`,'damaged');

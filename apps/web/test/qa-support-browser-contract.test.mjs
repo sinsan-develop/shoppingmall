@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertSupportBrowserBounds,inspectListDetail } from
   '../../../scripts/qa-support-browser-contract.mjs';
@@ -54,4 +55,11 @@ test('S5.2 navigation waits for a document body after the URL changes', () => {
   assert.equal(ready('/products/product-1','loading',null),false);
   assert.equal(ready('/products/product-1','interactive',{}),true);
   assert.equal(ready('/products/other','complete',{}),false);
+});
+
+test('S5.2 browser drives customer confirmation and review through the account UI', () => {
+  const source = readFileSync(new URL('../../../scripts/qa-support-browser.mjs',import.meta.url),'utf8');
+  assert.match(source,/click\('section\[aria-label\$="고객지원"\] button'\)/);
+  assert.match(source,/#review-text-/);
+  assert.doesNotMatch(source,/browserJson\('\/customer\/support\/confirmations',\{\s*method:'POST'/);
 });
