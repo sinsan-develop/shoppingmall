@@ -6,6 +6,7 @@ import { DeletionRequestControls } from './deletion-request-controls';
 import { EngagementLists } from './engagement-lists';
 import { CustomerOrderFulfillmentView, type CustomerShipmentWithFulfillment } from './order-fulfillment';
 import { CustomerClaimLine, CustomerClaimsPanel } from './customer-claims';
+import { CustomerSupportLine } from './support-line';
 
 type Address = {
   id: string; label: string; recipientName: string; phone: string;
@@ -203,10 +204,13 @@ export default function CustomerProfilePage() {
               <ul className="customer-shipment-list">{order.shipments.map((shipment) => <li key={shipment.id}>
                 <p>발송 주문 {shipment.key} · {shipment.payableWon.toLocaleString('ko-KR')}원</p>
                 <CustomerOrderFulfillmentView shipment={shipment} />
-                {shipment.lines.map((line) => <CustomerClaimLine
-                  key={line.optionId} orderId={order.id} shipmentOrderId={shipment.id}
-                  status={shipment.fulfillment?.status ?? ''} line={line}
-                  onCreated={() => setClaimRefresh((value) => value + 1)} />)}
+                {shipment.lines.map((line) => <div key={line.optionId}>
+                  <CustomerSupportLine orderId={order.id} shipmentOrderId={shipment.id}
+                    status={shipment.fulfillment?.status ?? ''} line={line} />
+                  <CustomerClaimLine orderId={order.id} shipmentOrderId={shipment.id}
+                    status={shipment.fulfillment?.status ?? ''} line={line}
+                    onCreated={() => setClaimRefresh((value) => value + 1)} />
+                </div>)}
               </li>)}</ul>
               <p>{order.status === 'PAID' ? '결제가 확인됐습니다' : '결제는 아직 완료되지 않았습니다'}</p>
             </div> : null}

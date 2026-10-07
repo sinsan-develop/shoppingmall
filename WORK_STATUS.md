@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.2 고객 구매확정·리뷰 재조회 UI 보강 진행 — 2026-10-07
+
+- **승인·담당·경계:** 신산님이 고객 본인 전용 GET `/customer/support/confirmations/:shipmentId/:optionId`와 새로고침·기기 변경 시 상태 복원 UI를 직접 승인했다. 어울 단일 writer, `codex/s52-customer-support` 기존 worktree에서 작업한다. 관리자 mock 환불 재개 API와 공유 WSL `local-postgres/shoppingmall`의 0016~0018 적용은 승인되지 않았으므로 변경하지 않는다. `main`·Oracle·실 Provider도 변경하지 않는다.
+- **변경 전→후:** 전에는 POST 구매확정·리뷰 API가 있어도 고객 주문 화면에서 진입할 수 없고 새로고침 후 확정·리뷰 상태를 읽을 수 없었다. 고객 세션·역할·본인 주문 소유권을 확인하는 GET(타인 404, `private,no-store`)과 구매확정/리뷰 작성·수정 UI를 기존 주문 품목 옆에 연결한다. 기존 `CustomerClaimLine`과 접수 목록 갱신은 유지하며 중복 클레임 양식은 새 컴포넌트에서 제거한다. 확인 상태 조회가 끝나기 전에는 구매확정 버튼을 비활성화한다.
+- **시험 진행:** 고객 UI 연결·클레임 중복 방지 2개 테스트는 기존 구현에서 2 RED→수정 후 2 GREEN. 상태 조회 전 클릭 방지 1개 단언은 RED→GREEN. 로딩 실패 시 생성 차단까지 반영한 최종 로컬 전체 `pnpm test` 462건/329 pass/133 DB·환경 skip/0 fail, PR 본문 8/8, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0, `git diff --check` exit0. DB skip은 실DB PASS가 아니며 반복 근본 원인 오류 3회 없음.
+- **미검증/다음:** GET 본인 200/없음·타인 404/판매자 403, 리뷰 연결·리로드 및 실제 UI는 격리 DB/HTTP·브라우저 재검 전이다. 공유 DB/Oracle/실 Provider/UAT는 검증하지 않았다. 로컬 전체 gate→정확 파일 선택 커밋/SSH alias push→WSL 지정 checkout exact SHA 검증을 진행한다. S5.2 Stage 전체 PR·병합은 관리자 mock 환불 재개 API 결정 및 정식 환경 gate 등 남은 조건 전까지 하지 않는다.
+- **예정 격리 DB 자원 계획:** 필요 시 WSL의 기존 PG15 이미지 `pgvector/pgvector:0.8.2-pg15`를 사용해 외부 port·영속 volume 없는 별도 tmpfs PG 컨테이너 `shoppingmall-s52-get-1007-pg`, 내부 전용 network `shoppingmall-s52-get-1007-net`, 내부 DB `shoppingmall_s52_schema_v6_1007`, `--rm` Node24 runner `shoppingmall-s52-get-1007-runner`만 생성한다. 이름·기존 점유·source exact SHA·system ID를 생성 전 확인하고 fresh migration 0000~0018 뒤 목표 HTTP/DB 시험만 실행한다. fixture는 거래 rollback으로 잔류0을 확인하며, 연결·system ID·정확 자원 소유를 확인해 DB/container/network를 종료·삭제하고 잔류0을 재조회한다. 공유 DB/정식 WSL 자원은 접근하지 않는다. 생성 시 commentary에도 사전 고지한다.
+
 ## S5.2 리뷰 Minor 시험 근거 보강 — 2026-10-07
 
 - **WSL 표적 재검 자원 사전 등록:** 정확 `632ba2a` 제품·시험 커밋을 지정 `/home/daon/deploy/shopping` checkout에 SSH alias Git FF로 맞춘 뒤, 기존 로컬 `node:24-bookworm-slim` 이미지의 `shoppingmall-s52-image-status-1007-verify` 일회성 컨테이너 1개를 사용한다. source `/home/daon/deploy/shopping`은 `/app:ro`, `--network none`, `--read-only`, 쓰기 가능 공간은 `/tmp` tmpfs만, `--rm`으로 사용한다. 생성 전 같은 이름 부재·checkout clean/exact SHA를 확인하고 두 controller 상태코드 시험 2건 후 해당 컨테이너 잔류0과 checkout clean을 재확인한다. 공유 DB·정식 서비스·별도 네트워크·영속 볼륨/파일은 생성·변경하지 않는다.

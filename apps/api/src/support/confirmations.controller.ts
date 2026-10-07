@@ -1,11 +1,11 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException,
-  Header, HttpCode, Inject, NotFoundException, Post, Req, ServiceUnavailableException,
+  Get, Header, HttpCode, Inject, NotFoundException, Param, Post, Req, ServiceUnavailableException,
   UnauthorizedException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
-import { createPurchaseConfirmation } from './confirmations.js';
+import { createPurchaseConfirmation, getPurchaseConfirmation } from './confirmations.js';
 
 type RequestHeaders = { headers: { cookie?: string; origin?: string; 'idempotency-key'?: string } };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,6 +19,24 @@ function poolOrUnavailable(database: DatabaseService): Pool {
 @Controller('customer/support/confirmations')
 export class CustomerSupportConfirmationController {
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  @Get(':shipmentId/:optionId')
+  @Header('Cache-Control', 'private, no-store')
+  async detail(@Req() request: RequestHeaders, @Param('shipmentId') shipmentId: string,
+    @Param('optionId') optionId: string) {
+    const token = readToken(request.headers.cookie);
+    if (!token) throw new UnauthorizedException();
+    const pool = poolOrUnavailable(this.database);
+    const actor = await new AuthRepository(pool).getSession(token);
+    if (!actor) throw new UnauthorizedException();
+    if (actor.role !== 'customer') throw new ForbiddenException();
+    if (![shipmentId,optionId].every((id) => uuid.test(id)))
+      throw new BadRequestException({ status: 'invalid_support' });
+    const found = await getPurchaseConfirmation(pool, { customerAccountId: actor.accountId,
+      shipmentOrderId: shipmentId,optionId });
+    if (!found) throw new NotFoundException();
+    return found;
+  }
 
   @Post()
   @HttpCode(200)

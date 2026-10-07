@@ -5,6 +5,20 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Confirmation = { id: string; confirmedAt: Date };
 
+export async function getPurchaseConfirmation(db: Db, input: {
+  customerAccountId: string; shipmentOrderId: string; optionId: string;
+}) {
+  if (![input.customerAccountId,input.shipmentOrderId,input.optionId]
+    .every((id) => uuid.test(id))) throw new Error('Invalid support request');
+  return (await db.query<{ id: string; reviewId: string | null;
+    reviewStatus: string | null }>(`SELECT c.id,r.id AS "reviewId",r.status AS "reviewStatus"
+    FROM support_purchase_confirmations c
+    JOIN checkout_orders o ON o.id=c.checkout_order_id AND o.account_id=$1
+    LEFT JOIN support_reviews r ON r.confirmation_id=c.id
+    WHERE c.customer_account_id=$1 AND c.shipment_order_id=$2 AND c.option_id=$3`,
+  [input.customerAccountId,input.shipmentOrderId,input.optionId])).rows[0];
+}
+
 export async function createPurchaseConfirmation(db: Db, input: {
   customerAccountId: string; orderId: string; shipmentOrderId: string;
   optionId: string; idempotencyKey: string;

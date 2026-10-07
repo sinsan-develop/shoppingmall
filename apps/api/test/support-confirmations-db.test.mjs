@@ -248,6 +248,10 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
         fetch(base + path, { method: 'POST', headers: { cookie: cookies.get(actor), origin,
           'content-type': 'application/json', 'idempotency-key': requestKey },
         body: JSON.stringify(requestBody) });
+       const statusPath = `${path}/${httpShipment.shipmentId}/${option}`;
+       const statusRequest = (actor) => fetch(base + statusPath,
+         { headers: { cookie: cookies.get(actor) } });
+       assert.equal((await statusRequest(customer)).status, 404);
       assert.equal((await request(customer, body, key, 'http://evil.invalid')).status, 403);
       assert.equal((await request(fulfillmentAccount, body)).status, 403);
       assert.equal((await request(otherCustomer, body)).status, 404);
@@ -255,6 +259,12 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       assert.equal(created.status, 200);
       const httpConfirmation = await created.json();
       assert.ok(httpConfirmation.id);
+       assert.equal((await statusRequest(otherCustomer)).status, 404);
+       assert.equal((await statusRequest(fulfillmentAccount)).status, 403);
+       const statusBeforeReview = await statusRequest(customer);
+       assert.equal(statusBeforeReview.status, 200);
+       assert.deepEqual(await statusBeforeReview.json(), {
+         id: httpConfirmation.id,reviewId: null,reviewStatus: null });
       assert.equal((await (await request(customer, body)).json()).id, httpConfirmation.id);
       assert.equal((await request(customer, body, randomUUID())).status, 409);
       assert.equal((await client.query(`SELECT count(*)::int AS n
@@ -274,6 +284,8 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       assert.equal(createdReviewResponse.status, 200);
       const httpReview = await createdReviewResponse.json();
       assert.equal(httpReview.status, 'PENDING');
+       assert.deepEqual(await (await statusRequest(customer)).json(), {
+         id: httpConfirmation.id,reviewId: httpReview.id,reviewStatus: 'PENDING' });
       assert.equal((await (await reviewRequest(customer, reviewPath, 'POST', reviewBody)).json()).id,
         httpReview.id);
       assert.equal((await reviewRequest(customer, reviewPath, 'POST',
