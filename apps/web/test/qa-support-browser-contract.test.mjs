@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { assertSupportBrowserBounds,inspectListDetail } from
   '../../../scripts/qa-support-browser-contract.mjs';
 import * as browserContract from '../../../scripts/qa-support-browser-contract.mjs';
@@ -72,6 +74,17 @@ test('pending resume checks selected detail status rather than the filter option
   assert.equal(visible('환불 처리 중',''),true);
   assert.equal(visible('판매자 답변','환불 처리 중'),false);
   assert.equal(visible(null,'환불 처리 중'),false);
+});
+
+test('browser runner loads API-owned PostgreSQL dependency before fixture validation', () => {
+  const result = spawnSync(process.execPath,['--import','tsx',
+    fileURLToPath(new URL('../../../scripts/qa-support-browser.mjs',import.meta.url))],{
+    cwd:fileURLToPath(new URL('../../../',import.meta.url)),
+    env:{ ...process.env,QA_FIXTURE_JSON:'null',QA_FIXTURE_PASSWORD:'' },encoding:'utf8',
+  });
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/Signed S5\.2 fixture is required/);
+  assert.doesNotMatch(result.stderr,/ERR_MODULE_NOT_FOUND/);
 });
 
 test('S5.2 navigation waits for a document body after the URL changes', () => {

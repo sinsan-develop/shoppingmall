@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { lstat, readdir, realpath, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import { Pool } from 'pg';
 import { approveClaim } from '../apps/api/src/support/claims.ts';
 import { validateSupportUiManifest,validateSupportUiSystemTarget } from
   '../apps/api/scripts/qa-support-ui-fixture.ts';
@@ -12,6 +12,8 @@ import { closeCdpPage, createCdpCommandChannel, openCdpPage,
 import { assertSupportBrowserBounds,assertSupportResumeTarget,browserClaimStatusVisibleExpression,
   browserNavigationReadyExpression,browserSelectedClaimStatusExpression,inspectListDetail } from
   './qa-support-browser-contract.mjs';
+
+const { Pool } = createRequire(new URL('../apps/api/package.json',import.meta.url))('pg');
 
 const candidate = JSON.parse(process.env.QA_FIXTURE_JSON ?? 'null');
 const password = process.env.QA_FIXTURE_PASSWORD;
