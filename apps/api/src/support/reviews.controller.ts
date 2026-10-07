@@ -34,7 +34,7 @@ function parseContent(value: unknown, keys: string[]) {
     ...(body.confirmationId ? { confirmationId: body.confirmationId as string } : {}) };
 }
 
-async function handle<T>(operation: () => Promise<T>): Promise<T> {
+export async function handle<T>(operation: () => Promise<T>): Promise<T> {
   try { return await operation(); }
   catch (error) {
     const message = error instanceof Error ? error.message : '';

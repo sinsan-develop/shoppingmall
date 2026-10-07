@@ -48,7 +48,7 @@ async function context(database: DatabaseService, request: RequestHeaders,
   return { pool, actor };
 }
 
-async function handle<T>(operation: () => Promise<T>): Promise<T> {
+export async function handle<T>(operation: () => Promise<T>): Promise<T> {
   try { return await operation(); }
   catch (error) {
     const message = error instanceof Error ? error.message : '';

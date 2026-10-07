@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.2 리뷰 Minor 시험 근거 보강 — 2026-10-07
+
+- **담당·경계:** Main 단일 writer, branch `codex/s52-customer-support` 기준 `75e07cc7446ce88db2589c18c65d187e402fb917`. 독립 읽기 전용 재리뷰는 앞선 Minor2 수정에 Critical0/Important0/Minor1을 판정했다. 남은 Minor는 `support-image-error-mapping.test.mjs`가 소스 문구 존재만 검사해 413→400 오분류를 놓칠 수 있다는 시험 강도 문제다. 원래 S5.2 Important2, 승인 대기 GET/API·의존 UI·시험 5파일, 공유 DB·Oracle·실 Provider 경계는 그대로 보존한다.
+- **RED→GREEN:** 두 실제 controller의 내부 오류 처리 함수를 호출해 `Invalid image`/`Invalid image size`는 400, `Image dimensions exceeded`/`Image too large`는 413이라는 응답 상태를 각각 단언하도록 정적 문구 시험을 대체했다. 신규 시험은 두 controller 모두 `handle` 접근 불가로 0/2 RED였고 내부 함수에 module export만 붙여 2/2 GREEN이 됐다. HTTP 경로·런타임 처리 분기·응답 계약·DB 변경은 0. 잘못된 413→400 분기 회귀는 이 상태코드 단언으로 실패한다.
+- **검증:** 로컬 전체 `pnpm test` 461건/328 pass/133 계획 DB·환경 skip/0 fail, PR 본문 검사 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0. DB skip은 실DB 검증이 아니다. PowerShell에서 동적 import를 시험하려던 명령의 `>` 인용 오류 1회로 길이0의 `console.log(Object.keys(m)))` 파일이 작업 worktree에 생겼으나 정확 경로·생성시각·길이0을 확인해 해당 파일만 삭제하고 부재를 재확인했다. 동일 근본 원인 연속3회 없음.
+- **다음:** 위 controller 2개·시험 1개·본 문서만 선택 커밋·원격 FF 복구 ref 확인 후 WSL exact-SHA 표적 시험을 다시 실행한다. S5.2 전체 PR/병합은 Important2 및 직접 사용자 결정·정식 환경 gate 해소 전까지 보류한다.
+
 ## S5.2 리뷰 Minor 2건 보정 — 2026-10-07
 
 - **WSL 일회성 시험 자원 사전 등록:** 지정 checkout `/home/daon/deploy/shopping`의 exact `841b355a74e8702fe9d1f01d755ec6c8bf01ce2f`에서 기존 로컬 `node:24-bookworm-slim` 이미지로 이름 `shoppingmall-s52-minor-1007-verify` 컨테이너 하나를 `--rm`, 네트워크 없음, 소스 read-only mount, 쓰기 가능한 `/tmp` tmpfs만 사용해 위 두 표적 시험을 재실행한다. 기존 컨테이너·WSL pnpm 설치·공유 DB·다른 checkout은 변경하지 않는다. 실행 전 같은 이름 부재와 지정 checkout clean을 확인하고 종료 후 정확 컨테이너 잔류 0을 확인한다. WSL 시스템 pnpm 부재로 직접 `pnpm` 실행이 exit127이었으며 이 결과는 제품 시험 실패가 아니다.

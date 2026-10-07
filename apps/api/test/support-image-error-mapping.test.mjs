@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 for (const controller of ['reviews','claims']) {
-  test(`${controller} maps invalid sanitized image input to client errors`, () => {
-    const source = readFileSync(new URL(`../src/support/${controller}.controller.ts`,
-      import.meta.url),'utf8');
-    const start = source.indexOf('async function handle');
-    const mapping = source.slice(start,source.indexOf('\n}\n',start) + 2);
-    for (const message of ['Invalid image','Image dimensions exceeded','Invalid image size'])
-      assert.match(mapping,new RegExp(`['"]${message}['"]`),message);
-    assert.match(mapping,/BadRequestException\(\{ status: 'invalid_image' \}\)/);
+  test(`${controller} maps sanitized image failures to exact HTTP statuses`, async () => {
+    const module = await import(`../src/support/${controller}.controller.ts`);
+    assert.equal(typeof module.handle,'function','the real controller error boundary is testable');
+    for (const [message,status] of [
+      ['Invalid image',400],
+      ['Invalid image size',400],
+      ['Image dimensions exceeded',413],
+      ['Image too large',413],
+    ]) {
+      await assert.rejects(module.handle(() => Promise.reject(new Error(message))),
+        (error) => error.getStatus?.() === status,`${message} must be HTTP ${status}`);
+    }
   });
 }
