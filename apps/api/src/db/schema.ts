@@ -396,6 +396,68 @@ export const notificationPreferences = pgTable('notification_preferences', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const notificationJobs = pgTable('notification_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  kind: text('kind').notNull(),
+  sourceEventId: uuid('source_event_id').notNull(),
+  restockSubscriptionId: uuid('restock_subscription_id').references(() => restockSubscriptions.id),
+  channel: text('channel').notNull(),
+  dedupeKey: text('dedupe_key').notNull(),
+  status: text('status').notNull().default('QUEUED'),
+  attemptsCompleted: integer('attempts_completed').notNull().default(0),
+  availableAt: timestamp('available_at', { withTimezone: true }).defaultNow(),
+  leaseToken: uuid('lease_token'),
+  leaseUntil: timestamp('lease_until', { withTimezone: true }),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('notification_jobs_dedupe_uq').on(table.dedupeKey),
+  index('notification_jobs_due_idx').on(table.status, table.availableAt),
+  index('notification_jobs_account_idx').on(table.accountId, table.createdAt),
+  check('notification_jobs_kind_ck', sql`${table.kind} IN
+    ('order_submitted','payment_approved','payment_declined','shipment_updated','restock_available')`),
+  check('notification_jobs_channel_ck', sql`${table.channel} IN ('email','sms','push')`),
+  check('notification_jobs_status_ck', sql`${table.status} IN ('QUEUED','PROCESSING','SENT','FAILED')`),
+  check('notification_jobs_attempts_ck', sql`${table.attemptsCompleted} BETWEEN 0 AND 3`),
+  check('notification_jobs_restock_ck', sql`(${table.kind} = 'restock_available') =
+    (${table.restockSubscriptionId} IS NOT NULL)`),
+  check('notification_jobs_dedupe_key_ck', sql`length(${table.dedupeKey}) BETWEEN 1 AND 250
+    AND ${table.dedupeKey} !~ '[[:space:]@]'`),
+  check('notification_jobs_available_ck', sql`(${table.status} = 'QUEUED') =
+    (${table.availableAt} IS NOT NULL)`),
+  check('notification_jobs_lease_ck', sql`(${table.status} = 'PROCESSING'
+      AND ${table.leaseToken} IS NOT NULL AND ${table.leaseUntil} IS NOT NULL)
+    OR (${table.status} <> 'PROCESSING'
+      AND ${table.leaseToken} IS NULL AND ${table.leaseUntil} IS NULL)`),
+  check('notification_jobs_delivered_ck', sql`(${table.status} = 'SENT') =
+    (${table.deliveredAt} IS NOT NULL)`),
+]);
+
+export const notificationAttempts = pgTable('notification_attempts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  jobId: uuid('job_id').notNull().references(() => notificationJobs.id),
+  attemptNo: integer('attempt_no').notNull(),
+  status: text('status').notNull().default('STARTED'),
+  errorCode: text('error_code'),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('notification_attempts_job_no_uq').on(table.jobId, table.attemptNo),
+  check('notification_attempts_no_ck', sql`${table.attemptNo} BETWEEN 1 AND 3`),
+  check('notification_attempts_status_ck', sql`${table.status} IN
+    ('STARTED','SUCCEEDED','TRANSIENT_FAILURE','PERMANENT_FAILURE')`),
+  check('notification_attempts_error_code_ck', sql`${table.errorCode} IS NULL
+    OR ${table.errorCode} ~ '^[A-Z0-9_]{1,80}$'`),
+  check('notification_attempts_result_ck', sql`(${table.status} = 'STARTED'
+      AND ${table.finishedAt} IS NULL AND ${table.errorCode} IS NULL)
+    OR (${table.status} = 'SUCCEEDED'
+      AND ${table.finishedAt} IS NOT NULL AND ${table.errorCode} IS NULL)
+    OR (${table.status} IN ('TRANSIENT_FAILURE','PERMANENT_FAILURE')
+      AND ${table.finishedAt} IS NOT NULL AND ${table.errorCode} IS NOT NULL)`),
+]);
+
 export const accountDeletionRequests = pgTable('account_deletion_requests', {
   id: uuid('id').primaryKey().defaultRandom(),
   accountId: uuid('account_id').notNull().references(() => accounts.id),
