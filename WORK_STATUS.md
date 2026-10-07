@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5 정식 공유 DB 전체 회귀 첫 시도·QA 정리 보정 — 2026-10-08
+
+- **담당·오류·판정:** 어울 단일 writer. 정식 WSL checkout `3f1ad9be2f77cbc4a30978b52b257d3d07f0392d`/migration20에서 일회성 `shoppingmall-s5-shared-1008-node` 전체 `node --test-concurrency=1 --import tsx --test`를 시도했다. Windows→SSH 스크립트의 첫 인용 오류 1회는 컨테이너 시작 전, 두 번째 CRLF `tail -n 65\r` 오류 1회는 결과 수집만 실패시켰으나 Docker 시험 자체는 계속됐다. 공유 DB 실행은 격리 system ID를 요구하는 출고 시험의 의도된 거부, `refund-schema-db`의 migration19 고정 기대와 결제 HTTP 시험의 알림 작업 FK 정리 실패로 **전체 PASS가 아니다**. 자동 삭제 컨테이너의 마지막 로그에서 실패 세부를 확인했다. 공유 DB 전용/격리 DB 전용 목록을 나눠 재검증한다.
+- **시험 잔류·원인:** 결제 시험의 합성 run `b5ef6f5c` 계정 5개, 고객 `b159f604-0d60-44ef-ba3a-322f1d785dfc`의 `QUEUED`·시도0 알림 작업 3개(`order_submitted`, `payment_declined`, `payment_approved`)와 해당 run의 세션2·역할5·identity5·감사4를 읽기 전용 확인했다. 주문·결제 사건·상품은 0이다. 새 알림 원사건 큐가 기존 결제 HTTP 시험의 QA reset 뒤에 남아 계정 FK 삭제를 막은 것이 정확한 원인이다. 다른 계정/자료가 없다는 추가 확인 뒤 이 run의 세 작업만 삭제하고 기존 `runQaCatalogFixture reset`으로 나머지를 정리한다. 공유 DB 전체 초기화·다른 자료 삭제 금지.
+- **보정·재검증 자원 계획:** 기존 실패 시험이 RED다. `apps/api/test/payment-customer-http-db.test.mjs`의 `finally`에서 해당 고객·주문 ID와 결제 사건으로 식별된 미처리 작업만 상태/시도 안전 검사를 거쳐 제거한 뒤 기존 정리를 진행한다. 로컬·WSL 동일 새 commit으로 `shoppingmall-s5-payment-recheck-1008-node` 일회성 Node24(`--rm`, 기존 `local-postgres` namespace, checkout read-only, 새 포트/영속 volume/schema 없음)에서 이 시험을 재실행하고 QA 0·정확 컨테이너 잔류0을 확인한다. 기존 run 정리용 일회성 `shoppingmall-s5-residue-reset-1008-node`도 같은 조건으로 정확한 run ID만 reset한다. Secret 값은 기존 Docker 환경에서 프로세스 변수로만 넘기고 출력/파일에 기록하지 않는다. 실패 시 공유 데이터를 임의 정리하지 않고 상태·원인을 보고한다.
+
 ## S5 정식 WSL 통합·브라우저 완료 기준 진행 — 2026-10-08
 
 - **신산님 최신 직접 지시·담당:** 어울 단일 writer, `codex/s52-customer-support`. S5의 계획된 기능을 정식 WSL 통합·브라우저에서 확인하면 S5 개발 완료로 판정한다. 실제 택배/문자·메일·푸시 발송·수신과 사용자 인수테스트는 완료 조건이 아니다. 이 지시는 미구현 관제 기능이나 관리자 권한·API 계약을 검증 없이 완료로 취급한다는 뜻이 아니다.
