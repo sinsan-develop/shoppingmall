@@ -195,17 +195,18 @@ async function cleanupFixture(pool, fixture) {
   if (!fixture) return;
   const orderIds = fixture.orderIds ?? [];
   if (orderIds.length) {
-    if (fixture.customerId && fixture.shipmentIds?.length) {
+    if (fixture.customerId) {
       const owned = `j.account_id=$1 AND j.kind='shipment_updated'
         AND j.source_event_id IN (SELECT e.id FROM shipment_fulfillment_events e
-          WHERE e.shipment_order_id=ANY($2::uuid[]))`;
+          JOIN shipment_orders s ON s.id=e.shipment_order_id
+          WHERE s.checkout_order_id=ANY($2::uuid[]))`;
       const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j
         WHERE ${owned} AND (j.status<>'QUEUED' OR EXISTS
           (SELECT 1 FROM notification_attempts a WHERE a.job_id=j.id))`,
-      [fixture.customerId, fixture.shipmentIds])).rows;
+      [fixture.customerId, orderIds])).rows;
       assert.equal(unsafe.length, 0, 'QA admin shipment notification was already processed');
       await pool.query(`DELETE FROM notification_jobs j WHERE ${owned}`,
-        [fixture.customerId, fixture.shipmentIds]);
+        [fixture.customerId, orderIds]);
     }
     await pool.query(`DELETE FROM refund_event_conflicts WHERE original_event_id IN
       (SELECT e.id FROM refund_events e JOIN refund_attempts a ON a.id=e.refund_attempt_id
