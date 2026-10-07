@@ -57,9 +57,10 @@ test('only approved zero-to-sellable public stock queues an active restock reque
       /Pending stock request required/);
     assert.equal((await jobs()).length, 1);
 
-    await pool.query(`INSERT INTO product_sale_stop_requests
+    const stopId = (await pool.query(`INSERT INTO product_sale_stop_requests
       (product_id,status,reason,requested_by_account_id,decided_by_account_id,decided_at)
-      VALUES ($1,'approved','가상 판매중지',$2,$3,now())`, [productId, sellerId, adminId]);
+      VALUES ($1,'approved','가상 판매중지',$2,$3,now()) RETURNING id`,
+    [productId, sellerId, adminId])).rows[0].id;
     const worker = await pool.connect();
     try {
       await worker.query('BEGIN');
@@ -78,6 +79,52 @@ test('only approved zero-to-sellable public stock queues an active restock reque
     } finally {
       await worker.query('ROLLBACK');
       worker.release();
+    }
+
+    await pool.query('DELETE FROM product_sale_stop_requests WHERE id=$1', [stopId]);
+    const availableWorker = await pool.connect();
+    try {
+      await availableWorker.query('BEGIN');
+      const now = (await availableWorker.query('SELECT clock_timestamp() AS now')).rows[0].now;
+      assert.deepEqual(await runMockNotificationOnce(availableWorker, new Date(now.getTime() + 1000), {
+        APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
+        NOTIFICATION_MODE: 'mock',
+      }), { processed: true });
+      const sent = (await availableWorker.query(`SELECT j.status AS "jobStatus",
+        a.status AS "attemptStatus",s.status AS "subscriptionStatus",
+        s.notified_at AS "notifiedAt"
+        FROM notification_jobs j JOIN notification_attempts a ON a.job_id=j.id
+        JOIN restock_subscriptions s ON s.id=j.restock_subscription_id
+        WHERE j.restock_subscription_id=$1`, [subscriptionId])).rows[0];
+      assert.equal(sent.jobStatus, 'SENT');
+      assert.equal(sent.attemptStatus, 'SUCCEEDED');
+      assert.equal(sent.subscriptionStatus, 'notified');
+      assert.ok(sent.notifiedAt instanceof Date);
+    } finally {
+      await availableWorker.query('ROLLBACK');
+      availableWorker.release();
+    }
+
+    assert.equal((await inventory.setStock(seller, option.id, 0)).sellable, 0);
+    const soldOutWorker = await pool.connect();
+    try {
+      await soldOutWorker.query('BEGIN');
+      const now = (await soldOutWorker.query('SELECT clock_timestamp() AS now')).rows[0].now;
+      assert.deepEqual(await runMockNotificationOnce(soldOutWorker, new Date(now.getTime() + 1000), {
+        APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
+        NOTIFICATION_MODE: 'mock',
+      }), { processed: true });
+      const stopped = (await soldOutWorker.query(`SELECT j.status AS "jobStatus",
+        a.status AS "attemptStatus",a.error_code AS "errorCode",
+        s.status AS "subscriptionStatus" FROM notification_jobs j
+        JOIN notification_attempts a ON a.job_id=j.id
+        JOIN restock_subscriptions s ON s.id=j.restock_subscription_id
+        WHERE j.restock_subscription_id=$1`, [subscriptionId])).rows[0];
+      assert.deepEqual(stopped, { jobStatus: 'FAILED', attemptStatus: 'PERMANENT_FAILURE',
+        errorCode: 'RESTOCK_UNAVAILABLE', subscriptionStatus: 'active' });
+    } finally {
+      await soldOutWorker.query('ROLLBACK');
+      soldOutWorker.release();
     }
   } finally {
     if (subscriptionId) {

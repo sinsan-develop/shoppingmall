@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## S5.3 재입고 모의 발송 정상·재품절 실 DB 회귀 진행 — 2026-10-08
+
+- **담당·범위:** 어울 단일 writer, 기존 작업 브랜치. 직전 변경의 실 PostgreSQL 검증을 확대해 판매 가능 상태의 mock 성공은 신청 `notified`/완료 시각을 기록하고, 작업 생성 후 다시 품절되면 `RESTOCK_UNAVAILABLE`로 종료하면서 신청은 active로 유지하는지 확인한다. 제품·공개 API·schema·공유 DB·실 채널 변경은 없다.
+- **격리 QA 자원 사전 등록:** WSL-server의 정확 이름 internal network `shoppingmall-s53-restock-states-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-states-1008-pg` 안 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-states-1008-node`만 쓴다. 외부 포트·영속 volume 없음. 동명 부재→migration20/system ID→표적 실 DB 시험→소유 QA 행0→정확 자원 제거·잔류0 순서이며 실패 시 공유 DB로 우회하지 않는다.
+
 ## S5.3 재입고 모의 실행 직전 상태 재확인 진행 — 2026-10-08
 
 - **담당·범위:** 어울 단일 writer, 기존 S5.3 내부 mock 경로. 승인 때 생성한 재입고 작업을 처리하기 전 신청이 여전히 활성인지뿐 아니라 상품이 현재 공개·승인 상태이고 같은 옵션명이 실제 양수 판매 가능 재고를 갖고 판매중지가 아닌지도 확인한다. 뒤늦은 판매중지·품절·옵션 교체를 성공 처리하지 않고 안전한 실패 코드로 기록한다. 새 API/schema·실 채널·공유 DB 변경 없음.
