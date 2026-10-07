@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.3 알림 작업·시도 이력 migration 0019 승인 — 2026-10-08
+
+- **승인·담당·기준:** 신산님이 `notification_jobs`, `notification_attempts` 두 빈 테이블 및 migration 0019 작성을 직접 승인했다. 어울 단일 writer, 기존 linked worktree `codex/s52-customer-support`의 `8c54232054216011a14ca7f08b80d0c077bb88c5`에서 시작한다. 새 공개 API, 이메일 검증·기기 등록, 실 공급자 연결, 공유 `local-postgres/shoppingmall` 적용은 이번 승인에 포함하지 않는다. PMO task에 승인 경계를 보고했다.
+- **구현 계약:** 한 알림 원사건·고객·채널마다 하나의 작업을 고유 중복 키로 보존한다. 작업은 종류·원사건 UUID·고객·선택된 채널·상태·시도 수·다음 시각·임대/완료 시각만 저장하고 연락처·메시지 원문을 저장하지 않는다. 시도 이력은 작업·순번·성공/일시 실패/영구 실패·안전한 오류 코드·시각을 저장한다. 각 작업은 최대 3회 시도하며, 외부 발송은 U3 전까지 mock로 구분한다. 기존 주문·계정 행은 migration에서 수정하지 않는다.
+- **격리 시험 자원 사전 등록:** WSL-server에 전용 internal network `shoppingmall-s53-schema-1008-net`, tmpfs PostgreSQL 컨테이너 `shoppingmall-s53-schema-1008-pg`의 DB `shoppingmall_s53_schema_1008`, 일회용 Node24 runner `shoppingmall-s53-schema-1008-node`를 사용한다. 외부 포트·영속 volume·Windows 소스 복사 없음. 로컬 작업 브랜치의 안전한 commit을 SSH 별칭 원격에 push한 뒤 WSL 지정 checkout `/home/daon/deploy/shopping`을 exact SHA로 fast-forward하고 source read-only로 시험한다. RED 기준은 0018까지 적용한 격리 DB에 테이블 부재, GREEN은 0019 적용·제약/중복/PII 반례·전체 회귀 통과다. 사용 후 위 정확 이름 자원만 정상 제거하고 컨테이너/네트워크/볼륨 잔류0을 확인한다. 실패 시 상태를 기록한 뒤 자원을 보존할 필요를 재평가하며 공유 DB에는 접속하지 않는다.
+- **기준 시험:** 로컬 `pnpm test` 487 total/353 pass/134 계획 환경 skip/0 fail, PR 본문8/8. 환경 skip은 DB/실 발송 PASS가 아니다. 아직 migration 0019 파일·DB 적용·새 테스트 결과는 없다.
+- **시험 선행 RED:** `apps/api/test/migration-preview.test.mjs`의 추가 이력 계약이 기존 19개 대비 기대 20개에서 1 RED/2 pass로 실패했다. 새 `apps/api/test/notification-schema-db.test.mjs`의 두 DB 계약은 환경 가드 없이는 2 skip으로 문법만 확인했다. 아직 migration·schema 구현 전이다. 이 시험/현황 commit을 먼저 보존해 WSL 격리 DB의 실제 테이블 부재 RED를 확인한다.
+
 ## S5.3 발송 채널 우선순위 확정 — 2026-10-07
 
 - **결정·담당:** 신산님이 거래 안내는 검증된 이메일 우선, 이메일이 없으면 검증된 휴대전화 SMS, 앱 푸시는 고객 동의·기기 등록이 있을 때만 사용하며, 전달 실패 시 앱 안의 주문 상태를 최종 확인 경로로 두는 권장안을 직접 승인했다. 재입고 안내는 앞서 승인한 대로 해당 옵션의 활성 신청자에게만 보낸다. 개발 단계는 mock, 실제 SMS·메일·푸시 수신은 U3 검증으로 분리한다.
