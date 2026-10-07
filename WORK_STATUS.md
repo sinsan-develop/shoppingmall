@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.3 알림 재시도 내부 규칙 — 2026-10-07
+
+- **상태·담당:** 어울 단일 writer. 채널 우선순위 답변 전에도 독립적으로 검증 가능한 순수 내부 규칙만 구현했다. 알림 DB 작업·실제 발송·공개 API·schema/migration 변경은 하지 않았다.
+- **RED→GREEN·오류:** `apps/api/test/notification-retry.test.mjs`에서 일시 오류 1분·5분 간격/최대 3회, 영구 오류 즉시 종료, 잘못된 시도 횟수·시각 거부를 3 RED 후 3/3 GREEN으로 확인했다. 최초 API 타입 검사에서 `Partial` 입력의 시도 횟수가 숫자로 좁혀지지 않는 오류 1회를 발견해 명시적인 숫자 판정으로 수정했고 재검사 exit0이다. 동일 근본 원인 연속 오류는 1회다.
+- **로컬 검증:** 전체 `pnpm test` 483 total/349 pass/134 계획 DB·환경 skip/0 fail, PR 본문 시험 8/8, `pnpm build` API·Next 22 route, `pnpm typecheck`, `pnpm lint` 모두 exit0. 134 skip은 DB·외부 채널 통과가 아니다.
+- **WSL 표적 자원 사전 등록:** 코드·시험·현황을 SSH 별칭 원격에 push하고 `/home/daon/deploy/shopping`에 ff-only로 맞춘 뒤 이름 `shoppingmall-s53-retry-1007-verify`의 Node24 일회용 컨테이너로 표적 시험을 한다. 네트워크 없음, source read-only, 컨테이너 read-only, 임시 `/tmp`, `--rm`이며 DB·기존 서비스·새 volume을 건드리지 않는다. 끝나면 정확 SHA/clean 및 동일 이름 컨테이너0을 확인한다.
+- **다음 경계:** 채널 우선순위·대체 방식은 신산님에게 한 질문으로 확인 중이다. 이후 새 영속 schema/migration·공개 API가 필요하면 영향·복구를 별도로 제시해 직접 승인을 받는다.
+
 ## S5.3 거래성 알림·재입고 대상 기준 승인 — 2026-10-07
 
 - **내부 판정 RED→GREEN:** 승인된 대상 기준만 다루는 `apps/api/src/notifications/intent.ts`와 표적 시험 `apps/api/test/notification-intent.test.mjs`를 추가했다. 최초 시험은 모듈 부재 1회, 불변 null stub에서 기대 동작 차이 3 RED를 확인한 뒤 거래성 주문/결제/배송 사건의 안정 중복 키·비PII 표현, 활성 재입고 신청과 0→판매 가능 전이 조건, 잘못된 사건/UUID 거부를 3/3 GREEN으로 구현했다. 새 코드 경로는 아직 DB/발송에 연결하지 않았으며 외부 발송·공개 API/schema 변경0.
