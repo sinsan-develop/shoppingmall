@@ -2,6 +2,8 @@
 
 ## S5.2 리뷰 Minor 2건 보정 — 2026-10-07
 
+- **WSL 일회성 시험 자원 사전 등록:** 지정 checkout `/home/daon/deploy/shopping`의 exact `841b355a74e8702fe9d1f01d755ec6c8bf01ce2f`에서 기존 로컬 `node:24-bookworm-slim` 이미지로 이름 `shoppingmall-s52-minor-1007-verify` 컨테이너 하나를 `--rm`, 네트워크 없음, 소스 read-only mount, 쓰기 가능한 `/tmp` tmpfs만 사용해 위 두 표적 시험을 재실행한다. 기존 컨테이너·WSL pnpm 설치·공유 DB·다른 checkout은 변경하지 않는다. 실행 전 같은 이름 부재와 지정 checkout clean을 확인하고 종료 후 정확 컨테이너 잔류 0을 확인한다. WSL 시스템 pnpm 부재로 직접 `pnpm` 실행이 exit127이었으며 이 결과는 제품 시험 실패가 아니다.
+- **WSL 결과:** 지정 checkout clean/exact SHA 및 컨테이너 이름 부재를 확인한 뒤 위 일회성 Node24 시험 **5/5 pass, 0 fail/skip**. 종료 후 정확 컨테이너 목록 0, checkout clean/exact SHA 불변을 확인했다. 이 좁은 시험은 공유 DB·실 Provider·UAT 검증이 아니며 S5.2 Important 2건은 여전히 남는다.
 - **담당·범위:** Main 단일 writer. 승인 대기 GET API·의존 UI/시험 5파일, 공유 DB, Oracle, 실 Provider는 변경하지 않았다. 리뷰 Important 2건(고객 구매확정·리뷰 진입, 관리자 환불 처리 재개)은 별도 사용자 결정 대기로 그대로 남긴다.
 - **변경 전→후:** 리뷰/클레임 이미지 sanitizer의 `Invalid image`, `Invalid image size`, `Image dimensions exceeded`가 500으로 노출될 수 있었으나 각각 입력 오류 400 또는 크기·치수 초과 413으로 매핑했다. 결정된 클레임에도 증빙 업로드 form이 보여 실제 API 409와 불일치하던 문제를 `REQUESTED`/`SELLER_REPLIED`에서만 보이도록 고쳤고 기존 비공개 증빙 조회는 유지했다.
 - **검증:** 새 회귀 시험은 수정 전 3 fail/수정 후 5 pass; 전체 `pnpm test` 461건/328 pass/133 계획 DB·환경 skip/0 fail, PR 본문 검사 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0. 전체 시험의 DB skip은 공유 DB 검증이 아니다. 오류 3건은 의도한 RED이며 수정 후 해결; 동일 원인 연속 실패 없음. 새 API·DB schema 변경은 0.
