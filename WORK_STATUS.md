@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5 정식 브라우저 QA 실행 자원 — 2026-10-08
+
+- **담당·대상:** 어울 단일 writer. 지정 WSL exact SHA `f73844dd18e485717323fe71dd01951e0c946172`의 loopback Web 9091/API 9092와 QA 소유 run `b6e81008`만 사용한다. 빌드 출력은 `/tmp/shoppingmall-s5-browser-1008`, 컨테이너는 `shoppingmall-s5-browser-1008-{api,web}`이고 Windows SSH 터널은 두 포트에 한정한다.
+- **브라우저 자원 사전 등록:** 기존 CDP 9229 점유 없음 확인 후 숨긴 headless Chrome 한 인스턴스에 정확한 프로필 `D:\tmp\shoppingmall-s5-browser-b6e81008-profile`, debugging loopback 9229만 생성한다. 시험 후 PID와 프로필 경로를 확인해 이 인스턴스·프로필만 종료·정리한다. 다른 브라우저 세션은 건드리지 않는다. Browser Use 도구는 Windows ACL 초기화 오류 두 번으로 열리지 않았으므로 기존 CDP QA 절차를 사용한다.
+- **실제 Chrome 결과:** WSL exact SHA의 Web/API 9091/9092가 Windows SSH 루프백에서 각 200. `scripts/qa-s5-customer-browser.mjs`로 합성 고객 로그인, 이메일 수신 동의 저장·재접속 유지, 430px에서 가로 넘침 없음·Tab 초점, 상품 찜, QA 전용 500g 옵션 재고 5→0(대상·제약 확인한 `UPDATE 1`) 뒤 재입고 신청·계정 목록·재접속 유지·취소를 통과했다. 첫 시험 스크립트의 CDP DOM 객체 직렬화 오류 1회는 Boolean 검사로 보정했다. 이후 로그인 대기 timeout 1회는 같은 환경의 재실행에서 통과했으며 원인은 미확정; 성공만으로 간헐 현상 부재를 주장하지 않는다. 실제 문자·메일·푸시 발송이나 사용자 인수는 실행하지 않았다.
+- **시험 자료·자원 정리:** 기존 `qa-public-fixture.ts reset`이 run `b6e81008`에 `{"reset":true}`. 후속 공유 DB `accounts/auth_sessions/checkout_orders/notification_jobs/notification_preferences/products/restock_subscriptions` 각0. 정확 WSL API/Web 컨테이너 두 개를 중지·제거해 동명0, 전용 `/tmp/shoppingmall-s5-browser-1008`은 실제 경로·소유자 daon·자식 `api-dist/web-next`만 확인하고 제거했다. Windows QA SSH 터널을 종료, 정확 QA Chrome 프로세스만 종료하고 전용 `D:\tmp\shoppingmall-s5-browser-b6e81008-profile` 제거; 루프백 9091/9092/9229 LISTEN 각0. WSL checkout은 `f73844dd18e485717323fe71dd01951e0c946172`/clean. 다른 DB·컨테이너·브라우저 프로필은 변경하지 않았다.
+- **남은 판정:** S5.3 정식 브라우저·공유 DB 표적은 통과했으나 공유 DB 전체 시험은 격리 전용 전제와 migration 고정 기대 때문에 여전히 전체 PASS가 아니다. S5.4 관리자 관제 전용 읽기 API/화면은 별도 승인 경계로 아직 구현·검증되지 않아 S5 전체 완료 판정은 보류한다. 다음은 새 API 직접 승인 확인 후 구현·정식 WSL·브라우저 검증이며, 미승인 동안은 현재 검증 기록만 checkpoint한다.
+
 ## S5 정식 공유 DB 전체 회귀 첫 시도·QA 정리 보정 — 2026-10-08
 
 - **담당·오류·판정:** 어울 단일 writer. 정식 WSL checkout `3f1ad9be2f77cbc4a30978b52b257d3d07f0392d`/migration20에서 일회성 `shoppingmall-s5-shared-1008-node` 전체 `node --test-concurrency=1 --import tsx --test`를 시도했다. Windows→SSH 스크립트의 첫 인용 오류 1회는 컨테이너 시작 전, 두 번째 CRLF `tail -n 65\r` 오류 1회는 결과 수집만 실패시켰으나 Docker 시험 자체는 계속됐다. 공유 DB 실행은 격리 system ID를 요구하는 출고 시험의 의도된 거부, `refund-schema-db`의 migration19 고정 기대와 결제 HTTP 시험의 알림 작업 FK 정리 실패로 **전체 PASS가 아니다**. 자동 삭제 컨테이너의 마지막 로그에서 실패 세부를 확인했다. 공유 DB 전용/격리 DB 전용 목록을 나눠 재검증한다.
