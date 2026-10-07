@@ -1,7 +1,14 @@
 # 어울몰 작업현황
 
+## S5.4 관리자 관제 선행 읽기 전용 조사 — 2026-10-07
+
+- **상태·담당:** 어울 단일 writer. S5.3 발송 채널/동의 계약 답변을 기다리는 동안 독립적인 S5.4 범위만 읽기 전용으로 조사했다. 관제 코드·새 API/schema·DB·화면은 생성/변경하지 않았다.
+- **확인:** 현재 관리자 계정 메뉴는 출고, 환불, 상품/정책, 문의·리뷰·클레임 등의 개별 운영 화면으로 이동한다. API는 `fulfillment/admin` 발송 목록·상세, 관리자 환불/문의/클레임 목록을 각각 권한 검사와 `private,no-store` 경계로 제공한다. 통합 KPI 대시보드 또는 실패 결제·미출고 예외를 모아 보는 전용 route/controller는 없다. 주문/결제/출고/문의의 원사건은 기존 PostgreSQL 테이블에 있다.
+- **권장 구현 방향(미승인 제안):** 새 장부/캐시 테이블 없이 기존 원사건을 기간·상태·판매자 조건으로 실시간 집계하고 관리자 전용 읽기 API/화면에서 요약→예외 목록→기존 상세로 이동한다. 자동 경보·점검 스위치·강제 정지는 계획상 제외한다. 새 공개 API 계약은 별도 승인 경계이므로 확정 전 구현하지 않고, 먼저 S5.3의 독립적인 승인 답변을 처리한다.
+
 ## S5.2 정식 공유 DB E2E 승인·자원 등록 — 2026-10-07
 
+- **최신 로컬 gate:** 위 정식 QA와 정리 뒤 같은 제품 소스에서 `DATABASE_URL` 제거한 로컬 `pnpm test` 477 total/343 pass/134 계획 DB·환경 skip/0 fail, PR 본문 8/8 pass, `pnpm build` API `tsc`·Next 22 route, `pnpm typecheck`, `pnpm lint` 모두 exit0. DB skip을 정식 공유 DB PASS로 간주하지 않고 위 실제 Chrome E2E와 분리한다.
 - **정식 QA 결과:** 등록 commit `ebcae38ae8cfd9e60e52647ecc13cba9f320d34b`를 SSH 별칭 원격 push→WSL 지정 checkout ff-only로 동일/clean 확인. WSL source read-only 빌드 API `tsc`/Next 22 route exit0, 공유 DB migration19/system ID `7622490131194466339`에서 전체 public 기본행 검사 후 고정 run `a52c1007`을 두 차례 독립 seed했다. API `/ready`·Web 각200, 비로그인 고객지원401. 실제 Windows Chrome r4는 고객·상품 판매자·어울몰 판매자·관리자, Q&A·비공개 클레임 증빙·모의 환불·텍스트 리뷰 신고/숨김, 1920/1440/430·키보드 PASS. r4 signed reset은 계정5·판매자2·상품1·주문1·발송1 제거/계정0·recovery0. 다시 baseline 검사한 r5는 구매확정→리뷰 사진 선택·업로드→비공개 미리보기·관리자 검토, 동일 3 viewport·키보드 PASS. 430px 사진 화면 캡처를 육안 확인했고 내부 리뷰 상태 대신 한글 '검토 대기'가 표시됐다.
 - **최종 정리:** r5 signed reset도 같은 5/2/1/1/1 소유 자료를 제거했고 accounts/checkout_orders/support_claims/support_reviews/support_review_images/support_claim_evidence/audit_events 각0, recovery0, 업로드 root0. WSL 전용 API/Web/runner/build 컨테이너와 정확 임시 root의 `api-dist`,`web-next`만 절대경로·uid/mode·symlink0/자식2 검증 뒤 제거해 잔류0. Windows 전용 Chrome PID1428과 하위 PID의 프로필 명령행, 27개 PNG allowlist·reparse0 검증 뒤 종료·정확 프로필/캡처 폴더 삭제; CDP9229·두 폴더 잔류0. 공유 DB 자체·비소유 relay/서비스·Oracle/실 Provider는 변경하지 않았다. 실제 캡처 파일은 정리 후 보존하지 않으므로 본 기록과 러너 출력이 검증 범위의 근거다.
 - **한계·다음:** 이는 정식 WSL 공유 DB의 S5.2 실제 Chrome 정상/사진 경로 PASS다. 처리중 환불 재개는 격리 Chrome r2 PASS와 승인된 API 계약으로 분리하며 공유 모의 재개 E2E는 미수행. ClamAV/실 PG·알림 공급자/Oracle·UAT·200% 확대는 미검증이다. Stage S5 전체는 S5.3 알림·S5.4 관제 미구현이므로 PR/병합·완료로 표시하지 않고 다음 계획 항목을 진행한다.
