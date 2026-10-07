@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import test from 'node:test';
 import { Pool } from 'pg';
 import { createApp } from '../src/app.ts';
@@ -794,7 +794,7 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       await pool.end();
       if (scanServer) await new Promise((done) => scanServer.close(done));
       if (uploadRoot) {
-        assert.equal(resolve(uploadRoot).startsWith(resolve(tmpdir()) + '\\'), true);
+        assert.equal(resolve(uploadRoot).startsWith(resolve(tmpdir()) + sep), true);
         assert.match(basename(uploadRoot), /^shoppingmall-upload-s52-review-/);
         await rm(uploadRoot, { recursive: true });
         await assert.rejects(() => access(uploadRoot), { code: 'ENOENT' });
