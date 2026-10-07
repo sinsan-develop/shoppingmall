@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## S5.3 공개 옵션 교체 후 재입고 모의 발송 차단 검증 진행 — 2026-10-08
+
+- **담당·범위:** 어울 단일 writer, 기존 작업 브랜치. 알림 작업 생성 뒤 상품의 공개 승인 revision을 다른 옵션명으로 바꾼 경우, 상품은 판매 가능해도 원 신청 옵션이 없으므로 mock 성공/신청 notified를 금지하는 기존 계약을 실 PostgreSQL로 검증한다. QA 소유 상품의 fixture만 변형하며 제품·공개 API·schema·공유 DB·실 채널 변경은 없다.
+- **격리 QA 자원 사전 등록:** WSL-server의 정확 이름 internal network `shoppingmall-s53-restock-option-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-option-1008-pg` 안 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-option-1008-node`만 쓴다. 외부 포트·영속 volume 없음. 동명0→migration20/system ID→표적 DB 시험→소유 QA 행0→정확 자원 제거·잔류0 순서이며 공유 DB로 우회하지 않는다.
+
 ## S5.3 재입고 신청 취소 후 모의 발송 차단 검증 진행 — 2026-10-08
 
 - **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support` worktree. 이미 생성된 재입고 작업을 고객이 취소한 뒤 mock worker가 성공이나 `notified`로 기록하지 않고 `SUBSCRIPTION_INACTIVE`로 종료하는지 실 PostgreSQL에서 확인한다. 제품·공개 API·schema·공유 DB·실 채널은 변경하지 않는 기존 계약 회귀다.

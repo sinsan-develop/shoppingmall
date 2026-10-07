@@ -127,6 +127,45 @@ test('only approved zero-to-sellable public stock queues an active restock reque
       soldOutWorker.release();
     }
 
+    await pool.query('UPDATE inventory_levels SET sellable_quantity=5 WHERE option_id=$1', [option.id]);
+    const replacementRevisionId = (await pool.query(`INSERT INTO product_revisions
+      (product_id,version,title,description,origin_label,shipping_mode,status,
+       proposed_by_account_id,reviewed_by_account_id,reviewed_at)
+      VALUES ($1,2,'QA revised product','QA option replacement','경남 진주',
+        'seller_direct','approved',$2,$3,now()) RETURNING id`,
+    [productId, sellerId, adminId])).rows[0].id;
+    const replacementOptionId = (await pool.query(`INSERT INTO product_options
+      (revision_id,name,price_won,display_order) VALUES ($1,'1kg',45000,0) RETURNING id`,
+    [replacementRevisionId])).rows[0].id;
+    await pool.query(`INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity)
+      VALUES ($1,5,5)`, [replacementOptionId]);
+    await pool.query('UPDATE product_publications SET revision_id=$2 WHERE product_id=$1',
+      [productId, replacementRevisionId]);
+    const currentOptions = (await pool.query(`SELECT o.name,i.sellable_quantity AS "sellable"
+      FROM product_publications pub JOIN product_options o ON o.revision_id=pub.revision_id
+      JOIN inventory_levels i ON i.option_id=o.id WHERE pub.product_id=$1`, [productId])).rows;
+    assert.deepEqual(currentOptions, [{ name: '1kg', sellable: 5 }]);
+    const revisedWorker = await pool.connect();
+    try {
+      await revisedWorker.query('BEGIN');
+      const now = (await revisedWorker.query('SELECT clock_timestamp() AS now')).rows[0].now;
+      assert.deepEqual(await runMockNotificationOnce(revisedWorker, new Date(now.getTime() + 1000), {
+        APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
+        NOTIFICATION_MODE: 'mock',
+      }), { processed: true });
+      const afterRevision = (await revisedWorker.query(`SELECT j.status AS "jobStatus",
+        a.status AS "attemptStatus",a.error_code AS "errorCode",
+        s.status AS "subscriptionStatus" FROM notification_jobs j
+        JOIN notification_attempts a ON a.job_id=j.id
+        JOIN restock_subscriptions s ON s.id=j.restock_subscription_id
+        WHERE j.restock_subscription_id=$1`, [subscriptionId])).rows[0];
+      assert.deepEqual(afterRevision, { jobStatus: 'FAILED', attemptStatus: 'PERMANENT_FAILURE',
+        errorCode: 'RESTOCK_UNAVAILABLE', subscriptionStatus: 'active' });
+    } finally {
+      await revisedWorker.query('ROLLBACK');
+      revisedWorker.release();
+    }
+
     const cancelled = await new CustomerEngagement(pool).cancelRestockSubscription(
       { accountId: customerId, role: 'customer' }, subscriptionId);
     assert.deepEqual(cancelled, { id: subscriptionId, status: 'cancelled' });
