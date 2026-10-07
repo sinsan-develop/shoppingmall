@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.2 정식 공유 DB E2E 승인·자원 등록 — 2026-10-07
+
+- **승인·담당:** 신산님이 `local-postgres/shoppingmall`에 S5.2용 가상 QA 계정·판매자·상품·주문·클레임·모의 환불 자료를 임시 생성하고 소유권 검증된 signed reset으로 제거하는 범위를 직접 승인했다. 어울 단일 writer, `codex/s52-customer-support`에서 진행한다. 승인 범위 밖의 다른 업무 자료·실 결제/송금·Oracle·실 알림은 변경하지 않는다.
+- **사전 상태:** 로컬·WSL 지정 checkout `52fcb5eaf61f017f624ce3559131eab3e8861558`/clean, SSH 별칭 원격 사용. 공유 DB는 migration 19건, PostgreSQL system ID `7622490131194466339`, accounts/checkout_orders/support_claims 각 0건. 기존 root `/tmp/shoppingmall-s52-support-ui` 부재, S5.2 이름의 실행 컨테이너·9091/9092 listener 부재를 확인했다. 전체 public 테이블 기본행 검사는 signed seed 직전 짧은 잠금과 함께 다시 실행하며 불일치 시 쓰지 않는다.
+- **정식 QA 자원 계획:** 정식 DB `local-postgres/shoppingmall` 자체는 보존한다. 고유 run `a52c1007`의 고정 이름 QA 행과 `/tmp/shoppingmall-s52-support-ui`(daon 0700) 안의 `api-dist`, `web-next`, private upload, 0600 signed recovery만 일시 생성한다. WSL 지정 checkout source read-only의 Node24 일회용 build/runner와 API/Web 컨테이너 `shoppingmall-s52-shared-ui-1007-{build,runner,api,web}`를 9092/9091에서 사용한다. Windows는 전용 headless Chrome CDP9229와 `D:\tmp\shoppingmall-s52-browser-a52c1007-{profile,evidence}`만 사용한다. 비밀값은 런타임 전달하고 stdout/문서/Git에 남기지 않는다.
+- **수명·정리:** 실제 Chrome 정상 경로와 이미지 경로를 각각 seed→브라우저→signed reset으로 검증한다. 매 reset에서 DB system ID·manifest 서명·전역 소유·파일 참조·기본행 복구를 검사한다. 실패 시 임의 SQL 삭제 없이 recovery와 자료를 보존·보고한다. 성공 후 정확한 QA 컨테이너·root·Chrome/profile/evidence만 소유·경로 확인 뒤 제거하고 DB 업무행/복구 파일/프로세스 잔류0을 재확인한다. Chrome/DB 통과를 ClamAV·실 PG/알림·Oracle/UAT 통과로 승격하지 않는다.
+
 ## S5.3 알림 선행 읽기 전용 범위 확인 — 2026-10-07
 
 - **담당·상태:** 어울 단일 writer, 기준 `b3e644f983d6645888f41b055031753cbd4f552d`/local·WSL clean. S5.2 정식 공유 DB E2E의 임시 가상 자료 승인 답변을 기다리는 동안 독립적인 다음 절편 S5.3 요구를 읽기 전용으로 조사했다. 알림 코드·migration·외부 발송 실행은 착수하지 않았다.
