@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.2 실제 Chrome 정상·환불 재개 이중 검증 및 자원 정리 — 2026-10-07
+
+- **담당·기준:** 어울 단일 writer. 기존 `codex/s52-customer-support`를 `69ebca93eef9d5b3f2b306ef281aec646fdb1e97`로 안전 커밋·SSH alias push 후 지정 WSL checkout을 ff-only로 같은 SHA에 맞췄다. 이번 커밋은 브라우저 QA의 `pg` 로드 경로·회귀 시험·현황만 변경하며 제품 소스 변경은 없다.
+- **실행·결과:** 전용 PG15 `shoppingmall_s52_support_ui_a52c1007`(system ID `7693881055164448807`, migration19)·API/Web·Windows Chrome/CDP에서 서명 fixture로 r1 정상 흐름과 signed reset/reseed 후 r2 처리중 환불 재개 흐름을 각각 실행했다. r1은 구매자/상품 판매자/어울몰 판매자/관리자, 문의·비공개 증빙·모의 환불·리뷰 신고/숨김, 1920/1440/430 폭·키보드 **PASS**. r2는 관리자 선택 상세의 `REFUND_PROCESSING` 상태·재개 버튼 클릭 후 `REFUNDED`까지 **PASS**. 430px 대기 화면 캡처도 육안 확인했다. 이는 격리 브라우저 QA이지 공유 개발 DB·Oracle·실 PG·UAT 결과가 아니다.
+- **오류·조치:** 첫 r1 시도는 화면 진입 전 pnpm strict 경로의 `pg` 로드 실패 1회였다. RED 회귀 시험 뒤 API package `createRequire`로 고쳐 계약 8/8, 전체 470건 중 336 pass/134 계획 skip/0 fail, PR 본문8/8, typecheck/lint/build exit0을 확인하고 재실행했다. reset용 원격 heredoc 끝 표식이 CRLF로 오인되어 JS 후행 오류 exit1 1회가 있었으나 서명 reset 자체는 계정5·판매자2·상품1·주문1·발송1 제거로 완료됐고 복구 파일 부재를 확인했다. 다음 seed 명령 끝 CRLF로 원격 exit1 1회가 있었으나 새 가상 계정5·판매자2와 0600 복구 파일 존재를 별도로 검증했고 r2를 정상 실행했다. 동일 근본 원인 연속3회 없음.
+- **정리·잔류:** r2 뒤 signed reset은 exit0, 핵심 accounts/checkout_orders/support_claims/support_reviews/audit_events 각0행·복구 파일0. WSL 전용 PG/API/Web/container/network와 정확 임시 root의 생성 빌드 출력만 소유·경로·symlink0 확인 후 삭제해 잔류0. Windows 전용 Chrome PID56348 하위와 SSH PG 터널 PID25980의 명령행을 확인해 종료, 전용 profile/evidence의 절대경로·reparse0·PNG allowlist 확인 후 삭제해 잔류0. 기존 비소유 `wslrelay.exe` PID22168·공유 `local-postgres/shoppingmall`은 건드리지 않았다. 임시 캡처 27개는 육안 확인 뒤 계획대로 제거되어 파일 증거는 보존하지 않고 러너 성공 로그·이 현황에 검증 범위를 기록한다.
+- **미검증·다음:** S5.2 정식 공유 개발 DB E2E/권한·환불 사건 회귀는 격리 fixture의 공유 DB 거부 안전 계약 때문에 아직 별도로 수행해야 한다. 공유 DB에 격리 fixture를 재사용하지 않는다. S5.2 전체 검증·Stage PR/병합은 보류하고 계획의 다음 필수 게이트를 설계·실행한다. S5.3 알림·S5.4 관제, Oracle/UAT/실 공급자는 미시작·미검증이다.
+
 ## S5.2 실제 브라우저 재개 경로 검증 착수 — 2026-10-07
 
 - **담당·기준:** 어울 단일 writer, 기존 `codex/s52-customer-support` linked worktree `bc58d111cb4e0a560f4865554312d96227f73834`/clean, SSH alias origin·WSL 지정 checkout exact SHA, 공유 `local-postgres/shoppingmall` migration19. PMO/제품 설계/계획/환경/현황을 다시 대조했다. 직전 승인 DB 적용·격리 HTTP 10/10·자원 정리는 재작업하지 않는다. S5.2의 실제 브라우저 재개 버튼과 정식 공유 DB E2E가 남았다.
