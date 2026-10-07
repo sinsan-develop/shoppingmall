@@ -6,6 +6,7 @@
 - **RED→GREEN:** `mock.ts` 부재 RED 후 운영/공개 host 차단, 기본 무작동, 허용 QA 모의 경로와 안전 outcome 검증을 구현했다. 표적 3/3 pass, API 타입 검사 exit0. 재입고는 실행 직전 활성 신청을 다시 확인하고 비활성이면 안전 코드로 종료한다. 실제 DB 모의 흐름과 취소 경쟁은 아직 미검증이다.
 - **격리 DB 자원 사전 등록:** WSL-server internal network `shoppingmall-s53-mock-1008-net`, tmpfs PG15 `shoppingmall-s53-mock-1008-pg` DB `shoppingmall_s53_mock_1008`, 일회용 Node24 runner `shoppingmall-s53-mock-1008-node`만 사용한다. 외부 포트·영속 volume 없음, source read-only. 생성 전 동명 자원0, migration20/system ID, 기본 disabled 무변경·명시적 mock 1회 처리·중복 무처리, rollback 후 계정/작업/시도0, 정확 자원 제거·잔류0을 확인한다. 공유 DB·Oracle·실 공급자는 불변.
 - **로컬 전체 gate:** `pnpm test` 514 total/372 pass/142 계획 환경 skip/0 fail, PR 본문 8/8 pass. `pnpm build` API/Next 22 route, `pnpm typecheck`, `pnpm lint` exit0. mock 실제 DB 시험은 아직 실행 전이며 실 알림 수신과 무관하다.
+- **격리 DB 결과·정리:** `f053376e77a9fcd36b4bc6ae02f884befcef5c82`를 SSH alias push→WSL 지정 checkout ff-only 동일 SHA/clean으로 맞췄다. 동명 자원0 확인 후 전용 internal network/PG15 tmpfs DB `shoppingmall_s53_mock_1008` system ID `7694012917659426856`에 migration20 적용. source-read-only Node24 실제 DB 시험 **1/1 pass/0 skip**: 기본 disabled DB 무변경, 명시적 개발 mock 1건 처리, 재실행 무처리, 내부 작업 `SENT`/시도 `SUCCEEDED`. rollback 후 migration20/계정0/작업0/시도0, mount `[]`·data tmpfs만·외부 포트0/internal PG1. 정확 PG/network 제거 뒤 동명 container/network/volume0. 이 mock는 공급자 전송을 수행하지 않으므로 실제 수신·운영 발송 PASS가 아니며 공유 DB/Oracle은 불변이다.
 
 ## S5.3 검증 계정 기반 채널 조회 진행 — 2026-10-08
 
