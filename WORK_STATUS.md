@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.3 알림 선행 읽기 전용 범위 확인 — 2026-10-07
+
+- **담당·상태:** 어울 단일 writer, 기준 `b3e644f983d6645888f41b055031753cbd4f552d`/local·WSL clean. S5.2 정식 공유 DB E2E의 임시 가상 자료 승인 답변을 기다리는 동안 독립적인 다음 절편 S5.3 요구를 읽기 전용으로 조사했다. 알림 코드·migration·외부 발송 실행은 착수하지 않았다.
+- **확인된 현재 계약:** 고객 `notification_preferences`는 marketingEmail/marketingSms/push 기본 false, `restock_subscriptions`는 active/cancelled/notified 상태만 저장한다. DB 기반 알림 job/재시도/중복 억제 테이블과 `notifications/` 모듈은 아직 없다. 기존 원사건은 주문 생성(`orders/repository.ts`), 결제 검증(`payments/service.ts`), 출고 이력(`fulfillment/repository.ts`), 재고 변화(`inventory/service.ts`)에 있다. 정본 계획 S5.3은 주문/결제/배송/재입고 사건, 고객 수신 설정·실패 대체, mock 전송과 실수신 U3 구분을 요구한다. 현재 marketing 동의 필드만으로 거래성 문자·메일 발송 동의/대체 규칙을 임의 결정하지 않는다.
+- **다음:** S5.2 공식 QA가 끝난 뒤 기존 승인된 설계의 채널·동의 계약과 새 DB schema/migration·공개 API 승인 경계를 확정하고, 별도 승인 전에는 외부 발송·공유 DB 변경을 하지 않는다. 이 읽기 전용 조사를 S5.3 구현 또는 PASS로 표시하지 않는다.
+
 ## S5.2 리뷰 사진 실제 Chrome 검증·상태 한글화 — 2026-10-07
 
 - **담당·exact SHA:** 어울 단일 writer, `b3d79e6327814254ae2aee400a71ce29c78b5e8d`를 SSH alias push→WSL 지정 checkout ff-only pull/clean. 전용 PG15 tmpfs DB `shoppingmall_s52_support_ui_a52c1007` system ID `7693891135924412455`에 migration19·signed 가상 계정5/판매자2를 seed하고 source read-only API/Web 빌드(22 route)/서비스 `/ready` DB ok·웹200·관리자 비로그인401을 확인했다. 실공유 `local-postgres/shoppingmall`은 미접속/불변이다.
