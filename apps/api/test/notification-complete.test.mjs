@@ -26,6 +26,7 @@ test('successful delivery closes the exact lease and notifies an active restock 
   assert.match(calls[0].sql,/UPDATE notification_attempts/);
   assert.match(calls[0].sql,/UPDATE notification_jobs/);
   assert.match(calls[0].sql,/UPDATE restock_subscriptions/);
+  assert.match(calls[0].sql,/SET status='notified',notified_at=\$5/);
   assert.equal(calls[0].params[5],'SUCCEEDED');
   assert.equal(calls[0].params[7],'SENT');
   assert.equal(calls[0].params[8],null);

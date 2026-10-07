@@ -86,7 +86,7 @@ export async function completeNotificationJob(client: PoolClient,claim: Completi
       FROM closed WHERE j.id=closed.job_id
       RETURNING j.id,j.kind,j.restock_subscription_id
     ), notified AS (
-      UPDATE restock_subscriptions s SET status='notified'
+      UPDATE restock_subscriptions s SET status='notified',notified_at=$5
       FROM finished WHERE finished.kind='restock_available' AND $8='SENT'
         AND s.id=finished.restock_subscription_id AND s.status='active'
       RETURNING s.id
