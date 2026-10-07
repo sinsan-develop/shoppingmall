@@ -6,8 +6,19 @@ type Line = { productId: string; optionId: string; productName: string;
   optionName: string; quantity: number; remainingQuantity: number };
 type Confirmation = { id: string; reviewId: string | null; reviewStatus: string | null };
 type Review = { id: string; rating: number; body: string; status: string };
+type ReviewImageFile = Pick<File,'name' | 'type' | 'size' | 'lastModified'>;
+export function createReviewImageUploadKeys(nextKey: () => string) {
+  const keys = new Map<string,string>();
+  return { forFile(reviewId: string,file: ReviewImageFile) {
+    const identity = `${reviewId}|${file.name}|${file.type}|${file.size}|${file.lastModified}`;
+    const key = keys.get(identity) ?? nextKey();
+    keys.set(identity,key);
+    return key;
+  } };
+}
 export function canEditReview(confirmation: Confirmation | null, review: Review | undefined) {
-  return Boolean(confirmation && (!confirmation.reviewId || review?.id === confirmation.reviewId));
+  return Boolean(confirmation && (!confirmation.reviewId ||
+    (review?.id === confirmation.reviewId && review.status !== 'HIDDEN')));
 }
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
@@ -27,6 +38,8 @@ export function CustomerSupportLine({ orderId,shipmentOrderId,status,line }: {
   const [busy,setBusy] = useState(false);
   const [message,setMessage] = useState('');
   const keys = useRef(new Map<string,string>());
+  const imageKeys = useRef(createReviewImageUploadKeys(() => crypto.randomUUID()));
+  const [uploadedImages,setUploadedImages] = useState<{ id: string; sizeBytes: number }[]>([]);
   const confirmationPath = `${apiOrigin}/customer/support/confirmations`;
 
   useEffect(() => {
@@ -114,6 +127,41 @@ export function CustomerSupportLine({ orderId,shipmentOrderId,status,line }: {
     finally { setBusy(false); }
   }
 
+  async function uploadReviewImage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiOrigin || !review || !canEditReview(confirmation,review) ||
+        review.status === 'HIDDEN' || busy) return;
+    const form = event.currentTarget;
+    const file = new FormData(form).get('review-image');
+    if (!(file instanceof File) || !file.size ||
+        !['image/png','image/jpeg','image/webp'].includes(file.type) ||
+        file.size > 5 * 1024 * 1024) {
+      setMessage('PNG·JPEG·WebP 사진을 5MiB 이내로 선택해 주세요');
+      return;
+    }
+    const key = imageKeys.current.forFile(review.id,file);
+    setBusy(true); setMessage('');
+    try {
+      const response = await fetch(`${apiOrigin}/customer/support/reviews/${encodeURIComponent(review.id)}/images`, {
+        method:'POST',credentials:'include',headers:{
+          'content-type':file.type,'idempotency-key': key },body:file,
+      });
+      if (response.status === 503) { setMessage('이미지 저장소를 사용할 수 없습니다'); return; }
+      if (response.status === 413) { setMessage('사진 크기를 5MiB 이내로 줄여 주세요'); return; }
+      if (response.status === 409) { setMessage('사진 장수 또는 중복 요청을 확인해 주세요'); return; }
+      if (response.status === 404) { setMessage('본인 리뷰를 찾을 수 없습니다'); return; }
+      if (!response.ok) { setMessage('사진 등록 결과를 확인하지 못했습니다. 같은 사진으로 다시 시도해 주세요'); return; }
+      const saved = await response.json() as { id: string; sizeBytes: number };
+      setUploadedImages((current) => current.some((image) => image.id === saved.id) ? current :
+        [...current,{ id:saved.id,sizeBytes:saved.sizeBytes }]);
+      setReview({ ...review,status:'PENDING' });
+      setConfirmation((current) => current ? { ...current,reviewStatus:'PENDING' } : current);
+      form.reset();
+      setMessage('리뷰 사진을 등록했습니다. 관리자 확인 전에는 공개되지 않습니다');
+    } catch { setMessage('사진 등록 결과를 확인하지 못했습니다. 같은 사진으로 다시 시도해 주세요'); }
+    finally { setBusy(false); }
+  }
+
   if (status !== 'SHIPPED') return null;
   return <section className="account-card profile-card" aria-label={`${line.productName} 고객지원`}>
     <h4>{line.productName} · {line.optionName}</h4>
@@ -128,6 +176,7 @@ export function CustomerSupportLine({ orderId,shipmentOrderId,status,line }: {
         disabled={loading || loadFailed || busy || !apiOrigin}
         onClick={confirm}>구매확정</button>}
     {confirmation?.reviewId && !canEditReview(confirmation,review) ?
+      review?.status === 'HIDDEN' ? <p>운영자에 의해 숨김 처리된 리뷰입니다</p> :
       reviewLoadFailed ? <button type="button" className="secondary-button"
         onClick={() => { setMessage(''); setReviewReload((value) => value + 1); }}>
         리뷰 다시 조회</button> : <p role="status">리뷰 확인 중</p> : null}
@@ -143,6 +192,19 @@ export function CustomerSupportLine({ orderId,shipmentOrderId,status,line }: {
         onChange={(event) => setText(event.target.value)} rows={3} required />
       <button type="submit" className="primary-button" disabled={busy}>리뷰 저장</button>
     </form> : null}
+    {apiOrigin && review && canEditReview(confirmation,review) ? <>
+      <form className="account-form" onSubmit={uploadReviewImage}>
+        <label htmlFor={`review-image-${line.optionId}`}>리뷰 사진 추가(최대 5장, 파일당 5MiB)</label>
+        <input id={`review-image-${line.optionId}`} name="review-image" type="file"
+          accept="image/png,image/jpeg,image/webp" required />
+        <button type="submit" className="secondary-button" disabled={busy}>리뷰 사진 등록</button>
+      </form>
+      {uploadedImages.length ? <ul>{uploadedImages.map((image) => <li key={image.id}>
+        <a className="text-link" target="_blank" rel="noopener noreferrer"
+          href={`${apiOrigin}/customer/support/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(image.id)}/preview`}>
+          방금 등록한 사진</a> · {image.sizeBytes}바이트
+      </li>)}</ul> : null}
+    </> : null}
     {message ? <p role="status">{message}</p> : null}
   </section>;
 }

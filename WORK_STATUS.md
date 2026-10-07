@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.2 구매자 리뷰 사진 입력 누락 보정 — 2026-10-07
+
+- **담당·근거:** 어울 단일 writer, `f4aaa183157e145fc1e908b7703e750abf10bd0e`/clean 기준. 승인된 S5.2의 구매확정 리뷰·이미지 범위를 대조하니 API `POST /customer/support/reviews/:reviewId/images`, 비공개 미리보기·관리자 이미지 검사는 있고 고객 리뷰 폼에는 사진 입력이 없었다. 새 공개 API/schema 없이 기존 endpoint로 연결한다. 공유 개발 DB에는 쓰지 않는다.
+- **RED→GREEN:** 고객 이미지 입력/기존 scope URL/5MiB·허용 MIME/재시도 idempotency key에 대한 UI 시험은 helper export 부재 RED→보정 후 5/5 GREEN. 리뷰 저장 뒤에만 사진 업로드 form을 표시하고 `image/png|jpeg|webp`·5MiB를 클라이언트에서 검사한다. 같은 리뷰·파일의 재시도 키를 유지해 중복 응답에 안전하게 대응하고, 성공 시 비공개 미리보기 링크와 관리자 승인 대기 메시지를 표시한다. 404/409/413/503·네트워크 실패를 구분한다. 숨김 리뷰의 편집·첨부가 기존 API에서 거부되는데 UI는 활성화했던 상태도 별도 RED→GREEN으로 닫고 사유를 표시한다. API는 기존 권한/파일 검증을 계속 적용한다.
+- **검증·미검증:** 표적 5/5, 전체 `pnpm test` **475 total/341 pass/134 계획 skip/0 fail**·PR 본문8/8, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0(웹22 route). 실제 브라우저 사진 선택·업로드·재방문, ClamAV 검사·공개 이미지는 후속 검증 전이다. 현재 고객 GET 리뷰 DTO에는 기존 이미지 목록이 없어 재방문 후 이전 사진 목록을 복원하지 못한다. 공개 API 응답 확장은 별도 승인 경계로 판단해 임의 추가하지 않았다. 계획상 이미지 입력·업로드 실제 흐름을 정식 QA에서 확인해야 S5.2 완료로 판정한다.
+
 ## S5.2 정식 공유 DB QA 보호 코드 준비·승인 경계 — 2026-10-07
 
 - **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support`의 `aac10192249f2ea62e5fef69b453165e078e8aff` 기준. 격리 Chrome 2회 PASS 뒤 PMO AGENTS 7절의 정식 WSL 통합·E2E는 격리 PASS로 대체할 수 없음을 확인했다. 공유 `local-postgres/shoppingmall`을 읽기 전용 조회해 migration19, DB system ID `7622490131194466339`, 계정/주문/클레임 각0, 비어 있지 않은 public 테이블은 초기값 5개(`fulfillment_settings`, `home_content_current`, `home_content_draft`, `shipping_policy_global`, `support_policy_versions`) 각1임을 확인했다. 첫 테이블 목록 psql 명령의 다중 인용 오류 1회는 읽기 전용 실패였고 수정 후 정상 재조회했다.
