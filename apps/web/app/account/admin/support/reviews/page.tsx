@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { reviewActionLabel, reviewActorRoleLabel, reviewScanStatusLabel,
+  reviewStatusLabel } from '../../../support-review-labels';
 
 type Summary = { id: string; productId: string; confirmationId: string;
   rating: number; body: string; status: string; version: number;
@@ -37,13 +39,13 @@ export function AdminSupportReviewsView({ items,selected,busy,message,statusFilt
         onChange={(event) => onFilter(event.target.value)}>
         <option value="">전체</option>
         {['PENDING','APPROVED','HIDDEN'].map((status) =>
-          <option key={status} value={status}>{status}</option>)}
+          <option key={status} value={status}>{reviewStatusLabel(status)}</option>)}
       </select>
       {items.length === 0 ? <p>해당 리뷰가 없습니다.</p> : <ul className="catalog-list">
         {items.map((item) => <li key={item.id}>
           <button type="button" className="secondary-button" disabled={busy}
             aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
-            {item.rating}점 · {item.body} · {item.status}</button>
+            {item.rating}점 · {item.body} · {reviewStatusLabel(item.status)}</button>
           <p>상품 {item.productId} · 신고 {item.reportCount}건 · 버전 {item.version}</p>
         </li>)}
       </ul>}
@@ -54,7 +56,7 @@ export function AdminSupportReviewsView({ items,selected,busy,message,statusFilt
       <h2 id="admin-review-detail-title">리뷰·신고·수정 이력</h2>
       {message ? <p role="status">{message}</p> : null}
       {!selected ? <p>검토할 리뷰를 선택해 주세요.</p> : <>
-        <p><strong>{selected.status}</strong> · {selected.rating}점 · 버전 {selected.version}</p>
+        <p><strong>{reviewStatusLabel(selected.status)}</strong> · {selected.rating}점 · 버전 {selected.version}</p>
         <p>{selected.body}</p>
         <p>구매확정 {selected.confirmationId} · 상품 {selected.productId}</p>
         <h3>비공개 이미지 미리보기</h3>
@@ -62,7 +64,7 @@ export function AdminSupportReviewsView({ items,selected,busy,message,statusFilt
           {selected.images.map((item) => <li key={item.id}>
             {apiOrigin ? <a className="text-link" target="_blank" rel="noopener noreferrer"
               href={`${apiOrigin}/admin/support/reviews/${encodeURIComponent(selected.id)}/images/${encodeURIComponent(item.id)}/preview`}>
-              이미지 {item.id}</a> : '미리보기 불가'} · {item.scanStatus} · {item.sizeBytes}바이트
+              이미지 {item.id}</a> : '미리보기 불가'} · {reviewScanStatusLabel(item.scanStatus)} · {item.sizeBytes}바이트
           </li>)}
         </ul>}
         <h3>신고</h3>
@@ -73,7 +75,8 @@ export function AdminSupportReviewsView({ items,selected,busy,message,statusFilt
         </ol>}
         <h3>수정·운영 이력</h3>
         <ol>{selected.events.map((item,index) => <li key={`${item.occurredAt}-${index}`}>
-          {item.action} · {item.actorRole} · 버전 {item.afterValue.version ?? '—'}
+          {reviewActionLabel(item.action)} · {reviewActorRoleLabel(item.actorRole)} ·
+          {' '}버전 {item.afterValue.version ?? '—'}
           {item.reason ? ` · ${item.reason}` : ''}
           {' · '}{new Date(item.occurredAt).toLocaleString('ko-KR')}
         </li>)}</ol>

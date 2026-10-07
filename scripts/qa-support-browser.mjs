@@ -5,7 +5,8 @@ import path from 'node:path';
 import { validateSupportUiManifest } from '../apps/api/scripts/qa-support-ui-fixture.ts';
 import { closeCdpPage, createCdpCommandChannel, openCdpPage,
   visitKeyboardTargets } from './qa-browser-cdp.mjs';
-import { assertSupportBrowserBounds,inspectListDetail } from
+import { assertSupportBrowserBounds,browserClaimStatusVisibleExpression,
+  browserNavigationReadyExpression,inspectListDetail } from
   './qa-support-browser-contract.mjs';
 
 const candidate = JSON.parse(process.env.QA_FIXTURE_JSON ?? 'null');
@@ -46,7 +47,7 @@ async function waitFor(expression,label,timeoutMs = 20_000) {
 
 async function navigate(route) {
   await send('Page.navigate',{ url:`${web}${route}` });
-  await waitFor(`location.pathname===${JSON.stringify(route)}`,`navigation ${route}`);
+  await waitFor(browserNavigationReadyExpression(route),`navigation ${route}`);
 }
 
 async function hydrated(selector) {
@@ -307,7 +308,7 @@ try {
   await submit('#claim-approve-reason');
   await waitFor("document.body.innerText.includes('최종 결정과 모의 환불 결과를 반영했습니다')",
     'admin mock verified refund');
-  await waitFor("document.body.innerText.includes('REFUNDED')",'refunded claim');
+  await waitFor(browserClaimStatusVisibleExpression('REFUNDED'),'refunded claim');
   await evidence('admin-claim');
 
   await navigate('/account/admin/support/reviews');

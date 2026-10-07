@@ -17,3 +17,14 @@ export async function inspectListDetail(waitList,openDetail,waitDetail) {
   await openDetail();
   await waitDetail();
 }
+import { claimStatusLabel } from '../apps/web/app/account/support-claim-labels.ts';
+
+
+export function browserClaimStatusVisibleExpression(status) {
+  return `document.body.innerText.includes(${JSON.stringify(claimStatusLabel(status))})`;
+}
+
+export function browserNavigationReadyExpression(route) {
+  return `location.pathname===${JSON.stringify(route)} && ` +
+    "document.readyState!=='loading' && Boolean(document.body)";
+}
