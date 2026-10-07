@@ -6,6 +6,7 @@
 - **RED→GREEN·오류:** `apps/api/test/notification-retry.test.mjs`에서 일시 오류 1분·5분 간격/최대 3회, 영구 오류 즉시 종료, 잘못된 시도 횟수·시각 거부를 3 RED 후 3/3 GREEN으로 확인했다. 최초 API 타입 검사에서 `Partial` 입력의 시도 횟수가 숫자로 좁혀지지 않는 오류 1회를 발견해 명시적인 숫자 판정으로 수정했고 재검사 exit0이다. 동일 근본 원인 연속 오류는 1회다.
 - **로컬 검증:** 전체 `pnpm test` 483 total/349 pass/134 계획 DB·환경 skip/0 fail, PR 본문 시험 8/8, `pnpm build` API·Next 22 route, `pnpm typecheck`, `pnpm lint` 모두 exit0. 134 skip은 DB·외부 채널 통과가 아니다.
 - **WSL 표적 자원 사전 등록:** 코드·시험·현황을 SSH 별칭 원격에 push하고 `/home/daon/deploy/shopping`에 ff-only로 맞춘 뒤 이름 `shoppingmall-s53-retry-1007-verify`의 Node24 일회용 컨테이너로 표적 시험을 한다. 네트워크 없음, source read-only, 컨테이너 read-only, 임시 `/tmp`, `--rm`이며 DB·기존 서비스·새 volume을 건드리지 않는다. 끝나면 정확 SHA/clean 및 동일 이름 컨테이너0을 확인한다.
+- **WSL 표적 결과:** SSH 별칭 원격과 지정 checkout을 commit `48e674ff3551da2dd73fdfb8b8f6779fb668cd11`로 fast-forward해 동일한 단위시험 3/3 pass/0 fail을 확인했다. 사후 checkout clean, 정확 이름 컨테이너0이며 공유 DB·외부 서비스는 건드리지 않았다. 이는 알림 전달/DB E2E 증거가 아니다.
 - **다음 경계:** 채널 우선순위·대체 방식은 신산님에게 한 질문으로 확인 중이다. 이후 새 영속 schema/migration·공개 API가 필요하면 영향·복구를 별도로 제시해 직접 승인을 받는다.
 
 ## S5.3 거래성 알림·재입고 대상 기준 승인 — 2026-10-07
