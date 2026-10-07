@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.3 주문 생성 원사건 알림 연결 — 2026-10-08
+
+- **담당·기준:** 어울 단일 writer, 기존 linked worktree `codex/s52-customer-support@dde54d286b516b960d4275f2e527113f66f85254`. 승인된 S5.3 알림 계약 안에서 신규 주문에만 `order_submitted`를 원주문 트랜잭션으로 연결한다. 기존 주문 재제출·실패 주문은 작업0, 연락처 원문/실 발송/공개 API/새 schema는 없다. 기존 알림 helper를 소비하며 두 테이블이 적용된 공유 DB는 실제 테스트 전까지 쓰지 않는다.
+- **RED 시험·격리 자원 사전 등록:** 새 실 DB 회귀시험 `apps/api/test/notification-order-hook-db.test.mjs`는 사유 있는 주문 실패 시 알림0, 성공 시 원주문 ID의 이메일 작업1, 같은 키 재제출 후 여전히1을 단언한다. WSL-server 전용 internal network `shoppingmall-s53-order-1008-net`, tmpfs PG15 `shoppingmall-s53-order-1008-pg`의 DB `shoppingmall_s53_order_1008`, 일회용 Node24 runner `shoppingmall-s53-order-1008-node`만 생성한다. 외부 포트·영속 volume 없음, 지정 Git checkout source read-only. 생성 전 동명 자원0 확인, migration20/system ID 확인, RED→GREEN 후 QA 계정/주문/알림 작업0과 정확 container/network/volume 잔류0을 검증한다. 실패 시 기존 공유 DB나 타 자원을 건드리지 않고 원인을 기록한다.
+- **변경 전 기준:** 로컬 `pnpm test` 517 total/375 pass/142 환경 skip/0 fail, PR 본문8/8. 기존 WSL 공유 DB migration20 적용 증거는 아래 별도 기록. 현재 주문 연결의 실제 DB 결과와 전체 회귀는 미검증.
+
 ## S5.3 공유 개발 DB 0019 적용 — 2026-10-08
 
 - **승인·대상:** 신산님이 `WSL-server`의 정확한 `local-postgres/shoppingmall`에 migration `0019_s53_notifications.sql` 적용을 직접 승인했다. 어울 단일 writer, `codex/s52-customer-support`. 기존 주문·계정·정산 자료를 변경하지 않고 빈 `notification_jobs`, `notification_attempts` 두 관계와 Drizzle 이력만 추가한다. Oracle·실 Provider·공개 API는 제외한다.
