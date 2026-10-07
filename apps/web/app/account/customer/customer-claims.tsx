@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { claimActionLabel, claimActorRoleLabel, claimEventReasonLabel,
+  claimKindLabel, claimReasonCodeLabel, claimStatusLabel } from '../support-claim-labels';
 
 type Line = { productId: string; optionId: string; productName: string;
   optionName: string; quantity: number; remainingQuantity: number };
@@ -8,7 +10,7 @@ type Summary = { id: string; productId: string; shipmentOrderId: string;
   kind: string; reasonCode: string; status: string; createdAt: string };
 type Detail = Summary & { reason: string; quantity: number;
   messages: { id: string; authorRole: string; body: string; createdAt: string }[];
-  events: { action: string; reason: string; occurredAt: string }[];
+  events: { action: string; actorRole: string; reason: string; occurredAt: string }[];
   evidence: { id: string; mimeType: string; sizeBytes: number }[] };
 type Page = { items: Summary[]; nextCursor: string | null };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -109,7 +111,7 @@ export function CustomerClaimsView({ items,selected,busy,message,nextCursor,onMo
         {items.map((item) => <li key={item.id}>
           <button type="button" className="secondary-button" disabled={busy}
             aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
-            {item.kind} · {item.reasonCode} · {item.status}</button>
+            {claimKindLabel(item.kind)} · {claimReasonCodeLabel(item.reasonCode)} · {claimStatusLabel(item.status)}</button>
           <p>발송 {item.shipmentOrderId} · {new Date(item.createdAt).toLocaleString('ko-KR')}</p>
         </li>)}
       </ul>}
@@ -120,10 +122,10 @@ export function CustomerClaimsView({ items,selected,busy,message,nextCursor,onMo
       <h2 id="customer-claim-detail-title">접수 상세·비공개 증빙</h2>
       {message ? <p role="status">{message}</p> : null}
       {!selected ? <p>확인할 클레임을 선택해 주세요.</p> : <>
-        <p><strong>{selected.status}</strong> · {selected.kind} · {selected.quantity}개</p>
-        <p>사유 {selected.reasonCode}: {selected.reason}</p>
+        <p><strong>{claimStatusLabel(selected.status)}</strong> · {claimKindLabel(selected.kind)} · {selected.quantity}개</p>
+        <p>사유 {claimReasonCodeLabel(selected.reasonCode)}: {selected.reason}</p>
         <ol>{selected.messages.map((item) => <li key={item.id}>
-          {item.authorRole} · {item.body} · {new Date(item.createdAt).toLocaleString('ko-KR')}
+          {claimActorRoleLabel(item.authorRole)} · {item.body} · {new Date(item.createdAt).toLocaleString('ko-KR')}
         </li>)}</ol>
         <h3>비공개 증빙</h3>
         {selected.evidence.length === 0 ? <p>등록된 증빙이 없습니다.</p> : <ul>
@@ -141,7 +143,8 @@ export function CustomerClaimsView({ items,selected,busy,message,nextCursor,onMo
         </form> : <p>증빙 최대 5장을 등록했습니다.</p>}
         <h3>처리 이력</h3>
         <ol>{selected.events.map((item,index) => <li key={`${item.occurredAt}-${index}`}>
-          {item.action} · {item.reason} · {new Date(item.occurredAt).toLocaleString('ko-KR')}
+          {claimActionLabel(item.action)} · {claimActorRoleLabel(item.actorRole)} ·
+          {' '}{claimEventReasonLabel(item)} · {new Date(item.occurredAt).toLocaleString('ko-KR')}
         </li>)}</ol>
       </>}
     </section>

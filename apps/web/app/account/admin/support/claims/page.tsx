@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { claimActionLabel, claimActorRoleLabel, claimEventReasonLabel,
+  claimKindLabel, claimReasonCodeLabel, claimStatusLabel } from '../../../support-claim-labels';
 
 type Summary = { id: string; productId: string; shipmentOrderId: string;
   kind: string; reasonCode: string; status: string; createdAt: string };
@@ -35,13 +37,13 @@ export function AdminSupportClaimsView({ items,selected,busy,message,statusFilte
         <option value="">전체</option>
         {['REQUESTED','SELLER_REPLIED','REFUND_PROCESSING','REFUNDED',
           'REJECTED','REVIEW_REQUIRED'].map((status) =>
-          <option key={status} value={status}>{status}</option>)}
+          <option key={status} value={status}>{claimStatusLabel(status)}</option>)}
       </select>
       {items.length === 0 ? <p>해당 요청이 없습니다.</p> : <ul className="catalog-list">
         {items.map((item) => <li key={item.id}>
           <button type="button" className="secondary-button" disabled={busy}
             aria-pressed={selected?.id === item.id} onClick={() => onSelect(item.id)}>
-            {item.kind} · {item.status} · {item.reasonCode}</button>
+            {claimKindLabel(item.kind)} · {claimStatusLabel(item.status)} · {claimReasonCodeLabel(item.reasonCode)}</button>
           <p>발송 {item.shipmentOrderId} · {new Date(item.createdAt).toLocaleString('ko-KR')}</p>
         </li>)}
       </ul>}
@@ -52,15 +54,15 @@ export function AdminSupportClaimsView({ items,selected,busy,message,statusFilte
       <h2 id="claim-detail-heading">클레임 상세·감사 이력</h2>
       {message ? <p role="status">{message}</p> : null}
       {!selected ? <p>심사할 요청을 선택해 주세요.</p> : <>
-        <p><strong>{selected.status}</strong> · {selected.kind} · {selected.quantity}개</p>
+        <p><strong>{claimStatusLabel(selected.status)}</strong> · {claimKindLabel(selected.kind)} · {selected.quantity}개</p>
         <p>주문 {selected.orderId} · 발송 {selected.shipmentOrderId} · 상품 {selected.productId}</p>
-        <p>사유 {selected.reasonCode}: {selected.reason}</p>
+        <p>사유 {claimReasonCodeLabel(selected.reasonCode)}: {selected.reason}</p>
         <p>승인 상품 환불액 {selected.goodsRefundWon.toLocaleString('ko-KR')}원 · 배송비 환불 0원</p>
         {selected.policyVersionId ? <p>적용 정책 버전 {selected.policyVersionId}</p> : null}
         {selected.decisionReason ? <p>최종 결정 사유 {selected.decisionReason}</p> : null}
         <h3>대화 이력</h3>
         <ol>{selected.messages.map((item) => <li key={item.id}>
-          {item.authorRole} · {item.body} · {new Date(item.createdAt).toLocaleString('ko-KR')}
+          {claimActorRoleLabel(item.authorRole)} · {item.body} · {new Date(item.createdAt).toLocaleString('ko-KR')}
         </li>)}</ol>
         <h3>비공개 증빙</h3>
         {selected.evidence.length === 0 ? <p>등록된 증빙이 없습니다.</p> : <ul>
@@ -72,7 +74,8 @@ export function AdminSupportClaimsView({ items,selected,busy,message,statusFilte
         </ul>}
         <h3>처리 사건</h3>
         <ol>{selected.events.map((item,index) => <li key={`${item.occurredAt}-${index}`}>
-          {item.action} · {item.actorRole} · {item.reason} ·
+          {claimActionLabel(item.action)} · {claimActorRoleLabel(item.actorRole)} ·
+          {' '}{claimEventReasonLabel(item)} ·
           {' '}{new Date(item.occurredAt).toLocaleString('ko-KR')}
         </li>)}</ol>
         {['REQUESTED','SELLER_REPLIED'].includes(selected.status) ? <div className="refund-decision-grid">
