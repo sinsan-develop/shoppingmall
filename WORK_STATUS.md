@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.3 발송 결과·재시도 원자 기록 진행 — 2026-10-08
+
+- **담당·경계:** 어울 단일 writer, 기존 승인된 0019 관계와 내부 함수만 사용. 공유 개발 DB migration 적용 답변 전에는 공유 DB 쓰기 없음; 실 메일/SMS/푸시 발송·공개 API·기기/이메일 인증 변화 없음.
+- **RED→GREEN·오류:** `completeNotificationJob` 부재 RED 후 SQL 한 문장으로 임대 토큰과 `STARTED` 시도 잠금, 성공/안전 코드만 허용하는 실패 기록, 1·5분 재시도/최대3회, 성공 시 재입고 신청 `notified`를 구현했다. 최초 GREEN에서 가짜 UUID 세 개 모두 거부된 원인은 새 검증 정규식의 4자리 그룹 하나 누락으로 확인됐다. 임시 진단은 가짜 UUID/시각만 출력하고 제거했다. 정규식 단일 보정 후 표적 3/3 pass, API 타입 검사 exit0. 같은 근본 원인 오류 1회, 인수 시점은 결과 기록 단위시험 구현 시, 조치는 누락 그룹 수정. 실제 DB SQL·동시성은 다음 시험 전 미검증이다.
+- **격리 DB 자원 사전 등록:** WSL-server internal network `shoppingmall-s53-complete-1008-net`, tmpfs PG15 `shoppingmall-s53-complete-1008-pg`의 DB `shoppingmall_s53_complete_1008`, 일회용 Node24 runner `shoppingmall-s53-complete-1008-node`만 사용한다. 외부 포트·영속 volume 없음, source read-only. 동명 자원0 확인→migration20/system ID 확인→실 PostgreSQL의 일시 실패·1분 재시도·오래된 임대 거부·2회차 성공/시도 이력→트랜잭션 rollback/행0→정확 자원 제거·잔류0 순서다. 공유 DB·Oracle·실 공급자는 불변.
+- **로컬 전체 gate:** `pnpm test` 503 total/364 pass/139 계획 환경 skip/0 fail, PR 본문 8/8 pass. `pnpm build` API와 Next 22 route, `pnpm typecheck`, `pnpm lint` exit0. 실제 PostgreSQL 결과 처리 SQL은 아직 미검증이며 139 skip은 해당 PASS가 아니다.
+
 ## S5.3 작업 임대·시도 생성 진행 — 2026-10-08
 
 - **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support`. PMO에 0019 공유 개발 DB 경계를 보고했고 PMO는 별도 신산님 직접 승인이 필요하며 PMO 대리 승인이 없다고 확인했다. 신산님께 공유 DB 적용 여부를 비차단 질문으로 요청했고, 답변 전에는 격리 DB만 사용한다.

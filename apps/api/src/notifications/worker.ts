@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
+import { planNotificationRetry } from './retry.js';
 
 export type NotificationClaim = {
   jobId: string;
@@ -43,4 +44,56 @@ export async function claimNextNotificationJob(client: PoolClient,
     FROM claimed JOIN attempt ON attempt.job_id=claimed.id`,
   [now,leaseToken,leaseUntil]);
   return result.rows[0] ? { ...result.rows[0],leaseToken } : null;
+}
+
+type CompletionClaim = Pick<NotificationClaim,'jobId' | 'attemptId' | 'attemptNo' | 'leaseToken'>;
+type DeliveryOutcome = { kind:'success' } | {
+  kind:'transient_failure' | 'permanent_failure'; errorCode:string;
+};
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const safeCode = /^[A-Z0-9_]{1,80}$/;
+
+/** A stale lease cannot close another worker's attempt; this is one atomic statement. */
+export async function completeNotificationJob(client: PoolClient,claim: CompletionClaim,
+  outcome: DeliveryOutcome,at: Date): Promise<boolean> {
+  if (!claim || !uuid.test(claim.jobId) || !uuid.test(claim.attemptId) ||
+      !uuid.test(claim.leaseToken) || !Number.isInteger(claim.attemptNo) ||
+      claim.attemptNo < 1 || claim.attemptNo > 3 || !(at instanceof Date) ||
+      !Number.isFinite(at.getTime())) throw new Error('Invalid notification completion');
+  if (!outcome || !['success','transient_failure','permanent_failure'].includes(outcome.kind) ||
+      (outcome.kind === 'success' ? 'errorCode' in outcome :
+        !safeCode.test(outcome.errorCode))) throw new Error('Invalid notification outcome');
+  const success = outcome.kind === 'success';
+  const retry = success ? null : planNotificationRetry({ attemptsCompleted:claim.attemptNo,
+    retryable:outcome.kind === 'transient_failure',failedAt:at });
+  const status = success ? 'SENT' : retry?.status === 'retry' ? 'QUEUED' : 'FAILED';
+  const attemptStatus = success ? 'SUCCEEDED' : outcome.kind === 'transient_failure'
+    ? 'TRANSIENT_FAILURE' : 'PERMANENT_FAILURE';
+  const result = await client.query<{ id:string }>(`
+    WITH owned AS (
+      SELECT j.id FROM notification_jobs j
+      JOIN notification_attempts a ON a.job_id=j.id
+      WHERE j.id=$1 AND a.id=$2 AND a.attempt_no=$3 AND a.status='STARTED'
+        AND j.status='PROCESSING' AND j.lease_token=$4
+      FOR UPDATE OF j,a
+    ), closed AS (
+      UPDATE notification_attempts a SET status=$6,error_code=$7,finished_at=$5
+      FROM owned WHERE a.id=$2 AND a.job_id=owned.id
+      RETURNING a.job_id
+    ), finished AS (
+      UPDATE notification_jobs j SET status=$8,attempts_completed=$3,
+        available_at=$9,lease_token=NULL,lease_until=NULL,delivered_at=$10,updated_at=$5
+      FROM closed WHERE j.id=closed.job_id
+      RETURNING j.id,j.kind,j.restock_subscription_id
+    ), notified AS (
+      UPDATE restock_subscriptions s SET status='notified'
+      FROM finished WHERE finished.kind='restock_available' AND $8='SENT'
+        AND s.id=finished.restock_subscription_id AND s.status='active'
+      RETURNING s.id
+    )
+    SELECT id FROM finished`,
+  [claim.jobId,claim.attemptId,claim.attemptNo,claim.leaseToken,at,
+    attemptStatus,success ? null : outcome.errorCode,status,
+    retry?.status === 'retry' ? retry.nextAttemptAt : null,success ? at : null]);
+  return result.rows.length === 1;
 }
