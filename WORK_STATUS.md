@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## S5.3 결제 승인·거절 알림 연결 — 2026-10-08
+
+- **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support@65f0eac5066edd533ec7ea836757f116ed1bc462`. 승인된 S5.3 내부 알림 계약의 결제 승인/거절 원사건만 연결한다. 검증된 결제 사건이 실제 `APPLIED`로 처음 처리될 때 원사건 UUID의 작업을 같은 트랜잭션에서 등록하고, 재처리·중복 거절·`REVIEW_REQUIRED`는 새 알림을 만들지 않는 것이 목표다. 외부 PG·실 발송·새 공개 API/schema·공유 DB 시험자료는 제외한다.
+- **RED 시험·자원 사전 등록:** `apps/api/test/notification-payment-hook-db.test.mjs`가 실제 mock 결제 승인·거절 사건의 적용 전/후 작업0→1, 원사건 ID, 동일 사건 재처리 및 별도 거절 사건 재접수 후에도 중복0을 검증한다. WSL-server의 전용 internal network `shoppingmall-s53-payment-1008-net`, tmpfs PG15 `shoppingmall-s53-payment-1008-pg` 안 DB `shoppingmall`, 일회용 source-read-only Node24 runner `shoppingmall-s53-payment-1008-node`만 생성한다. 외부 포트/영속 volume 없음. 생성 전 동명 자원0→PG system ID/migration20→RED/GREEN→QA 계정·주문·결제/알림 행0→정확 container/network/volume 제거·잔류0 순서. 실패하면 공유 DB나 타 자원을 임의 변경하지 않는다.
+
 ## S5.3 주문 생성 원사건 알림 연결 — 2026-10-08
 
 - **담당·기준:** 어울 단일 writer, 기존 linked worktree `codex/s52-customer-support@dde54d286b516b960d4275f2e527113f66f85254`. 승인된 S5.3 알림 계약 안에서 신규 주문에만 `order_submitted`를 원주문 트랜잭션으로 연결한다. 기존 주문 재제출·실패 주문은 작업0, 연락처 원문/실 발송/공개 API/새 schema는 없다. 기존 알림 helper를 소비하며 두 테이블이 적용된 공유 DB는 실제 테스트 전까지 쓰지 않는다.
