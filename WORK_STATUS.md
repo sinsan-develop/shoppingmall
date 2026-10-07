@@ -6,6 +6,7 @@
 - **RED→GREEN:** 내부 `resolveNotificationChannels` 부재 RED 후, 인증된 이메일/전화의 존재 여부만 조회하고 원문 연락처·비밀번호 해시를 SQL 결과/큐에 싣지 않는 조회를 구현했다. 표적 3/3 pass와 API 타입 검사 exit0. 이메일 로그인 자체는 `verified_at`을 채우지 않으므로 검증 이메일로 승격하지 않는다. 실제 PostgreSQL 시험 전이다.
 - **격리 DB 자원 사전 등록:** WSL-server internal network `shoppingmall-s53-channels-1008-net`, tmpfs PG15 `shoppingmall-s53-channels-1008-pg` DB `shoppingmall_s53_channels_1008`, 일회용 Node24 runner `shoppingmall-s53-channels-1008-node`만 사용한다. 외부 포트·영속 volume 없음, source read-only. 생성 전 동명 자원0, migration20/system ID, 미검증 이메일→검증 전화 SMS→이메일 검증 후 우선 및 동의+기기 사실의 푸시 판정, rollback 후 계정/신원/동의0, 정확 자원 제거·잔류0을 확인한다. 공유 DB·Oracle·실 공급자는 변경하지 않는다.
 - **로컬 전체 gate:** `pnpm test` exit0(새 DB 시험은 환경 가드로 skip), PR 본문 검증 8/8 pass. `pnpm build` API/Next 22 route, `pnpm typecheck`, `pnpm lint` 모두 exit0. 실제 DB 채널 판정은 아래 격리 시험 전까지 미검증이다.
+- **격리 DB 결과·정리:** `e09ddc3f2ed79cc15dd0fe9546f8e4739341603b`를 SSH alias push→WSL 지정 checkout ff-only 동일 SHA/clean으로 맞췄다. 동명 자원0 확인 후 internal network/PG15 tmpfs DB `shoppingmall_s53_channels_1008` system ID `7694011078718828583`에 migration20 적용. source-read-only Node24의 실제 DB 시험 **1/1 pass/0 skip**: 미검증 이메일+검증 전화는 SMS, 이메일 검증 뒤 이메일 우선, 푸시는 동의와 주입된 기기 등록 사실이 둘 다 있을 때만. rollback 후 migration20/계정0/신원0/동의0, mount `[]`·data tmpfs만·외부 포트0/internal PG1 확인. 정확 컨테이너/network 제거 후 동명 container/network/volume0. 실제 기기 등록 영속화·Provider 발송·공유 DB/Oracle은 불변/미검증이다.
 
 ## S5.3 임대 만료 복구 진행 — 2026-10-08
 
