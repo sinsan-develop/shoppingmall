@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.3 주문·결제 원사건 알림 연결 검증 및 임시 자원 정리 — 2026-10-08
+
+- **담당·상태:** 어울 단일 writer, `codex/s52-customer-support` 작업 브랜치. 주문 생성 시 `order_submitted`, 검증된 첫 결제 승인·거절 적용 시 각각 `payment_approved`·`payment_declined`를 기존 내부 알림 작업으로 연결했다. 새 공개 API/schema, 실 공급자 전송, 공유 DB 시험 데이터는 없다. S5.3 전체 완료 또는 인수 승인으로 판정하지 않는다.
+- **격리 실제 DB 검증:** WSL-server 전용 tmpfs PostgreSQL 15 `shoppingmall-s53-payment-1008-pg`/전용 network와 migration20에서 새 주문 훅 1/1, 새 결제 훅 1/1, 기존 결제 처리 1/1, 주문 제출 3/3, 출고 주문 4/4, 주문 만료 1/1, 출고 결제 9/9 모두 pass/skip0. 실패 경로와 동일 idempotency 재시도, 원사건 ID, 중복 거절 사건의 알림 비증가를 확인했다. 기존 QA 정리는 해당 시험이 소유한 주문·결제 사건 UUID, 고객 ID의 QUEUED·시도0 작업만 삭제하도록 좁게 보정했다. 같은 FK 정리 오류가 3회 이상 이어져 어울 main이 공통 정리 지점을 직접 수정했고 제품 훅이나 공용 QA reset을 약화하지 않았다.
+- **로컬 gate:** `pnpm test` 519 total/375 pass/144 계획 환경 skip/0 fail, PR 본문 검사 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build` 모두 exit0. 144 skip은 실제 DB·브라우저·외부 Provider 검증으로 간주하지 않는다. 전체 DB suite, 공유 WSL E2E, 실제 발송·수신, Oracle staging, 사용자 인수는 미검증이다.
+- **QA 자원 정리:** 전용 DB의 accounts·checkout_orders·notification_jobs·notification_attempts·payment_events·sellers·seller_categories 각각 0행, mount `[]`, PG data tmpfs, 포트 binding 없음, 전용 network에 해당 PG 한 개만 연결된 상태를 확인했다. 정확한 `shoppingmall-s53-payment-1008-pg` 컨테이너와 `shoppingmall-s53-payment-1008-net`만 중지·제거했고 동명 container/network/volume 잔류0. 공유 `local-postgres`는 변경하지 않았다.
+- **다음 조치:** 기존 S5.3 계약 내 배송·재입고 원사건 알림 연결과 격리 DB 회귀, 작업 상태·실패 처리 검증을 진행한다. 실 연동 계정/비용, 새로운 계약·schema·공유 데이터 변경은 별도 승인 경계로 유지한다.
+
 ## S5.3 결제 승인·거절 알림 연결 — 2026-10-08
 
 - **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support@65f0eac5066edd533ec7ea836757f116ed1bc462`. 승인된 S5.3 내부 알림 계약의 결제 승인/거절 원사건만 연결한다. 검증된 결제 사건이 실제 `APPLIED`로 처음 처리될 때 원사건 UUID의 작업을 같은 트랜잭션에서 등록하고, 재처리·중복 거절·`REVIEW_REQUIRED`는 새 알림을 만들지 않는 것이 목표다. 외부 PG·실 발송·새 공개 API/schema·공유 DB 시험자료는 제외한다.
