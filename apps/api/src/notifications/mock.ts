@@ -15,7 +15,8 @@ export function resolveMockNotificationMode(env: MockEnv): 'disabled' | 'mock' {
   throw new Error('Notification mode unavailable');
 }
 
-/** Explicit QA invocation only: no provider call, contact lookup or automatic scheduler. */
+/** Explicit QA invocation only; caller owns one transaction across claim and completion.
+ * No provider call, contact lookup or automatic scheduler. */
 export async function runMockNotificationOnce(client: PoolClient,now: Date,
   env: MockEnv,outcome: MockOutcome = 'success'): Promise<{ processed:boolean }> {
   if (resolveMockNotificationMode(env) === 'disabled') return { processed:false };
@@ -27,6 +28,12 @@ export async function runMockNotificationOnce(client: PoolClient,now: Date,
   let selected = outcome;
   let restockFailureCode: string | null = null;
   if (claim.kind === 'restock_available') {
+    // Take the product decision lock in its own statement. A combined eligibility
+    // SELECT can keep a snapshot taken before waiting for a concurrent stock edit.
+    await client.query(
+      `SELECT p.id FROM restock_subscriptions s JOIN products p ON p.id=s.product_id
+       WHERE s.id=$1 AND s.account_id=$2 FOR SHARE OF p`,
+      [claim.restockSubscriptionId,claim.accountId]);
     const current = await client.query<{ status:string; available:boolean }>(
       `SELECT s.status,EXISTS (
          SELECT 1 FROM product_publications pub
@@ -37,8 +44,8 @@ export async function runMockNotificationOnce(client: PoolClient,now: Date,
            (SELECT 1 FROM product_sale_stop_requests stop
             WHERE stop.product_id=s.product_id AND stop.status='approved')
        ) AS available
-       FROM restock_subscriptions s JOIN products p ON p.id=s.product_id
-       WHERE s.id=$1 AND s.account_id=$2 FOR SHARE OF p,s`,
+       FROM restock_subscriptions s
+       WHERE s.id=$1 AND s.account_id=$2 FOR SHARE OF s`,
       [claim.restockSubscriptionId,claim.accountId]);
     if (current.rows[0]?.status !== 'active') restockFailureCode = 'SUBSCRIPTION_INACTIVE';
     else if (!current.rows[0].available) restockFailureCode = 'RESTOCK_UNAVAILABLE';

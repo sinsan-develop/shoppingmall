@@ -4,6 +4,7 @@
 
 - **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support` worktree. 기존 재입고 작업을 mock 처리하는 중 상품 행 잠금을 기다리게 하고, 다른 거래가 상품 재고를 0으로 확정한 뒤 발송 측이 최신 상태를 재조회해 `RESTOCK_UNAVAILABLE`로 닫는지 실 PostgreSQL 경합을 검증한다. 실패 시 테스트가 드러낸 동일 내부 경계만 보정한다. 새 공개 API/schema·공유 DB·실 채널은 변경하지 않는다.
 - **격리 QA 자원 사전 등록:** WSL-server의 정확 이름 internal network `shoppingmall-s53-restock-race-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-race-1008-pg` 안 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-race-1008-node`만 쓴다. 외부 포트·영속 volume 없음. 동명0→migration20/system ID→RED/GREEN·회귀→QA 소유 행0→정확 자원 제거·잔류0. 실패 시 공유 DB로 우회하지 않는다.
+- **실 DB RED·원인·최소 보정:** test commit `2f3b1041b757d2ff865dd4d4776e9cd7ae09c7a6`를 WSL checkout 동일 SHA로 맞춘 전용 DB `shoppingmall` system ID `7694052613181521963`, migration20에서 worker가 상품 lock 대기 중 다른 거래가 재고 0을 확정하자 mock 작업이 잘못 `SENT`/신청 `notified`가 되는 RED 1 fail/0 skip을 확인했다. 실패 후 accounts/products/subscriptions/jobs/attempts/stock requests 각0. 같은 SELECT 안에서 상품 잠금과 판매 가능 판정을 함께 하면 잠금 대기 전 snapshot으로 재고를 읽는 것이 원인이다. 상품 행 `FOR SHARE` 잠금을 독립 쿼리로 먼저 획득하고, 다음 쿼리의 새 snapshot에서 신청·공개 옵션·재고를 판정하도록 내부 mock만 최소 수정했다. 실제 GREEN/전체 회귀 전까지 제품 PASS가 아니다.
 
 ## S5.4 공개 읽기 API 승인 경계 PMO 보고 — 2026-10-08
 
