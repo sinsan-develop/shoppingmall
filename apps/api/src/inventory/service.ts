@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import { canAccess, type AccessContext } from '../access.js';
 import { approveStockIncrease, planStockEntry } from './stock-policy.js';
+import { queueNotificationEvent } from '../notifications/event-queue.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -146,11 +147,14 @@ export class InventoryService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const target = await client.query<{ option_id: string }>(
-        'SELECT option_id FROM stock_change_requests WHERE id=$1', [requestId],
+      const target = await client.query<{ option_id: string; product_id: string; option_name: string }>(
+        `SELECT q.option_id,r.product_id,o.name AS option_name
+         FROM stock_change_requests q JOIN product_options o ON o.id=q.option_id
+         JOIN product_revisions r ON r.id=o.revision_id WHERE q.id=$1`, [requestId],
       );
       if (!target.rows[0]) throw new Error('Pending stock request required');
-      const optionId = target.rows[0].option_id;
+      const { option_id: optionId, product_id: productId, option_name: optionName } = target.rows[0];
+      await client.query('SELECT id FROM products WHERE id=$1 FOR SHARE', [productId]);
       await client.query('SELECT 1 FROM product_options WHERE id=$1 FOR UPDATE', [optionId]);
       const stock = await client.query<{ on_hand_quantity: number; sellable_quantity: number }>(
         'SELECT on_hand_quantity,sellable_quantity FROM inventory_levels WHERE option_id=$1 FOR UPDATE', [optionId],
@@ -174,6 +178,31 @@ export class InventoryService {
          VALUES ($1,'admin','inventory.increase_approve','stock_change_request',$2)`,
         [actor.accountId, requestId],
       );
+      if (stock.rows[0].sellable_quantity === 0 && approved.sellable > 0) {
+        const publicOption = await client.query(
+          `SELECT 1 FROM product_publications pub
+           JOIN product_revisions r ON r.id=pub.revision_id AND r.status='approved'
+           JOIN product_options o ON o.revision_id=r.id
+           WHERE pub.product_id=$1 AND o.id=$2 AND NOT EXISTS
+             (SELECT 1 FROM product_sale_stop_requests stop
+              WHERE stop.product_id=$1 AND stop.status='approved')`,
+          [productId, optionId],
+        );
+        if (publicOption.rowCount) {
+          const requests = await client.query<{ id: string; account_id: string }>(
+            `SELECT id,account_id FROM restock_subscriptions
+             WHERE product_id=$1 AND option_name=$2 AND status='active'
+             ORDER BY id FOR UPDATE`, [productId, optionName],
+          );
+          for (const request of requests.rows) {
+            await queueNotificationEvent(client, {
+              kind: 'restock_available', sourceEventId: requestId,
+              accountId: request.account_id, subscriptionId: request.id,
+              subscriptionStatus: 'active', becameSellable: true,
+            });
+          }
+        }
+      }
       await client.query('COMMIT');
       return approved;
     } catch (error) {
