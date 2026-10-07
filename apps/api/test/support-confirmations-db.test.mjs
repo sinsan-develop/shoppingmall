@@ -251,6 +251,7 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
        const statusPath = `${path}/${httpShipment.shipmentId}/${option}`;
        const statusRequest = (actor) => fetch(base + statusPath,
          { headers: { cookie: cookies.get(actor) } });
+       assert.equal((await fetch(base + statusPath)).status, 401);
        assert.equal((await statusRequest(customer)).status, 404);
       assert.equal((await request(customer, body, key, 'http://evil.invalid')).status, 403);
       assert.equal((await request(fulfillmentAccount, body)).status, 403);
@@ -263,6 +264,7 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
        assert.equal((await statusRequest(fulfillmentAccount)).status, 403);
        const statusBeforeReview = await statusRequest(customer);
        assert.equal(statusBeforeReview.status, 200);
+       assert.equal(statusBeforeReview.headers.get('cache-control'), 'private, no-store');
        assert.deepEqual(await statusBeforeReview.json(), {
          id: httpConfirmation.id,reviewId: null,reviewStatus: null });
       assert.equal((await (await request(customer, body)).json()).id, httpConfirmation.id);

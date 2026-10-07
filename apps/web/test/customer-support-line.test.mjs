@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CustomerSupportLine } from '../app/account/customer/support-line.tsx';
+import { canEditReview, CustomerSupportLine } from '../app/account/customer/support-line.tsx';
 
 const line = { productId: 'product-a',optionId: 'option-a',productName: '가상 고추',
   optionName: '기본',quantity: 2,remainingQuantity: 2 };
@@ -34,4 +34,13 @@ test('customer order page mounts purchase confirmation beside existing claim flo
   assert.match(source,/import \{ CustomerSupportLine \} from '\.\/support-line'/);
   assert.match(source,/<CustomerSupportLine\b/);
   assert.match(source,/<CustomerClaimLine\b/);
+});
+
+test('existing review editor waits for matching detail instead of submitting empty content', () => {
+  const pending = { id: 'confirmation-a',reviewId: 'review-a',reviewStatus: 'PENDING' };
+  assert.equal(canEditReview(pending,undefined),false);
+  assert.equal(canEditReview(pending,{ id: 'review-b',rating: 5,body: 'old',status: 'PENDING' }),false);
+  assert.equal(canEditReview(pending,{ id: 'review-a',rating: 5,body: 'loaded',status: 'PENDING' }),true);
+  assert.equal(canEditReview({ ...pending,reviewId: null },undefined),true);
+  assert.equal(canEditReview(null,undefined),false);
 });
