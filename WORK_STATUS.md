@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.2 리뷰 사진 실제 Chrome 검증·상태 한글화 — 2026-10-07
+
+- **담당·exact SHA:** 어울 단일 writer, `b3d79e6327814254ae2aee400a71ce29c78b5e8d`를 SSH alias push→WSL 지정 checkout ff-only pull/clean. 전용 PG15 tmpfs DB `shoppingmall_s52_support_ui_a52c1007` system ID `7693891135924412455`에 migration19·signed 가상 계정5/판매자2를 seed하고 source read-only API/Web 빌드(22 route)/서비스 `/ready` DB ok·웹200·관리자 비로그인401을 확인했다. 실공유 `local-postgres/shoppingmall`은 미접속/불변이다.
+- **실제 브라우저 r3:** Windows 전용 Chrome CDP에서 `QA_REVIEW_IMAGE=1`로 고객 수동 구매확정→리뷰 작성→PNG 파일 입력→기존 scoped API 저장→비공개 미리보기200·타 고객404→관리자 비공개 이미지 목록 표시 **PASS**. 같은 흐름의 Q&A·클레임 증빙·모의 환불, 1920/1440/430 폭·키보드도 PASS. 430px 사진 등록 화면 캡처를 육안 확인했다. ClamAV 미준비이므로 이미지 리뷰 공개/검사 PASS는 주장하지 않는다; 텍스트 리뷰 공개·신고·숨김은 앞선 r1/r2 결과다.
+- **정리·잔류:** signed reset exit0으로 계정5·판매자2·상품1·주문1·발송1 제거. accounts/checkout_orders/support_claims/support_review_images/support_claim_evidence/audit_events 각0, recovery0, upload root0. 생성물 root에는 `api-dist`,`web-next`만 남음을 확인하고 전용 PG/API/Web/container/network/root만 삭제해 잔류0. Windows Chrome PID7800과 하위 프로세스의 정확 프로필 명령행, evidence 15개 PNG allowlist·reparse0 확인 후 전용 프로필/캡처 삭제해 잔류0. 공유 DB·타 프로세스는 건드리지 않았다. 캡처 파일은 계획대로 정리했고 결과 로그·이 현황으로 범위를 기록한다.
+- **발견·보정:** 430px 실제 화면의 리뷰 상태가 내부 코드 `PENDING`으로 보였다. 한국어 UX 요구에 따라 표시 전용 `reviewStatusLabel`(미작성/검토 대기/공개됨/숨김/상태 확인 중) RED→GREEN 표적6/6으로 보정했다. 최신 로컬 `pnpm test` **477 total/343 pass/134 계획 skip/0 fail**·PR본문8/8, typecheck/lint/build exit0(웹22 route), diff check exit0. 제품 코드 변경이므로 이 최신 표시의 실제 브라우저 재검은 아직 하지 않았다. 공식 공유 DB E2E·ClamAV·Oracle/UAT도 미검증으로 남긴다.
+
 ## S5.2 구매자 리뷰 사진 입력 누락 보정 — 2026-10-07
 
 - **담당·근거:** 어울 단일 writer, `f4aaa183157e145fc1e908b7703e750abf10bd0e`/clean 기준. 승인된 S5.2의 구매확정 리뷰·이미지 범위를 대조하니 API `POST /customer/support/reviews/:reviewId/images`, 비공개 미리보기·관리자 이미지 검사는 있고 고객 리뷰 폼에는 사진 입력이 없었다. 새 공개 API/schema 없이 기존 endpoint로 연결한다. 공유 개발 DB에는 쓰지 않는다.

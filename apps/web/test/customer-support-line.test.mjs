@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { canEditReview,createReviewImageUploadKeys,CustomerSupportLine } from
+import { canEditReview,createReviewImageUploadKeys,reviewStatusLabel,CustomerSupportLine } from
   '../app/account/customer/support-line.tsx';
 
 const line = { productId: 'product-a',optionId: 'option-a',productName: '가상 고추',
@@ -55,6 +55,14 @@ test('review image upload reuses its idempotency key only for the same review an
   assert.equal(keys.forFile('review-a',{ ...file }),'key-1');
   assert.equal(keys.forFile('review-b',file),'key-2');
   assert.equal(keys.forFile('review-a',{ ...file,size:45 }),'key-3');
+});
+
+test('customer review status uses Korean labels rather than database enums', () => {
+  assert.equal(reviewStatusLabel(null),'미작성');
+  assert.equal(reviewStatusLabel('PENDING'),'검토 대기');
+  assert.equal(reviewStatusLabel('APPROVED'),'공개됨');
+  assert.equal(reviewStatusLabel('HIDDEN'),'숨김');
+  assert.equal(reviewStatusLabel('UNKNOWN'),'상태 확인 중');
 });
 
 test('customer review form offers an image upload through the existing scoped API', () => {

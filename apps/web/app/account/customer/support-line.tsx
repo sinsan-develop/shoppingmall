@@ -6,6 +6,15 @@ type Line = { productId: string; optionId: string; productName: string;
   optionName: string; quantity: number; remainingQuantity: number };
 type Confirmation = { id: string; reviewId: string | null; reviewStatus: string | null };
 type Review = { id: string; rating: number; body: string; status: string };
+export function reviewStatusLabel(status: string | null) {
+  switch (status) {
+    case null: return '미작성';
+    case 'PENDING': return '검토 대기';
+    case 'APPROVED': return '공개됨';
+    case 'HIDDEN': return '숨김';
+    default: return '상태 확인 중';
+  }
+}
 type ReviewImageFile = Pick<File,'name' | 'type' | 'size' | 'lastModified'>;
 export function createReviewImageUploadKeys(nextKey: () => string) {
   const keys = new Map<string,string>();
@@ -171,7 +180,7 @@ export function CustomerSupportLine({ orderId,shipmentOrderId,status,line }: {
     {loadFailed ? <button type="button" className="secondary-button"
       onClick={() => { setMessage(''); setConfirmationReload((value) => value + 1); }}>
       구매확정 상태 다시 조회</button> : null}
-    {confirmation ? <p>구매확정됨 · 리뷰 {confirmation.reviewStatus ?? '미작성'}</p> :
+    {confirmation ? <p>구매확정됨 · 리뷰 {reviewStatusLabel(confirmation.reviewStatus)}</p> :
       <button type="button" className="secondary-button"
         disabled={loading || loadFailed || busy || !apiOrigin}
         onClick={confirm}>구매확정</button>}
