@@ -2,9 +2,12 @@
 
 ## S5.3 거래성 알림·재입고 대상 기준 승인 — 2026-10-07
 
+- **내부 판정 RED→GREEN:** 승인된 대상 기준만 다루는 `apps/api/src/notifications/intent.ts`와 표적 시험 `apps/api/test/notification-intent.test.mjs`를 추가했다. 최초 시험은 모듈 부재 1회, 불변 null stub에서 기대 동작 차이 3 RED를 확인한 뒤 거래성 주문/결제/배송 사건의 안정 중복 키·비PII 표현, 활성 재입고 신청과 0→판매 가능 전이 조건, 잘못된 사건/UUID 거부를 3/3 GREEN으로 구현했다. 새 코드 경로는 아직 DB/발송에 연결하지 않았으며 외부 발송·공개 API/schema 변경0.
+- **로컬 검증:** `DATABASE_URL`을 제거한 전체 `pnpm test` 480 total/346 pass/134 계획 DB·환경 skip/0 fail, PR 본문8/8, `pnpm build` API TypeScript·Next 22 route, `pnpm typecheck`·`pnpm lint` 모두 exit0. 환경 skip은 DB/실 채널 PASS가 아니다. 다음은 채널 우선순위 답변 뒤 영속 작업 schema/migration·필요 API 변경의 정확한 별도 승인 경계를 제시하는 것이다.
+- **WSL 표적 자원 사전 등록:** 이번 내부 판정 커밋을 SSH 별칭 원격 push→WSL 지정 checkout `/home/daon/deploy/shopping`에 ff-only로 맞춘 뒤 이름 `shoppingmall-s53-intent-1007-verify`의 Node24 일회용 컨테이너를 사용한다. `--network none`, source `/app:ro`, `--read-only`, `/tmp` tmpfs, `--rm`이며 DB/정식 컨테이너/새 volume·폴더를 만들지 않는다. 단일 표적 시험 실행 후 정확 이름 컨테이너0·checkout clean/exact SHA를 확인한다. 이는 정식 DB E2E나 알림 발송 검증이 아니다.
 - **담당·결정:** 어울 단일 writer. 신산님이 주문·결제·배송 진행 안내는 마케팅 수신 동의와 분리하고, 재입고 안내는 해당 상품에 직접 신청한 고객에게만 보내는 기준을 승인했다. 실제 문자·메일·푸시 발송은 U3 인수 준비 전까지 모의 전송으로 구분한다.
 - **현재 확인:** `notification_preferences`의 marketingEmail/marketingSms/push는 기존 사용자 설정이고, `restock_subscriptions`의 active/cancelled/notified는 기존 신청 상태다. 원사건의 실제 트랜잭션 경로는 주문 제출, 결제 승인 적용, 출고/배송 이력, 판매 가능 재고 0→양수 전이에 각각 있다. 중복 발송을 막으려면 원사건 ID·고객·알림 종류를 묶어 불변 작업으로 기록하고 성공 전까지 재입고 신청을 임의로 notified 처리하지 않아야 한다.
-- **남은 정확한 결정·경계:** 확인된 이메일/휴대전화/앱 푸시의 채널 우선순위·실패 대체 규칙을 한 질문으로 확인 중이다. 신규 `notification_jobs`/`notification_attempts` 등 영속 schema·migration 및 새 공개 API가 필요하면 대상·영향·복구를 별도로 제시해 직접 승인받는다. 그 전에는 제품 코드·공유 DB·실 공급자를 변경하지 않으며, S5.4 읽기 전용 조사와 앞선 S5.2 결과는 독립 기록으로 유지한다.
+- **남은 정확한 결정·경계:** 확인된 이메일/휴대전화/앱 푸시의 채널 우선순위·실패 대체 규칙을 한 질문으로 확인 중이다. 신규 `notification_jobs`/`notification_attempts` 등 영속 schema·migration 및 새 공개 API가 필요하면 대상·영향·복구를 별도로 제시해 직접 승인받는다. 그 전에는 승인된 내부 판정 범위 밖의 영속화·공유 DB·실 공급자 연결을 하지 않으며, S5.4 읽기 전용 조사와 앞선 S5.2 결과는 독립 기록으로 유지한다.
 
 ## S5.4 관리자 관제 선행 읽기 전용 조사 — 2026-10-07
 
