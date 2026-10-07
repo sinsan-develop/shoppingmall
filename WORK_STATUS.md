@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## S5.3 발송 채널 우선순위 확정 — 2026-10-07
+
+- **결정·담당:** 신산님이 거래 안내는 검증된 이메일 우선, 이메일이 없으면 검증된 휴대전화 SMS, 앱 푸시는 고객 동의·기기 등록이 있을 때만 사용하며, 전달 실패 시 앱 안의 주문 상태를 최종 확인 경로로 두는 권장안을 직접 승인했다. 재입고 안내는 앞서 승인한 대로 해당 옵션의 활성 신청자에게만 보낸다. 개발 단계는 mock, 실제 SMS·메일·푸시 수신은 U3 검증으로 분리한다.
+- **경계:** 현재 `notification_preferences`는 마케팅 이메일/SMS와 푸시 동의만 저장하고, `account_identities`에는 각 이메일·전화번호의 `verified_at`이 있다. 영속 알림 작업·시도 이력과 앱 기기 등록 저장소는 아직 없다. 새 schema/migration·공개 API 및 공유 DB 적용은 별도 승인 전 변경하지 않는다.
+- **진단:** 읽기 전용 `git status`가 기본 샌드박스에서 작업트리 오류를 냈으나 D: 경로의 승인된 접근으로 동일 linked worktree의 clean 상태를 확인했다. 저장소 손상이나 소스 변경은 없으며 동일 원인 재시도 오류 1회로 기록한다. 루트 checkout에 보이는 별도 미추적 파일은 이번 작업 범위 밖이므로 보존한다.
+- **내부 채널 판정 RED→GREEN:** `apps/api/test/notification-channels.test.mjs`를 먼저 추가해 모듈 부재 1회, 불변 반환 stub의 실제 기대값 차이 4 RED를 확인했다. `apps/api/src/notifications/channels.ts`에서 검증 이메일→검증 전화 SMS, 동의+기기 등록 시에만 보조 푸시, 둘 다 없으면 발송 채널 없음과 잘못된 자격 거부를 구현해 4/4 GREEN. 마케팅 동의는 거래성/신청 재입고 알림을 차단하지 않는다. 실제 발송·DB/API 연결 없음.
+- **현재 검증:** 로컬 전체 `pnpm test` 487 total/353 pass/134 계획 DB·환경 skip/0 fail, PR 본문 시험 8/8, `pnpm build` API·Next 22 route, `pnpm typecheck`, `pnpm lint` exit0. 134 skip 및 단위시험은 DB·실 발송 증거가 아니다.
+- **WSL 표적 자원 사전 등록:** 안전한 commit을 SSH 별칭 원격에 push한 뒤 지정 checkout `/home/daon/deploy/shopping`을 ff-only 동일 SHA로 맞추고 `shoppingmall-s53-channels-1007-verify`라는 Node24 일회용 컨테이너만 사용한다. `--network none`, 소스 read-only, 컨테이너 read-only, `/tmp` tmpfs, `--rm`; 정식 서비스·공유 DB·신규 volume 없음. 표적 시험 후 정확 SHA/clean 및 동일 이름 컨테이너0을 확인한다.
+- **미검증·다음:** 이메일 가입 계정은 현재 `verified_at`이 비어 있어 로그인만으로 검증 이메일로 간주하지 않는다. 이메일 검증 절차와 앱 기기 등록은 인증/API·데이터 경계 검토가 더 필요하다. `notification_jobs`/`notification_attempts` migration 0019 제안의 직접 승인을 묻는 중이며, 전에는 영속화하지 않는다.
+
 ## S5.3 알림 재시도 내부 규칙 — 2026-10-07
 
 - **상태·담당:** 어울 단일 writer. 채널 우선순위 답변 전에도 독립적으로 검증 가능한 순수 내부 규칙만 구현했다. 알림 DB 작업·실제 발송·공개 API·schema/migration 변경은 하지 않았다.
@@ -7,7 +17,7 @@
 - **로컬 검증:** 전체 `pnpm test` 483 total/349 pass/134 계획 DB·환경 skip/0 fail, PR 본문 시험 8/8, `pnpm build` API·Next 22 route, `pnpm typecheck`, `pnpm lint` 모두 exit0. 134 skip은 DB·외부 채널 통과가 아니다.
 - **WSL 표적 자원 사전 등록:** 코드·시험·현황을 SSH 별칭 원격에 push하고 `/home/daon/deploy/shopping`에 ff-only로 맞춘 뒤 이름 `shoppingmall-s53-retry-1007-verify`의 Node24 일회용 컨테이너로 표적 시험을 한다. 네트워크 없음, source read-only, 컨테이너 read-only, 임시 `/tmp`, `--rm`이며 DB·기존 서비스·새 volume을 건드리지 않는다. 끝나면 정확 SHA/clean 및 동일 이름 컨테이너0을 확인한다.
 - **WSL 표적 결과:** SSH 별칭 원격과 지정 checkout을 commit `48e674ff3551da2dd73fdfb8b8f6779fb668cd11`로 fast-forward해 동일한 단위시험 3/3 pass/0 fail을 확인했다. 사후 checkout clean, 정확 이름 컨테이너0이며 공유 DB·외부 서비스는 건드리지 않았다. 이는 알림 전달/DB E2E 증거가 아니다.
-- **다음 경계:** 채널 우선순위·대체 방식은 신산님에게 한 질문으로 확인 중이다. 이후 새 영속 schema/migration·공개 API가 필요하면 영향·복구를 별도로 제시해 직접 승인을 받는다.
+- **다음 경계:** 채널 우선순위·대체 방식은 신산님이 이메일→SMS, 동의·기기 등록 시 푸시, 앱 내 상태 최종 확인으로 확정했다. 새 영속 schema/migration·공개 API는 영향·복구를 별도로 제시해 직접 승인을 받는다.
 
 ## S5.3 거래성 알림·재입고 대상 기준 승인 — 2026-10-07
 
@@ -17,7 +27,7 @@
 - **WSL 표적 결과:** 내부 판정 commit `257b47cd32d9ffb04561a87ed7209bae21ddc0a8`를 SSH 원격/WSL 지정 checkout 동일·clean으로 맞춰 위 단일 일회용 컨테이너의 표적 3/3 pass/0 fail/skip을 확인했다. `--rm` 뒤 동일 이름 컨테이너0·checkout clean. 공유 DB·외부 채널·Oracle 불변이며 DB 작업·전달 성공은 아직 증명하지 않는다.
 - **담당·결정:** 어울 단일 writer. 신산님이 주문·결제·배송 진행 안내는 마케팅 수신 동의와 분리하고, 재입고 안내는 해당 상품에 직접 신청한 고객에게만 보내는 기준을 승인했다. 실제 문자·메일·푸시 발송은 U3 인수 준비 전까지 모의 전송으로 구분한다.
 - **현재 확인:** `notification_preferences`의 marketingEmail/marketingSms/push는 기존 사용자 설정이고, `restock_subscriptions`의 active/cancelled/notified는 기존 신청 상태다. 원사건의 실제 트랜잭션 경로는 주문 제출, 결제 승인 적용, 출고/배송 이력, 판매 가능 재고 0→양수 전이에 각각 있다. 중복 발송을 막으려면 원사건 ID·고객·알림 종류를 묶어 불변 작업으로 기록하고 성공 전까지 재입고 신청을 임의로 notified 처리하지 않아야 한다.
-- **남은 정확한 결정·경계:** 확인된 이메일/휴대전화/앱 푸시의 채널 우선순위·실패 대체 규칙을 한 질문으로 확인 중이다. 신규 `notification_jobs`/`notification_attempts` 등 영속 schema·migration 및 새 공개 API가 필요하면 대상·영향·복구를 별도로 제시해 직접 승인받는다. 그 전에는 승인된 내부 판정 범위 밖의 영속화·공유 DB·실 공급자 연결을 하지 않으며, S5.4 읽기 전용 조사와 앞선 S5.2 결과는 독립 기록으로 유지한다.
+- **남은 정확한 경계:** 채널 우선순위·대체 규칙은 상단 결정으로 확정했다. 신규 `notification_jobs`/`notification_attempts` 등 영속 schema·migration 및 새 공개 API가 필요하면 대상·영향·복구를 별도로 제시해 직접 승인받는다. 그 전에는 승인된 내부 판정 범위 밖의 영속화·공유 DB·실 공급자 연결을 하지 않으며, S5.4 읽기 전용 조사와 앞선 S5.2 결과는 독립 기록으로 유지한다.
 
 ## S5.4 관리자 관제 선행 읽기 전용 조사 — 2026-10-07
 
