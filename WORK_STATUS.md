@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.3 재입고 원사건 알림 연결 진행 — 2026-10-08
+
+- **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support`. 승인된 S5.3 내부 계약에서 관리자 재고 증가 승인 `stock_change_requests.id`를 원사건으로 한 활성 재입고 신청 알림을 연결한다. 판매자 입력 대기·0→0·기존 양수→더 큰 양수·미공개/판매중지·취소 신청은 작업을 만들지 않고, 승인 0→양수+현재 공개 승인 옵션에서만 신청자별 기존 `restock_available` 작업을 같은 DB 트랜잭션에 등록한다. 새 공개 API/schema, 실 발송, 공유 DB 자료는 제외한다.
+- **격리 QA 자원 사전 등록:** WSL-server 전용 internal network `shoppingmall-s53-restock-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-1008-pg`의 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-1008-node`만 사용한다. 외부 포트·영속 volume 없음. 생성 전 동명0→migration20/system ID→실 서비스 RED/GREEN/기존 재고 회귀→소유 QA 행0→정확 container/network/volume 제거·잔류0. 실패하면 공유 DB를 우회 사용하지 않고 전용 자원을 확인·정리한다.
+- **설계 판단:** 재입고 신청은 승인 당시의 공개 옵션 이름에 묶이므로 상품/옵션명과 판매중지 상태를 다시 확인한다. 기존 신청 저장은 상품 lock→옵션 lock 순서이므로 승인도 같은 순서로 잠가 중지 결정/신청과 교착이나 잘못된 알림이 없도록 한다. 잘못 판단하면 중지 상품 안내 또는 누락 알림이 생길 수 있어 실제 DB 경합 시험과 mock 발송 직전 상태 검증이 추가로 필요하다.
+
 ## S5.3 배송 원사건 알림 연결 진행 — 2026-10-08
 
 - **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support` linked worktree. 승인된 S5.3 내부 알림 계약 안에서 판매자 담당 발송의 실제 상태 전이와 관리자 사유 있는 정정 사건을 `shipment_updated`로 연결한다. 알림의 `source_event_id`는 저장된 `shipment_fulfillment_events.id`, 수신 계정은 원주문 고객이다. 고객 연락처 원문·실 발송·새 공개 API/schema·공유 DB 자료는 제외한다. 같은 idempotency 키 재호출은 알림을 늘리지 않고, 거부/실패된 전이는 작업을 남기지 않아야 한다.
