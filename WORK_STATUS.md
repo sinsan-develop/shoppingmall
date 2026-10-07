@@ -7,6 +7,8 @@
 - **RED→GREEN:** 계획 시험은 모듈 부재 RED 후 3/3 GREEN, 등록 시험은 export 부재 RED 후 3/3 GREEN, 기존 의도 시험 포함 표적 9/9 pass. API `pnpm typecheck` exit0, `git diff --check` exit0. 실제 PostgreSQL 등록/중복·작업 임대·재시도·원사건 트랜잭션 연결은 아직 미검증·미구현이다.
 - **다음:** 전체 회귀와 빌드·lint를 실행해 이 내부 절편을 안전한 commit/SSH alias 원격에 보존한다. 이후 격리 DB 실제 등록과 임대·재시도, 주문/결제/배송/재고 원사건 연결을 계획 순서로 진행한다. 공유 DB·실 채널은 별도 승인 경계다.
 - **전체 로컬 gate:** `pnpm test` 495 total/359 pass/136 계획 환경 skip/0 fail, PR 본문 검증 8/8 pass. `pnpm build` API와 Next 22 route exit0, `pnpm typecheck` 전 패키지 exit0, `pnpm lint` exit0. 136 skip은 실제 DB·Provider·브라우저·공유 배포 PASS가 아니다.
+- **원격 checkpoint:** 내부 절편 `e5fd3ddddef10840000890260272e7d6ba1deaef`를 SSH alias 원격 `codex/s52-customer-support`에 push하고 WSL 지정 checkout `/home/daon/deploy/shopping`을 ff-only 동일 SHA/clean으로 맞췄다. PR/병합은 S5 Stage 미완료로 수행하지 않았다.
+- **격리 DB 시험 자원 사전 등록:** 다음 등록 SQL 통합 시험은 WSL-server의 새 internal network `shoppingmall-s53-queue-1008-net`, tmpfs PG15 `shoppingmall-s53-queue-1008-pg` 안의 `shoppingmall_s53_queue_1008`, 일회용 Node24 runner `shoppingmall-s53-queue-1008-node`만 사용한다. 외부 포트·영속 volume·Windows 소스 복사 없음; 지정 checkout source는 read-only mount다. 생성 전 동명 자원 부재, 대상 DB system ID와 migration20, 완료 뒤 자료 rollback/행0 및 정확 자원 제거/잔류0을 확인한다. 실패 시 임의 삭제하지 않고 상태를 보고한다. 공유 `local-postgres/shoppingmall`은 접속하지 않는다.
 
 ## S5.3 알림 작업·시도 이력 migration 0019 승인 — 2026-10-08
 
