@@ -4,6 +4,8 @@
 
 - **담당·범위:** 어울 단일 writer, 기존 S5.3 내부 mock 경로. 승인 때 생성한 재입고 작업을 처리하기 전 신청이 여전히 활성인지뿐 아니라 상품이 현재 공개·승인 상태이고 같은 옵션명이 실제 양수 판매 가능 재고를 갖고 판매중지가 아닌지도 확인한다. 뒤늦은 판매중지·품절·옵션 교체를 성공 처리하지 않고 안전한 실패 코드로 기록한다. 새 API/schema·실 채널·공유 DB 변경 없음.
 - **격리 QA 자원 사전 등록:** WSL-server 전용 internal network `shoppingmall-s53-restock-dispatch-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-dispatch-1008-pg`의 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-dispatch-1008-node`만 사용. 외부 포트·영속 volume 없음. 동명 부재→migration20/system ID→실 DB RED/GREEN→소유 QA 자료0→정확 PG/network 제거와 잔류0. 이 mock 결과를 문자·메일·푸시 실제 수신으로 승격하지 않는다.
+- **실 DB RED→GREEN·정리:** `ca878b786063619c355da06bb012fb7e9c334ebb`의 전용 tmpfs PG15 migration20/system ID `7694044807436038182`에서 승인 후 작업을 만들고 판매중지한 뒤 명시적 mock 성공 실행이 잘못 `SENT`/신청 `notified`가 되는 RED를 확인했다. mock 시점에 상품·공개 승인 옵션명·양수 판매 가능 재고·판매중지 여부와 신청 활성 상태를 다시 조회/잠그고, 판매 불가이면 `RESTOCK_UNAVAILABLE` 영구 실패로 닫되 신청은 active 유지하도록 최소 보정했다. `99a4ac2b84271db0377abc52ae1d1cc526dfa51d`에서 표적 1/1 pass/skip0; mock 실행의 테스트 트랜잭션은 rollback했고 accounts/products/subscriptions/jobs/attempts 각0. mount `[]`, PG data tmpfs, 외부 port binding0, internal network 해당 PG1만 확인 후 정확 PG/network 제거·동명 container/network/volume 잔류0. 공유 DB·실 공급자 불변.
+- **로컬 gate·남은 범위:** `pnpm test` 521 total/375 pass/146 계획 환경 skip/0 fail, PR 본문8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build` exit0. 이 표적 시험은 실제 채널 수신·정식 WSL 통합/E2E·Oracle/UAT를 증명하지 않는다. 공급자 실제 발송 어댑터에도 동일한 최신 상품/신청 상태 경계가 필요하며, mock만으로 S5.3 완료를 선언하지 않는다.
 
 ## S5.3 재입고 원사건 알림 연결 진행 — 2026-10-08
 
