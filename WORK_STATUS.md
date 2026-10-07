@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.2 고객 구매확정 브라우저 단언 보강 — 2026-10-07
+
+- **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support` worktree. 독립 읽기 전용 리뷰에서 실제 Chrome 러너가 고객지원 영역의 첫 버튼만 검사해 다른 위치의 중복 구매확정 버튼을 놓칠 수 있다는 Minor 1건을 확인했다. 제품 코드·DB·API·계정·공유 환경은 변경하지 않는다.
+- **변경 전→후·RED→GREEN:** `scripts/qa-support-browser.mjs`의 재조회 후 구매확정 버튼 부재 단언을 `querySelector` 1개에서 `querySelectorAll`의 모든 버튼으로 확대했다. 계약 시험을 먼저 추가해 4 pass/1 fail(기존 러너), 수정 후 5/5 pass. `node --check`·`git diff --check` exit0. 전체 로컬 `pnpm test` 464건/331 pass/133 계획 DB·환경 skip/0 fail, PR 본문 검사 8/8 pass. `pnpm typecheck`·`pnpm lint`·`pnpm build` 순차 exit0. 동일 원인 연속 오류 3회 없음.
+- **증거 경계·다음:** 직전 실제 격리 Chrome PASS는 제품·러너 `dd6909e`에서 실행했고 자원은 모두 정확히 정리했다. 이번 더 엄격한 러너 단언은 로컬 계약 시험으로 검증했으나 실제 Chrome에서 재실행한 것은 아니므로 별도 미검증으로 둔다. 공유 WSL `local-postgres/shoppingmall` migration 0016~0018 적용과 새 관리자 mock 환불 재개 API는 각각 사용자 승인 전이며, Oracle·실 Provider·인수테스트도 미검증이다. Stage PR·병합은 남은 별도 gate 전까지 하지 않는다.
+
 ## S5.2 고객 UI 실제 브라우저 재검 준비 — 2026-10-07
 
 - **실 Chrome 결과·정리:** 승인 SSH origin·WSL 지정 checkout exact `dd6909e303c3f66201ca18def8ad558cd1439547`/clean에서 전용 PG15 `shoppingmall-s52-confirm-ui-1007-pg` system ID `7693770791314153513`, DB `shoppingmall_s52_support_ui_a52c1007`, migration19, 데이터 경로 tmpfs·익명 volume0/PG 공개 `127.0.0.1:15439`만 확인했다. API/Web source read-only·전용 `api-dist`/`web-next`로 Node24 빌드 exit0, WSL `/ready`·웹 `/`와 Windows 루프백 9092/9091 각각 HTTP200. signed 가상 5계정·PAID/SHIPPED 주문1을 seed하고 Windows 별도 Chrome/CDP 9229에서 고객 화면 수동 구매확정→리뷰 작성→페이지 재진입/본인 주문 재조회 시 본문 복원·중복 확정 버튼 없음, 구매 전 문의→상품 seller 답변→admin 공개, 비공개 클레임 증빙·owool seller 타상품 404, mock 환불·텍스트 리뷰 공개/신고/숨김을 실행해 러너 exit0. 1920/1440/430px 가로 넘침·키보드 전수 초점 PASS, 역할별 캡처 12개를 읽기 전용 확인했다. 이는 **격리 실제 Chrome** 근거이며 공유 DB·Oracle·실 Provider/UAT 근거가 아니다.

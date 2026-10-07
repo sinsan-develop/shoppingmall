@@ -250,8 +250,8 @@ try {
   await submit('#pending-order-id');
   await waitFor(`document.querySelector(${JSON.stringify(`#review-text-${fixture.optionId}`)})?.value===
     '가상 구매 확인 리뷰'`,'confirmed review restored after page navigation');
-  assert.equal(await evaluate(`document.querySelector('section[aria-label$="고객지원"] button')
-    ?.textContent?.includes('구매확정')??false`),false);
+  assert.equal(await evaluate(`[...document.querySelectorAll('section[aria-label$="고객지원"] button')]
+    .some((button) => button.textContent?.includes('구매확정'))`),false);
   await waitFor(`document.querySelector(${JSON.stringify(`#claim-reason-${fixture.optionId}`)})`,
     'customer SHIPPED claim form');
   await setInput(`#claim-code-${fixture.optionId}`,'damaged');

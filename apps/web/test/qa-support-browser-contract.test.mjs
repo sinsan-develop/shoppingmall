@@ -62,4 +62,6 @@ test('S5.2 browser drives customer confirmation and review through the account U
   assert.match(source,/click\('section\[aria-label\$="고객지원"\] button'\)/);
   assert.match(source,/#review-text-/);
   assert.doesNotMatch(source,/browserJson\('\/customer\/support\/confirmations',\{\s*method:'POST'/);
+  assert.match(source,/querySelectorAll\('section\[aria-label\$="고객지원"\] button'\)/);
+  assert.match(source,/\.some\(\(button\) => button\.textContent\?\.includes\('구매확정'\)\)/);
 });
