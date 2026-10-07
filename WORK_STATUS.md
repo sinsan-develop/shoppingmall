@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## S5.3 재입고 모의 실행 직전 상태 재확인 진행 — 2026-10-08
+
+- **담당·범위:** 어울 단일 writer, 기존 S5.3 내부 mock 경로. 승인 때 생성한 재입고 작업을 처리하기 전 신청이 여전히 활성인지뿐 아니라 상품이 현재 공개·승인 상태이고 같은 옵션명이 실제 양수 판매 가능 재고를 갖고 판매중지가 아닌지도 확인한다. 뒤늦은 판매중지·품절·옵션 교체를 성공 처리하지 않고 안전한 실패 코드로 기록한다. 새 API/schema·실 채널·공유 DB 변경 없음.
+- **격리 QA 자원 사전 등록:** WSL-server 전용 internal network `shoppingmall-s53-restock-dispatch-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-dispatch-1008-pg`의 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-dispatch-1008-node`만 사용. 외부 포트·영속 volume 없음. 동명 부재→migration20/system ID→실 DB RED/GREEN→소유 QA 자료0→정확 PG/network 제거와 잔류0. 이 mock 결과를 문자·메일·푸시 실제 수신으로 승격하지 않는다.
+
 ## S5.3 재입고 원사건 알림 연결 진행 — 2026-10-08
 
 - **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support`. 승인된 S5.3 내부 계약에서 관리자 재고 증가 승인 `stock_change_requests.id`를 원사건으로 한 활성 재입고 신청 알림을 연결한다. 판매자 입력 대기·0→0·기존 양수→더 큰 양수·미공개/판매중지·취소 신청은 작업을 만들지 않고, 승인 0→양수+현재 공개 승인 옵션에서만 신청자별 기존 `restock_available` 작업을 같은 DB 트랜잭션에 등록한다. 새 공개 API/schema, 실 발송, 공유 DB 자료는 제외한다.

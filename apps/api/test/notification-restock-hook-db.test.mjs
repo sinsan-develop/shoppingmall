@@ -6,6 +6,7 @@ import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaPublicFixture } from '../scripts/qa-public-fixture.ts';
 import { CustomerEngagement } from '../src/customer/engagement.ts';
 import { InventoryService } from '../src/inventory/service.ts';
+import { runMockNotificationOnce } from '../src/notifications/mock.ts';
 import { assertOrderMutationQaTarget } from './order-schema-guard.mjs';
 
 test('only approved zero-to-sellable public stock queues an active restock request once', {
@@ -55,6 +56,29 @@ test('only approved zero-to-sellable public stock queues an active restock reque
     await assert.rejects(() => inventory.approveIncrease(admin, pending.requestId),
       /Pending stock request required/);
     assert.equal((await jobs()).length, 1);
+
+    await pool.query(`INSERT INTO product_sale_stop_requests
+      (product_id,status,reason,requested_by_account_id,decided_by_account_id,decided_at)
+      VALUES ($1,'approved','가상 판매중지',$2,$3,now())`, [productId, sellerId, adminId]);
+    const worker = await pool.connect();
+    try {
+      await worker.query('BEGIN');
+      const now = (await worker.query('SELECT clock_timestamp() AS now')).rows[0].now;
+      assert.deepEqual(await runMockNotificationOnce(worker, new Date(now.getTime() + 1000), {
+        APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
+        NOTIFICATION_MODE: 'mock',
+      }), { processed: true });
+      const result = (await worker.query(`SELECT j.status AS "jobStatus",a.status AS "attemptStatus",
+        a.error_code AS "errorCode",s.status AS "subscriptionStatus"
+        FROM notification_jobs j JOIN notification_attempts a ON a.job_id=j.id
+        JOIN restock_subscriptions s ON s.id=j.restock_subscription_id
+        WHERE j.restock_subscription_id=$1`, [subscriptionId])).rows[0];
+      assert.deepEqual(result, { jobStatus: 'FAILED', attemptStatus: 'PERMANENT_FAILURE',
+        errorCode: 'RESTOCK_UNAVAILABLE', subscriptionStatus: 'active' });
+    } finally {
+      await worker.query('ROLLBACK');
+      worker.release();
+    }
   } finally {
     if (subscriptionId) {
       const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j
