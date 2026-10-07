@@ -8,6 +8,7 @@
 - **내부 채널 판정 RED→GREEN:** `apps/api/test/notification-channels.test.mjs`를 먼저 추가해 모듈 부재 1회, 불변 반환 stub의 실제 기대값 차이 4 RED를 확인했다. `apps/api/src/notifications/channels.ts`에서 검증 이메일→검증 전화 SMS, 동의+기기 등록 시에만 보조 푸시, 둘 다 없으면 발송 채널 없음과 잘못된 자격 거부를 구현해 4/4 GREEN. 마케팅 동의는 거래성/신청 재입고 알림을 차단하지 않는다. 실제 발송·DB/API 연결 없음.
 - **현재 검증:** 로컬 전체 `pnpm test` 487 total/353 pass/134 계획 DB·환경 skip/0 fail, PR 본문 시험 8/8, `pnpm build` API·Next 22 route, `pnpm typecheck`, `pnpm lint` exit0. 134 skip 및 단위시험은 DB·실 발송 증거가 아니다.
 - **WSL 표적 자원 사전 등록:** 안전한 commit을 SSH 별칭 원격에 push한 뒤 지정 checkout `/home/daon/deploy/shopping`을 ff-only 동일 SHA로 맞추고 `shoppingmall-s53-channels-1007-verify`라는 Node24 일회용 컨테이너만 사용한다. `--network none`, 소스 read-only, 컨테이너 read-only, `/tmp` tmpfs, `--rm`; 정식 서비스·공유 DB·신규 volume 없음. 표적 시험 후 정확 SHA/clean 및 동일 이름 컨테이너0을 확인한다.
+- **WSL 표적 결과:** SSH 별칭 원격/지정 checkout의 commit `5f4ba3a9ba6c44ff0832e63cdd783747b79d2747`에서 위 단일 컨테이너 표적시험 4/4 pass/0 fail. 사후 checkout clean·동일 이름 컨테이너0, 공유 DB·기존 서비스 불변. 이는 실메일·SMS·푸시 또는 DB 작업 검증이 아니다.
 - **미검증·다음:** 이메일 가입 계정은 현재 `verified_at`이 비어 있어 로그인만으로 검증 이메일로 간주하지 않는다. 이메일 검증 절차와 앱 기기 등록은 인증/API·데이터 경계 검토가 더 필요하다. `notification_jobs`/`notification_attempts` migration 0019 제안의 직접 승인을 묻는 중이며, 전에는 영속화하지 않는다.
 
 ## S5.3 알림 재시도 내부 규칙 — 2026-10-07
