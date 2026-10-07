@@ -105,15 +105,36 @@ test('only approved zero-to-sellable public stock queues an active restock reque
       availableWorker.release();
     }
 
-    assert.equal((await inventory.setStock(seller, option.id, 0)).sellable, 0);
+    const stockBlocker = await pool.connect();
     const soldOutWorker = await pool.connect();
+    let blockerOpen = false;
     try {
+      await stockBlocker.query('BEGIN');
+      blockerOpen = true;
+      await stockBlocker.query('SELECT id FROM products WHERE id=$1 FOR UPDATE', [productId]);
       await soldOutWorker.query('BEGIN');
+      const workerPid = (await soldOutWorker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
       const now = (await soldOutWorker.query('SELECT clock_timestamp() AS now')).rows[0].now;
-      assert.deepEqual(await runMockNotificationOnce(soldOutWorker, new Date(now.getTime() + 1000), {
+      const processing = runMockNotificationOnce(soldOutWorker, new Date(now.getTime() + 1000), {
         APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
         NOTIFICATION_MODE: 'mock',
-      }), { processed: true });
+      }).then(value => ({ value }), error => ({ error }));
+      let waiting = false;
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline) {
+        const activity = (await pool.query(`SELECT wait_event_type AS "waitType"
+          FROM pg_stat_activity WHERE pid=$1`, [workerPid])).rows[0];
+        if (activity?.waitType === 'Lock') { waiting = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      assert.equal(waiting, true, 'notification worker must wait for the product decision');
+      await stockBlocker.query(`UPDATE inventory_levels
+        SET on_hand_quantity=0,sellable_quantity=0 WHERE option_id=$1`, [option.id]);
+      await stockBlocker.query('COMMIT');
+      blockerOpen = false;
+      const processed = await processing;
+      if (processed.error) throw processed.error;
+      assert.deepEqual(processed.value, { processed: true });
       const stopped = (await soldOutWorker.query(`SELECT j.status AS "jobStatus",
         a.status AS "attemptStatus",a.error_code AS "errorCode",
         s.status AS "subscriptionStatus" FROM notification_jobs j
@@ -123,7 +144,9 @@ test('only approved zero-to-sellable public stock queues an active restock reque
       assert.deepEqual(stopped, { jobStatus: 'FAILED', attemptStatus: 'PERMANENT_FAILURE',
         errorCode: 'RESTOCK_UNAVAILABLE', subscriptionStatus: 'active' });
     } finally {
+      if (blockerOpen) await stockBlocker.query('ROLLBACK');
       await soldOutWorker.query('ROLLBACK');
+      stockBlocker.release();
       soldOutWorker.release();
     }
 

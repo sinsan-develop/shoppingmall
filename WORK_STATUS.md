@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## S5.3 재입고 발송 직전 재고 변경 경합 검증 진행 — 2026-10-08
+
+- **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support` worktree. 기존 재입고 작업을 mock 처리하는 중 상품 행 잠금을 기다리게 하고, 다른 거래가 상품 재고를 0으로 확정한 뒤 발송 측이 최신 상태를 재조회해 `RESTOCK_UNAVAILABLE`로 닫는지 실 PostgreSQL 경합을 검증한다. 실패 시 테스트가 드러낸 동일 내부 경계만 보정한다. 새 공개 API/schema·공유 DB·실 채널은 변경하지 않는다.
+- **격리 QA 자원 사전 등록:** WSL-server의 정확 이름 internal network `shoppingmall-s53-restock-race-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-race-1008-pg` 안 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-race-1008-node`만 쓴다. 외부 포트·영속 volume 없음. 동명0→migration20/system ID→RED/GREEN·회귀→QA 소유 행0→정확 자원 제거·잔류0. 실패 시 공유 DB로 우회하지 않는다.
+
 ## S5.4 공개 읽기 API 승인 경계 PMO 보고 — 2026-10-08
 
 - **담당·판정:** 어울 단일 writer. S5.4 승인 계획의 관리자 관제 요약·예외 목록·원자료 이동은 현재 전용 관리자 읽기 API가 없어 새 공개 API 계약 결정이 필요하다는 기존 선행 조사를 실제 코드 검색으로 재확인했다. 새 API/화면/schema는 이번 점검에서 만들지 않았다.
