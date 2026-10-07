@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.3 검증 계정 기반 채널 조회 진행 — 2026-10-08
+
+- **담당·승인 범위:** 어울 단일 writer. 새 schema/API·실 연락처 발송 없음. 기존 `account_identities.verified_at`와 고객 `notification_preferences.push`만 읽는다. 기기 등록은 아직 영속화 승인·구현 전이라 호출자가 `registeredDevice=false`를 유지해야 하며 실제 푸시 PASS로 보지 않는다.
+- **RED→GREEN:** 내부 `resolveNotificationChannels` 부재 RED 후, 인증된 이메일/전화의 존재 여부만 조회하고 원문 연락처·비밀번호 해시를 SQL 결과/큐에 싣지 않는 조회를 구현했다. 표적 3/3 pass와 API 타입 검사 exit0. 이메일 로그인 자체는 `verified_at`을 채우지 않으므로 검증 이메일로 승격하지 않는다. 실제 PostgreSQL 시험 전이다.
+- **격리 DB 자원 사전 등록:** WSL-server internal network `shoppingmall-s53-channels-1008-net`, tmpfs PG15 `shoppingmall-s53-channels-1008-pg` DB `shoppingmall_s53_channels_1008`, 일회용 Node24 runner `shoppingmall-s53-channels-1008-node`만 사용한다. 외부 포트·영속 volume 없음, source read-only. 생성 전 동명 자원0, migration20/system ID, 미검증 이메일→검증 전화 SMS→이메일 검증 후 우선 및 동의+기기 사실의 푸시 판정, rollback 후 계정/신원/동의0, 정확 자원 제거·잔류0을 확인한다. 공유 DB·Oracle·실 공급자는 변경하지 않는다.
+- **로컬 전체 gate:** `pnpm test` exit0(새 DB 시험은 환경 가드로 skip), PR 본문 검증 8/8 pass. `pnpm build` API/Next 22 route, `pnpm typecheck`, `pnpm lint` 모두 exit0. 실제 DB 채널 판정은 아래 격리 시험 전까지 미검증이다.
+
 ## S5.3 임대 만료 복구 진행 — 2026-10-08
 
 - **담당·범위:** 어울 단일 writer, 기존 승인된 알림 0019 테이블 내부 처리만 변경한다. 공유 DB 적용·새 공개 API·실 Provider/비용 없음.
