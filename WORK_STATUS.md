@@ -4,6 +4,7 @@
 
 - **담당·범위:** 어울 단일 writer, 기존 작업 브랜치. 알림 작업 생성 뒤 상품의 공개 승인 revision을 다른 옵션명으로 바꾼 경우, 상품은 판매 가능해도 원 신청 옵션이 없으므로 mock 성공/신청 notified를 금지하는 기존 계약을 실 PostgreSQL로 검증한다. QA 소유 상품의 fixture만 변형하며 제품·공개 API·schema·공유 DB·실 채널 변경은 없다.
 - **격리 QA 자원 사전 등록:** WSL-server의 정확 이름 internal network `shoppingmall-s53-restock-option-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-option-1008-pg` 안 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-option-1008-node`만 쓴다. 외부 포트·영속 volume 없음. 동명0→migration20/system ID→표적 DB 시험→소유 QA 행0→정확 자원 제거·잔류0 순서이며 공유 DB로 우회하지 않는다.
+- **시험 준비 오류1·조치:** `16a53653dfc831ce80060ff32078abcbcb4a1c47`를 WSL 지정 checkout 동일 SHA로 맞춘 격리 DB `shoppingmall` system ID `7694050358706032683`, migration20에서 첫 표적 시험은 상품 교체 판정 전 `inventory_sellable_ck` 위반으로 1 fail/0 skip이었다. QA fixture가 직전 판매자 품절 처리로 `on_hand=0`인데 시험의 직접 변형이 `sellable=5`만 올린 것이 정확한 원인이다. 실패 후 finally 정리의 accounts/products/subscriptions/jobs/attempts/stock requests 각0을 읽기 전용 확인했다. QA 소유 옵션의 `on_hand`와 `sellable`을 함께 5로 맞추는 한 줄 보정 후 같은 빈 격리 DB에서 재시험한다. 제품 동작 결함이나 통과 증거로 해석하지 않는다.
 
 ## S5.3 재입고 신청 취소 후 모의 발송 차단 검증 진행 — 2026-10-08
 

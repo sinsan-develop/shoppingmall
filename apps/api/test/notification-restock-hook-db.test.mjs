@@ -127,7 +127,8 @@ test('only approved zero-to-sellable public stock queues an active restock reque
       soldOutWorker.release();
     }
 
-    await pool.query('UPDATE inventory_levels SET sellable_quantity=5 WHERE option_id=$1', [option.id]);
+    await pool.query(`UPDATE inventory_levels SET on_hand_quantity=5,sellable_quantity=5
+      WHERE option_id=$1`, [option.id]);
     const replacementRevisionId = (await pool.query(`INSERT INTO product_revisions
       (product_id,version,title,description,origin_label,shipping_mode,status,
        proposed_by_account_id,reviewed_by_account_id,reviewed_at)
