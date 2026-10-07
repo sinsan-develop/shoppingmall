@@ -4,6 +4,7 @@
 
 - **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support@65f0eac5066edd533ec7ea836757f116ed1bc462`. 승인된 S5.3 내부 알림 계약의 결제 승인/거절 원사건만 연결한다. 검증된 결제 사건이 실제 `APPLIED`로 처음 처리될 때 원사건 UUID의 작업을 같은 트랜잭션에서 등록하고, 재처리·중복 거절·`REVIEW_REQUIRED`는 새 알림을 만들지 않는 것이 목표다. 외부 PG·실 발송·새 공개 API/schema·공유 DB 시험자료는 제외한다.
 - **RED 시험·자원 사전 등록:** `apps/api/test/notification-payment-hook-db.test.mjs`가 실제 mock 결제 승인·거절 사건의 적용 전/후 작업0→1, 원사건 ID, 동일 사건 재처리 및 별도 거절 사건 재접수 후에도 중복0을 검증한다. WSL-server의 전용 internal network `shoppingmall-s53-payment-1008-net`, tmpfs PG15 `shoppingmall-s53-payment-1008-pg` 안 DB `shoppingmall`, 일회용 source-read-only Node24 runner `shoppingmall-s53-payment-1008-node`만 생성한다. 외부 포트/영속 volume 없음. 생성 전 동명 자원0→PG system ID/migration20→RED/GREEN→QA 계정·주문·결제/알림 행0→정확 container/network/volume 제거·잔류0 순서. 실패하면 공유 DB나 타 자원을 임의 변경하지 않는다.
+- **실제 RED·GREEN 후보:** 정확 test commit `72f7182be6fb2f14eb71c41c3e9f3c6a48c42695`를 SSH 원격/WSL checkout에 맞춘 전용 DB `shoppingmall` system ID `7694030446375096361`, migration20에서 시험 1 fail/0 skip. 검증된 승인 사건은 적용됐지만 `payment_approved` 작업0≠1로 실패했다. 처리기 최초 승인 `APPLIED` 직전과 첫 거절의 `PENDING→DECLINED`에서만 기존 알림 helper를 호출하도록 최소 변경했다. 중복 거절·승인 사건 재처리·`REVIEW_REQUIRED`는 새 호출을 하지 않는다. 로컬 API typecheck·diff check exit0. 격리 실제 DB GREEN/전체 회귀 전까지 제품 PASS가 아니다.
 
 ## S5.3 주문 생성 원사건 알림 연결 — 2026-10-08
 
