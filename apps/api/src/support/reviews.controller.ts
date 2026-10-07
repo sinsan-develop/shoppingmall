@@ -42,8 +42,10 @@ async function handle<T>(operation: () => Promise<T>): Promise<T> {
     if (message === 'Support unavailable') throw new NotFoundException();
     if (message === 'Support conflict') throw new ConflictException({ status: 'support_conflict' });
     if (message === 'Support image limit') throw new ConflictException({ status: 'image_limit' });
-    if (message === 'Image too large') throw new PayloadTooLargeException();
-    if (['Unsupported image','Image MIME mismatch','Invalid image container'].includes(message))
+    if (['Image too large','Image dimensions exceeded'].includes(message))
+      throw new PayloadTooLargeException();
+    if (['Unsupported image','Image MIME mismatch','Invalid image container',
+      'Invalid image','Invalid image size'].includes(message))
       throw new BadRequestException({ status: 'invalid_image' });
     if (message === 'Support scan unavailable')
       throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'image_scan' });

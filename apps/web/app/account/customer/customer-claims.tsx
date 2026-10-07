@@ -135,12 +135,14 @@ export function CustomerClaimsView({ items,selected,busy,message,nextCursor,onMo
               증빙 {item.id}</a> : '증빙 조회 불가'} · {item.mimeType} · {item.sizeBytes}바이트
           </li>)}
         </ul>}
-        {selected.evidence.length < 5 ? <form className="account-form" onSubmit={upload}>
+        {['REQUESTED','SELLER_REPLIED'].includes(selected.status) && selected.evidence.length < 5 ?
+          <form className="account-form" onSubmit={upload}>
           <label htmlFor="claim-evidence-file">증빙 사진 추가(최대 5장, 파일당 5MiB)</label>
           <input id="claim-evidence-file" name="evidence" type="file"
             accept="image/png,image/jpeg,image/webp" required />
           <button type="submit" className="secondary-button" disabled={busy}>비공개 증빙 등록</button>
-        </form> : <p>증빙 최대 5장을 등록했습니다.</p>}
+        </form> : selected.evidence.length >= 5 ?
+          <p>증빙 최대 5장을 등록했습니다.</p> : null}
         <h3>처리 이력</h3>
         <ol>{selected.events.map((item,index) => <li key={`${item.occurredAt}-${index}`}>
           {claimActionLabel(item.action)} · {claimActorRoleLabel(item.actorRole)} ·

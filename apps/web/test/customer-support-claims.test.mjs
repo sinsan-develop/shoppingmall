@@ -58,3 +58,21 @@ test('evidence retry keeps one key after success or uncertain response', () => {
   assert.notEqual(keys.forFile('claim-1',{ ...file,type: 'image/png' }),first);
   assert.equal(issued,3);
 });
+
+test('closed claims do not offer evidence upload after a decision', () => {
+  for (const status of ['APPROVED','REJECTED','REFUND_PROCESSING','REFUNDED','REVIEW_REQUIRED']) {
+    const detail = renderToStaticMarkup(createElement(CustomerClaimsView, {
+      items: [{ ...claim,status }],selected: { ...claim,status },busy: false,
+      message: '',nextCursor: null,onMore: () => {},onSelect: () => {},onUpload: () => {},
+    }));
+    assert.doesNotMatch(detail,/증빙 사진 추가|비공개 증빙 등록/,status);
+    assert.match(detail,/\/evidence\/evidence-1/,status);
+  }
+  for (const status of ['REQUESTED','SELLER_REPLIED']) {
+    const detail = renderToStaticMarkup(createElement(CustomerClaimsView, {
+      items: [{ ...claim,status }],selected: { ...claim,status },busy: false,
+      message: '',nextCursor: null,onMore: () => {},onSelect: () => {},onUpload: () => {},
+    }));
+    assert.match(detail,/비공개 증빙 등록/,status);
+  }
+});

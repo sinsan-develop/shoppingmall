@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.2 리뷰 Minor 2건 보정 — 2026-10-07
+
+- **담당·범위:** Main 단일 writer. 승인 대기 GET API·의존 UI/시험 5파일, 공유 DB, Oracle, 실 Provider는 변경하지 않았다. 리뷰 Important 2건(고객 구매확정·리뷰 진입, 관리자 환불 처리 재개)은 별도 사용자 결정 대기로 그대로 남긴다.
+- **변경 전→후:** 리뷰/클레임 이미지 sanitizer의 `Invalid image`, `Invalid image size`, `Image dimensions exceeded`가 500으로 노출될 수 있었으나 각각 입력 오류 400 또는 크기·치수 초과 413으로 매핑했다. 결정된 클레임에도 증빙 업로드 form이 보여 실제 API 409와 불일치하던 문제를 `REQUESTED`/`SELLER_REPLIED`에서만 보이도록 고쳤고 기존 비공개 증빙 조회는 유지했다.
+- **검증:** 새 회귀 시험은 수정 전 3 fail/수정 후 5 pass; 전체 `pnpm test` 461건/328 pass/133 계획 DB·환경 skip/0 fail, PR 본문 검사 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0. 전체 시험의 DB skip은 공유 DB 검증이 아니다. 오류 3건은 의도한 RED이며 수정 후 해결; 동일 원인 연속 실패 없음. 새 API·DB schema 변경은 0.
+- **다음:** 정확 6파일(두 controller, 고객 claim UI, 두 시험, 이 현황)만 선택 커밋·원격 FF 복구 ref를 확인한다. 승인 대기 5파일은 dirty 보존. S5.2 PR/병합은 Important 2건 및 승인·공유환경 gate 해소 전까지 하지 않는다.
+
 ## S5.2 PostgreSQL 15 격리 호환성 게이트 완료 — 2026-10-07
 
 - **담당·경계:** 어울 단일 writer, `codex/s52-customer-support` HEAD `16d3963446acfd3e8542028163704cf69f78a157`. WSL 지정 checkout도 같은 SHA/clean을 읽기 전용 확인했다. 공유 `local-postgres/shoppingmall`(PG 15.18), Oracle, 실 Provider, 승인 대기 GET/API·의존 UI/시험 5파일은 접근·수정하지 않는다. 프로젝트 root `AGENTS.md`는 실제 경로에 없으며 신산님이 전달한 AGENTS 지침과 PMO 정본을 적용한다.
