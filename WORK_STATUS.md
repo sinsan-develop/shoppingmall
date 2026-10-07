@@ -4,6 +4,8 @@
 
 - **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support` worktree. 이미 생성된 재입고 작업을 고객이 취소한 뒤 mock worker가 성공이나 `notified`로 기록하지 않고 `SUBSCRIPTION_INACTIVE`로 종료하는지 실 PostgreSQL에서 확인한다. 제품·공개 API·schema·공유 DB·실 채널은 변경하지 않는 기존 계약 회귀다.
 - **격리 QA 자원 사전 등록:** WSL-server의 정확 이름 internal network `shoppingmall-s53-restock-cancel-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-cancel-1008-pg` 안 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-cancel-1008-node`만 쓴다. 외부 포트·영속 volume 없음. 동명0→migration20/system ID→실 DB 시험→소유 QA 행0→정확 자원 제거·잔류0 순서이며 실패해도 공유 DB로 우회하지 않는다.
+- **실 DB 결과·정리:** 시험 commit `dc272aa4523219b5b3303eecba66b452672facda`를 SSH alias push→WSL 지정 checkout ff-only 동일 SHA/clean으로 맞추고 동명 자원0을 확인했다. tmpfs PG15 `shoppingmall` system ID `7694048981767589932`, migration20의 source-read-only Node24 표적 시험 **1/1 pass/skip0**: 알림 생성 뒤 고객 취소, 명시적 mock 처리 시 `FAILED`/`PERMANENT_FAILURE`/`SUBSCRIPTION_INACTIVE`, 신청 `cancelled`/`notified_at=NULL`; 처리 트랜잭션은 rollback했다. accounts/products/subscriptions/jobs/attempts/stock requests/sale stops 각0, mount `[]`, PG data tmpfs, port binding `{}`, internal network 해당 PG1 확인 뒤 정확 PG/network 제거·동명 container/network/volume0. 공유 DB·실 Provider 불변. 이 시험은 기존 계약의 회귀 검증이며 새 제품 구현이나 RED→GREEN 주장이 아니다.
+- **최신 로컬 gate·남은 범위:** `pnpm test` 521 total/375 pass/146 환경 가드 skip/0 fail, PR 본문8/8 pass, `pnpm typecheck`, `pnpm lint`, `pnpm build` exit0. 146 skip은 실 DB PASS가 아니다. 재입고 동시성·옵션 교체와 정식 WSL 전체 DB/브라우저, 실 채널·Oracle/UAT는 미검증이다.
 
 ## S5.3 재입고 모의 발송 정상·재품절 실 DB 회귀 진행 — 2026-10-08
 
