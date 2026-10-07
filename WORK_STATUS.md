@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.3 공유 개발 DB 0019 적용 — 2026-10-08
+
+- **승인·대상:** 신산님이 `WSL-server`의 정확한 `local-postgres/shoppingmall`에 migration `0019_s53_notifications.sql` 적용을 직접 승인했다. 어울 단일 writer, `codex/s52-customer-support`. 기존 주문·계정·정산 자료를 변경하지 않고 빈 `notification_jobs`, `notification_attempts` 두 관계와 Drizzle 이력만 추가한다. Oracle·실 Provider·공개 API는 제외한다.
+- **적용 전 확인:** 지정 WSL checkout `cf077a4e96e66d8ec7d690dcf85fbee936cd020f` clean, DB `shoppingmall`, PostgreSQL system ID `7622490131194466339`, Drizzle 이력19, 계정/주문 각0, 알림 관계 부재. 추가 정책 singleton과 SQL 해시/대기1건을 적용 전 확인한다.
+- **자원·복구 사전 등록:** 기존 `local-postgres`는 유지한다. 정확한 사전 custom 백업 `/tmp/shoppingmall-s53-0019-pre-20261008.dump`(WSL 단일 파일, 0600), 일회용 Node24 runner `shoppingmall-s53-shared-migrate-1008`(`--rm`, DB network namespace, WSL source read-only)만 사용한다. 백업의 TOC·크기·SHA256을 확인한 후 공식 Drizzle migrator를 실행한다. 사후 이력20·신규 빈 관계·기존 행 불변·runner 잔류0을 검증한다. 실패하면 임의 rollback/drop 없이 백업을 보존하고 상태를 보고한다. 성공 후 백업 정리 여부는 정확 파일 확인 후 판단한다.
+- **실행·검증:** 로컬/WSL SQL SHA256 `ce42e7e60035a7ab2b654e23eb1ad607fa4f0212bc6acb5ce5556045eb0f2401` 일치. 공유 DB 기존 `audit_events`·`refund_cases` 각0 및 설정 5종 각1 확인. 사전 custom-format 백업은 `daon:0600`, 243445B, TOC488, SHA256 `7f778d735e5bf3669794512dc73e2a31503e6769207da798643f84cfdedebed6`로 검증했다. Node24 읽기 전용 preview **19 applied/1 pending(0019만, 6문장)** 뒤 공식 Drizzle migrator exit0. 사후 preview **20 applied/0 pending**, 마지막 Drizzle 해시가 동일, DB system ID 불변. 신규 두 관계는 각0행, 제약18개·인덱스6개, 계정·주문·감사·환불 각0 및 기존 설정5종 각1 불변. 일회용 runner 잔류0, WSL 지정 checkout clean.
+- **오류·정리:** 첫 사전 건수 SQL이 아직 없는 `notification_jobs`를 함께 조회해 읽기 전용으로 오류1회; 신규 관계를 제외한 재조회는 정상이며 적용 전 자료 변경은 없었다. 정확 백업의 절대경로·owner/mode/size·SHA256 재확인 후 단일 임시 파일만 삭제해 부재 확인했다. 이 백업을 이용한 사후 복원은 불가능하며 공유 DB migration20은 유지한다. 실 Provider 발송·원사건 훅·브라우저·Oracle/UAT는 이 migration PASS와 별개로 미검증이다.
+
 ## S5.3 원사건-알림 작업 트랜잭션 접점 준비 — 2026-10-08
 
 - **담당·경계:** 어울 단일 writer. `queueNotificationEvent(client,event)` 내부 helper만 추가하고 주문/결제/배송/재고 원사건의 실제 호출은 아직 연결하지 않는다. 공유 `local-postgres/shoppingmall`의 0019 적용은 신산님 직접 승인 질문 대기이며, 답변 전 공유 DB에 쓰지 않는다. 새 공개 API·실 채널·Oracle 변경 없음.
