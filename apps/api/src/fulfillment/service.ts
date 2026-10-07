@@ -9,6 +9,7 @@ import { findAdminCorrectionReplay, findAdminSettingReplay, findSellerTransition
   updateAdminFulfillmentSetting, updateSellerFulfillment, type AdminFulfillmentCursor,
   type SellerFulfillmentCursor } from './repository.js';
 import { validateAdminCorrection, validateSellerTransition } from './rules.js';
+import { queueNotificationEvent } from '../notifications/event-queue.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const paidAt = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.(?:\d{3}|\d{6})Z$/;
@@ -211,7 +212,7 @@ export class SellerFulfillmentService {
       const action = validated.status === 'DELAYED' ? 'REPORT_DELAY'
         : validated.status === 'SHIPPED' ? 'MARK_SHIPPED'
           : current.status === 'DELAYED' ? 'RESUME_PACKING' : 'START_PACKING';
-      await insertSellerTransitionRecords(client, {
+      const sourceEventId = await insertSellerTransitionRecords(client, {
         shipmentOrderId,
         accountId: this.actor.accountId,
         sellerId: this.sellerId,
@@ -235,6 +236,10 @@ export class SellerFulfillmentService {
           trackingNumber: validated.trackingNumber,
         },
         response,
+      });
+      await queueNotificationEvent(client, {
+        kind: 'shipment_updated', sourceEventId,
+        accountId: current.customerAccountId,
       });
       return response;
     });
@@ -531,7 +536,7 @@ export class AdminFulfillmentService {
         carrierName: validated.carrierName,
         trackingNumber: validated.trackingNumber,
       };
-      await insertAdminCorrectionRecords(client, {
+      const sourceEventId = await insertAdminCorrectionRecords(client, {
         shipmentOrderId,
         accountId: this.actor.accountId,
         idempotencyKey,
@@ -545,6 +550,10 @@ export class AdminFulfillmentService {
         auditBefore,
         auditAfter,
         response,
+      });
+      await queueNotificationEvent(client, {
+        kind: 'shipment_updated', sourceEventId,
+        accountId: current.customerAccountId,
       });
       return response;
     });
