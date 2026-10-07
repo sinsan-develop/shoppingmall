@@ -18,7 +18,7 @@ test('one verified approval pays its shipment, reservation, coupon and stock onl
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 6 });
   const runId = randomBytes(4).toString('hex');
   const reservations = []; const orders = []; const campaignIds = [];
-  let seeded = false; let addressId;
+  let seeded = false; let addressId; let buyerId;
   try {
     const ready = await pool.query(`SELECT to_regclass('public.payment_events') IS NOT NULL AS ready`);
     if (!ready.rows[0].ready) {
@@ -29,7 +29,7 @@ test('one verified approval pays its shipment, reservation, coupon and stock onl
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);
-    const buyerId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+    buyerId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
       [names.emails[0]])).rows[0].account_id;
     const adminId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
       [names.emails[4]])).rows[0].account_id;
@@ -203,6 +203,23 @@ test('one verified approval pays its shipment, reservation, coupon and stock onl
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM promotion_uses
       WHERE reservation_id=$1 AND status='USED'`, [zeroHold.id])).rows[0].n, 2);
   } finally {
+    if (buyerId && orders.length) {
+      const notificationSchema = (await pool.query(`SELECT
+        to_regclass('public.notification_jobs') IS NOT NULL AS ready`)).rows[0].ready;
+      if (notificationSchema) {
+        const owned = `account_id=$1 AND
+          ((kind='order_submitted' AND source_event_id=ANY($2::uuid[])) OR
+           (kind IN ('payment_approved','payment_declined') AND source_event_id IN
+             (SELECT e.id FROM payment_events e JOIN payment_attempts a
+              ON a.id=e.payment_attempt_id WHERE a.checkout_order_id=ANY($2::uuid[]))))`;
+        const pending = (await pool.query(`SELECT j.id FROM notification_jobs j WHERE ${owned}
+          AND (j.status<>'QUEUED' OR EXISTS
+            (SELECT 1 FROM notification_attempts n WHERE n.job_id=j.id))`,
+        [buyerId, orders])).rows;
+        assert.equal(pending.length, 0, 'QA notification was already processed');
+        await pool.query(`DELETE FROM notification_jobs WHERE ${owned}`, [buyerId, orders]);
+      }
+    }
     for (const id of orders) {
       await pool.query(`DELETE FROM shipment_fulfillment_events WHERE shipment_order_id IN
         (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [id]);
