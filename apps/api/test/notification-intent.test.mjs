@@ -23,7 +23,7 @@ test('restock intent requires an active request and a zero-to-sellable transitio
   const base = { kind:'restock_available',sourceEventId,accountId,subscriptionId,
     becameSellable:true,subscriptionStatus:'active' };
   assert.deepEqual(notificationIntentForEvent(base),{
-    kind:'restock_available',sourceEventId,accountId,purpose:'requested_restock',
+    kind:'restock_available',sourceEventId,accountId,subscriptionId,purpose:'requested_restock',
     dedupeKey:`restock_available:${sourceEventId}:${subscriptionId}:${accountId}`,
   });
   assert.equal(notificationIntentForEvent({ ...base,subscriptionStatus:'cancelled' }),null);

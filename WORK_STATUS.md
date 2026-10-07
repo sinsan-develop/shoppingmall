@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.3 알림 작업 등록 내부 계약 진행 — 2026-10-08
+
+- **담당·승인 경계:** 어울 단일 writer. 기존 `codex/s52-customer-support`에서 진행한다. 이번 변경은 승인된 0019 테이블을 사용하는 내부 등록 계약까지만이며, 공유 개발 DB migration 적용·공개 API·검증 이메일/기기 등록·실 발송은 포함하지 않는다.
+- **작업 내용:** 재입고 알림 의도에 신청 UUID를 명시해 0019의 외래키와 연결한다. 거래 알림은 검증된 기본 채널과 자격 있는 보조 푸시를 채널별 고유 키로 계획하고, 재입고 신청은 기본 채널 우선·없으면 푸시 한 건만 계획한다. 채널이 없으면 작업을 만들지 않고 기존 앱 주문 상태를 확인 경로로 남긴다. `enqueueNotificationJobs`는 호출자의 PostgreSQL 트랜잭션을 사용해 고유 키 충돌 시 새 작업을 만들지 않으며 연락처·본문을 전달하지 않는다.
+- **RED→GREEN:** 계획 시험은 모듈 부재 RED 후 3/3 GREEN, 등록 시험은 export 부재 RED 후 3/3 GREEN, 기존 의도 시험 포함 표적 9/9 pass. API `pnpm typecheck` exit0, `git diff --check` exit0. 실제 PostgreSQL 등록/중복·작업 임대·재시도·원사건 트랜잭션 연결은 아직 미검증·미구현이다.
+- **다음:** 전체 회귀와 빌드·lint를 실행해 이 내부 절편을 안전한 commit/SSH alias 원격에 보존한다. 이후 격리 DB 실제 등록과 임대·재시도, 주문/결제/배송/재고 원사건 연결을 계획 순서로 진행한다. 공유 DB·실 채널은 별도 승인 경계다.
+- **전체 로컬 gate:** `pnpm test` 495 total/359 pass/136 계획 환경 skip/0 fail, PR 본문 검증 8/8 pass. `pnpm build` API와 Next 22 route exit0, `pnpm typecheck` 전 패키지 exit0, `pnpm lint` exit0. 136 skip은 실제 DB·Provider·브라우저·공유 배포 PASS가 아니다.
+
 ## S5.3 알림 작업·시도 이력 migration 0019 승인 — 2026-10-08
 
 - **승인·담당·기준:** 신산님이 `notification_jobs`, `notification_attempts` 두 빈 테이블 및 migration 0019 작성을 직접 승인했다. 어울 단일 writer, 기존 linked worktree `codex/s52-customer-support`의 `8c54232054216011a14ca7f08b80d0c077bb88c5`에서 시작한다. 새 공개 API, 이메일 검증·기기 등록, 실 공급자 연결, 공유 `local-postgres/shoppingmall` 적용은 이번 승인에 포함하지 않는다. PMO task에 승인 경계를 보고했다.

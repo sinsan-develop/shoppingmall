@@ -20,6 +20,7 @@ export type NotificationIntent = {
   kind: NotificationKind;
   sourceEventId: string;
   accountId: string;
+  subscriptionId?: string;
   purpose: 'transactional' | 'requested_restock';
   dedupeKey: string;
 };
@@ -43,6 +44,7 @@ export function notificationIntentForEvent(candidate: unknown): NotificationInte
       !['active','cancelled','notified'].includes(event.subscriptionStatus ?? '') ||
       typeof event.becameSellable !== 'boolean') throw new Error('Invalid notification event');
   if (event.subscriptionStatus !== 'active' || !event.becameSellable) return null;
-  return { kind:'restock_available',sourceEventId,accountId,purpose:'requested_restock',
+  return { kind:'restock_available',sourceEventId,accountId,
+    subscriptionId:event.subscriptionId.toLowerCase(),purpose:'requested_restock',
     dedupeKey:`restock_available:${sourceEventId}:${event.subscriptionId.toLowerCase()}:${accountId}` };
 }
