@@ -7,6 +7,7 @@
 - **변경 전 기준:** 로컬 `pnpm test` 517 total/375 pass/142 환경 skip/0 fail, PR 본문8/8. 기존 WSL 공유 DB migration20 적용 증거는 아래 별도 기록. 현재 주문 연결의 실제 DB 결과와 전체 회귀는 미검증.
 - **격리 RED 준비 오류1·판정:** 등록한 전용 PG의 `shoppingmall_s53_order_1008` DB는 system ID `7694028102109192237`/migration20으로 준비됐으나 최초 시험은 기존 `runQaCatalogFixture`의 정확한 `/shoppingmall` DB명 가드에 막혀 알림 단언까지 도달하지 못했다. 원인은 시험 DB명과 보호된 fixture 계약 불일치다. fixture 가드를 완화하지 않고 **같은 전용 PG 안에서 DB명을 `shoppingmall`로 변경**해 system ID 환경 가드를 유지한다. 변경 후 새 DB명/migration20을 확인하고 실제 RED를 다시 수행한다. 공유 `local-postgres`는 불변이다. 첫 `pg_isready`의 no response 1회는 tmpfs PG 초기화 경합으로 재조회에서 정상 확인했다.
 - **격리 RED 준비 오류2·판정:** DB명 보정 후 시험은 주문 quote 접근에서 중단됐다. `CheckoutReservations.start`의 세 번째 인자 `includeQuote` 기본값이 false라 fixture의 `hold.quote`가 없었다. 기존 주문 시험은 `start(..., true)`를 사용한다. 동일한 명시 인자를 시험에 추가하고 알림 단언까지 재실행한다. 이 두 오류는 시험 준비 계약 불일치이며 제품 결함 PASS/FAIL로 계산하지 않는다.
+- **실제 RED·최소 GREEN 후보:** 동일 격리 DB `shoppingmall`/system ID `7694028102109192237`/migration20에서 새 시험 1 fail/0 skip: 성공 주문은 존재하나 해당 고객의 `notification_jobs`는 `[]`, 기대한 `order_submitted` 1건이 없다. 실패 주문의 작업0 단언은 통과했다. 주문 `service.ts`의 기존 audit 이후·COMMIT 이전에 `queueNotificationEvent(client,{kind:'order_submitted',sourceEventId:order.id,accountId})`를 연결했다. 로컬 API typecheck exit0, 기존 helper 시험3/3 pass, diff check exit0. 새 실 DB GREEN과 전체 회귀는 안전 commit→WSL exact SHA 시험 전까지 미검증이다.
 
 ## S5.3 공유 개발 DB 0019 적용 — 2026-10-08
 
