@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.2 정식 공유 DB QA 보호 코드 준비·승인 경계 — 2026-10-07
+
+- **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support`의 `aac10192249f2ea62e5fef69b453165e078e8aff` 기준. 격리 Chrome 2회 PASS 뒤 PMO AGENTS 7절의 정식 WSL 통합·E2E는 격리 PASS로 대체할 수 없음을 확인했다. 공유 `local-postgres/shoppingmall`을 읽기 전용 조회해 migration19, DB system ID `7622490131194466339`, 계정/주문/클레임 각0, 비어 있지 않은 public 테이블은 초기값 5개(`fulfillment_settings`, `home_content_current`, `home_content_draft`, `shipping_policy_global`, `support_policy_versions`) 각1임을 확인했다. 첫 테이블 목록 psql 명령의 다중 인용 오류 1회는 읽기 전용 실패였고 수정 후 정상 재조회했다.
+- **승인 경계:** PMO에 공식 QA용 임시 자료 생성이 기존 계획 승인에 포함되는지 보고했고, PMO는 추가 승인 여부를 신산님이 직접 결정해야 한다고 답했다. 공유 DB 가상 계정·주문·클레임·모의 환불 자료의 임시 생성 및 signed reset에 대해 신산님께 비차단 질문을 보냈다. 답변 전 공유 DB에 쓰지 않는다. 격리 DB/실 provider/Oracle도 변경하지 않았다.
+- **로컬 RED→GREEN:** `validateSharedSupportUiTarget` 부재 RED, 기본 업무행·정책행 검사 부재 RED, 공유 브라우저 별도 consent 부재 RED를 각각 확인했다. 정식 `shoppingmall` DB명·run별 `SHARED_S52_SUPPORT_UI_` opt-in·실 DB system ID를 요구하고, 공유 seed 전 public 전 테이블을 짧게 잠가 다섯 초기행 외 0행인지 확인한다. 공유 reset은 기존 서명 manifest·전역 소유/외부참조/파일 검사 후 같은 초기행 기준으로 돌아왔는지 커밋 전에 재검한다. 격리 target/Chrome의 기존 경로는 유지한다. 실제 공유 DB seed/reset은 미실행이다.
+- **로컬 검증:** API fixture 표적 5 pass/1 DB 미설정 skip, 브라우저 계약 9/9, 전체 `pnpm test` **473 total/339 pass/134 계획 skip/0 fail**, PR 본문 8/8. `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0(웹 22 route), diff check exit0. 이 결과는 정식 공유 E2E PASS가 아니다. 변경 파일은 `apps/api/scripts/qa-support-ui-fixture.ts`, 해당 계약 시험, `scripts/qa-support-browser-contract.mjs`, 해당 계약 시험 및 현황. 다음은 신산님 답변과 무관하게 먼저 격리 DB 이름 `shoppingmall`에서 보호 경로를 시험한 뒤, 승인 시에만 정식 공유 QA seed·실 API/Web/Chrome·signed reset을 수행하는 것이다.
+- **격리 보호 시험 자원 사전 등록:** Windows 작업 branch를 SSH alias push하고 WSL 지정 checkout을 exact SHA로 ff-only 갱신한 뒤, 별도 WSL Docker network `shoppingmall-s52-shared-contract-1007-net`, PG15 컨테이너 `shoppingmall-s52-shared-contract-1007-pg`의 명시 tmpfs 데이터/영속 volume0·외부 port0, 그 안의 DB 이름만 정식과 같은 `shoppingmall`(별도 PostgreSQL system ID), `--rm` Node24 runner `shoppingmall-s52-shared-contract-1007-runner`, 정확 root `/tmp/shoppingmall-s52-support-ui`(daon 0700)와 0600 recovery 파일만 사용한다. 생성 전 이름·경로·포트 점유0/비소유0을 검사하고, source는 지정 checkout `:ro`, PG는 별도 container network namespace에 둔다. fresh migration19 → 공유 consent로 가상 seed/검증/서명 reset → 기본 행5 외 업무행0·recovery0을 확인한 다음 정확 container/network/root만 삭제해 잔류0을 확인한다. 실제 `local-postgres`와 그 `shoppingmall` DB에는 이 보호 시험이 접속하지 않는다. 실패 시 signed recovery와 DB를 보존·보고하고 임의 SQL 삭제하지 않는다.
+
 ## S5.2 실제 Chrome 정상·환불 재개 이중 검증 및 자원 정리 — 2026-10-07
 
 - **담당·기준:** 어울 단일 writer. 기존 `codex/s52-customer-support`를 `69ebca93eef9d5b3f2b306ef281aec646fdb1e97`로 안전 커밋·SSH alias push 후 지정 WSL checkout을 ff-only로 같은 SHA에 맞췄다. 이번 커밋은 브라우저 QA의 `pg` 로드 경로·회귀 시험·현황만 변경하며 제품 소스 변경은 없다.

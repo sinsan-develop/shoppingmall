@@ -17,7 +17,8 @@ import {
   supportUiDatabaseName, supportUiEmails, supportUiUploadRoot,supportUiRecoveryPath,
   isSupportUiImageKey,
   signSupportUiManifest, validateSupportUiManifest,
-  validateSupportUiSystemTarget, validateSupportUiTarget, runSupportUiFixture,
+  validateSupportUiSystemTarget, validateSupportUiTarget, validateSharedSupportUiTarget,
+  validateSharedSupportUiBaseline,runSupportUiFixture,
 } from '../scripts/qa-support-ui-fixture.ts';
 
 const uuid = (digit) => `${digit.repeat(8)}-${digit.repeat(4)}-${digit.repeat(4)}-${digit.repeat(4)}-${digit.repeat(12)}`;
@@ -75,6 +76,36 @@ test('S5.2 browser fixture accepts only exact local dedicated database and syste
       else process.env.S52_SUPPORT_UI_TEMP_ROOT = oldRoot;
     }
   }
+});
+
+test('S5.2 formal shared DB target requires exact run consent and system identity', () => {
+  const consent = `SHARED_S52_SUPPORT_UI_${runId}`;
+  const url = 'postgresql://qa@127.0.0.1:5432/shoppingmall';
+  assert.equal(validateSharedSupportUiTarget(url,runId,consent).database,'shoppingmall');
+  for (const [target,approval] of [
+    [url,undefined],
+    [url,'SHARED_S52_SUPPORT_UI_other'],
+    ['postgresql://qa@remote.example:5432/shoppingmall',consent],
+    [`postgresql://qa@127.0.0.1:5432/${supportUiDatabaseName(runId)}`,consent],
+  ]) assert.throws(() => validateSharedSupportUiTarget(target,runId,approval));
+  assert.deepEqual(validateSupportUiSystemTarget(runId,'7622490131194466339',{
+    databaseName:'shoppingmall',systemId:'7622490131194466339',
+  },'shoppingmall'),{ databaseName:'shoppingmall',systemId:'7622490131194466339' });
+  assert.throws(() => validateSupportUiSystemTarget(runId,'7622490131194466339',{
+    databaseName:supportUiDatabaseName(runId),systemId:'7622490131194466339',
+  },'shoppingmall'));
+});
+
+test('S5.2 formal shared seed refuses non-baseline business or policy rows', () => {
+  const baseline = { fulfillment_settings:1,home_content_current:1,
+    home_content_draft:1,shipping_policy_global:1,support_policy_versions:1,
+    accounts:0,checkout_orders:0,support_claims:0 };
+  assert.doesNotThrow(() => validateSharedSupportUiBaseline(baseline));
+  assert.throws(() => validateSharedSupportUiBaseline({ ...baseline,accounts:1 }));
+  assert.throws(() => validateSharedSupportUiBaseline({ ...baseline,support_claims:1 }));
+  assert.throws(() => validateSharedSupportUiBaseline({ ...baseline,
+    support_policy_versions:2 }));
+  assert.throws(() => validateSharedSupportUiBaseline({ accounts:0 }));
 });
 
 test('S5.2 reset requires complete unmodified signed creation manifest', () => {

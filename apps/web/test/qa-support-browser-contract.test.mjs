@@ -32,6 +32,19 @@ test('S5.2 browser is bound to exact loopback, run consent and evidence folder',
   assert.throws(() => assertSupportBrowserBounds(good,runId,'linux'));
 });
 
+test('formal shared S5.2 browser requires a separate matching opt-in and no resume mode', () => {
+  const consent = `SHARED_S52_SUPPORT_UI_${runId}`;
+  const shared = { ...good,QA_BROWSER_CONSENT:consent,
+    QA_SHARED_SUPPORT_UI:consent };
+  assert.equal(assertSupportBrowserBounds(shared,runId,'win32').attempt,'r1');
+  assert.throws(() => assertSupportBrowserBounds({ ...shared,
+    QA_SHARED_SUPPORT_UI:undefined },runId,'win32'));
+  assert.throws(() => assertSupportBrowserBounds({ ...good,
+    QA_SHARED_SUPPORT_UI:consent },runId,'win32'));
+  assert.throws(() => browserContract.assertSupportResumeTarget({ ...shared,
+    QA_SUPPORT_FLOW:'resume' },runId));
+});
+
 test('refund-resume browser flow is limited to its isolated PostgreSQL and system ID', () => {
   const env = { ...good,QA_SUPPORT_FLOW:'resume',
     DATABASE_URL:'postgresql://postgres:test-only@127.0.0.1:15439/shoppingmall_s52_support_ui_a52c1007',

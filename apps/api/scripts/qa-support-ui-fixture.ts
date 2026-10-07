@@ -157,11 +157,51 @@ export function validateSupportUiTarget(databaseUrl: string,value: string) {
   return { url,database };
 }
 
+export function validateSharedSupportUiTarget(databaseUrl: string,value: string,
+  consent?: string) {
+  const runId = validateQaRunId(value);
+  const url = new URL(databaseUrl);
+  const database = decodeURIComponent(url.pathname.slice(1));
+  if (!['postgres:','postgresql:'].includes(url.protocol) ||
+      !['127.0.0.1','::1','[::1]','localhost'].includes(url.hostname) ||
+      database !== 'shoppingmall' ||
+      consent !== `SHARED_S52_SUPPORT_UI_${runId}`)
+    throw new Error('Support UI shared fixture requires exact shoppingmall DB and run-bound opt-in');
+  return { url,database };
+}
+
+export function validateSharedSupportUiBaseline(counts: Record<string,number>) {
+  const defaults = new Set(['fulfillment_settings','home_content_current',
+    'home_content_draft','shipping_policy_global','support_policy_versions']);
+  if ([...defaults].some((name) => counts[name] !== 1) ||
+      Object.entries(counts).some(([name,count]) =>
+        !Number.isSafeInteger(count) || count !== (defaults.has(name) ? 1 : 0)))
+    throw new Error('Support UI shared fixture requires an untouched empty QA baseline');
+}
+
+async function assertSharedSupportUiBaseline(client: PoolClient) {
+  await client.query("SET LOCAL lock_timeout='1s'");
+  await client.query("SET LOCAL statement_timeout='10s'");
+  const tables = (await client.query<{ tablename: string }>(`SELECT tablename FROM pg_tables
+    WHERE schemaname='public' ORDER BY tablename`)).rows.map((row) => row.tablename);
+  const quoted = tables.map((name) => `public."${name.replaceAll('"','""')}"`);
+  if (!tables.length) throw new Error('Support UI shared fixture has no public tables');
+  await client.query(`LOCK TABLE ${quoted.join(',')} IN SHARE ROW EXCLUSIVE MODE`);
+  const counts: Record<string,number> = {};
+  for (let index=0;index<tables.length;index++) {
+    counts[tables[index]] = (await client.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM ${quoted[index]}`)).rows[0].count;
+  }
+  validateSharedSupportUiBaseline(counts);
+}
+
 export function validateSupportUiSystemTarget(value: string,expectedSystemId: string | undefined,
-  actual: { databaseName?: string; systemId?: string }) {
+  actual: { databaseName?: string; systemId?: string },
+  expectedDatabase = supportUiDatabaseName(value)) {
   if (!/^\d{10,}$/.test(expectedSystemId ?? '') ||
+      ![supportUiDatabaseName(value),'shoppingmall'].includes(expectedDatabase) ||
       actual.systemId !== expectedSystemId ||
-      actual.databaseName !== supportUiDatabaseName(value))
+      actual.databaseName !== expectedDatabase)
     throw new Error('Support UI fixture requires its exact database system identifier and name');
   return { databaseName: actual.databaseName,systemId: actual.systemId };
 }
@@ -692,9 +732,12 @@ async function deleteOwnedRows(client: PoolClient,m: SupportUiManifest) {
 }
 
 export async function runSupportUiFixture(action: 'seed' | 'reset',value: string,
-  databaseUrl: string,password?: string,manifestJson?: string,expectedSystemId?: string) {
+  databaseUrl: string,password?: string,manifestJson?: string,expectedSystemId?: string,
+  sharedConsent?: string) {
   const runId = validateQaRunId(value);
-  validateSupportUiTarget(databaseUrl,runId);
+  const databaseName = sharedConsent === undefined
+    ? validateSupportUiTarget(databaseUrl,runId).database
+    : validateSharedSupportUiTarget(databaseUrl,runId,sharedConsent).database;
   await assertSupportUiTempRoot();
   if (action !== 'seed' && action !== 'reset') throw new Error('Invalid QA action');
   if (!password || password.length < 12) throw new Error('QA_FIXTURE_PASSWORD must be set');
@@ -715,8 +758,9 @@ export async function runSupportUiFixture(action: 'seed' | 'reset',value: string
       const actual = (await client.query<{ databaseName: string;systemId: string }>(`
         SELECT current_database() AS "databaseName",system_identifier::text AS "systemId"
         FROM pg_control_system()`)).rows[0];
-      validateSupportUiSystemTarget(runId,expectedSystemId,actual);
+      validateSupportUiSystemTarget(runId,expectedSystemId,actual,databaseName);
       if (action === 'seed') {
+        if (sharedConsent !== undefined) await assertSharedSupportUiBaseline(client);
         result = await seedFixture(client,runId,password);
         await createRecoveryFile(recoveryPath,password,result,
           () => { recoveryCreated = true; });
@@ -733,6 +777,7 @@ export async function runSupportUiFixture(action: 'seed' | 'reset',value: string
         const store = new ImageQuarantine(supportUiUploadRoot(runId));
         for (const file of files) staged.push(await store.stageRemoval(file.object_key));
         result = await deleteOwnedRows(client,manifest!);
+        if (sharedConsent !== undefined) await assertSharedSupportUiBaseline(client);
       }
       await client.query('COMMIT');
       committed = true;
@@ -776,7 +821,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
     throw new Error('usage: qa-support-ui-fixture.ts seed|reset');
   runSupportUiFixture(action,process.env.QA_RUN_ID ?? '',process.env.DATABASE_URL ?? '',
     process.env.QA_FIXTURE_PASSWORD,process.env.QA_FIXTURE_JSON,
-    process.env.S52_SUPPORT_UI_DB_SYSTEM_ID)
+    process.env.S52_SUPPORT_UI_DB_SYSTEM_ID,process.env.QA_SHARED_SUPPORT_UI)
     .then((value) => { process.stdout.write(`${JSON.stringify(value)}\n`); })
     .catch((error) => {
       process.stderr.write(`${error instanceof Error ? error.message : 'Support UI fixture failed'}\n`);

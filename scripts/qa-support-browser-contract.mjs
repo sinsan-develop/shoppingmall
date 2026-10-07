@@ -4,12 +4,16 @@ export function assertSupportBrowserBounds(env,runId,platform = process.platform
   if (platform !== 'win32' || !/^[0-9a-f]{8}$/.test(runId))
     throw new Error('S5.2 browser requires the exact Windows QA run');
   const evidenceDir = `D:\\tmp\\shoppingmall-s52-browser-${runId}-evidence`;
+  const isolated = env.QA_BROWSER_CONSENT === `S52_ISOLATED_SUPPORT_${runId}` &&
+    env.QA_SHARED_SUPPORT_UI === undefined;
+  const shared = env.QA_BROWSER_CONSENT === `SHARED_S52_SUPPORT_UI_${runId}` &&
+    env.QA_SHARED_SUPPORT_UI === env.QA_BROWSER_CONSENT;
   if (env.QA_WEB_BASE !== 'http://127.0.0.1:9091' ||
       env.QA_CHROME_DEBUGGING !== 'http://127.0.0.1:9229' ||
-      env.QA_BROWSER_CONSENT !== `S52_ISOLATED_SUPPORT_${runId}` ||
+      !(isolated || shared) ||
       env.QA_EVIDENCE_DIR !== evidenceDir ||
       !/^r[1-9]$/.test(env.QA_BROWSER_ATTEMPT ?? ''))
-    throw new Error('S5.2 browser inputs must match the isolated run');
+    throw new Error('S5.2 browser inputs must match the signed QA run');
   return { web:env.QA_WEB_BASE,debugging:env.QA_CHROME_DEBUGGING,
     evidenceDir,attempt:env.QA_BROWSER_ATTEMPT };
 }
@@ -18,6 +22,8 @@ export function assertSupportResumeTarget(env,runId) {
   const flow = env.QA_SUPPORT_FLOW ?? 'normal';
   if (flow === 'normal') return null;
   if (flow !== 'resume') throw new Error('Unknown S5.2 browser flow');
+  if (env.QA_SHARED_SUPPORT_UI !== undefined)
+    throw new Error('S5.2 refund resume browser requires isolated PostgreSQL');
   const url = new URL(env.DATABASE_URL ?? '');
   const database = supportUiDatabaseName(runId);
   if (!['postgres:','postgresql:'].includes(url.protocol) ||
