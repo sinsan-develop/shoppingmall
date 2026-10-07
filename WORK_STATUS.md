@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.3 작업 임대·시도 생성 진행 — 2026-10-08
+
+- **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support`. PMO에 0019 공유 개발 DB 경계를 보고했고 PMO는 별도 신산님 직접 승인이 필요하며 PMO 대리 승인이 없다고 확인했다. 신산님께 공유 DB 적용 여부를 비차단 질문으로 요청했고, 답변 전에는 격리 DB만 사용한다.
+- **RED→GREEN:** `claimNextNotificationJob` 부재 RED 뒤, `FOR UPDATE SKIP LOCKED`로 기한 도래 한 작업을 임대하고 같은 SQL 문에서 `STARTED` 시도 1건을 만드는 내부 함수를 추가했다. 표적 단위시험 2/2 pass, API 타입 검사 exit0. 완료 처리·임대 만료 복구·실/모의 발송·원사건 연결은 아직 미구현이며 이 단계는 S5.3 완료가 아니다.
+- **격리 DB 자원 사전 등록:** WSL-server internal network `shoppingmall-s53-claim-1008-net`, tmpfs PG15 `shoppingmall-s53-claim-1008-pg`의 DB `shoppingmall_s53_claim_1008`, 일회용 Node24 runner `shoppingmall-s53-claim-1008-node`만 사용한다. 외부 포트·영속 volume 없음, source read-only. 생성 전 이름 충돌0 확인, migration20과 system ID 확인 후 임대·시도 원자성 시험을 돌린다. 시험은 행을 rollback하고 사후 작업/시도/계정0 및 정확 container/network/volume 잔류0 확인 후 정리한다. 공유 DB·Oracle·실 공급자는 접촉하지 않는다.
+- **로컬 전체 gate:** `pnpm test` 499 total/361 pass/138 계획 환경 skip/0 fail, PR 본문 8/8 pass. `pnpm build` API와 Next 22 route, `pnpm typecheck`, `pnpm lint` 모두 exit0. 격리 DB 임대 시험은 아직 실행하지 않았고 138 skip을 실제 DB PASS로 보지 않는다.
+
 ## S5.3 알림 작업 등록 내부 계약 진행 — 2026-10-08
 
 - **담당·승인 경계:** 어울 단일 writer. 기존 `codex/s52-customer-support`에서 진행한다. 이번 변경은 승인된 0019 테이블을 사용하는 내부 등록 계약까지만이며, 공유 개발 DB migration 적용·공개 API·검증 이메일/기기 등록·실 발송은 포함하지 않는다.
