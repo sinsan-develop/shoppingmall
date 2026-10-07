@@ -27,6 +27,9 @@ test('0019 installs only the two notification ledgers with matching declarations
       system_identifier::text AS system_id FROM pg_control_system()`)).rows[0];
     assert.equal(identity.name, databaseName);
     assert.equal(identity.system_id, systemId);
+    const relations = (await pool.query(`SELECT to_regclass('public.notification_jobs')::text AS jobs,
+      to_regclass('public.notification_attempts')::text AS attempts`)).rows[0];
+    assert.deepEqual(relations,{ jobs:'notification_jobs',attempts:'notification_attempts' });
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations')).rows[0].n,20);
     for (const table of [schema.notificationJobs,schema.notificationAttempts]) {
       assert.ok(table, 'Drizzle declaration required');
