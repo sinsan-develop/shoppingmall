@@ -30,6 +30,23 @@ test('S5.2 browser is bound to exact loopback, run consent and evidence folder',
   assert.throws(() => assertSupportBrowserBounds(good,runId,'linux'));
 });
 
+test('refund-resume browser flow is limited to its isolated PostgreSQL and system ID', () => {
+  const env = { ...good,QA_SUPPORT_FLOW:'resume',
+    DATABASE_URL:'postgresql://postgres:test-only@127.0.0.1:15439/shoppingmall_s52_support_ui_a52c1007',
+    S52_SUPPORT_UI_DB_SYSTEM_ID:'7693877180765425702' };
+  const target = browserContract.assertSupportResumeTarget(env,runId);
+  assert.equal(target.database,'shoppingmall_s52_support_ui_a52c1007');
+  assert.equal(target.systemId,'7693877180765425702');
+  assert.equal(browserContract.assertSupportResumeTarget(good,runId),null);
+  for (const changed of [
+    { DATABASE_URL:'postgresql://postgres:test-only@127.0.0.1:15439/shoppingmall' },
+    { DATABASE_URL:'postgresql://postgres:test-only@localhost:15439/shoppingmall_s52_support_ui_a52c1007' },
+    { DATABASE_URL:'postgresql://postgres:test-only@127.0.0.1:5432/shoppingmall_s52_support_ui_a52c1007' },
+    { S52_SUPPORT_UI_DB_SYSTEM_ID:'' },
+    { QA_SUPPORT_FLOW:'unknown' },
+  ]) assert.throws(() => browserContract.assertSupportResumeTarget({ ...env,...changed },runId));
+});
+
 test('S5.2 list detail assertion waits for list, opens it, then checks detail', async () => {
   const order = [];
   await inspectListDetail(async () => { order.push('list'); },
@@ -44,6 +61,17 @@ test('S5.2 browser waits for the localized refunded claim, not the DB enum', () 
     { body:{ innerText } });
   assert.equal(visible('반품 · 환불 완료 · 훼손'),true);
   assert.equal(visible('RETURN · REFUNDED · damaged'),false);
+});
+
+test('pending resume checks selected detail status rather than the filter option', () => {
+  const expression=browserContract.browserSelectedClaimStatusExpression('REFUND_PROCESSING');
+  const visible=(detailText,filterText) => Function('document',`return ${expression}`)({
+    body:{innerText:filterText},
+    querySelector:() => detailText === null ? null : {textContent:detailText},
+  });
+  assert.equal(visible('환불 처리 중',''),true);
+  assert.equal(visible('판매자 답변','환불 처리 중'),false);
+  assert.equal(visible(null,'환불 처리 중'),false);
 });
 
 test('S5.2 navigation waits for a document body after the URL changes', () => {

@@ -1,18 +1,23 @@
 // Actual Chrome/CDP QA against the run-scoped S5.2 isolated database only.
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { lstat, readdir, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { validateSupportUiManifest } from '../apps/api/scripts/qa-support-ui-fixture.ts';
+import { Pool } from 'pg';
+import { approveClaim } from '../apps/api/src/support/claims.ts';
+import { validateSupportUiManifest,validateSupportUiSystemTarget } from
+  '../apps/api/scripts/qa-support-ui-fixture.ts';
 import { closeCdpPage, createCdpCommandChannel, openCdpPage,
   visitKeyboardTargets } from './qa-browser-cdp.mjs';
-import { assertSupportBrowserBounds,browserClaimStatusVisibleExpression,
-  browserNavigationReadyExpression,inspectListDetail } from
+import { assertSupportBrowserBounds,assertSupportResumeTarget,browserClaimStatusVisibleExpression,
+  browserNavigationReadyExpression,browserSelectedClaimStatusExpression,inspectListDetail } from
   './qa-support-browser-contract.mjs';
 
 const candidate = JSON.parse(process.env.QA_FIXTURE_JSON ?? 'null');
 const password = process.env.QA_FIXTURE_PASSWORD;
 if (!candidate?.runId || !password) throw new Error('Signed S5.2 fixture is required');
 const fixture = validateSupportUiManifest(candidate.runId,candidate,password);
+const resumeTarget = assertSupportResumeTarget(process.env,fixture.runId);
 const { web,debugging,evidenceDir,attempt } =
   assertSupportBrowserBounds(process.env,fixture.runId);
 const api = 'http://127.0.0.1:9092';
@@ -112,6 +117,7 @@ async function evidence(label) {
   const headings = { 'customer-claim':'#customer-claim-detail-title',
     'seller-claim':'#seller-claims-detail-title',
     'admin-claim':'#claim-detail-heading',
+    'admin-claim-pending':'#claim-detail-heading',
     'admin-review-hidden':'#admin-review-detail-title' };
   for (const size of widths) {
     await send('Emulation.setDeviceMetricsOverride',{
@@ -182,7 +188,7 @@ assert.ok(evidenceStat.isDirectory()&&!evidenceStat.isSymbolicLink());
 assert.equal((await realpath(evidenceDir)).toLowerCase(),path.resolve(evidenceDir).toLowerCase());
 const existingEvidence=await readdir(evidenceDir);
 if (existingEvidence.some((name) =>
-  !/^(?:r[1-9]-)?(?:customer-claim|seller-claim|admin-claim|admin-review-hidden)-(?:1920|1440|430)\.png$/.test(name)))
+  !/^(?:r[1-9]-)?(?:customer-claim|seller-claim|admin-claim|admin-claim-pending|admin-review-hidden)-(?:1920|1440|430)\.png$/.test(name)))
   throw new Error('S5.2 evidence folder contains an unrelated file');
 
 try {
@@ -302,18 +308,43 @@ try {
   await waitFor("document.body.innerText.includes('답변과 이력을 저장했습니다')",'seller claim reply');
   await evidence('seller-claim');
 
+  if (resumeTarget) {
+    const pool = new Pool({ connectionString:resumeTarget.databaseUrl,max:1 });
+    try {
+      const actual = (await pool.query(`SELECT current_database() AS "databaseName",
+        system_identifier::text AS "systemId" FROM pg_control_system()`)).rows[0];
+      validateSupportUiSystemTarget(fixture.runId,resumeTarget.systemId,actual);
+      const pending = await approveClaim(pool, { claimId,
+        adminAccountId:fixture.accountIds[4],reason:'가상 모의 환불 재개 준비',
+        idempotencyKey:randomUUID() },
+      { APP_ENV:'development',PAYMENT_MODE:'mock' });
+      assert.equal(pending.status,'REFUND_PROCESSING');
+    } finally { await pool.end(); }
+  }
+
   await login('admin',fixture.emails[4]);
   await navigate('/account/admin/support/claims');
   await inspectListDetail(
     () => waitFor("document.querySelector('section[aria-labelledby=\"claim-list-heading\"] button')",
       'admin claim list'),
     () => click('section[aria-labelledby="claim-list-heading"] button'),
-    () => waitFor("document.body.innerText.includes('가상 훼손 반품 요청') && document.querySelector('#claim-approve-reason')",
+    () => waitFor(`document.body.innerText.includes('가상 훼손 반품 요청') && ` +
+      `document.querySelector(${JSON.stringify(resumeTarget ?
+        'section[aria-labelledby="claim-detail-heading"] button.primary-button' :
+        '#claim-approve-reason')})`,
       'admin claim detail'));
-  await setInput('#claim-approve-reason','가상 출고 후 정책에 따른 승인');
-  await submit('#claim-approve-reason');
-  await waitFor("document.body.innerText.includes('최종 결정과 모의 환불 결과를 반영했습니다')",
-    'admin mock verified refund');
+  if (resumeTarget) {
+    await waitFor(browserSelectedClaimStatusExpression('REFUND_PROCESSING'),'pending claim');
+    await evidence('admin-claim-pending');
+    await click('section[aria-labelledby="claim-detail-heading"] button.primary-button');
+    await waitFor("document.body.innerText.includes('모의 환불 결과를 반영했습니다')",
+      'admin resumed mock refund');
+  } else {
+    await setInput('#claim-approve-reason','가상 출고 후 정책에 따른 승인');
+    await submit('#claim-approve-reason');
+    await waitFor("document.body.innerText.includes('최종 결정과 모의 환불 결과를 반영했습니다')",
+      'admin mock verified refund');
+  }
   await waitFor(browserClaimStatusVisibleExpression('REFUNDED'),'refunded claim');
   await evidence('admin-claim');
 
@@ -353,6 +384,7 @@ try {
 
   console.info('browser: S5.2 customer, product seller, owool seller and admin paths PASS');
   console.info('browser: Q&A, private claim evidence, mock refund, text review report/hide PASS');
+  if (resumeTarget) console.info('browser: pending claim resumed through the admin button PASS');
   console.info('browser: 1920, 1440, 430 and keyboard checks PASS');
 } finally {
   const errors=await closeCdpPage({ debugging,page,socket });
