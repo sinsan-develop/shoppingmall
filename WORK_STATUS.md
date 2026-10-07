@@ -4,6 +4,8 @@
 
 - **담당·범위:** 어울 단일 writer, 기존 작업 브랜치. 직전 변경의 실 PostgreSQL 검증을 확대해 판매 가능 상태의 mock 성공은 신청 `notified`/완료 시각을 기록하고, 작업 생성 후 다시 품절되면 `RESTOCK_UNAVAILABLE`로 종료하면서 신청은 active로 유지하는지 확인한다. 제품·공개 API·schema·공유 DB·실 채널 변경은 없다.
 - **격리 QA 자원 사전 등록:** WSL-server의 정확 이름 internal network `shoppingmall-s53-restock-states-1008-net`, tmpfs PG15 `shoppingmall-s53-restock-states-1008-pg` 안 DB `shoppingmall`, 일회용 source-read-only Node24 `shoppingmall-s53-restock-states-1008-node`만 쓴다. 외부 포트·영속 volume 없음. 동명 부재→migration20/system ID→표적 실 DB 시험→소유 QA 행0→정확 자원 제거·잔류0 순서이며 실패 시 공유 DB로 우회하지 않는다.
+- **실 DB 회귀·정리:** 시험 commit `24e77ce2e9eea19d7eefb254859e36c1396a33cb`를 SSH alias push→WSL 지정 checkout ff-only 동일 SHA/clean으로 맞췄다. 사전 동명0 확인 후 전용 PG15가 첫 즉시 readiness 확인에서는 아직 기동 중이라 1회 실패했고 재확인에서 정상 ready였다(제품 오류 아님). DB `shoppingmall` system ID `7694046983547158572`, migration20의 source-read-only Node24 실 시험 1/1 pass/skip0: 판매중지 후 영구 실패, 중지 해제 후 정상 `SENT`/신청 `notified`와 시각, 이후 재품절 때 `RESTOCK_UNAVAILABLE`/신청 active를 각각 트랜잭션 rollback으로 격리해 확인했다. 사후 accounts/products/subscriptions/jobs/attempts/stock requests/sale stop requests 모두0, mounts `[]`, PG data tmpfs, port binding `{}`, internal network 해당 PG1. 정확 PG/network 정상 제거 뒤 동명 container/network/volume0. 공유 DB·실 Provider 불변.
+- **최신 로컬 gate·남은 범위:** `pnpm test` 521 total/375 pass/146 환경 가드 skip/0 fail, PR 본문8/8 pass, `pnpm typecheck`, `pnpm lint`, `pnpm build` exit0. 146 skip을 실 DB 검증으로 간주하지 않는다. 재입고 경쟁·취소/옵션 교체, 정식 전체 WSL DB/브라우저·실 채널·Oracle/UAT는 이 표적 검증으로 대체하지 않는다.
 
 ## S5.3 재입고 모의 실행 직전 상태 재확인 진행 — 2026-10-08
 
