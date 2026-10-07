@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5.3 배송 원사건 알림 연결 진행 — 2026-10-08
+
+- **담당·범위:** 어울 단일 writer, 기존 `codex/s52-customer-support` linked worktree. 승인된 S5.3 내부 알림 계약 안에서 판매자 담당 발송의 실제 상태 전이와 관리자 사유 있는 정정 사건을 `shipment_updated`로 연결한다. 알림의 `source_event_id`는 저장된 `shipment_fulfillment_events.id`, 수신 계정은 원주문 고객이다. 고객 연락처 원문·실 발송·새 공개 API/schema·공유 DB 자료는 제외한다. 같은 idempotency 키 재호출은 알림을 늘리지 않고, 거부/실패된 전이는 작업을 남기지 않아야 한다.
+- **격리 자원 사전 등록:** WSL-server 전용 internal network `shoppingmall-s53-shipment-1008-net`, tmpfs PostgreSQL15 `shoppingmall-s53-shipment-1008-pg`의 DB `shoppingmall`, 일회용 source-read-only Node24 runner `shoppingmall-s53-shipment-1008-node`만 사용한다. 외부 포트·영속 volume 없음. 생성 전 동명 자원0·migration20/system ID 확인 → 실제 서비스 RED/GREEN → 소유 QA 행0 → 정확 컨테이너·네트워크 제거와 동명 잔류0 순서다. 실패 시 공유 DB나 타 자원은 변경하지 않는다.
+- **현재 상태·다음 조치:** 원사건 저장 함수는 사건 ID를 반환하지 않고 배송 서비스는 알림 helper를 호출하지 않는다. 먼저 실제 DB 시험을 작성해 알림 누락 RED를 확인한 뒤 저장 사건 ID 반환과 같은 트랜잭션 큐 등록을 최소 구현한다. 기존 배송·결제 회귀와 전체 로컬 gate를 별도로 실행한다.
+
 ## S5.3 주문·결제 원사건 알림 연결 검증 및 임시 자원 정리 — 2026-10-08
 
 - **담당·상태:** 어울 단일 writer, `codex/s52-customer-support` 작업 브랜치. 주문 생성 시 `order_submitted`, 검증된 첫 결제 승인·거절 적용 시 각각 `payment_approved`·`payment_declined`를 기존 내부 알림 작업으로 연결했다. 새 공개 API/schema, 실 공급자 전송, 공유 DB 시험 데이터는 없다. S5.3 전체 완료 또는 인수 승인으로 판정하지 않는다.
