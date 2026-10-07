@@ -97,3 +97,40 @@ export async function completeNotificationJob(client: PoolClient,claim: Completi
     retry?.status === 'retry' ? retry.nextAttemptAt : null,success ? at : null]);
   return result.rows.length === 1;
 }
+
+type RecoveryResult = { jobId:string; attemptsCompleted:number;
+  status:'QUEUED' | 'FAILED'; availableAt:Date | null };
+
+/** Crash recovery marks the abandoned attempt and releases its lease atomically. */
+export async function recoverExpiredNotificationJob(client: PoolClient,
+  now: Date): Promise<RecoveryResult | null> {
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime()))
+    throw new Error('Invalid notification recovery time');
+  const result = await client.query<RecoveryResult>(`
+    WITH expired AS (
+      SELECT j.id,j.attempts_completed,a.id AS attempt_id
+      FROM notification_jobs j
+      JOIN notification_attempts a ON a.job_id=j.id
+        AND a.attempt_no=j.attempts_completed+1 AND a.status='STARTED'
+      WHERE j.status='PROCESSING' AND j.lease_until <= $1
+      ORDER BY j.lease_until,j.id FOR UPDATE OF j,a SKIP LOCKED LIMIT 1
+    ), closed AS (
+      UPDATE notification_attempts a
+      SET status='TRANSIENT_FAILURE',error_code='LEASE_EXPIRED',finished_at=$1
+      FROM expired WHERE a.id=expired.attempt_id
+      RETURNING a.job_id
+    ), reset AS (
+      UPDATE notification_jobs j SET
+        attempts_completed=j.attempts_completed+1,
+        status=CASE WHEN j.attempts_completed+1 < 3 THEN 'QUEUED' ELSE 'FAILED' END,
+        available_at=CASE WHEN j.attempts_completed+1 < 3
+          THEN $1 + CASE WHEN j.attempts_completed=0 THEN interval '1 minute'
+            ELSE interval '5 minutes' END ELSE NULL END,
+        lease_token=NULL,lease_until=NULL,updated_at=$1
+      FROM closed WHERE j.id=closed.job_id
+      RETURNING j.id,j.attempts_completed,j.status,j.available_at
+    )
+    SELECT id AS "jobId",attempts_completed AS "attemptsCompleted",
+      status,available_at AS "availableAt" FROM reset`,[now]);
+  return result.rows[0] ?? null;
+}

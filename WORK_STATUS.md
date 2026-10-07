@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S5.3 임대 만료 복구 진행 — 2026-10-08
+
+- **담당·범위:** 어울 단일 writer, 기존 승인된 알림 0019 테이블 내부 처리만 변경한다. 공유 DB 적용·새 공개 API·실 Provider/비용 없음.
+- **RED→GREEN:** `recoverExpiredNotificationJob` export 부재 RED 뒤 만료 임대와 해당 `STARTED` 시도를 함께 잠가 안전 오류 코드 `LEASE_EXPIRED`로 닫고, 1회차 1분/2회차 5분 재시도 또는 3회차 실패 종료를 같은 SQL 문에서 기록하도록 구현했다. 단위시험 2/2 pass와 API 타입 검사 exit0. 실제 DB의 복구/경쟁은 아직 미검증이다.
+- **격리 DB 자원 사전 등록:** WSL-server internal network `shoppingmall-s53-recover-1008-net`, tmpfs PG15 `shoppingmall-s53-recover-1008-pg` DB `shoppingmall_s53_recover_1008`, 일회용 Node24 runner `shoppingmall-s53-recover-1008-node`만 사용한다. 외부 포트·영속 volume 없음, source read-only. 생성 전 동명 자원0 → DB system ID/migration20 → 만료 전 무조치·만료 복구·오래된 worker 거부·재시도 성공 → rollback/업무행0 → 정확 container/network/volume 잔류0으로 검증한다. 공유 DB·Oracle·실 채널은 접촉하지 않는다.
+- **로컬 전체 gate:** `pnpm test` 506 total/366 pass/140 계획 환경 skip/0 fail, PR 본문 8/8 pass. `pnpm build` API/Next 22 route, `pnpm typecheck`, `pnpm lint` exit0. 실제 DB 복구 시험은 아직 실행 전이며 140 skip은 DB PASS가 아니다.
+
 ## S5.3 발송 결과·재시도 원자 기록 진행 — 2026-10-08
 
 - **담당·경계:** 어울 단일 writer, 기존 승인된 0019 관계와 내부 함수만 사용. 공유 개발 DB migration 적용 답변 전에는 공유 DB 쓰기 없음; 실 메일/SMS/푸시 발송·공개 API·기기/이메일 인증 변화 없음.
