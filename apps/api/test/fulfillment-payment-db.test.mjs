@@ -179,6 +179,21 @@ async function cleanupScenario(pool, scenario) {
   if (!scenario) return;
   const orderIds = scenario.orderIds ?? [];
   if (orderIds.length) {
+    if (scenario.buyerId && (await pool.query(`SELECT
+      to_regclass('public.notification_jobs') IS NOT NULL AS ready`)).rows[0].ready) {
+      const owned = `account_id=$1 AND
+        ((kind='order_submitted' AND source_event_id=ANY($2::uuid[])) OR
+         (kind IN ('payment_approved','payment_declined') AND source_event_id IN
+           (SELECT e.id FROM payment_events e JOIN payment_attempts a
+            ON a.id=e.payment_attempt_id WHERE a.checkout_order_id=ANY($2::uuid[]))))`;
+      const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j WHERE ${owned}
+        AND (j.status<>'QUEUED' OR EXISTS
+          (SELECT 1 FROM notification_attempts n WHERE n.job_id=j.id))`,
+      [scenario.buyerId, orderIds])).rows;
+      assert.equal(unsafe.length, 0, 'QA payment notification was already processed');
+      await pool.query(`DELETE FROM notification_jobs WHERE ${owned}`,
+        [scenario.buyerId, orderIds]);
+    }
     await pool.query(`DELETE FROM payment_event_conflicts WHERE original_event_id IN
       (SELECT e.id FROM payment_events e JOIN payment_attempts a ON a.id=e.payment_attempt_id
        WHERE a.checkout_order_id=ANY($1::uuid[])) OR incoming_attempt_id IN
