@@ -34,7 +34,7 @@ test('new order queues one transactional notice in its commit but invalid and re
       (account_id,label,recipient_name,phone,postal_code,line1)
       VALUES ($1,'시험','받는 분','01000000000','12345','시험 주소') RETURNING id`,
     [buyerId])).rows[0].id;
-    const hold = await new CheckoutReservations(pool).start(buyerId, randomUUID());
+    const hold = await new CheckoutReservations(pool).start(buyerId, randomUUID(), true);
     reservationId = hold.id;
     const input = { reservationId, addressId, selections: {},
       expectedPayableWon: hold.quote.totalWon, idempotencyKey: randomUUID() };
