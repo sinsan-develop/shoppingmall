@@ -4,6 +4,7 @@ import { readToken } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
 import { parseMonitoringQuery } from './query.js';
+import { readMonitoring } from './repository.js';
 
 type RequestHeaders = { headers: { cookie?: string } };
 
@@ -21,8 +22,9 @@ export class AdminMonitoringController {
     const actor = await new AuthRepository(pool).getSession(token);
     if (!actor) throw new UnauthorizedException();
     if (actor.role !== 'admin') throw new ForbiddenException();
-    try { parseMonitoringQuery(query); }
+    let filter;
+    try { filter = parseMonitoringQuery(query); }
     catch { throw new BadRequestException({ status: 'invalid_monitoring_query' }); }
-    return {};
+    return readMonitoring(pool, filter);
   }
 }
