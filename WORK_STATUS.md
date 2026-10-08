@@ -9,6 +9,7 @@
 - **격리 DB 검증 자원 사전 등록:** S5.4 집계 RED→GREEN은 WSL의 정확 이름 internal network `shoppingmall-s54-monitor-1008-net`, tmpfs PostgreSQL `shoppingmall-s54-monitor-1008-pg`(DB `shoppingmall_s5_fulfillment_ui_c84f10ab`), source-read-only Node24 `shoppingmall-s54-monitor-1008-node`만 사용한다. `QA_RUN_ID=c84f10ab`, DB system ID를 시험에 명시한다. 외부 포트·영속 volume 없음. 생성 전 동명0→migration20→서명 fixture seed/시험/reset→QA 행0→정확 자원 제거/동명0을 확인한다. 공유 `local-postgres/shoppingmall`과 실 채널은 바꾸지 않는다.
 - **격리 첫 실행·시험 수정:** 등록 자원0 확인 뒤 `postgres:18.4` 내부 tmpfs DB에 기존 migration20 적용, system ID `7694141435206631474`, mount `[]`·port `{}` 확인. 첫 집계 시험은 제품 집계 전에 QA 로그인 401로 멈췄다(오류 1회). 원인은 시험이 `auth/login`의 기본 `customer` 역할로 관리자·판매자 계정을 로그인하려 한 것이며, fixture는 `finally` reset을 실행했다. 역할 인자를 명시하도록 시험만 수정해 같은 격리 DB에서 재실행한다. 제품 API RED 증거나 PASS로 혼동하지 않는다.
 - **실제 RED·구현:** 역할 보정 뒤 `b59b0855937681ba684a0ff9c1dd3fcca21d6963` exact WSL/격리 DB에서 관리자·타 역할 인증을 통과한 다음 빈 `{}` 응답의 `summary.orderCount`에서 의도한 실패를 확인했다. 서명 fixture reset 뒤 accounts/orders/products/sessions 각0. 로컬에서는 `monitoring/repository.ts`의 읽기 전용 repeatable-read SQL을 추가하고 controller에 연결했으며 순수/미인증 4/4와 typecheck exit0. 실 DB GREEN은 새 SHA에서 재실행 전이다.
+- **GREEN 첫 오류·원인:** `8a65b45f786b08c104e31d193b419a103857a726` exact WSL 격리 실 DB 시험은 SQLSTATE `42P18`/재고 조회의 미사용 `$1` 매개변수에서 500으로 실패했다(제품 구현 오류 1회). 같은 SQL 파일의 클레임 조회도 `$4`를 건너뛴 것이 확인됐다. 두 조회를 실제 사용 필드만 담은 연속 매개변수로 고쳤고, 서명 fixture의 accounts/orders/products/sessions0 정리를 확인한 뒤 재시험한다. 공유 DB 불변.
 
 ## S5 정식 브라우저 QA 실행 자원 — 2026-10-08
 

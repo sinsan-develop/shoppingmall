@@ -52,11 +52,12 @@ export async function readMonitoring(pool: Pool, filter: MonitoringFilter): Prom
        FROM product_publications pub JOIN products p ON p.id=pub.product_id
        JOIN product_options opt ON opt.revision_id=pub.revision_id
        JOIN inventory_levels inv ON inv.option_id=opt.id
-       WHERE ($3::uuid IS NULL OR p.seller_id=$3)`, values.slice(0, 3))).rows[0];
+       WHERE ($1::uuid IS NULL OR p.seller_id=$1)`, [filter.sellerId])).rows[0];
     const claimCount = await number(client, `SELECT count(*)::text AS value FROM support_claims claim
       WHERE claim.created_at >= $1 AND claim.created_at < $2
       AND ($3::uuid IS NULL OR claim.seller_id=$3)
-      AND ($5::text IS NULL OR claim.status=$5)`, values);
+      AND ($4::text IS NULL OR claim.status=$4)`,
+    [filter.start, filter.endExclusive, filter.sellerId, filter.claimStatus]);
     const failedPayments = (await client.query<{
       attemptId: string; orderId: string; status: string; requestedWon: number; createdAt: Date;
     }>(`SELECT attempt.id AS "attemptId",o.id AS "orderId",attempt.status,
