@@ -47,6 +47,8 @@ test('real isolated DB refund records its occurrence and the original paid order
     const caseRow = (await pool.query(`SELECT status,completed_at AS "completedAt"
       FROM refund_cases WHERE id=$1`, [request.id])).rows[0];
     assert.equal(caseRow.status, 'REFUNDED');
+    const eventAt = (await pool.query(`SELECT received_at AS "eventAt"
+      FROM refund_events WHERE id=$1`, [event.id])).rows[0].eventAt;
     const entries = (await pool.query(`SELECT kind,amount_won::int AS amount,
       checkout_order_id AS "orderId",shipment_order_id AS "shipmentId",
       source_event_id AS "sourceEventId",occurred_at AS "occurredAt"
@@ -56,7 +58,7 @@ test('real isolated DB refund records its occurrence and the original paid order
     assert.equal(entries.reduce((sum, row) => sum + row.amount, 0), decision.totalRefundWon);
     assert.ok(entries.every((row) => row.orderId === order.id &&
       row.shipmentId === shipment.id && row.sourceEventId === event.id &&
-      row.occurredAt.getTime() === caseRow.completedAt.getTime()));
+      row.occurredAt.getTime() === eventAt.getTime()));
     assert.equal((await processVerifiedRefundEvent(pool, event.id)).processingStatus, 'APPLIED');
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM settlement_events
       WHERE source_event_id=$1`, [event.id])).rows[0].n, entries.length);

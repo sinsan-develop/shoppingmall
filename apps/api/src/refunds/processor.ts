@@ -192,6 +192,7 @@ export async function processVerifiedRefundEvent(pool: Pool, eventId: string) {
       if (!stock.rowCount) {
         const result = await review(client, target.id, attempt.id, event.id,
           'Verified refund succeeded; stock restoration requires manual review');
+        await recordRefundSettlement(client, { caseId: target.id, eventId: event.id });
         await client.query('COMMIT');
         return result;
       }

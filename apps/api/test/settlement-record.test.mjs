@@ -54,12 +54,13 @@ test('paid settlement refuses non-reconciling order before inserting any entry',
   assert.equal(inserted, false);
 });
 
-test('refund occurrence uses its completion date and original product and order', async () => {
+test('refund occurrence uses its verified event date and original product and order', async () => {
   const inserted = [];
   const client = { async query(sql, values) {
     if (sql.includes('FROM refund_cases refund')) return { rows: [{
       orderId: 'may-order', shipmentOrderId: 'may-shipment', goodsWon: 12000,
-      shippingWon: 3000, totalWon: 15000, completedAt: new Date('2026-07-01T00:00:00Z'),
+      shippingWon: 3000, totalWon: 15000, completedAt: new Date('2026-07-01T00:00:05Z'),
+      eventAt: new Date('2026-07-01T00:00:00Z'),
       fulfillmentSellerId: owool.id, fulfillmentSellerName: owool.name,
       fulfillmentCategoryId: owool.categoryId, fulfillmentCategoryName: owool.categoryName,
     }] };
@@ -79,4 +80,28 @@ test('refund occurrence uses its completion date and original product and order'
   assert.deepEqual([inserted[1][1], inserted[1][2], inserted[1][4]],
     ['shipping_refund', 3000, owool.id]);
   assert.ok(inserted.every((values) => values[3] === '2026-07-01T00:00:00.000Z'));
+});
+
+test('verified refund needing stock review still records the money occurrence', async () => {
+  const inserted = [];
+  const client = { async query(sql, values) {
+    if (sql.includes('FROM refund_cases refund')) return { rows: [{
+      orderId: 'may-order', shipmentOrderId: 'may-shipment', goodsWon: 12000,
+      shippingWon: 0, totalWon: 12000, completedAt: null,
+      eventAt: new Date('2026-07-01T00:00:00Z'),
+      fulfillmentSellerId: owool.id, fulfillmentSellerName: owool.name,
+      fulfillmentCategoryId: owool.categoryId, fulfillmentCategoryName: owool.categoryName,
+    }] };
+    if (sql.includes('FROM refund_case_lines refundLine')) return { rows: [{
+      productId: 'product-id', optionId: 'option-id', productName: '고추', optionName: '500g',
+      goodsRefundWon: 12000, producerId: farm.id, producerName: farm.name,
+      producerCategoryId: farm.categoryId, producerCategoryName: farm.categoryName,
+    }] };
+    if (sql.includes('INSERT INTO settlement_events')) { inserted.push(values); return { rowCount: 1 }; }
+    throw new Error(`Unexpected query: ${sql}`);
+  } };
+  await recordRefundSettlement(client, { caseId: 'review-case', eventId: 'verified-refund-event' });
+  assert.equal(inserted.length, 1);
+  assert.deepEqual([inserted[0][1], inserted[0][2], inserted[0][3], inserted[0][8]],
+    ['goods_refund', 12000, '2026-07-01T00:00:00.000Z', 'may-order']);
 });

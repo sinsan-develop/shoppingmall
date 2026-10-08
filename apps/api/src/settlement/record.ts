@@ -11,7 +11,7 @@ type LineRow = { shipmentOrderId: string; productId: string; optionId: string;
   goodsDiscountWon: number; producerId: string; producerName: string;
   producerCategoryId: string; producerCategoryName: string };
 type RefundRow = { orderId: string; shipmentOrderId: string; goodsWon: number;
-  shippingWon: number; totalWon: number; completedAt: Date;
+  shippingWon: number; totalWon: number; eventAt: Date;
   fulfillmentSellerId: string; fulfillmentSellerName: string;
   fulfillmentCategoryId: string; fulfillmentCategoryName: string };
 type RefundLineRow = { productId: string; optionId: string; productName: string;
@@ -97,17 +97,23 @@ export async function recordRefundSettlement(client: PoolClient,
   const refund = (await client.query<RefundRow>(`SELECT
     refund.checkout_order_id AS "orderId",refund.shipment_order_id AS "shipmentOrderId",
     refund.goods_refund_won AS "goodsWon",refund.shipping_refund_won AS "shippingWon",
-    refund.total_refund_won AS "totalWon",refund.completed_at AS "completedAt",
+    refund.total_refund_won AS "totalWon",event.received_at AS "eventAt",
     f.fulfillment_seller_id AS "fulfillmentSellerId",
     seller.display_name AS "fulfillmentSellerName",
     category.id AS "fulfillmentCategoryId",category.name AS "fulfillmentCategoryName"
-    FROM refund_cases refund JOIN shipment_fulfillments f
+    FROM refund_cases refund JOIN refund_attempts attempt
+      ON attempt.refund_case_id=refund.id
+    JOIN refund_events event ON event.refund_attempt_id=attempt.id
+      AND event.id=$2 AND event.outcome='SUCCEEDED'
+      AND event.amount_won=refund.total_refund_won
+    JOIN shipment_fulfillments f
       ON f.shipment_order_id=refund.shipment_order_id
     JOIN sellers seller ON seller.id=f.fulfillment_seller_id
     JOIN seller_categories category ON category.id=seller.category_id
-    WHERE refund.id=$1 AND refund.status='REFUNDED'`, [input.caseId])).rows[0];
-  if (!refund || !(refund.completedAt instanceof Date) ||
-      !Number.isFinite(refund.completedAt.getTime())) {
+    WHERE refund.id=$1 AND refund.status IN ('REFUNDED','REVIEW_REQUIRED')`,
+  [input.caseId, input.eventId])).rows[0];
+  if (!refund || !(refund.eventAt instanceof Date) ||
+      !Number.isFinite(refund.eventAt.getTime())) {
     throw new Error('Settlement refund unavailable');
   }
   const lines = (await client.query<RefundLineRow>(`SELECT
@@ -124,7 +130,7 @@ export async function recordRefundSettlement(client: PoolClient,
     WHERE refundLine.refund_case_id=$1 ORDER BY refundLine.option_id`, [input.caseId])).rows;
   const entries = buildRefundOccurrences({ refundEventId: input.eventId,
     orderId: refund.orderId, shipmentOrderId: refund.shipmentOrderId,
-    occurredAt: refund.completedAt.toISOString(),
+    occurredAt: refund.eventAt.toISOString(),
     fulfillmentSeller: { id: refund.fulfillmentSellerId,
       name: refund.fulfillmentSellerName, categoryId: refund.fulfillmentCategoryId,
       categoryName: refund.fulfillmentCategoryName },
