@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## S5.4 관리자 관제 착수 — 2026-10-08
+
+- **권한·담당:** 신산님이 관리자 전용 조회 API 추가를 직접 승인했다(모바일 지시 #10b6c4). 어울 단일 writer, 기존 `codex/s52-customer-support` 격리 worktree/branch를 유지하고 새 branch·schema·실발송을 만들지 않는다. 시작 HEAD `386cfd6bb99cde481df473bdd538d4f451a005c4`, 로컬 clean, WSL 지정 checkout 동일 SHA/clean. S5.4 상세 순서는 `docs/superpowers/plans/2026-10-08-s54-operator-monitoring.md`로 고정했다.
+- **Ruling — 지표 해석:** 승인된 운영 범위는 숫자의 시점·분모를 상세 계약에서 정하도록 했다. 주문은 생성일, 상품매출·미출고는 결제일, 실패 결제는 시도일, 클레임은 접수일을 Asia/Seoul 날짜에 적용하고 재고는 현재 스냅샷으로 표기한다. 금액은 배송비를 뺀 결제 완료 상품금액으로 한정해 정산 지급액과 혼동하지 않는다. 이 해석이 운영 의도와 다르면 조회 숫자를 재정의해야 하는 비용이 있다.
+- **검증·다음 작업:** 로컬 시작 기준 521 total/375 pass/146 환경 skip/0 fail, lint/typecheck/build exit0; 실 DB skip은 통과 아님. TDD로 필터·관리자 권한·집계부터 구현, 이어 Next 화면·정식 WSL/Chrome 검증. 개발 자원 생성 전 이름·범위·정리 방법을 추가 기록한다.
+- **TDD 첫 절편:** `monitoring-query.test.mjs` 3건은 누락 구현으로 RED→파서 구현 후 3/3 GREEN. `monitoring-http.test.mjs`는 미등록 404→관리자 controller 등록 후 미인증 401 GREEN; typecheck exit0. 실제 집계 `monitoring-http-db.test.mjs`는 기존 서명된 3판매자·3주문 출고 QA fixture를 사용하도록 먼저 작성했으며 아직 실행 전/미구현 RED 단계다.
+- **격리 DB 검증 자원 사전 등록:** S5.4 집계 RED→GREEN은 WSL의 정확 이름 internal network `shoppingmall-s54-monitor-1008-net`, tmpfs PostgreSQL `shoppingmall-s54-monitor-1008-pg`(DB `shoppingmall_s5_fulfillment_ui_c84f10ab`), source-read-only Node24 `shoppingmall-s54-monitor-1008-node`만 사용한다. `QA_RUN_ID=c84f10ab`, DB system ID를 시험에 명시한다. 외부 포트·영속 volume 없음. 생성 전 동명0→migration20→서명 fixture seed/시험/reset→QA 행0→정확 자원 제거/동명0을 확인한다. 공유 `local-postgres/shoppingmall`과 실 채널은 바꾸지 않는다.
+
 ## S5 정식 브라우저 QA 실행 자원 — 2026-10-08
 
 - **담당·대상:** 어울 단일 writer. 지정 WSL exact SHA `f73844dd18e485717323fe71dd01951e0c946172`의 loopback Web 9091/API 9092와 QA 소유 run `b6e81008`만 사용한다. 빌드 출력은 `/tmp/shoppingmall-s5-browser-1008`, 컨테이너는 `shoppingmall-s5-browser-1008-{api,web}`이고 Windows SSH 터널은 두 포트에 한정한다.
