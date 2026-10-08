@@ -32,6 +32,7 @@ const farmB = { sellerId: '22222222-2222-4222-8222-222222222222', sellerName: '�
 const report = { filter: { from: '2026-07-01', to: '2026-07-31',
   categoryId: null, sellerId: null }, totals: { ...kinds, goods_refund: 12000, sale: 23000 },
 groups: [farmA, farmB] };
+let actorRole = 'admin';
 const api = createServer((request, response) => {
   response.setHeader('Access-Control-Allow-Origin', 'http://127.0.0.1:9091');
   response.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -40,17 +41,30 @@ const api = createServer((request, response) => {
   if (request.method === 'OPTIONS') { response.writeHead(204); response.end(); return; }
   const url = new URL(request.url, 'http://127.0.0.1:9092');
   let body;
-  if (url.pathname === '/auth/me') body = { role: 'admin' };
+  if (url.pathname === '/auth/me') body = { role: actorRole };
   else if (url.pathname === '/catalog/seller-categories') body = { items: [
     { id: farmA.sellerCategoryId, name: '농가' }] };
   else if (url.pathname === '/catalog/sellers') body = { items: [
     { id: farmA.sellerId, displayName: farmA.sellerName },
     { id: farmB.sellerId, displayName: farmB.sellerName }] };
   else if (url.pathname === '/admin/settlement') {
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    if (from !== '2026-07-01' || to !== '2026-07-31') {
+      body = { ...report, filter: { ...report.filter, from, to },
+        groups: [], totals: kinds };
+    } else {
     const sellerId = url.searchParams.get('sellerId');
     body = sellerId ? { ...report, filter: { ...report.filter, sellerId },
       groups: report.groups.filter((group) => group.sellerId === sellerId),
       totals: sellerId === farmA.sellerId ? farmA.totals : farmB.totals } : report;
+    }
+  } else if (url.pathname === '/seller/settlement' && actorRole === 'seller') {
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    body = { ...report, filter: { ...report.filter, from, to, sellerId: farmA.sellerId },
+      groups: from === '2026-07-01' && to === '2026-07-31' ? [farmA] : [],
+      totals: from === '2026-07-01' && to === '2026-07-31' ? farmA.totals : kinds };
   } else { response.writeHead(404); response.end('{}'); return; }
   response.writeHead(200);
   response.end(JSON.stringify(body));
@@ -119,13 +133,20 @@ try {
   await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900,
     deviceScaleFactor: 1, mobile: false });
   await command('Page.navigate', { url: 'http://127.0.0.1:9091/account/admin/settlement' });
-  await wait("document.querySelector('input[name=from]')");
+  await wait("document.querySelector('.settlement-print')");
   await evaluate(`(()=>{const f=document.querySelector('.settlement-filter');
     f.querySelector('input[name=from]').value='2026-07-01';
     f.querySelector('input[name=to]').value='2026-07-31';f.requestSubmit()})()`);
   await wait("document.querySelectorAll('.settlement-group').length===2");
   assert.equal(await evaluate(`document.querySelector('.settlement-print').innerText.includes('may-original-order')`), true);
   assert.equal(await evaluate(`document.querySelector('.settlement-print').innerText.includes('23,000원')`), true);
+  await evaluate(`(()=>{const f=document.querySelector('.settlement-filter');
+    f.querySelector('select[name=sellerId]').value='${farmB.sellerId}';f.requestSubmit()})()`);
+  await wait("document.querySelectorAll('.settlement-group').length===1 && document.querySelector('.settlement-group')?.innerText.includes('농가 B')");
+  assert.equal(await evaluate(`document.querySelector('.settlement-group').innerText.includes('농가 A')`), false);
+  await evaluate(`(()=>{const f=document.querySelector('.settlement-filter');
+    f.querySelector('select[name=sellerId]').value='';f.requestSubmit()})()`);
+  await wait("document.querySelectorAll('.settlement-group').length===2");
   const desktop = await command('Page.captureScreenshot', { format: 'png' });
   await writeFile(join(evidenceDir, 'settlement-desktop.png'), Buffer.from(desktop.data, 'base64'));
   await command('Page.bringToFront');
@@ -150,7 +171,21 @@ try {
   const pdfInfo = execFileSync(process.env.S6_BROWSER_PDFINFO_PATH ?? 'pdfinfo',
     [join(evidenceDir, 'settlement-print.pdf')], { encoding: 'utf8' });
   assert.match(pdfInfo, /^Pages:\s+1\r?$/m, 'compact seller report must not split overall totals');
-  console.info('S6 browser QA: desktop/mobile/keyboard/print PDF PASS; API responses synthetic');
+  actorRole = 'seller';
+  await command('Emulation.setEmulatedMedia', { media: 'screen' });
+  await command('Page.navigate', { url: 'http://127.0.0.1:9091/account/seller/settlement' });
+  await wait("document.querySelector('.settlement-print')");
+  await evaluate(`(()=>{const f=document.querySelector('.settlement-filter');
+    f.querySelector('input[name=from]').value='2026-07-01';
+    f.querySelector('input[name=to]').value='2026-07-31';f.requestSubmit()})()`);
+  await wait("document.querySelector('.settlement-print')?.innerText.includes('농가 A')");
+  assert.equal(await evaluate(`document.querySelector('.settlement-print').innerText.includes('농가 B')`), false);
+  assert.equal(await evaluate(`document.querySelector('.settlement-completion')===null`), true);
+  assert.equal(await evaluate(`document.querySelector('select[name=sellerId]')===null`), true);
+  const sellerMobile = await command('Page.captureScreenshot', { format: 'png' });
+  await writeFile(join(evidenceDir, 'settlement-seller-mobile.png'),
+    Buffer.from(sellerMobile.data, 'base64'));
+  console.info('S6 browser QA: admin desktop/mobile/keyboard/print PDF and seller mobile PASS; API responses synthetic');
 } finally {
   socket?.close();
   chrome?.kill();
