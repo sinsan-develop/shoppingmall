@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## S6 정산 착수 — 2026-10-08
+
+- **담당·기준:** 어울 단일 writer. `origin/main@cf93d98d7bef6ada62c64a26f9b16adf03bb358e`에서 `codex/s6-settlement` 격리 worktree를 생성했다. 루트의 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 보존한다.
+- **범위:** 승인된 `docs/WORK_PLAN.md` S6.1 발생일별 장부와 S6.2 관리자 조회·인쇄·개별 완료. 지급액 자동 확정·송금·실계좌 자료는 제외한다. 현재 코드·DB·외부 채널 변경은 없다.
+- **시작 기준 검증:** 새 worktree에서 잠금파일 그대로 `pnpm install --frozen-lockfile --offline` exit 0. `pnpm test`는 538건 중 389 pass/149 DB·환경 skip/0 fail, PR 본문 8/8 pass. 이 결과는 S6 기능·실 DB·브라우저 PASS가 아니다.
+- **승인 경계·다음 조치:** DESIGN R09와 계획 S6의 정산 장부 schema/migration·권한 변경은 별도 승인 대상이다. 기존 결제·환불 사건과 판매자 귀속/금액을 조사해 변경 계약을 구체화하고 승인 범위 밖의 설계·RED 시험을 진행한다. S6 전용 QA 자원과 공유 DB 변경은 아직 없다. 오류 연속 횟수 0.
+
 ## S5 병합 전 재리뷰 보정 — 2026-10-08
 
 - **최신 WSL exact 회귀·정리/재리뷰:** 제품 commit `831a969f06a886b1adc568ae728dd4b1367196af`를 SSH alias로 push하고 지정 checkout에 clean ff-only 적용했다. 정확 이름 `shoppingmall-s5-recheck-1008-{net,pg,node}`의 internal network·tmpfs PostgreSQL18.4만 만들어 migration20 적용, system ID `7694171104632393771`을 세 격리 DB에 대조했다. S5.2 support HTTP 1/1, S5.3 위조 원사건 mock 2/2, 유효 주문·결제·재입고 훅 3/3 모두 0 skip/0 fail. 세 DB의 accounts/jobs/attempts/orders/claims/restock 각0·migration20 확인 뒤 정확 PG/network 제거·동명0·WSL checkout clean. 재리뷰는 S5.2 Critical0/Important0/Minor0, S5.3 Critical0/Important0(기기 registry/native adapter는 계획상 S7.2)으로 앞선 두 범위의 병합 저해 지적을 해결했다. DB 다형 UUID FK 부재·실채널 미연결은 문서에 남기고 실제 발송 완료로 표기하지 않는다. 다음은 PR 자동화 생성·CI 확인·병합 게이트와 merged-main smoke다.
