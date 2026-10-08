@@ -68,7 +68,8 @@ export function summarizeSettlement(items: SettlementReportItem[]) {
     addAmount(totals, item.kind, item.amountWon);
   }
   return {
-    groups: [...groups.values()].sort((a, b) => a.sellerId.localeCompare(b.sellerId))
+    groups: [...groups.values()].sort((a, b) =>
+      a.sellerName.localeCompare(b.sellerName, 'ko-KR') || a.sellerId.localeCompare(b.sellerId))
       .map((group) => ({ ...group, items: group.items.sort((a, b) =>
         a.occurredAt.localeCompare(b.occurredAt) || a.id.localeCompare(b.id)) })),
     totals,
