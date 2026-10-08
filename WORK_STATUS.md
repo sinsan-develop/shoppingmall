@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **S6.2 읽기/완료 공개 경로의 첫 보안 RED→GREEN:** 관리자 `GET /admin/settlement`, 판매자 본인 `GET /seller/settlement`, 관리자 개별 `POST /admin/settlement/completions`를 승인 계약의 내부 API로 등록했다. 비로그인 읽기 401·Origin 없는 완료 403의 로컬 HTTP 시험은 라우트 부재 404 RED → 1/1 GREEN, `pnpm typecheck` exit0. 실제 세션/역할/DB 자료 조회·완료 HTTP와 인쇄 UI는 별도 검증 전이며 이 결과만으로 S6.2 완료가 아니다.
+
 - **S6 격리 QA 자원 정리:** exact work SHA `b330057c84c3c7a6f8164963cf78efc2ce281e15`·clean WSL 확인. 이번에 만든 tmpfs 컨테이너 `shoppingmall-s6-1008-pg`(ID `96174d0a...`)와 internal network `shoppingmall-s6-1008-net`(ID `19f72c61...`)만 정확 이름/ID 확인 후 정상 stop·rm했다. runner는 `--rm`으로 이미 없었고 사후 동명 컨테이너·네트워크 0, WSL checkout clean. QA 데이터는 비영속 tmpfs와 함께 제거되어 DB 복원 대상이 아니며 공유 `local-postgres/shoppingmall`은 변경하지 않았다. S6 후속 실제 장부 훅 시험에는 새 격리 DB를 다시 준비해야 한다.
 
 - **S6.2 개별 완료 RED→GREEN:** exact WSL `63d0ca3`에서 관리자/판매자 권한·A/B 독립·같은 판매자 겹침의 completion 시험 1 fail(미구현) 확인. `99ede43`에서 관리자 DB 역할 확인 뒤 판매자 한 명의 기간 이력을 삽입하고, 중복 기간은 기존 GiST 배제 제약이 거부한다. `pnpm typecheck` exit0, WSL 전용 격리 DB의 완료1·조회1·schema2 합계 4/4 pass, 0 skip. 완료 공개 API/화면, 실제 수수료 입력 및 결제·환불 장부 훅은 아직 미구현이다.
