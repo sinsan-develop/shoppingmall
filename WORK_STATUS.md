@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **S6.2 실제 DB 읽기 RED→GREEN:** `24658a5` WSL 전용 격리 DB에서 읽기 미구현 오류 1/1 RED. `9a0e709`의 read repository를 거쳐 판매자 순서가 무작위 UUID를 따르는 오류 1건을 발견해 `3f29bf2`에서 이름/ID 안정 순서로 보정했다. exact WSL `3f29bf2`에서 실제 PostgreSQL read 1건과 schema/불변 제약 2건 합계 3/3 pass, 0 skip, 0 fail; 사용한 시험은 트랜잭션 rollback으로 QA 행을 남기지 않는다. 출고/결제·환불 연동, 완료 API, 브라우저, 공유 개발 DB는 미검증이다.
+
 - **S6.2 조회 기간/필터 RED→GREEN:** `apps/api/test/settlement-query.test.mjs`에서 한국 날짜 양끝 포함·UTC 경계, 전체/분류/개별 필터, 잘못된 달력일/역순/미지 키/UUID 거부를 시험했다. 스텁 2 fail/1 pass → 구현 후 3/3 pass, `pnpm typecheck` exit0. 아직 DB 조회/API·인쇄 연결 없음.
 
 - **migration 이력 시험 회귀 보정:** 0020 추가 뒤 로컬 전체 `pnpm test` 546건 중 394 pass/151 환경 skip/1 fail. 실패는 과거 해시 변경이 아니라 `migration-preview.test.mjs`의 고정 목록 개수 20이었다. 0020을 포함한 21로 갱신하고 과거 0000~0019 해시 검증은 유지했다. migration+집계 표적 재실행 6/6 pass, 전체 `pnpm test` 재실행 exit0(출력을 버린 실행이므로 최종 pass/skip 건수는 별도 미집계). 이 로컬 결과를 실제 DB·브라우저 검증으로 간주하지 않는다. PowerShell/패치 실행기 지연 1회는 cmd/정식 apply_patch 재호출로 해결했다.
