@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **S6.2 조회 기간/필터 RED→GREEN:** `apps/api/test/settlement-query.test.mjs`에서 한국 날짜 양끝 포함·UTC 경계, 전체/분류/개별 필터, 잘못된 달력일/역순/미지 키/UUID 거부를 시험했다. 스텁 2 fail/1 pass → 구현 후 3/3 pass, `pnpm typecheck` exit0. 아직 DB 조회/API·인쇄 연결 없음.
+
 - **migration 이력 시험 회귀 보정:** 0020 추가 뒤 로컬 전체 `pnpm test` 546건 중 394 pass/151 환경 skip/1 fail. 실패는 과거 해시 변경이 아니라 `migration-preview.test.mjs`의 고정 목록 개수 20이었다. 0020을 포함한 21로 갱신하고 과거 0000~0019 해시 검증은 유지했다. migration+집계 표적 재실행 6/6 pass, 전체 `pnpm test` 재실행 exit0(출력을 버린 실행이므로 최종 pass/skip 건수는 별도 미집계). 이 로컬 결과를 실제 DB·브라우저 검증으로 간주하지 않는다. PowerShell/패치 실행기 지연 1회는 cmd/정식 apply_patch 재호출로 해결했다.
 
 - **S6.1 schema GREEN·S6.2 순수 집계 GREEN:** 원격 checkpoint `51757b47b040befe527fa11dfef45822bf76e792`를 지정 WSL checkout에 명시 fetch·clean ff-only 적용했다. 별도 tmpfs DB `shoppingmall_s6_schema_1008`(system ID `7694276751126401067`)에서 migration 0020을 적용해 정산 장부·완료 기간 DB 불변/중복/겹침 제약 시험 2/2 pass, 0 skip. 공유 `local-postgres/shoppingmall`은 미변경. 발생 자료 집계는 RED 3 fail 확인 후 판매자별 구획·늦은 환불 분리·안전 정수 합산을 구현해 로컬 3/3 pass, `pnpm typecheck` exit0. 실제 결제/환불 트랜잭션 연결, API/화면/인쇄/권한, 정식 WSL·브라우저는 미완료.
