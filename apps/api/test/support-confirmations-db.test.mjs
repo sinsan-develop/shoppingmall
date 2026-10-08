@@ -10,6 +10,7 @@ import { createApp } from '../src/app.ts';
 import { DatabaseService } from '../src/db/service.ts';
 import { hashSessionToken } from '../src/auth/credentials.ts';
 import { approveClaim } from '../src/support/claims.ts';
+import { getOrderSnapshot } from '../src/orders/repository.ts';
 
 const name = 'shoppingmall_s52_schema_v6_1007';
 const systemId = process.env.S52_SUPPORT_TEST_DB_SYSTEM_ID;
@@ -639,6 +640,10 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       assert.equal(claimCreated.status, 200);
       const httpClaim = await claimCreated.json();
       assert.equal(httpClaim.status, 'REQUESTED');
+      const afterClaim = await getOrderSnapshot(client,customer,httpShipment.orderId);
+      assert.equal(afterClaim.shipments[0].lines[0].remainingQuantity,1);
+      assert.equal(afterClaim.shipments[0].lines[0].claimAvailableQuantity,0,
+        'pending full-quantity claim occupies the customer form limit');
       assert.equal((await (await claimRequest(customer, claimBody)).json()).id, httpClaim.id);
       assert.equal((await claimRequest(customer, { ...claimBody,
         reason: '다른 요청' })).status, 409);
