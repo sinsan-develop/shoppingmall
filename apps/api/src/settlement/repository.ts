@@ -8,6 +8,11 @@ type Row = Omit<SettlementReportItem, 'kind' | 'amountWon' | 'occurredAt'> & {
   occurredAt: Date;
 };
 
+type CompletionRow = {
+  id: string; sellerId: string; sellerName: string;
+  startDate: string; endDate: string; completedAt: Date; reason: string;
+};
+
 export async function readSettlement(client: PoolClient, filter: SettlementQuery) {
   const result = await client.query<Row>(`SELECT id,seller_id AS "sellerId",
     seller_name AS "sellerName",seller_category_id AS "sellerCategoryId",
@@ -27,7 +32,21 @@ export async function readSettlement(client: PoolClient, filter: SettlementQuery
     amountWon: Number(row.amountWon),
     occurredAt: row.occurredAt.toISOString(),
   }));
+  const completionResult = await client.query<CompletionRow>(`SELECT period.id,
+    period.seller_id AS "sellerId",seller.display_name AS "sellerName",
+    period.start_date::text AS "startDate",period.end_date::text AS "endDate",
+    period.completed_at AS "completedAt",period.reason
+    FROM seller_settlement_periods period
+    JOIN sellers seller ON seller.id=period.seller_id
+    WHERE period.start_date <= $2::date AND period.end_date >= $1::date
+      AND ($3::uuid IS NULL OR seller.category_id=$3)
+      AND ($4::uuid IS NULL OR period.seller_id=$4)
+    ORDER BY seller.display_name,period.start_date,period.id`,
+  [filter.from, filter.to, filter.categoryId, filter.sellerId]);
+  const completions = completionResult.rows.map((row) => ({
+    ...row, completedAt: row.completedAt.toISOString(),
+  }));
   return { filter: { from: filter.from, to: filter.to,
     sellerId: filter.sellerId, categoryId: filter.categoryId },
-  ...summarizeSettlement(items) };
+  ...summarizeSettlement(items), completions };
 }

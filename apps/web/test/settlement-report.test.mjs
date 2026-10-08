@@ -21,6 +21,9 @@ const report = {
         occurredAt: '2026-07-02T00:00:00Z', checkoutOrderId: 'july-order',
         shipmentOrderId: 'july-shipment', productName: null, optionName: null }] },
   ],
+  completions: [{ id: 'complete-a', sellerId: 'farm-a', sellerName: '농가 A',
+    startDate: '2026-05-01', endDate: '2026-05-20',
+    completedAt: '2026-05-20T09:00:00Z', reason: '오프라인 확인' }],
 };
 
 test('report prints the displayed seller sections, source orders and period totals without payout', () => {
@@ -32,4 +35,15 @@ test('report prints the displayed seller sections, source orders and period tota
   assert.match(html, /aria-label="판매자 농가 A 정산 자료"/);
   assert.match(html, /aria-label="판매자 어울몰 정산 자료"/);
   assert.doesNotMatch(html, /자동 지급액|송금 완료/);
+  assert.match(html, /완료 이력/);
+  assert.match(html, /오프라인 확인/);
+});
+
+test('completion history remains visible even when the selected period has no events', () => {
+  const html = renderToStaticMarkup(createElement(SettlementReportView, {
+    report: { ...report, groups: [], totals, completions: report.completions },
+  }));
+  assert.match(html, /조회 기간에 정산 자료가 없습니다/);
+  assert.match(html, /완료 이력/);
+  assert.match(html, /오프라인 확인/);
 });

@@ -16,6 +16,8 @@ export type SettlementReport = {
       checkoutOrderId: string | null; shipmentOrderId: string | null;
       productName: string | null; optionName: string | null }[];
   }[];
+  completions: { id: string; sellerId: string; sellerName: string;
+    startDate: string; endDate: string; completedAt: string; reason: string }[];
 };
 
 const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
@@ -59,6 +61,15 @@ export function SettlementReportView({ report }: { report: SettlementReport }) {
     </section>)}
     <section className="account-card profile-card settlement-overall" aria-label="전체 정산 자료 합계">
       <h2>전체 합계</h2><Totals values={report.totals} />
+    </section>
+    <section className="account-card profile-card settlement-history" aria-label="조회 기간 완료 이력">
+      <h2>완료 이력</h2>
+      <p>완료 여부만 기록합니다. 지급액은 자동으로 계산하지 않습니다.</p>
+      {report.completions.length === 0 ? <p>조회 기간과 겹치는 완료 기록이 없습니다.</p> :
+        <ul>{report.completions.map((entry) => <li key={entry.id}>
+          <strong>{entry.sellerName}</strong> · {entry.startDate} ~ {entry.endDate}
+          <span> · {occurred(entry.completedAt)} · {entry.reason}</span>
+        </li>)}</ul>}
     </section>
   </article>;
 }

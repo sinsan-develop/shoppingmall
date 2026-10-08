@@ -28,6 +28,8 @@ test('actual ledger read preserves category, seller and occurrence-period bounda
       VALUES ($1,'농가 A') RETURNING id`, [farmCategory])).rows[0].id;
     const farmB = (await client.query(`INSERT INTO sellers(category_id,display_name)
       VALUES ($1,'농가 B') RETURNING id`, [farmCategory])).rows[0].id;
+    const farmC = (await client.query(`INSERT INTO sellers(category_id,display_name)
+      VALUES ($1,'농가 C') RETURNING id`, [farmCategory])).rows[0].id;
     const owool = (await client.query(`INSERT INTO sellers(category_id,display_name)
       VALUES ($1,'어울몰') RETURNING id`, [ownCategory])).rows[0].id;
     for (const [sellerId, sellerName, categoryId, categoryName, occurredAt, amountWon] of [
@@ -45,19 +47,36 @@ test('actual ledger read preserves category, seller and occurrence-period bounda
       [`manual:${sourceId}`, amountWon, occurredAt, sellerId, sellerName,
         categoryId, categoryName, sourceId, adminId]);
     }
+    await client.query(`INSERT INTO seller_settlement_periods
+      (seller_id,start_date,end_date,completed_by,reason)
+      VALUES ($1,'2026-05-01','2026-05-20',$2,'오프라인 확인')`, [farmA, adminId]);
+    await client.query(`INSERT INTO seller_settlement_periods
+      (seller_id,start_date,end_date,completed_by,reason)
+      VALUES ($1,'2026-05-01','2026-05-20',$2,'거래 없음 확인')`, [farmC, adminId]);
     const all = await readSettlement(client, parseSettlementQuery({ from: '2026-05-01',
       to: '2026-05-20' }));
     assert.deepEqual(all.groups.map(({ sellerName, totals }) => [sellerName, totals.commission]),
       [['농가 A', 1000], ['농가 B', 2000], ['어울몰', 3000]]);
     assert.equal(all.totals.commission, 6000);
+    assert.deepEqual(all.completions.map(({ sellerId, startDate, endDate, reason }) =>
+      [sellerId, startDate, endDate, reason]),
+    [[farmA, '2026-05-01', '2026-05-20', '오프라인 확인'],
+      [farmC, '2026-05-01', '2026-05-20', '거래 없음 확인']]);
     const farms = await readSettlement(client, parseSettlementQuery({ from: '2026-05-01',
       to: '2026-05-20', categoryId: farmCategory }));
     assert.equal(farms.totals.commission, 3000);
     assert.equal(farms.groups.length, 2);
+    assert.equal(farms.completions.length, 2);
+    const completedWithoutEvents = await readSettlement(client, parseSettlementQuery({
+      from: '2026-05-01', to: '2026-05-20', sellerId: farmC,
+    }));
+    assert.equal(completedWithoutEvents.groups.length, 0);
+    assert.deepEqual(completedWithoutEvents.completions.map(({ sellerId }) => sellerId), [farmC]);
     const july = await readSettlement(client, parseSettlementQuery({ from: '2026-07-01',
       to: '2026-07-01', sellerId: farmA }));
     assert.equal(july.totals.commission, 4000);
     assert.equal(july.groups.length, 1);
+    assert.equal(july.completions.length, 0);
   } finally {
     await client.query('ROLLBACK');
     client.release();

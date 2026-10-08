@@ -31,7 +31,7 @@ const farmB = { sellerId: '22222222-2222-4222-8222-222222222222', sellerName: 'ë
   }] };
 const report = { filter: { from: '2026-07-01', to: '2026-07-31',
   categoryId: null, sellerId: null }, totals: { ...kinds, goods_refund: 12000, sale: 23000 },
-groups: [farmA, farmB] };
+ groups: [farmA, farmB], completions: [] };
 let actorRole = 'admin';
 const api = createServer((request, response) => {
   response.setHeader('Access-Control-Allow-Origin', 'http://127.0.0.1:9091');

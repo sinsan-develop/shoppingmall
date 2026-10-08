@@ -88,6 +88,8 @@ try {
   assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-b`) && group.includes('7,000원')));
   assert.match(all.total, /19,000원/);
   assert.equal(await evaluate(`document.querySelectorAll('.settlement-completion').length`), 2);
+  assert.match(await evaluate(`document.querySelector('.settlement-history')?.textContent`),
+    /오프라인 확인/);
   const categoryId = await evaluate(`[...document.querySelectorAll('select[name=categoryId] option')]
     .find((option)=>option.textContent==='qa-${runId}-sellers')?.value`);
   const sellerBId = await evaluate(`[...document.querySelectorAll('select[name=sellerId] option')]
@@ -105,6 +107,7 @@ try {
   await send('Emulation.setEmulatedMedia', {media:'print'});
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.settlement-controls')).display`), 'none');
   assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('.settlement-print')).display`), 'none');
+  assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('.settlement-history')).display`), 'none');
   await send('Emulation.setEmulatedMedia', {media:'screen'});
   for (const width of [1440, 430]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 430 });
@@ -122,6 +125,8 @@ try {
   assert.match(own.groups[0], new RegExp(`qa-${runId}-seller-a`));
   assert.match(own.total, /12,000원/);
   assert.equal(own.completion, 0);
+  assert.match(await evaluate(`document.querySelector('.settlement-history')?.textContent`),
+    /오프라인 확인/);
   await navigate('/account/admin/settlement');
   await waitFor(`document.querySelector('[role=alert]')?.textContent.includes('현재 역할')`, 'seller denied');
   console.log(JSON.stringify({status:'PASS', runId, adminGroups:all.groups.length,

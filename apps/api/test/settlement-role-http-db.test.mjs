@@ -100,6 +100,12 @@ test('actual HTTP confines settlement reads to role and seller, with admin-only 
     assert.equal((await completed.json()).sellerId, a.id);
     assert.equal((await fetch(completionPath, { method: 'POST',
       headers: { cookie: admin, origin, 'content-type': 'application/json' }, body })).status, 409);
+    const afterCompletion = await fetch(adminPath, { headers: { cookie: admin } });
+    assert.equal(afterCompletion.status, 200);
+    assert.deepEqual((await afterCompletion.json()).completions.map(({ sellerId }) => sellerId), [a.id]);
+    const sellerAfterCompletion = await fetch(sellerPath, { headers: { cookie: sellerA } });
+    assert.equal(sellerAfterCompletion.status, 200);
+    assert.deepEqual((await sellerAfterCompletion.json()).completions.map(({ sellerId }) => sellerId), [a.id]);
     const rows = (await pool.query(`SELECT seller_id AS "sellerId" FROM seller_settlement_periods`))
       .rows;
     assert.deepEqual(rows, [{ sellerId: a.id }]);
