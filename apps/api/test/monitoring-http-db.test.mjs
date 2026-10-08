@@ -101,6 +101,12 @@ test('admin monitoring aggregates paid orders per seller and denies other roles'
       other.summary.openQuestionCount, other.summary.claimCount], [0, 0, 0, 0]);
     assert.deepEqual([other.stockIssues, other.pendingApprovals, other.openQuestions,
       other.openClaims], [[], [], [], []]);
+    await pool.query(`UPDATE support_questions SET status='ANSWERED' WHERE id=$1`, [extras.question]);
+    const answered = await fetch(`${base}${path}`, { headers: { cookie: adminCookie } });
+    assert.equal((await answered.json()).summary.openQuestionCount, 1);
+    await pool.query(`UPDATE support_questions SET status='PUBLISHED' WHERE id=$1`, [extras.question]);
+    const published = await fetch(`${base}${path}`, { headers: { cookie: adminCookie } });
+    assert.equal((await published.json()).summary.openQuestionCount, 0);
     extras.reservation = randomUUID();
     extras.order = randomUUID();
     extras.shipment = randomUUID();

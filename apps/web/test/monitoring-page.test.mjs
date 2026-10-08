@@ -25,8 +25,10 @@ test('monitoring view shows definitions, source links, exceptions, and filter co
   for (const label of ['관리자 관제', '상품매출', '배송비 제외', '주문 생성', '재고 이상',
     '승인 대기', '미처리 문의', '실패 결제', '미출고', '클레임', '57,000원', '농가 A'])
     assert.ok(html.includes(label), label);
-  for (const href of ['/account/admin/proposals', '/account/admin/support/questions',
-    '/account/admin/support/claims', '/account/admin/fulfillment'])
+  for (const href of ['/account/admin/proposals#stock-approval-1',
+    '/account/admin/support/questions?id=question-1',
+    '/account/admin/support/claims?id=claim-1',
+    '/account/admin/fulfillment?id=shipment-1'])
     assert.ok(html.includes(href), href);
   assert.match(html, /type="date"/);
   assert.match(html, /새로고침/);

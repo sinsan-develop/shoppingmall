@@ -149,6 +149,8 @@ export default function AdminSupportClaimsPage() {
         setState('unauthorized'); return;
       }
       await loadList('',undefined,controller.signal);
+      const directId = new URLSearchParams(window.location.search).get('id');
+      if (directId) await loadDetail(directId,controller.signal);
       setState('ready');
     }
     load().catch((error: unknown) => {

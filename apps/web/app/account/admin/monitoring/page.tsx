@@ -22,13 +22,14 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
 const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 const time = (value: string) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
 
-function ExceptionList({ title, href, items }: { title: string; href: string;
-  items: { id: string; detail: string }[] }) {
+function ExceptionList({ title, items }: { title: string;
+  items: { id: string; detail: string; href?: string }[] }) {
   return <section className="account-card profile-card">
     <h2>{title} <small>{items.length}건 표시</small></h2>
     {items.length === 0 ? <p>해당 항목이 없습니다.</p> : <ul className="catalog-list">
       {items.map((item) => <li key={item.id}>
-        <a className="text-link" href={href}>{item.detail}</a> <small>근거 {item.id}</small>
+        {item.href ? <a className="text-link" href={item.href}>{item.detail}</a> : item.detail}
+        {' '}<small>근거 {item.id}</small>
       </li>)}
     </ul>}
   </section>;
@@ -83,22 +84,30 @@ export function AdminMonitoringView({ overview, from, to, sellerId, orderStatus,
           재고·승인 대기·미처리 문의는 현재 상태입니다.</small>
       </section>
       <div className="catalog-admin-grid">
-        <ExceptionList title="승인 대기" href="/account/admin/proposals"
-          items={overview.pendingApprovals.map((item) => ({ id: item.id, detail: `${item.kind} · 판매자 ${item.sellerId}` }))} />
-        <ExceptionList title="실패 결제" href="/account/admin/refunds"
+        <ExceptionList title="승인 대기"
+          items={overview.pendingApprovals.map((item) => ({ id: item.id,
+            href: `${item.kind === 'shipping' ? '/account/admin/shipping' : '/account/admin/proposals'}#${
+              item.kind === 'product' ? 'proposal' : item.kind === 'sale_stop' ? 'sale-stop' : item.kind
+            }-${encodeURIComponent(item.id)}`,
+            detail: `${item.kind} · 판매자 ${item.sellerId}` }))} />
+        <ExceptionList title="실패 결제"
           items={overview.failedPayments.map((item) => ({ id: item.attemptId,
-            detail: `${item.status} · 주문 ${item.orderId} · ${won(item.requestedWon)}` }))} />
-        <ExceptionList title="미출고" href="/account/admin/fulfillment"
+            detail: `${item.status} · 주문 ${item.orderId} · ${won(item.requestedWon)} · ${time(item.createdAt)}` }))} />
+        <ExceptionList title="미출고"
           items={overview.unshipped.map((item) => ({ id: item.shipmentOrderId,
+            href: `/account/admin/fulfillment?id=${encodeURIComponent(item.shipmentOrderId)}`,
             detail: `${item.sellerName} · ${item.status} · 출고 예정 ${item.expectedShipDate}` }))} />
-        <ExceptionList title="재고 이상" href="/account/admin/catalog"
+        <ExceptionList title="재고 이상"
           items={overview.stockIssues.map((item) => ({ id: item.optionId,
+            href: `/products/${encodeURIComponent(item.productId)}`,
             detail: `상품 ${item.productId} · 판매 가능 ${item.sellableQuantity}개` }))} />
-        <ExceptionList title="미처리 문의" href="/account/admin/support/questions"
+        <ExceptionList title="미처리 문의"
           items={overview.openQuestions.map((item) => ({ id: item.id,
+            href: `/account/admin/support/questions?id=${encodeURIComponent(item.id)}`,
             detail: `상품 ${item.productId} · ${time(item.createdAt)}` }))} />
-        <ExceptionList title="클레임" href="/account/admin/support/claims"
+        <ExceptionList title="클레임"
           items={overview.openClaims.map((item) => ({ id: item.id,
+            href: `/account/admin/support/claims?id=${encodeURIComponent(item.id)}`,
             detail: `${item.status} · 발송 주문 ${item.shipmentOrderId}` }))} />
       </div>
     </> : null}

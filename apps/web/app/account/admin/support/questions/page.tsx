@@ -102,6 +102,8 @@ export default function AdminSupportQuestionsPage() {
         setState('unauthorized'); return;
       }
       await loadList('ANSWERED',undefined,controller.signal);
+      const directId = new URLSearchParams(window.location.search).get('id');
+      if (directId) await loadDetail(directId,controller.signal);
       setState('ready');
     }
     load().catch((error: unknown) => {

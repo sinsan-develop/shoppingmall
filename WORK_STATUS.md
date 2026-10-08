@@ -2,6 +2,8 @@
 
 ## S5.4 관리자 관제 착수 — 2026-10-08
 
+- **2026-10-08 진행 checkpoint:** `b0f7eeb`에서 기본 관리자 200·타 역할 403·3주문/상품매출 57,000원·판매자 필터·잘못된 날짜 400의 WSL 격리 DB 1/1 GREEN. 예외 목록 시험 `8448c7c`는 승인 대기 값 `undefined`로 의도한 RED; `ae2ec58`에서 재고0·승인 대기·미처리 문의·클레임과 타 판매자 격리 1/1 GREEN. `3c28b30`에서 실패 결제 생성·판매자 필터·해결 후 목록 제거 1/1 GREEN, 로컬 관리자 화면 시험 2/2, lint/typecheck exit0. 모든 격리 시험 후 accounts/orders/products/sessions0; 공유 DB·실 발송 미변경. 화면은 아직 원자료 상세 딥링크·정식 WSL/실제 Chrome·전체 회귀·운영 Runbook 미검증이므로 S5.4 완료 아님. 첫 push 원격 이름 오입력 1회는 실제 `origin=git@github-sinsan-develop:...` 확인 후 수정, 외부 상태 변경 없었다.
+
 - **권한·담당:** 신산님이 관리자 전용 조회 API 추가를 직접 승인했다(모바일 지시 #10b6c4). 어울 단일 writer, 기존 `codex/s52-customer-support` 격리 worktree/branch를 유지하고 새 branch·schema·실발송을 만들지 않는다. 시작 HEAD `386cfd6bb99cde481df473bdd538d4f451a005c4`, 로컬 clean, WSL 지정 checkout 동일 SHA/clean. S5.4 상세 순서는 `docs/superpowers/plans/2026-10-08-s54-operator-monitoring.md`로 고정했다.
 - **Ruling — 지표 해석:** 승인된 운영 범위는 숫자의 시점·분모를 상세 계약에서 정하도록 했다. 주문은 생성일, 상품매출·미출고는 결제일, 실패 결제는 시도일, 클레임은 접수일을 Asia/Seoul 날짜에 적용하고 재고는 현재 스냅샷으로 표기한다. 금액은 배송비를 뺀 결제 완료 상품금액으로 한정해 정산 지급액과 혼동하지 않는다. 이 해석이 운영 의도와 다르면 조회 숫자를 재정의해야 하는 비용이 있다.
 - **검증·다음 작업:** 로컬 시작 기준 521 total/375 pass/146 환경 skip/0 fail, lint/typecheck/build exit0; 실 DB skip은 통과 아님. TDD로 필터·관리자 권한·집계부터 구현, 이어 Next 화면·정식 WSL/Chrome 검증. 개발 자원 생성 전 이름·범위·정리 방법을 추가 기록한다.

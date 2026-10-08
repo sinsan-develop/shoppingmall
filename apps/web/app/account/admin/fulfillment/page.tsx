@@ -297,6 +297,8 @@ export default function AdminFulfillmentPage() {
       if ((await response.json() as { role: string }).role !== 'admin') { setState('unauthorized'); return; }
       const loaded = await Promise.all([loadSetting(controller.signal),
         loadList({ status: '', sellerId: '', from: '', to: '' }, controller.signal)]);
+      const directId = new URLSearchParams(window.location.search).get('id');
+      if (directId && loaded.every(Boolean)) await loadDetail(directId, controller.signal);
       if (loaded.every(Boolean)) setState('ready');
     }
     load().catch((caught: unknown) => {
