@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **2026-10-09 관리자 판매자 분류 필터 Chrome QA:** 합성 API의 기존 A/B 동일 분류 응답으로는 분류 UI를 검증할 수 없어, 실제 화면에서 농가 분류 선택 시 A만 남는 단언을 먼저 추가해 기대대로 RED(timeout)를 확인했다. 검증용 B를 다른 분류로 구분하고 응답이 `categoryId` 요청값에 따라 자료를 제한하도록 한 뒤 GREEN; 전체 복귀 2구획·개별 판매자 B·판매자 본인 A·A4 1쪽 인쇄도 동일 도구로 재확인했다. 이는 제품 API의 실 DB 분류 필터 PASS를 대신하지 않고 브라우저의 쿼리 전달·표시를 합성 응답으로 검증한다. 이후 로컬 `pnpm test` 562 total / 405 pass / 157 DB·환경 skip / 0 fail, PR 본문 8/8 pass, exit0. QA 종료 후 9091/9092/9223 listener0, 정확한 Chrome profile 삭제·증거 보존. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 공유 DB 적용 승인 경계와 완료 금액 계약 결정 뒤 정식 통합.
+
 - **2026-10-09 S6 WSL 비DB 회귀 결과 (`a857673`):** 지정 checkout `/home/daon/deploy/shopping` clean `631dc06`에서 SSH 별칭 원격의 exact `a857673a281e73d87cd6f4db31774983c35e4ee1`을 clean fast-forward했다. 기존 `node:24-bookworm-slim` 이미지 `sha256:59c575db86dc...`의 일회용 `shoppingmall-s6-wsl-1009-runner`에 `--network none --rm`·checkout bind·호스트 사용자 권한으로 전체 `node --import tsx --test`를 실행해 **562 total / 405 pass / 157 DB·환경 skip / 0 fail**, PR 본문 8/8 pass, exit0(주 suite 약 308초). 종료 후 정확 이름의 컨테이너 잔류0, WSL checkout clean. 공유 `local-postgres/shoppingmall`에 접속하지 않았고 이 결과를 실 DB/정식 WSL E2E로 간주하지 않는다. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 승인된 계약 내 S6 미구현과 정식 DB·브라우저 통합.
 
 - **2026-10-09 S6 WSL 비DB 회귀 계획(실행 전):** 지정 checkout `/home/daon/deploy/shopping`의 현재 clean `631dc06`을 SSH 별칭 원격 `codex/s6-settlement` 최신 exact SHA로 fast-forward한다. 소유 작업은 S6, 일회용 Node24 runner 이름 `shoppingmall-s6-wsl-1009-runner`만 사용하며 기존 `node:24-bookworm-slim` 이미지·checkout의 설치된 의존성을 재사용한다. `--network none --rm`으로 공유 `local-postgres/shoppingmall`·타 서비스 연결 없이 전체 비DB suite를 실행하고 exit/skip을 기록한다. runner 이름 충돌 0 확인 뒤 생성, 종료 후 동일 이름 잔류 0과 checkout clean을 확인한다. 이는 S6의 정식 공유 DB E2E 또는 실제 인수시험을 대신하지 않는다.

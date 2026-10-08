@@ -23,7 +23,7 @@ const farmA = { sellerId: '11111111-1111-4111-8111-111111111111', sellerName: '�
     shipmentOrderId: 'may-original-shipment', productName: '고추', optionName: '500g',
   }] };
 const farmB = { sellerId: '22222222-2222-4222-8222-222222222222', sellerName: '농가 B',
-  sellerCategoryId: farmA.sellerCategoryId, sellerCategoryName: '농가',
+  sellerCategoryId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sellerCategoryName: '다른 분류',
   totals: { ...kinds, sale: 23000 }, items: [{
     id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', kind: 'sale', amountWon: 23000,
     occurredAt: '2026-07-02T00:00:00Z', checkoutOrderId: 'july-original-order',
@@ -43,7 +43,8 @@ const api = createServer((request, response) => {
   let body;
   if (url.pathname === '/auth/me') body = { role: actorRole };
   else if (url.pathname === '/catalog/seller-categories') body = { items: [
-    { id: farmA.sellerCategoryId, name: '농가' }] };
+    { id: farmA.sellerCategoryId, name: '농가' },
+    { id: farmB.sellerCategoryId, name: '다른 분류' }] };
   else if (url.pathname === '/catalog/sellers') body = { items: [
     { id: farmA.sellerId, displayName: farmA.sellerName },
     { id: farmB.sellerId, displayName: farmB.sellerName }] };
@@ -55,9 +56,12 @@ const api = createServer((request, response) => {
         groups: [], totals: kinds };
     } else {
     const sellerId = url.searchParams.get('sellerId');
-    body = sellerId ? { ...report, filter: { ...report.filter, sellerId },
-      groups: report.groups.filter((group) => group.sellerId === sellerId),
-      totals: sellerId === farmA.sellerId ? farmA.totals : farmB.totals } : report;
+    const categoryId = url.searchParams.get('categoryId');
+    const groups = report.groups.filter((group) =>
+      (!sellerId || group.sellerId === sellerId) &&
+      (!categoryId || group.sellerCategoryId === categoryId));
+    body = { ...report, filter: { ...report.filter, sellerId, categoryId }, groups,
+      totals: groups.length === 2 ? report.totals : groups[0]?.totals ?? kinds };
     }
   } else if (url.pathname === '/seller/settlement' && actorRole === 'seller') {
     const from = url.searchParams.get('from');
@@ -146,6 +150,13 @@ try {
   assert.equal(await evaluate(`document.querySelector('.settlement-group').innerText.includes('농가 A')`), false);
   await evaluate(`(()=>{const f=document.querySelector('.settlement-filter');
     f.querySelector('select[name=sellerId]').value='';f.requestSubmit()})()`);
+  await wait("document.querySelectorAll('.settlement-group').length===2");
+  await evaluate(`(()=>{const f=document.querySelector('.settlement-filter');
+    f.querySelector('select[name=categoryId]').value='${farmA.sellerCategoryId}';f.requestSubmit()})()`);
+  await wait("document.querySelectorAll('.settlement-group').length===1 && document.querySelector('.settlement-group')?.innerText.includes('농가 A')");
+  assert.equal(await evaluate(`document.querySelector('.settlement-group').innerText.includes('농가 B')`), false);
+  await evaluate(`(()=>{const f=document.querySelector('.settlement-filter');
+    f.querySelector('select[name=categoryId]').value='';f.requestSubmit()})()`);
   await wait("document.querySelectorAll('.settlement-group').length===2");
   const desktop = await command('Page.captureScreenshot', { format: 'png' });
   await writeFile(join(evidenceDir, 'settlement-desktop.png'), Buffer.from(desktop.data, 'base64'));
