@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **2026-10-09 S6 역할별 HTTP 자체 QA 계획(생성 전):** 어울 단일 writer가 `codex/s6-settlement`에서 관리자·판매자·고객의 정산 조회·완료 권한을 실제 HTTP로 검증한다. WSL 지정 checkout의 정확한 SHA를 Git으로 적용한 뒤 `shoppingmall-s6-http-1009-net` internal network, 외부 포트·영속 volume 없는 tmpfs PostgreSQL18.4 `shoppingmall-s6-http-1009-pg`, `--rm` 읽기 전용 source Node24 runner `shoppingmall-s6-http-1009-node`만 사용한다. 이름 충돌·checkout clean·DB system ID 확인, migration21·식별된 QA 계정 seed 후 시험하고, 컨테이너/네트워크 정확 ID를 확인해 둘만 정리·잔류0을 검증한다. `local-postgres/shoppingmall`은 변경하지 않는다. 이 결과는 정식 공유 DB E2E나 브라우저 출력 검증을 대신하지 않는다. 완료 금액 고정/늦은 사건 계약은 신산님 결정 전 변경하지 않는다.
+
 - **정상 환불 변경 후 재검증:** clean WSL `2bf2466`에서 새 tmpfs PostgreSQL18.4 `shoppingmall-s6-normal-1008-pg`(system ID `7694295320249184298`, migration21)에 mock 결제 1/1과 정상 환불 1/1을 순차 실행했다. 변경된 환불 사건 시각·원주문·장부 금액과 중복 0을 실제 DB에서 검증했다. 정확한 컨테이너 ID `b8700b15e04...`, internal network ID `8c447e77a1f6...`를 확인해 둘만 stop·rm했고 `--rm` runner 및 동일 접두명 자원 잔류 0을 확인했다. 공유 `local-postgres/shoppingmall`은 변경하지 않았다. 담당 어울, 오류 연속 0. PMO는 완료 후 과거 시각의 사건을 재집계하면 완료 금액이 바뀌는 설계 위험을 확인했고 승인 없이 계약 변경하지 말라고 회신했다. 신산님께 완료 스냅샷·늦은 사건 별도 표시 변경을 질문했으며, 그 경계에 영향받는 수수료 입력/완료 금액 처리는 답변 전 구현하지 않는다. 다음 조치: 승인과 독립적인 역할별 HTTP·인쇄 검증, 답변 후 계약 확정.
 
 - **S6 일회용 사건 QA 자원 정리:** WSL에서 정확한 이름/ID와 tmpfs 장착을 재확인한 컨테이너 `shoppingmall-s6-events-1008-pg`(ID `8eb5487985d8...`)만 stop·rm하고 internal network `shoppingmall-s6-events-1008-net`(ID `2cde4b99e94a...`)만 제거했다. `--rm` Node runner는 이미 없었고, 동일 접두명 컨테이너·네트워크 잔류 0을 확인했다. 합성 거래 자료는 일회용 tmpfs와 함께 제거됐으며 기존 `local-postgres/shoppingmall`은 변경하지 않았다.
