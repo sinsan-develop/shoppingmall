@@ -96,12 +96,12 @@ export async function readMonitoring(pool: Pool, filter: MonitoringFilter): Prom
       WHERE inv.sellable_quantity=0 AND ($1::uuid IS NULL OR p.seller_id=$1)
       ORDER BY opt.id DESC LIMIT 50`, [filter.sellerId])).rows;
     const openQuestionCount = await number(client, `SELECT count(*)::text AS value FROM support_questions q
-      WHERE q.status='OPEN' AND ($1::uuid IS NULL OR q.seller_id=$1)`, [filter.sellerId]);
+      WHERE q.status IN ('OPEN','ANSWERED') AND ($1::uuid IS NULL OR q.seller_id=$1)`, [filter.sellerId]);
     const openQuestions = (await client.query<{
       id: string; productId: string; sellerId: string; createdAt: Date;
     }>(`SELECT q.id,q.product_id AS "productId",q.seller_id AS "sellerId",
       q.created_at AS "createdAt" FROM support_questions q
-      WHERE q.status='OPEN' AND ($1::uuid IS NULL OR q.seller_id=$1)
+      WHERE q.status IN ('OPEN','ANSWERED') AND ($1::uuid IS NULL OR q.seller_id=$1)
       ORDER BY q.created_at DESC,q.id DESC LIMIT 50`, [filter.sellerId])).rows.map((row) => ({
       ...row, createdAt: row.createdAt.toISOString(),
     }));
