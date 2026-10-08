@@ -56,13 +56,13 @@ async function login(role, email) {
   await evaluate(`document.querySelector('form').requestSubmit(); true`);
   await waitFor(`location.pathname==='/account'`, `${role} login`);
 }
-async function queryPeriod() {
+async function queryPeriod(expectedTotal) {
   await waitFor(`document.querySelector('form[aria-label="정산 조회 조건"]')`, 'settlement form');
   await setValue('input[name=from]', '2026-05-01');
   await setValue('input[name=to]', '2026-05-20');
   await evaluate(`document.querySelector('form[aria-label="정산 조회 조건"]').requestSubmit(); true`);
   try {
-    await waitFor(`document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent.includes('12,000원')`, 'settlement report');
+    await waitFor(`document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent.includes(${JSON.stringify(expectedTotal)})`, 'settlement report');
   } catch (error) {
     const diagnostic = await evaluate(`({path:location.pathname,
       from:document.querySelector('input[name=from]')?.value,
@@ -80,7 +80,7 @@ try {
   await send('Runtime.enable');
   await login('admin', `qa+${runId}-admin@example.invalid`);
   await navigate('/account/admin/settlement');
-  await queryPeriod();
+  await queryPeriod('19,000원');
   const all = await evaluate(`({groups:[...document.querySelectorAll('.settlement-group')].map(x=>x.textContent),
     total:document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent})`);
   assert.equal(all.groups.length, 2);
@@ -96,7 +96,7 @@ try {
   }
   await login('seller', `qa+${runId}-seller-a@example.invalid`);
   await navigate('/account/seller/settlement');
-  await queryPeriod();
+  await queryPeriod('12,000원');
   const own = await evaluate(`({groups:[...document.querySelectorAll('.settlement-group')].map(x=>x.textContent),
     total:document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent,
     completion:document.querySelectorAll('.settlement-completion').length})`);
