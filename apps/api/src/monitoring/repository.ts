@@ -7,7 +7,13 @@ type Summary = {
   publishedOptionCount: number;
   soldOutOptionCount: number;
   claimCount: number;
+  pendingApprovalCount: number;
+  openQuestionCount: number;
 };
+type PendingApproval = { id: string; kind: string; sellerId: string; createdAt: string };
+type StockIssue = { optionId: string; productId: string; sellerId: string; sellableQuantity: number };
+type OpenQuestion = { id: string; productId: string; sellerId: string; createdAt: string };
+type OpenClaim = { id: string; shipmentOrderId: string; sellerId: string; status: string; createdAt: string };
 type FailedPayment = {
   attemptId: string; orderId: string; status: string; requestedWon: number; createdAt: string;
 };
@@ -21,7 +27,26 @@ export type MonitoringOverview = {
   summary: Summary;
   failedPayments: FailedPayment[];
   unshipped: Unshipped[];
+  pendingApprovals: PendingApproval[];
+  stockIssues: StockIssue[];
+  openQuestions: OpenQuestion[];
+  openClaims: OpenClaim[];
 };
+
+const approvalsSql = `SELECT request.id,'stock'::text AS kind,p.seller_id AS "sellerId",
+    request.created_at AS "createdAt" FROM stock_change_requests request
+    JOIN product_options opt ON opt.id=request.option_id
+    JOIN product_revisions rev ON rev.id=opt.revision_id JOIN products p ON p.id=rev.product_id
+    WHERE request.status='pending' AND ($1::uuid IS NULL OR p.seller_id=$1)
+  UNION ALL SELECT rev.id,'product',p.seller_id,rev.proposed_at FROM product_revisions rev
+    JOIN products p ON p.id=rev.product_id
+    WHERE rev.status='pending' AND ($1::uuid IS NULL OR p.seller_id=$1)
+  UNION ALL SELECT request.id,'shipping',request.seller_id,request.requested_at
+    FROM seller_shipping_policy_requests request
+    WHERE request.status='pending' AND ($1::uuid IS NULL OR request.seller_id=$1)
+  UNION ALL SELECT request.id,'sale_stop',p.seller_id,request.requested_at
+    FROM product_sale_stop_requests request JOIN products p ON p.id=request.product_id
+    WHERE request.status='pending' AND ($1::uuid IS NULL OR p.seller_id=$1)`;
 
 async function number(client: PoolClient, statement: string, values: unknown[]): Promise<number> {
   const result = await client.query<{ value: string }>(statement, values);
@@ -58,6 +83,38 @@ export async function readMonitoring(pool: Pool, filter: MonitoringFilter): Prom
       AND ($3::uuid IS NULL OR claim.seller_id=$3)
       AND ($4::text IS NULL OR claim.status=$4)`,
     [filter.start, filter.endExclusive, filter.sellerId, filter.claimStatus]);
+    const pendingApprovalCount = await number(client,
+      `SELECT count(*)::text AS value FROM (${approvalsSql}) pending`, [filter.sellerId]);
+    const pendingApprovals = (await client.query<PendingApproval>(
+      `SELECT * FROM (${approvalsSql}) pending ORDER BY "createdAt" DESC,id DESC LIMIT 50`,
+      [filter.sellerId])).rows.map((row) => ({ ...row, createdAt: new Date(row.createdAt).toISOString() }));
+    const stockIssues = (await client.query<StockIssue>(`SELECT opt.id AS "optionId",
+      p.id AS "productId",p.seller_id AS "sellerId",inv.sellable_quantity AS "sellableQuantity"
+      FROM product_publications pub JOIN products p ON p.id=pub.product_id
+      JOIN product_options opt ON opt.revision_id=pub.revision_id
+      JOIN inventory_levels inv ON inv.option_id=opt.id
+      WHERE inv.sellable_quantity=0 AND ($1::uuid IS NULL OR p.seller_id=$1)
+      ORDER BY opt.id DESC LIMIT 50`, [filter.sellerId])).rows;
+    const openQuestionCount = await number(client, `SELECT count(*)::text AS value FROM support_questions q
+      WHERE q.status='OPEN' AND ($1::uuid IS NULL OR q.seller_id=$1)`, [filter.sellerId]);
+    const openQuestions = (await client.query<{
+      id: string; productId: string; sellerId: string; createdAt: Date;
+    }>(`SELECT q.id,q.product_id AS "productId",q.seller_id AS "sellerId",
+      q.created_at AS "createdAt" FROM support_questions q
+      WHERE q.status='OPEN' AND ($1::uuid IS NULL OR q.seller_id=$1)
+      ORDER BY q.created_at DESC,q.id DESC LIMIT 50`, [filter.sellerId])).rows.map((row) => ({
+      ...row, createdAt: row.createdAt.toISOString(),
+    }));
+    const openClaims = (await client.query<{
+      id: string; shipmentOrderId: string; sellerId: string; status: string; createdAt: Date;
+    }>(`SELECT claim.id,claim.shipment_order_id AS "shipmentOrderId",
+      claim.seller_id AS "sellerId",claim.status,claim.created_at AS "createdAt"
+      FROM support_claims claim
+      WHERE claim.status IN ('REQUESTED','SELLER_REPLIED','APPROVED','REFUND_PROCESSING','REVIEW_REQUIRED')
+        AND ($1::uuid IS NULL OR claim.seller_id=$1)
+      ORDER BY claim.created_at DESC,claim.id DESC LIMIT 50`, [filter.sellerId])).rows.map((row) => ({
+      ...row, createdAt: row.createdAt.toISOString(),
+    }));
     const failedPayments = (await client.query<{
       attemptId: string; orderId: string; status: string; requestedWon: number; createdAt: Date;
     }>(`SELECT attempt.id AS "attemptId",o.id AS "orderId",attempt.status,
@@ -95,8 +152,9 @@ export async function readMonitoring(pool: Pool, filter: MonitoringFilter): Prom
       asOf: asOf.toISOString(),
       summary: { orderCount, goodsSalesWon,
         publishedOptionCount: Number(inventory.published),
-        soldOutOptionCount: Number(inventory.sold_out), claimCount },
-      failedPayments, unshipped,
+        soldOutOptionCount: Number(inventory.sold_out), claimCount,
+        pendingApprovalCount, openQuestionCount },
+      failedPayments, unshipped, pendingApprovals, stockIssues, openQuestions, openClaims,
     };
   } catch (error) {
     await client.query('ROLLBACK');
