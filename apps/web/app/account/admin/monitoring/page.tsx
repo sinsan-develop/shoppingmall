@@ -11,10 +11,12 @@ type Overview = { asOf: string;
   stockIssues: { optionId: string; productId: string; sellerId: string; sellableQuantity: number }[];
   openQuestions: (Timed & { productId: string })[];
   openClaims: (Timed & { shipmentOrderId: string; status: string })[];
-  failedPayments: { attemptId: string; orderId: string; status: string; requestedWon: number; createdAt: string }[];
+  failedPayments: { attemptId: string; orderId: string; status: string; orderStatus: string;
+    amountScope: 'checkout_total'; requestedWon: number; createdAt: string }[];
   unshipped: { shipmentOrderId: string; orderId: string; sellerId: string; sellerName: string;
     status: string; expectedShipDate: string; paidAt: string }[] };
 type Props = Filters & { overview: Overview | null; busy: boolean; error: string;
+  sellerError?: string;
   sellers?: { id: string; displayName: string }[];
   onFilter: (filters: Filters) => void; onRefresh: () => void };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -36,7 +38,7 @@ function ExceptionList({ title, items }: { title: string;
 }
 
 export function AdminMonitoringView({ overview, from, to, sellerId, orderStatus,
-  claimStatus, busy, error, sellers = [], onFilter, onRefresh }: Props) {
+  claimStatus, busy, error, sellerError = '', sellers = [], onFilter, onRefresh }: Props) {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -69,6 +71,7 @@ export function AdminMonitoringView({ overview, from, to, sellerId, orderStatus,
       </select></label>
       <button className="primary-button" type="submit" disabled={busy}>조회</button>
       <button className="secondary-button" type="button" onClick={onRefresh} disabled={busy}>새로고침</button>
+      {sellerError ? <p role="status">{sellerError}</p> : null}
     </form>
     {error ? <p className="account-card" role="alert">{error}</p> : null}
     {busy ? <p role="status">조회 중입니다.</p> : null}
@@ -76,7 +79,7 @@ export function AdminMonitoringView({ overview, from, to, sellerId, orderStatus,
       <section className="account-card profile-card" aria-label="관제 요약">
         <h2>요약</h2>
         <p>주문 생성 {overview.summary.orderCount}건 · 상품매출 {won(overview.summary.goodsSalesWon)}
-          <small> (결제 시점, 배송비 제외)</small></p>
+          <small> (결제 시점, 배송비 제외·환불 차감 전)</small></p>
         <p>공개 옵션 {overview.summary.publishedOptionCount}개 · 재고 이상 {overview.summary.soldOutOptionCount}개</p>
         <p>클레임 접수 {overview.summary.claimCount}건 · 승인 대기 {overview.summary.pendingApprovalCount}건 ·
           미처리 문의 {overview.summary.openQuestionCount}건</p>
@@ -90,9 +93,11 @@ export function AdminMonitoringView({ overview, from, to, sellerId, orderStatus,
               item.kind === 'product' ? 'proposal' : item.kind === 'sale_stop' ? 'sale-stop' : item.kind
             }-${encodeURIComponent(item.id)}`,
             detail: `${item.kind} · 판매자 ${item.sellerId}` }))} />
-        <ExceptionList title="실패 결제"
+        <ExceptionList title="실패 결제 시도"
           items={overview.failedPayments.map((item) => ({ id: item.attemptId,
-            detail: `${item.status} · 주문 ${item.orderId} · ${won(item.requestedWon)} · ${time(item.createdAt)}` }))} />
+            detail: `${item.status} · 통합 주문 ${item.orderId} · 통합 결제 요청액 ${won(item.requestedWon)} · 현재 주문 ${
+              item.orderStatus === 'PAID' ? '결제완료(이전 실패 이력)' : item.orderStatus
+            } · 시도 ${time(item.createdAt)}` }))} />
         <ExceptionList title="미출고"
           items={overview.unshipped.map((item) => ({ id: item.shipmentOrderId,
             href: `/account/admin/fulfillment?id=${encodeURIComponent(item.shipmentOrderId)}`,
@@ -128,6 +133,7 @@ export default function AdminMonitoringPage() {
   const [sellers, setSellers] = useState<{ id: string; displayName: string }[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const [sellerError, setSellerError] = useState('');
   useEffect(() => {
     const controller = new AbortController();
     async function load() {
@@ -148,12 +154,18 @@ export default function AdminMonitoringPage() {
         const data = await response.json() as Overview;
         if (!controller.signal.aborted) setOverview(data);
         if (sellers.length === 0) {
-          const sellerResponse = await fetch(`${apiOrigin}/catalog/sellers`, {
-            signal: controller.signal, cache: 'no-store',
-          });
-          if (sellerResponse.ok) {
+          try {
+            const sellerResponse = await fetch(`${apiOrigin}/catalog/sellers`, {
+              signal: controller.signal, cache: 'no-store',
+            });
+            if (!sellerResponse.ok) throw new Error('seller list unavailable');
             const list = await sellerResponse.json();
-            if (!controller.signal.aborted) setSellers(Array.isArray(list) ? list : list.items ?? []);
+            if (!controller.signal.aborted) {
+              setSellers(Array.isArray(list) ? list : list.items ?? []);
+              setSellerError('');
+            }
+          } catch {
+            if (!controller.signal.aborted) setSellerError('판매자 선택지를 불러오지 못했습니다. 새로고침해 주세요.');
           }
         }
       } catch (reason) {
@@ -164,6 +176,6 @@ export default function AdminMonitoringPage() {
     return () => controller.abort();
   }, [filters, reload]);
   return <AdminMonitoringView key={`${filters.from}-${filters.to}-${filters.sellerId}-${filters.orderStatus}-${filters.claimStatus}`}
-    {...filters} overview={overview} sellers={sellers} busy={busy} error={error}
+    {...filters} overview={overview} sellers={sellers} busy={busy} error={error} sellerError={sellerError}
     onFilter={setFilters} onRefresh={() => setReload((value) => value + 1)} />;
 }

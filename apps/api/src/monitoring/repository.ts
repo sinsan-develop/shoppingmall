@@ -15,7 +15,8 @@ type StockIssue = { optionId: string; productId: string; sellerId: string; sella
 type OpenQuestion = { id: string; productId: string; sellerId: string; createdAt: string };
 type OpenClaim = { id: string; shipmentOrderId: string; sellerId: string; status: string; createdAt: string };
 type FailedPayment = {
-  attemptId: string; orderId: string; status: string; requestedWon: number; createdAt: string;
+  attemptId: string; orderId: string; status: string; orderStatus: string;
+  amountScope: 'checkout_total'; requestedWon: number; createdAt: string;
 };
 type Unshipped = {
   shipmentOrderId: string; orderId: string; sellerId: string; sellerName: string;
@@ -112,22 +113,26 @@ export async function readMonitoring(pool: Pool, filter: MonitoringFilter): Prom
       FROM support_claims claim
       WHERE claim.status IN ('REQUESTED','SELLER_REPLIED','APPROVED','REFUND_PROCESSING','REVIEW_REQUIRED')
         AND ($1::uuid IS NULL OR claim.seller_id=$1)
-      ORDER BY claim.created_at DESC,claim.id DESC LIMIT 50`, [filter.sellerId])).rows.map((row) => ({
+        AND ($2::text IS NULL OR claim.status=$2)
+      ORDER BY claim.created_at DESC,claim.id DESC LIMIT 50`,
+      [filter.sellerId, filter.claimStatus])).rows.map((row) => ({
       ...row, createdAt: row.createdAt.toISOString(),
     }));
     const failedPayments = (await client.query<{
-      attemptId: string; orderId: string; status: string; requestedWon: number; createdAt: Date;
+      attemptId: string; orderId: string; status: string; orderStatus: string;
+      requestedWon: number; createdAt: Date;
     }>(`SELECT attempt.id AS "attemptId",o.id AS "orderId",attempt.status,
+        o.status AS "orderStatus",
         attempt.requested_won AS "requestedWon",attempt.created_at AS "createdAt"
       FROM payment_attempts attempt JOIN checkout_orders o ON o.id=attempt.checkout_order_id
-      WHERE attempt.status IN ('DECLINED','REVIEW_REQUIRED') AND o.status <> 'PAID'
+      WHERE attempt.status IN ('DECLINED','REVIEW_REQUIRED')
         AND attempt.created_at >= $1 AND attempt.created_at < $2
         AND ($4::text IS NULL OR o.status=$4)
         AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM shipment_orders sh
           JOIN shipment_order_lines line ON line.shipment_order_id=sh.id
           WHERE sh.checkout_order_id=o.id AND line.seller_id=$3))
       ORDER BY attempt.created_at DESC,attempt.id DESC LIMIT 50`, values.slice(0, 4))).rows.map((row) => ({
-      ...row, createdAt: row.createdAt.toISOString(),
+      ...row, amountScope: 'checkout_total' as const, createdAt: row.createdAt.toISOString(),
     }));
     const unshipped = (await client.query<{
       shipmentOrderId: string; orderId: string; sellerId: string; sellerName: string;

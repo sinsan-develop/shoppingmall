@@ -18,7 +18,8 @@ test('admin monitoring aggregates paid orders per seller and denies other roles'
   let manifest;
   let app;
   const extras = { stock: null, question: null, claim: null,
-    reservation: null, order: null, shipment: null, attempt: null };
+    reservation: null, order: null, shipment: null, shipmentB: null,
+    attempt: null, approvedAttempt: null };
   try {
     manifest = await runFulfillmentUiFixture('seed', runId, databaseUrl, password, undefined, systemId);
     app = await createApp();
@@ -94,6 +95,16 @@ test('admin monitoring aggregates paid orders per seller and denies other roles'
     assert.equal(observed.pendingApprovals[0].id, extras.stock);
     assert.equal(observed.openQuestions[0].id, extras.question);
     assert.equal(observed.openClaims[0].id, extras.claim);
+    const rejectedFilter = await fetch(`${base}${path}&claimStatus=REJECTED`,
+      { headers: { cookie: adminCookie } });
+    const rejectedView = await rejectedFilter.json();
+    assert.equal(rejectedView.summary.claimCount, 0);
+    assert.deepEqual(rejectedView.openClaims, []);
+    const requestedFilter = await fetch(`${base}${path}&claimStatus=REQUESTED`,
+      { headers: { cookie: adminCookie } });
+    const requestedView = await requestedFilter.json();
+    assert.equal(requestedView.summary.claimCount, 1);
+    assert.equal(requestedView.openClaims[0].id, extras.claim);
     const wrongSeller = await fetch(`${base}${path}&sellerId=${manifest.sellerIds[1]}`,
       { headers: { cookie: adminCookie } });
     const other = await wrongSeller.json();
@@ -110,6 +121,7 @@ test('admin monitoring aggregates paid orders per seller and denies other roles'
     extras.reservation = randomUUID();
     extras.order = randomUUID();
     extras.shipment = randomUUID();
+    extras.shipmentB = randomUUID();
     extras.attempt = randomUUID();
     await pool.query(`INSERT INTO checkout_reservations
       (id,account_id,idempotency_key,status,created_at,expires_at,ended_at)
@@ -119,7 +131,7 @@ test('admin monitoring aggregates paid orders per seller and denies other roles'
       (id,account_id,reservation_id,idempotency_key,request_fingerprint,address_id,
        recipient_name,phone,postal_code,line1,goods_won,goods_discount_won,shipping_fee_won,
        shipping_support_won,payable_won,created_at,expires_at)
-      VALUES ($1,$2,$3,$4,$5,$6,'QA 받는 분','01000000000','12345','QA 주소',23000,0,0,0,23000,
+      VALUES ($1,$2,$3,$4,$5,$6,'QA 받는 분','01000000000','12345','QA 주소',39000,0,0,0,39000,
         '2026-10-06T05:02:00Z','2026-10-07T05:00:00Z')`,
     [extras.order, manifest.accountIds[0], extras.reservation, randomUUID(),
       'a'.repeat(64), manifest.addressId]);
@@ -128,15 +140,25 @@ test('admin monitoring aggregates paid orders per seller and denies other roles'
        shipping_fee_won,shipping_support_won,payable_won)
       VALUES ($1,$2,$3,'seller_direct',$4,23000,0,0,0,23000)`,
     [extras.shipment, extras.order, `s54-${runId}`, manifest.sellerIds[0]]);
+    await pool.query(`INSERT INTO shipment_orders
+      (id,checkout_order_id,shipment_key,shipping_mode,seller_id,goods_won,goods_discount_won,
+       shipping_fee_won,shipping_support_won,payable_won)
+      VALUES ($1,$2,$3,'seller_direct',$4,16000,0,0,0,16000)`,
+    [extras.shipmentB, extras.order, `s54-b-${runId}`, manifest.sellerIds[1]]);
     await pool.query(`INSERT INTO shipment_order_lines
       (shipment_order_id,product_id,option_id,seller_id,product_name,option_name,
        unit_price_won,quantity,goods_discount_won,goods_payable_won)
       VALUES ($1,$2,$3,$4,'QA 상품','QA 옵션',23000,1,0,23000)`,
     [extras.shipment, manifest.productIds[0], manifest.optionIds[0], manifest.sellerIds[0]]);
+    await pool.query(`INSERT INTO shipment_order_lines
+      (shipment_order_id,product_id,option_id,seller_id,product_name,option_name,
+       unit_price_won,quantity,goods_discount_won,goods_payable_won)
+      VALUES ($1,$2,$3,$4,'QA 상품 B','QA 옵션 B',16000,1,0,16000)`,
+    [extras.shipmentB, manifest.productIds[1], manifest.optionIds[1], manifest.sellerIds[1]]);
     await pool.query(`INSERT INTO payment_attempts
       (id,checkout_order_id,provider,provider_order_id,requested_won,idempotency_key,
        request_fingerprint,status,created_at,ended_at)
-      VALUES ($1,$2,'mock',$3,23000,$4,$5,'DECLINED',
+      VALUES ($1,$2,'mock',$3,39000,$4,$5,'DECLINED',
         '2026-10-06T05:03:00Z','2026-10-06T05:04:00Z')`,
     [extras.attempt, extras.order, `s54-${runId}`, randomUUID(), 'b'.repeat(64)]);
     const failedResponse = await fetch(`${base}${path}`, { headers: { cookie: adminCookie } });
@@ -146,18 +168,45 @@ test('admin monitoring aggregates paid orders per seller and denies other roles'
     assert.equal(failed.summary.goodsSalesWon, 57000);
     assert.equal(failed.failedPayments.length, 1);
     assert.equal(failed.failedPayments[0].attemptId, extras.attempt);
+    assert.equal(failed.failedPayments[0].amountScope, 'checkout_total');
+    assert.equal(failed.failedPayments[0].requestedWon, 39000);
+    assert.equal(failed.failedPayments[0].orderStatus, 'PENDING_PAYMENT');
     const otherFailure = await fetch(`${base}${path}&sellerId=${manifest.sellerIds[1]}`,
       { headers: { cookie: adminCookie } });
-    assert.deepEqual((await otherFailure.json()).failedPayments, []);
-    await pool.query(`UPDATE payment_attempts SET status='APPROVED' WHERE id=$1`, [extras.attempt]);
+    const sellerB = await otherFailure.json();
+    assert.equal(sellerB.failedPayments[0].attemptId, extras.attempt);
+    assert.equal(sellerB.failedPayments[0].requestedWon, 39000);
+    assert.equal(sellerB.summary.orderCount, 2);
+    const unrelated = await fetch(`${base}${path}&sellerId=${manifest.sellerIds[2]}`,
+      { headers: { cookie: adminCookie } });
+    assert.deepEqual((await unrelated.json()).failedPayments, []);
+    extras.approvedAttempt = randomUUID();
+    await pool.query(`INSERT INTO payment_attempts
+      (id,checkout_order_id,provider,provider_order_id,requested_won,idempotency_key,
+       request_fingerprint,status,created_at,ended_at)
+      VALUES ($1,$2,'mock',$3,39000,$4,$5,'APPROVED',
+        '2026-10-06T05:05:00Z','2026-10-06T05:06:00Z')`,
+    [extras.approvedAttempt, extras.order, `s54-approved-${runId}`, randomUUID(), 'c'.repeat(64)]);
+    await pool.query(`UPDATE checkout_orders SET status='PAID',
+      ended_at='2026-10-06T05:06:00Z',paid_at='2026-10-06T05:06:00Z' WHERE id=$1`, [extras.order]);
+    await pool.query(`UPDATE shipment_orders SET status='PAID' WHERE checkout_order_id=$1`, [extras.order]);
     const resolved = await fetch(`${base}${path}`, { headers: { cookie: adminCookie } });
-    assert.deepEqual((await resolved.json()).failedPayments, []);
+    const afterPayment = await resolved.json();
+    assert.equal(afterPayment.failedPayments[0].attemptId, extras.attempt);
+    assert.equal(afterPayment.failedPayments[0].orderStatus, 'PAID');
+    assert.equal(afterPayment.summary.orderCount, 4);
+    assert.equal(afterPayment.summary.goodsSalesWon, 96000);
   } finally {
     if (app) await app.close();
+    if (extras.approvedAttempt) await pool.query('DELETE FROM payment_attempts WHERE id=$1', [extras.approvedAttempt]);
     if (extras.attempt) await pool.query('DELETE FROM payment_attempts WHERE id=$1', [extras.attempt]);
     if (extras.shipment) {
       await pool.query('DELETE FROM shipment_order_lines WHERE shipment_order_id=$1', [extras.shipment]);
       await pool.query('DELETE FROM shipment_orders WHERE id=$1', [extras.shipment]);
+    }
+    if (extras.shipmentB) {
+      await pool.query('DELETE FROM shipment_order_lines WHERE shipment_order_id=$1', [extras.shipmentB]);
+      await pool.query('DELETE FROM shipment_orders WHERE id=$1', [extras.shipmentB]);
     }
     if (extras.order) await pool.query('DELETE FROM checkout_orders WHERE id=$1', [extras.order]);
     if (extras.reservation) await pool.query('DELETE FROM checkout_reservations WHERE id=$1', [extras.reservation]);
