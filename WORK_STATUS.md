@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **다음 S6 결제 훅 격리 QA 자원 계획(생성 전):** 지정 WSL checkout exact 작업 SHA에서 별도 internal network `shoppingmall-s6-events-1008-net`, 외부 포트·영속 volume 없는 tmpfs PostgreSQL18.4 컨테이너 `shoppingmall-s6-events-1008-pg`(DB 이름 `shoppingmall`은 qa-catalog fixture 계약 때문이며 기존 `local-postgres/shoppingmall`과 별개 시스템 ID), `--rm` 읽기 전용 source Node24 runner `shoppingmall-s6-events-1008-node`만 사용한다. 이름 충돌0·image·checkout clean 확인→migration21→새 DB system ID를 시험과 대조→mock 결제/장부 E2E→DB 컨테이너·네트워크 정확 이름/ID 정리·잔류0 순서. 불변 장부 행 삭제·트리거 우회·공유 DB 접근은 하지 않는다. 시험 중간 실패 시에도 임시 자원은 근거를 기록하고 정확 대상만 정리한다.
+
 - **S6.1 거래 장부 연결 첫 절편:** 결제 확정의 단일 트랜잭션에 발송 주문·생산 판매자 스냅샷을 읽어 상품 매출/할인과 발송 담당 배송비/지원을 분리 기록한다. 결제액 재조정 불일치는 기록 전 거부한다. 환불 정상 완료의 두 경로(출고 전/출고 후)에 원주문·상품·발생시각의 환불 항목 기록을 연결했다. 순수 occurrence 4/4(0원 행 회귀 RED→GREEN), 기록 쿼리 fake-client 3/3, `pnpm typecheck` exit0. 실제 DB/프로세서 E2E는 아직 미검증이며, 공급자 환불 성공 후 재고 복구가 막혀 `REVIEW_REQUIRED`로 가는 예외는 완료시각이 없어 현재 장부 기록되지 않는다. 이 실제 금전 사건 누락 위험을 해결하기 전 S6.1 완료로 표시하지 않는다. 테스트 전용 일회용 DB 격리·전량 정리 방안으로 검증하며 트리거 우회는 사용하지 않는다.
 
 - **QA 정리 경계 PMO 회신:** PMO task에 결제·환불 자동 장부 훅 뒤 기존 7개 DB 시험의 행 삭제가 불변 트리거/FK와 충돌함을 보고했다. 회신 판정은 격리 QA DB 자체 정리는 기존 S6 승인 범위지만 트리거 우회는 별도 신산님 결정 대상이며 PMO가 승인하지 않는다는 것이다. 따라서 우회 SQL·운영/공유 장부 삭제는 사용하지 않는다. 후속 거래 통합 시험은 정확한 일회용 DB별로 수행하고 그 DB 전체를 정리하는 경로로 재설계한다. 기존 시험의 마무리 삭제를 그대로 쓰거나 공유 DB에 신규 정산 행을 남긴 채 정리 성공이라고 표기하지 않는다.
