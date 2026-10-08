@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **S6 결정 대기 — 완료 기간의 늦은 사건:** 승인된 계약은 5월 완료 뒤 7월 환불을 7월 발생으로 기록하고 5월 완료 이력을 수정하지 않는다. 다만 현재 `seller_settlement_periods`는 완료 일시/기간/근거만 저장하고 `GET /admin/settlement`는 조회 때마다 `settlement_events`를 다시 합산하므로, 완료 후 과거 발생일로 입력된 사건이 생기면 과거 조회 금액이 바뀔 수 있다. 신산님께 **(권장) 완료 당시 금액 고정·늦은 항목 별도 표시 / 완료 표시만 유지·과거 조회 금액 변경 허용** 중 한 가지를 비차단 질문했다. 답변 전 완료 금액 snapshot·수수료 과거일 입력·완료 응답/화면 계약·추가 migration을 변경하지 않는다. 공유 `local-postgres/shoppingmall`의 0020 실제 적용도 별도 환경 승인 전 미실행. 영향 없는 S6 자체 QA는 위 결과까지 마쳤고 branch `codex/s6-settlement`을 clean/push 보존한다. 담당 어울, 오류0, 다음 조치: 신산님 선택 후 설계/RED→GREEN/격리 실DB·브라우저를 재검증하고 공유 DB 적용 승인을 요청한다.
+
 - **2026-10-09 S6 최신 exact WSL 비DB 회귀 결과 (`385b5cd`):** 지정 checkout clean fast-forward, source read-only·`--network none --rm` Node24 runner `shoppingmall-s6-wsl-1009-runner`에서 전체 **562 total / 405 pass / 157 DB·환경 skip / 0 fail**, PR 본문 **8/8 pass**, exit0(주 suite 약302초). runner 잔류0, checkout clean·exact SHA, 공유 `local-postgres/shoppingmall` migration20 불변. 이 결과는 별도 PG15 실DB·Chromium QA를 대신하지 않고, 정식 공유 DB 적용/전체 S6 완료를 주장하지 않는다. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 신산님 완료 기간 금액 계약 선택 후 S6 잔여 구현·공유 DB 승인 경계.
 
 - **2026-10-09 현재 exact SHA WSL 비DB 재회귀 계획(실행 전):** 로컬 `codex/s6-settlement` clean·origin 동기화 `09e1de20300a22121b4661f74b370be3758710c4`를 지정 WSL checkout clean 확인 후 `git fetch`+fast-forward한다. 기존에 정리된 이름 `shoppingmall-s6-wsl-1009-runner`의 동일 이름 충돌0을 확인한 뒤 cached `node:24-bookworm-slim`, `--network none --rm`, source read-only bind로 전체 `node --import tsx --test`와 PR 본문 시험을 실행한다. 공유 DB/외부 네트워크 접속0, 종료 후 runner 잔류0·checkout clean/정확 SHA를 확인한다. 이 결과는 실제 DB·브라우저 검증과 별개이며 DB skip을 PASS로 표시하지 않는다. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 정확 SHA 재회귀와 결과 기록.
