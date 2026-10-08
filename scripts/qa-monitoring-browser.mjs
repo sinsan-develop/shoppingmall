@@ -57,7 +57,14 @@ async function login(role, email) {
   await setValue('#login-password', password);
   await waitFor(`Object.keys(document.querySelector('form')).some((key)=>key.startsWith('__reactProps$'))`, 'login hydration');
   await evaluate(`document.querySelector('form').requestSubmit(); true`);
-  await waitFor(`location.pathname==='/account'`, `${role} login`);
+  try { await waitFor(`location.pathname==='/account'`, `${role} login`); }
+  catch (error) {
+    const state = await evaluate(`({ path:location.pathname,
+      message:document.querySelector('[role=alert]')?.textContent ?? '',
+      role:document.querySelector('#login-role')?.value ?? '',
+      email:document.querySelector('#login-email')?.value ?? '' })`);
+    throw new Error(`${role} login failed: ${JSON.stringify(state)}`, { cause: error });
+  }
 }
 try {
   ({ page, socket } = await openCdpPage({ debugging }));
