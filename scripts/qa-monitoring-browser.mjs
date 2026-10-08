@@ -52,10 +52,11 @@ async function login(role, email) {
   await send('Storage.clearDataForOrigin', { origin: web, storageTypes: 'cookies,local_storage' });
   await navigate('/login');
   await waitFor(`document.querySelector('#login-email')`, 'login form');
+  await waitFor(`Object.keys(document.querySelector('form')).some((key)=>key.startsWith('__reactProps$'))`, 'login hydration');
   await setValue('#login-role', role);
   await setValue('#login-email', email);
   await setValue('#login-password', password);
-  await waitFor(`Object.keys(document.querySelector('form')).some((key)=>key.startsWith('__reactProps$'))`, 'login hydration');
+  assert.equal(await evaluate(`document.querySelector('#login-role').value`),role);
   await evaluate(`document.querySelector('form').requestSubmit(); true`);
   try { await waitFor(`location.pathname==='/account'`, `${role} login`); }
   catch (error) {
