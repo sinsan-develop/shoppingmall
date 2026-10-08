@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **2026-10-09 S6 최신 exact WSL 비DB 회귀 결과 (`385b5cd`):** 지정 checkout clean fast-forward, source read-only·`--network none --rm` Node24 runner `shoppingmall-s6-wsl-1009-runner`에서 전체 **562 total / 405 pass / 157 DB·환경 skip / 0 fail**, PR 본문 **8/8 pass**, exit0(주 suite 약302초). runner 잔류0, checkout clean·exact SHA, 공유 `local-postgres/shoppingmall` migration20 불변. 이 결과는 별도 PG15 실DB·Chromium QA를 대신하지 않고, 정식 공유 DB 적용/전체 S6 완료를 주장하지 않는다. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 신산님 완료 기간 금액 계약 선택 후 S6 잔여 구현·공유 DB 승인 경계.
+
 - **2026-10-09 현재 exact SHA WSL 비DB 재회귀 계획(실행 전):** 로컬 `codex/s6-settlement` clean·origin 동기화 `09e1de20300a22121b4661f74b370be3758710c4`를 지정 WSL checkout clean 확인 후 `git fetch`+fast-forward한다. 기존에 정리된 이름 `shoppingmall-s6-wsl-1009-runner`의 동일 이름 충돌0을 확인한 뒤 cached `node:24-bookworm-slim`, `--network none --rm`, source read-only bind로 전체 `node --import tsx --test`와 PR 본문 시험을 실행한다. 공유 DB/외부 네트워크 접속0, 종료 후 runner 잔류0·checkout clean/정확 SHA를 확인한다. 이 결과는 실제 DB·브라우저 검증과 별개이며 DB skip을 PASS로 표시하지 않는다. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 정확 SHA 재회귀와 결과 기록.
 
 - **2026-10-09 현재 S6 branch 로컬 회귀 (`000164d`):** 분류/개별 실제 브라우저 QA checkpoint 뒤 `pnpm test` 562 total/405 pass/157 DB·환경 skip/0 fail, PR 본문8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0(Web25 routes). 실제 PG15 HTTP·브라우저 분류/개별 결과는 위 격리 QA 별도 근거이며 로컬 skip을 PASS로 간주하지 않는다. 완료 금액 불변/늦은 발생 사건 처리 계약, 수수료 입력·완료 이력 표시, 공유 개발 DB 0020·정식 통합은 아직 미완료·미검증. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 신산님 계약·공유 DB 결정 뒤 남은 S6 구현/통합.
