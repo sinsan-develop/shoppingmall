@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **2026-10-09 현재 exact SHA WSL 비DB 재회귀 계획(실행 전):** 로컬 `codex/s6-settlement` clean·origin 동기화 `09e1de20300a22121b4661f74b370be3758710c4`를 지정 WSL checkout clean 확인 후 `git fetch`+fast-forward한다. 기존에 정리된 이름 `shoppingmall-s6-wsl-1009-runner`의 동일 이름 충돌0을 확인한 뒤 cached `node:24-bookworm-slim`, `--network none --rm`, source read-only bind로 전체 `node --import tsx --test`와 PR 본문 시험을 실행한다. 공유 DB/외부 네트워크 접속0, 종료 후 runner 잔류0·checkout clean/정확 SHA를 확인한다. 이 결과는 실제 DB·브라우저 검증과 별개이며 DB skip을 PASS로 표시하지 않는다. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 정확 SHA 재회귀와 결과 기록.
+
 - **2026-10-09 현재 S6 branch 로컬 회귀 (`000164d`):** 분류/개별 실제 브라우저 QA checkpoint 뒤 `pnpm test` 562 total/405 pass/157 DB·환경 skip/0 fail, PR 본문8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0(Web25 routes). 실제 PG15 HTTP·브라우저 분류/개별 결과는 위 격리 QA 별도 근거이며 로컬 skip을 PASS로 간주하지 않는다. 완료 금액 불변/늦은 발생 사건 처리 계약, 수수료 입력·완료 이력 표시, 공유 개발 DB 0020·정식 통합은 아직 미완료·미검증. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 신산님 계약·공유 DB 결정 뒤 남은 S6 구현/통합.
 
 - **2026-10-09 S6 실제 분류·개별 필터 QA 결과 (`6cabc9f`):** 지정 WSL checkout clean exact SHA, 전용 tmpfs PG15 system ID `7694395434068795429`에 migration21 적용. 식별 QA ID `6e21010b`의 판매자 A/B를 서로 다른 분류로 seed한 실제 HTTP 역할/전체/분류/개별/완료 시험 **1/1 pass·0 skip**. API/Web production build(웹25 routes) + 실제 WSL Chromium에서 관리자 A/B 전체 2구획·수수료19,000원, A 분류1구획12,000원, B 개별1구획7,000원, 판매자 A 본인만12,000원·관리자 화면 거부, 1440/430px 넘침0, 인쇄 매체에서 조회 컨트롤 숨김·보고서 노출을 PASS 확인했다. PDF 파일 자체/대화형 인쇄창은 이번 재검증에 포함하지 않았다(앞선 합성 화면 QA 증거 별도). 시험 DB 계정5/판매자3/사건2/완료1/migration21을 기록하고 정확 ID 컨테이너4·볼륨2·네트워크1 제거, 접두명 잔류0·WSL checkout clean. 공유 `local-postgres/shoppingmall` migration20 불변. 이는 격리 실DB·브라우저 자체 QA이지 정식 공유 DB 인수 검증이 아니다. 담당 어울, 이번 재검증 동일 원인 연속 오류0, 다음 조치: 완료 기간 금액 정책 결정 및 공유 DB 0020 별도 승인 경계 뒤 S6 남은 구현/정식 통합.
