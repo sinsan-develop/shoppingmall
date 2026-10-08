@@ -33,6 +33,10 @@ test('actual HTTP confines settlement reads to role and seller, with admin-only 
     const a = sellers.find((row) => row.name === names.sellerA);
     const b = sellers.find((row) => row.name === names.sellerB);
     assert.ok(a && b);
+    const otherCategory = (await pool.query(`INSERT INTO seller_categories(name)
+      VALUES ($1) RETURNING id`, [`qa-${runId}-other-sellers`])).rows[0].id;
+    await pool.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [otherCategory, b.id]);
+    b.categoryId = otherCategory;
     for (const [seller, amount] of [[a, 12000], [b, 7000]]) {
       const eventId = randomUUID();
       await pool.query(`INSERT INTO settlement_events
@@ -68,6 +72,14 @@ test('actual HTTP confines settlement reads to role and seller, with admin-only 
     const all = await allResponse.json();
     assert.equal(all.groups.length, 2);
     assert.equal(all.totals.commission, 19000);
+    const categoryResponse = await fetch(`${adminPath}&categoryId=${a.categoryId}`,
+      { headers: { cookie: admin } });
+    assert.equal(categoryResponse.status, 200);
+    assert.deepEqual((await categoryResponse.json()).groups.map((group) => group.sellerId), [a.id]);
+    const individualResponse = await fetch(`${adminPath}&sellerId=${b.id}`,
+      { headers: { cookie: admin } });
+    assert.equal(individualResponse.status, 200);
+    assert.deepEqual((await individualResponse.json()).groups.map((group) => group.sellerId), [b.id]);
     const ownResponse = await fetch(sellerPath, { headers: { cookie: sellerA } });
     assert.equal(ownResponse.status, 200);
     const own = await ownResponse.json();

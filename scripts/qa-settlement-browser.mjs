@@ -88,6 +88,24 @@ try {
   assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-b`) && group.includes('7,000원')));
   assert.match(all.total, /19,000원/);
   assert.equal(await evaluate(`document.querySelectorAll('.settlement-completion').length`), 2);
+  const categoryId = await evaluate(`[...document.querySelectorAll('select[name=categoryId] option')]
+    .find((option)=>option.textContent==='qa-${runId}-sellers')?.value`);
+  const sellerBId = await evaluate(`[...document.querySelectorAll('select[name=sellerId] option')]
+    .find((option)=>option.textContent==='qa-${runId}-seller-b')?.value`);
+  assert.ok(categoryId && sellerBId);
+  await setValue('select[name=categoryId]', categoryId);
+  await queryPeriod('12,000원');
+  assert.equal(await evaluate(`document.querySelectorAll('.settlement-group').length`), 1);
+  await setValue('select[name=categoryId]', '');
+  await setValue('select[name=sellerId]', sellerBId);
+  await queryPeriod('7,000원');
+  assert.equal(await evaluate(`document.querySelectorAll('.settlement-group').length`), 1);
+  await setValue('select[name=sellerId]', '');
+  await queryPeriod('19,000원');
+  await send('Emulation.setEmulatedMedia', {media:'print'});
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.settlement-controls')).display`), 'none');
+  assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('.settlement-print')).display`), 'none');
+  await send('Emulation.setEmulatedMedia', {media:'screen'});
   for (const width of [1440, 430]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 430 });
     const state = await evaluate(`({width:innerWidth,scroll:document.documentElement.scrollWidth})`);
