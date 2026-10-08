@@ -75,6 +75,18 @@ test('own engagement list distinguishes missing option, empty state and cancella
   assert.match(filled, /고추 500g 재입고 신청 취소/);
 });
 
+test('available restock stays visible as an in-app fallback when no delivery route exists', () => {
+  const markup = renderToStaticMarkup(createElement(EngagementListsView, {
+    favorites: [],restock: [{ id:'r2',productId:'p1',optionName:'500g',
+      status:'active',title:'고추',optionState:'available' }],busy:'',message:'',
+    onCancel: () => {},onRefresh: () => {},
+  }));
+  assert.match(markup,/판매 가능/);
+  assert.match(markup,/쇼핑몰 화면에서 바로 확인/);
+  assert.match(markup,/재입고 상태 새로고침/);
+  assert.match(markup,/href="\/products\/p1"/);
+});
+
 test('a response from a previous product or an obsolete request cannot overwrite the current view', () => {
   const gate = createEngagementLoadGate();
   const first = gate.begin('p1');

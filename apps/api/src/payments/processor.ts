@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { lockPaymentFulfillments, openPaymentFulfillments } from '../fulfillment/repository.js';
 import { PromotionUsageService } from '../promotions/usage-service.js';
+import { queueNotificationEvent } from '../notifications/event-queue.js';
 import type { PaymentEventView } from './repository.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -112,8 +113,12 @@ export async function processVerifiedPaymentEvent(pool: Pool, eventId: string): 
       return review;
     }
     if (event.outcome === 'DECLINED') {
-      if (attempt.status === 'PENDING') await client.query(`UPDATE payment_attempts
-        SET status='DECLINED',ended_at=clock_timestamp() WHERE id=$1`, [attempt.id]);
+      if (attempt.status === 'PENDING') {
+        await client.query(`UPDATE payment_attempts
+          SET status='DECLINED',ended_at=clock_timestamp() WHERE id=$1`, [attempt.id]);
+        await queueNotificationEvent(client, { kind: 'payment_declined',
+          sourceEventId: event.id, accountId: context.accountId });
+      }
       const declined = await finishEvent(client, eventId, 'APPLIED');
       await client.query('COMMIT');
       return declined;
@@ -170,6 +175,8 @@ export async function processVerifiedPaymentEvent(pool: Pool, eventId: string): 
     await client.query(`UPDATE payment_attempts SET status='APPROVED',ended_at=clock_timestamp()
       WHERE id=$1`, [attempt.id]);
     const applied = await finishEvent(client, eventId, 'APPLIED');
+    await queueNotificationEvent(client, { kind: 'payment_approved',
+      sourceEventId: event.id, accountId: context.accountId });
     await client.query('COMMIT');
     return applied;
   } catch (error) { await client.query('ROLLBACK'); throw error; }

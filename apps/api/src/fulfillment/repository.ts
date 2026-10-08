@@ -315,6 +315,7 @@ export async function getSellerFulfillmentDetail(pool: Pool, sellerId: string,
 
 export type LockedSellerFulfillment = {
   shipmentOrderId: string;
+  customerAccountId: string;
   status: string;
   version: number;
   expectedShipDate: string;
@@ -334,7 +335,8 @@ export async function lockSellerFulfillment(client: PoolClient, sellerId: string
       AND o.status='PAID' AND s.status='PAID' FOR UPDATE OF s`, [shipmentOrderId, sellerId]);
   if (!owned.rows[0]) return undefined;
   return (await client.query<LockedSellerFulfillment>(`SELECT
-      f.shipment_order_id AS "shipmentOrderId",f.status,f.version,
+      f.shipment_order_id AS "shipmentOrderId",o.account_id AS "customerAccountId",
+      f.status,f.version,
       f.expected_ship_date::text AS "expectedShipDate",f.carrier_code AS "carrierCode",
       f.carrier_name AS "carrierName",f.tracking_number AS "trackingNumber",
       (SELECT e.customer_message FROM shipment_fulfillment_events e
@@ -415,13 +417,13 @@ export async function insertSellerTransitionRecords(client: PoolClient, input: {
   beforeSnapshot: object;
   afterSnapshot: object;
   response: object;
-}): Promise<void> {
-  await client.query(`INSERT INTO shipment_fulfillment_events
+}): Promise<string> {
+  const event = await client.query<{ id: string }>(`INSERT INTO shipment_fulfillment_events
     (shipment_order_id,action,from_status,to_status,actor_account_id,actor_role,actor_seller_id,
       reason,customer_message,before_snapshot,after_snapshot,idempotency_scope,idempotency_key,
       request_fingerprint)
     VALUES ($1,$2,$3,$4,$5::uuid,'seller',$6,$7,$8,$9::jsonb,$10::jsonb,
-      $5::uuid::text,$11,$12)`, [
+      $5::uuid::text,$11,$12) RETURNING id`, [
     input.shipmentOrderId, input.action, input.fromStatus, input.toStatus, input.accountId,
     input.sellerId, input.reason, input.customerMessage, JSON.stringify(input.beforeSnapshot),
     JSON.stringify(input.afterSnapshot), input.idempotencyKey, input.requestFingerprint,
@@ -432,6 +434,7 @@ export async function insertSellerTransitionRecords(client: PoolClient, input: {
     input.accountId, input.sellerId, input.shipmentOrderId,
     JSON.stringify({ idempotencyKey: input.idempotencyKey, response: input.response }),
   ]);
+  return event.rows[0].id;
 }
 
 export type AdminFulfillmentCursor = { paidAt: string; shipmentOrderId: string };
@@ -680,6 +683,7 @@ export async function getAdminFulfillmentDetail(pool: Pool, shipmentOrderId: str
 
 export type LockedAdminFulfillment = {
   shipmentOrderId: string;
+  customerAccountId: string;
   status: string;
   version: number;
   expectedShipDate: string;
@@ -696,7 +700,8 @@ export async function lockAdminFulfillment(client: PoolClient,
     WHERE s.id=$1 AND o.status='PAID' AND s.status='PAID' FOR UPDATE OF s`, [shipmentOrderId]);
   if (!owned.rows[0]) return undefined;
   return (await client.query<LockedAdminFulfillment>(`SELECT
-      f.shipment_order_id AS "shipmentOrderId",f.status,f.version,
+      f.shipment_order_id AS "shipmentOrderId",o.account_id AS "customerAccountId",
+      f.status,f.version,
       f.expected_ship_date::text AS "expectedShipDate",f.carrier_code AS "carrierCode",
       f.carrier_name AS "carrierName",f.tracking_number AS "trackingNumber"
     FROM shipment_fulfillments f
@@ -761,13 +766,13 @@ export async function insertAdminCorrectionRecords(client: PoolClient, input: {
   auditBefore: object;
   auditAfter: object;
   response: object;
-}): Promise<void> {
-  await client.query(`INSERT INTO shipment_fulfillment_events
+}): Promise<string> {
+  const event = await client.query<{ id: string }>(`INSERT INTO shipment_fulfillment_events
     (shipment_order_id,action,from_status,to_status,actor_account_id,actor_role,
       reason,customer_message,before_snapshot,after_snapshot,idempotency_scope,
       idempotency_key,request_fingerprint)
     VALUES ($1,'ADMIN_CORRECT',$2,$3,$4::uuid,'admin',$5,$6,$7::jsonb,$8::jsonb,
-      $4::uuid::text,$9,$10)`, [
+      $4::uuid::text,$9,$10) RETURNING id`, [
     input.shipmentOrderId, input.fromStatus, input.toStatus, input.accountId,
     input.reason, input.customerMessage, JSON.stringify(input.beforeSnapshot),
     JSON.stringify(input.afterSnapshot), input.idempotencyKey, input.requestFingerprint,
@@ -785,4 +790,5 @@ export async function insertAdminCorrectionRecords(client: PoolClient, input: {
       response: input.response,
     }),
   ]);
+  return event.rows[0].id;
 }

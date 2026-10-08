@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import { PublicImage } from '../../account/private-image';
 import { EngagementControls } from './engagement-controls';
 import { ProductCartControls } from './cart-controls';
+import { ProductQuestions } from './questions';
+import { PublicCustomerReviews } from './customer-reviews';
 
 type Option = { id: string; name: string; priceWon: number; sellableQuantity: number };
 type ProductImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number };
@@ -54,6 +56,8 @@ export function ProductDetailView({ product, loading = false, error }: ViewProps
           </div>
         </div>
         <section className="detail-description" aria-label="상품 설명"><h2>상품 설명</h2><p>{product.description}</p></section>
+        <ProductQuestions key={product.productId} productId={product.productId} title={product.title} />
+        <PublicCustomerReviews key={product.productId} productId={product.productId} />
       </>}
   </main>;
 }

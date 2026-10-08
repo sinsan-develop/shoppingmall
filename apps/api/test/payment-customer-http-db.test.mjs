@@ -16,7 +16,7 @@ test('customer mock payment HTTP is owned, same-origin, idempotent and verifies 
   const runId = randomBytes(4).toString('hex');
   const previous = { APP_ENV: process.env.APP_ENV, PAYMENT_MODE: process.env.PAYMENT_MODE,
     API_HOST: process.env.API_HOST };
-  let seeded = false; let app; let otherBuyerId; let addressId; let reservationId; let orderId;
+  let seeded = false; let app; let buyerId; let otherBuyerId; let addressId; let reservationId; let orderId;
   try {
     const ready = await pool.query(`SELECT to_regclass('public.payment_events') IS NOT NULL AS ready`);
     if (!ready.rows[0].ready) {
@@ -27,7 +27,7 @@ test('customer mock payment HTTP is owned, same-origin, idempotent and verifies 
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);
-    const buyerId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
+    buyerId = (await pool.query('SELECT account_id FROM account_identities WHERE identifier=$1',
       [names.emails[0]])).rows[0].account_id;
     const otherEmail = `qa+${runId}-payment-other@example.invalid`;
     otherBuyerId = await new AuthRepository(pool).createCustomerAccount(
@@ -116,6 +116,20 @@ test('customer mock payment HTTP is owned, same-origin, idempotent and verifies 
       if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
     }
     if (orderId) {
+      if (buyerId && (await pool.query(`SELECT
+        to_regclass('public.notification_jobs') IS NOT NULL AS ready`)).rows[0].ready) {
+        const owned = `account_id=$1 AND
+          ((kind='order_submitted' AND source_event_id=$2) OR
+           (kind IN ('payment_approved','payment_declined') AND source_event_id IN
+             (SELECT e.id FROM payment_events e JOIN payment_attempts a
+              ON a.id=e.payment_attempt_id WHERE a.checkout_order_id=$2)))`;
+        const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j WHERE ${owned}
+          AND (j.status<>'QUEUED' OR j.attempts_completed<>0 OR EXISTS
+            (SELECT 1 FROM notification_attempts n WHERE n.job_id=j.id))`,
+        [buyerId, orderId])).rows;
+        assert.equal(unsafe.length, 0, 'QA payment notification was already processed');
+        await pool.query(`DELETE FROM notification_jobs WHERE ${owned}`, [buyerId, orderId]);
+      }
       await pool.query(`DELETE FROM payment_events WHERE payment_attempt_id IN
         (SELECT id FROM payment_attempts WHERE checkout_order_id=$1)`, [orderId]);
       await pool.query('DELETE FROM payment_attempts WHERE checkout_order_id=$1', [orderId]);

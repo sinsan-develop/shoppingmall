@@ -44,7 +44,7 @@ export function AdminShippingView({ global, requests, busy, onSaveGlobal, onAppr
     <section className="account-card profile-card">
       <h2>판매자 변경 요청</h2>
       {requests.length === 0 ? <p>승인 대기 요청이 없습니다</p> : <ul className="catalog-list">
-        {requests.map((item) => <li key={item.id} className="draft-product-item">
+        {requests.map((item) => <li key={item.id} id={`shipping-${item.id}`} className="draft-product-item">
           <strong>{item.sellerName}</strong> · 승인 대기
           <ShippingSummary policy={item.policy} />
           <button type="button" className="primary-button" disabled={busy}

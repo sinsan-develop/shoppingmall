@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, date, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { PostalRange, ShippingPolicy } from '../shipping/policy.js';
 
 export const identityKind = pgEnum('identity_kind', ['email', 'phone', 'kakao', 'apple']);
@@ -396,6 +396,68 @@ export const notificationPreferences = pgTable('notification_preferences', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const notificationJobs = pgTable('notification_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  kind: text('kind').notNull(),
+  sourceEventId: uuid('source_event_id').notNull(),
+  restockSubscriptionId: uuid('restock_subscription_id').references(() => restockSubscriptions.id),
+  channel: text('channel').notNull(),
+  dedupeKey: text('dedupe_key').notNull(),
+  status: text('status').notNull().default('QUEUED'),
+  attemptsCompleted: integer('attempts_completed').notNull().default(0),
+  availableAt: timestamp('available_at', { withTimezone: true }).defaultNow(),
+  leaseToken: uuid('lease_token'),
+  leaseUntil: timestamp('lease_until', { withTimezone: true }),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('notification_jobs_dedupe_uq').on(table.dedupeKey),
+  index('notification_jobs_due_idx').on(table.status, table.availableAt),
+  index('notification_jobs_account_idx').on(table.accountId, table.createdAt),
+  check('notification_jobs_kind_ck', sql`${table.kind} IN
+    ('order_submitted','payment_approved','payment_declined','shipment_updated','restock_available')`),
+  check('notification_jobs_channel_ck', sql`${table.channel} IN ('email','sms','push')`),
+  check('notification_jobs_status_ck', sql`${table.status} IN ('QUEUED','PROCESSING','SENT','FAILED')`),
+  check('notification_jobs_attempts_ck', sql`${table.attemptsCompleted} BETWEEN 0 AND 3`),
+  check('notification_jobs_restock_ck', sql`(${table.kind} = 'restock_available') =
+    (${table.restockSubscriptionId} IS NOT NULL)`),
+  check('notification_jobs_dedupe_key_ck', sql`length(${table.dedupeKey}) BETWEEN 1 AND 250
+    AND ${table.dedupeKey} !~ '[[:space:]@]'`),
+  check('notification_jobs_available_ck', sql`(${table.status} = 'QUEUED') =
+    (${table.availableAt} IS NOT NULL)`),
+  check('notification_jobs_lease_ck', sql`(${table.status} = 'PROCESSING'
+      AND ${table.leaseToken} IS NOT NULL AND ${table.leaseUntil} IS NOT NULL)
+    OR (${table.status} <> 'PROCESSING'
+      AND ${table.leaseToken} IS NULL AND ${table.leaseUntil} IS NULL)`),
+  check('notification_jobs_delivered_ck', sql`(${table.status} = 'SENT') =
+    (${table.deliveredAt} IS NOT NULL)`),
+]);
+
+export const notificationAttempts = pgTable('notification_attempts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  jobId: uuid('job_id').notNull().references(() => notificationJobs.id),
+  attemptNo: integer('attempt_no').notNull(),
+  status: text('status').notNull().default('STARTED'),
+  errorCode: text('error_code'),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('notification_attempts_job_no_uq').on(table.jobId, table.attemptNo),
+  check('notification_attempts_no_ck', sql`${table.attemptNo} BETWEEN 1 AND 3`),
+  check('notification_attempts_status_ck', sql`${table.status} IN
+    ('STARTED','SUCCEEDED','TRANSIENT_FAILURE','PERMANENT_FAILURE')`),
+  check('notification_attempts_error_code_ck', sql`${table.errorCode} IS NULL
+    OR ${table.errorCode} ~ '^[A-Z0-9_]{1,80}$'`),
+  check('notification_attempts_result_ck', sql`(${table.status} = 'STARTED'
+      AND ${table.finishedAt} IS NULL AND ${table.errorCode} IS NULL)
+    OR (${table.status} = 'SUCCEEDED'
+      AND ${table.finishedAt} IS NOT NULL AND ${table.errorCode} IS NULL)
+    OR (${table.status} IN ('TRANSIENT_FAILURE','PERMANENT_FAILURE')
+      AND ${table.finishedAt} IS NOT NULL AND ${table.errorCode} IS NOT NULL)`),
+]);
+
 export const accountDeletionRequests = pgTable('account_deletion_requests', {
   id: uuid('id').primaryKey().defaultRandom(),
   accountId: uuid('account_id').notNull().references(() => accounts.id),
@@ -751,10 +813,18 @@ export const refundCases = pgTable('refund_cases', {
   decisionReason: text('decision_reason'),
   decisionIdempotencyKey: uuid('decision_idempotency_key'),
   decisionFingerprint: text('decision_fingerprint'),
+  postShipmentClaimId: uuid('post_shipment_claim_id'),
 }, (table) => [
   foreignKey({ name: 'refund_cases_shipment_fk',
     columns: [table.checkoutOrderId, table.shipmentOrderId],
     foreignColumns: [shipmentOrders.checkoutOrderId, shipmentOrders.id] }),
+  foreignKey({ name: 'refund_cases_post_claim_fk',
+    columns: [table.postShipmentClaimId, table.checkoutOrderId,
+      table.shipmentOrderId, table.requesterAccountId],
+    foreignColumns: [supportClaims.id, supportClaims.checkoutOrderId,
+      supportClaims.shipmentOrderId, supportClaims.customerAccountId] }),
+  uniqueIndex('refund_cases_post_claim_uq').on(table.postShipmentClaimId)
+    .where(sql`${table.postShipmentClaimId} IS NOT NULL`),
   uniqueIndex('refund_cases_request_key_uq')
     .on(table.requesterAccountId, table.checkoutOrderId, table.idempotencyKey),
   uniqueIndex('refund_cases_id_shipment_uq').on(table.id, table.shipmentOrderId),
@@ -778,7 +848,8 @@ export const refundCases = pgTable('refund_cases', {
     OR length(trim(${table.decisionReason})) BETWEEN 1 AND 500`),
   check('refund_cases_decision_fingerprint_ck', sql`${table.decisionFingerprint} IS NULL
     OR ${table.decisionFingerprint} ~ '^[0-9a-f]{64}$'`),
-  check('refund_cases_state_ck', sql`(
+  check('refund_cases_state_ck', sql`${table.postShipmentClaimId} IS NOT NULL OR (
+    (
     ${table.status} = 'REQUESTED' AND ${table.decidedAt} IS NULL
       AND ${table.completedAt} IS NULL AND ${table.decisionBy} IS NULL
       AND ${table.decisionReason} IS NULL AND ${table.preShipmentEvidence} IS NULL
@@ -811,7 +882,28 @@ export const refundCases = pgTable('refund_cases', {
       AND ${table.decisionIdempotencyKey} IS NOT NULL AND ${table.decisionFingerprint} IS NOT NULL
       AND ${table.preShipmentEvidence} = 'ADMIN_CONFIRMED_NOT_DISPATCHED'
       AND ${table.preShipmentConfirmedBy} IS NOT NULL
-      AND ${table.preShipmentConfirmedAt} IS NOT NULL)`),
+      AND ${table.preShipmentConfirmedAt} IS NOT NULL))`),
+  check('refund_cases_post_state_ck', sql`${table.postShipmentClaimId} IS NULL OR (
+    ${table.requesterRole} = 'customer' AND ${table.policyCode} = 'POST_SHIPMENT_TRIAL'
+    AND ${table.policyVersion} > 0 AND ${table.preShipmentEvidence} IS NULL
+    AND ${table.preShipmentConfirmedBy} IS NULL AND ${table.preShipmentConfirmedAt} IS NULL
+    AND ${table.shippingRefundWon} = 0
+    AND ((${table.status} = 'REQUESTED' AND ${table.decidedAt} IS NULL
+      AND ${table.completedAt} IS NULL AND ${table.decisionBy} IS NULL
+      AND ${table.decisionReason} IS NULL AND ${table.decisionIdempotencyKey} IS NULL
+      AND ${table.decisionFingerprint} IS NULL AND ${table.goodsRefundWon} = 0
+      AND ${table.totalRefundWon} = 0)
+    OR (${table.status} IN ('APPROVED','PROCESSING','REVIEW_REQUIRED','REFUNDED')
+      AND ${table.decidedAt} IS NOT NULL AND ${table.decisionBy} IS NOT NULL
+      AND ${table.decisionReason} IS NOT NULL AND ${table.decisionIdempotencyKey} IS NOT NULL
+      AND ${table.decisionFingerprint} IS NOT NULL
+      AND ((${table.status} = 'REFUNDED' AND ${table.completedAt} IS NOT NULL)
+        OR (${table.status} <> 'REFUNDED' AND ${table.completedAt} IS NULL)))
+    OR (${table.status} = 'REJECTED' AND ${table.decidedAt} IS NOT NULL
+      AND ${table.completedAt} IS NOT NULL AND ${table.decisionBy} IS NOT NULL
+      AND ${table.decisionReason} IS NOT NULL AND ${table.decisionIdempotencyKey} IS NOT NULL
+      AND ${table.decisionFingerprint} IS NOT NULL AND ${table.goodsRefundWon} = 0
+      AND ${table.totalRefundWon} = 0)))`),
 ]);
 
 export const refundCaseLines = pgTable('refund_case_lines', {
@@ -1081,4 +1173,297 @@ export const shipmentFulfillmentEvents = pgTable('shipment_fulfillment_events', 
           AND length(${table.afterSnapshot}->>'trackingNumber') BETWEEN 1 AND 50
           AND ${table.afterSnapshot}->>'trackingNumber' !~ '[^A-Za-z0-9]'))`),
   check('shipment_fulfillment_events_fingerprint_ck', sql`${table.requestFingerprint} ~ '^[0-9a-f]{64}$'`),
+]);
+
+export const supportPolicyVersions = pgTable('support_policy_versions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull(),
+  version: integer('version').notNull(),
+  effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull().defaultNow(),
+  goodsCapPercent: integer('goods_cap_percent').notNull().default(100),
+  shippingRefundWon: integer('shipping_refund_won').notNull().default(0),
+  restockMode: text('restock_mode').notNull().default('none'),
+  createdBy: uuid('created_by').references(() => accounts.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique('support_policy_code_version_uq').on(table.code, table.version),
+  check('support_policy_trial_ck', sql`${table.code} = 'POST_SHIPMENT_TRIAL'
+    AND ${table.version} > 0 AND ${table.goodsCapPercent} = 100
+    AND ${table.shippingRefundWon} = 0 AND ${table.restockMode} = 'none'`),
+]);
+
+export const supportPurchaseConfirmations = pgTable('support_purchase_confirmations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  checkoutOrderId: uuid('checkout_order_id').notNull(),
+  shipmentOrderId: uuid('shipment_order_id').notNull(),
+  optionId: uuid('option_id').notNull(),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  customerAccountId: uuid('customer_account_id').notNull().references(() => accounts.id),
+  shippedEventId: uuid('shipped_event_id').notNull().references(() => shipmentFulfillmentEvents.id),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({ name: 'support_confirmations_order_fk',
+    columns: [table.checkoutOrderId, table.shipmentOrderId],
+    foreignColumns: [shipmentOrders.checkoutOrderId, shipmentOrders.id] }),
+  foreignKey({ name: 'support_confirmations_line_fk',
+    columns: [table.shipmentOrderId, table.optionId],
+    foreignColumns: [shipmentOrderLines.shipmentOrderId, shipmentOrderLines.optionId] }),
+  unique('support_confirmations_line_uq').on(table.shipmentOrderId, table.optionId),
+  unique('support_confirmations_request_uq').on(table.customerAccountId, table.idempotencyKey),
+]);
+
+export const supportReviews = pgTable('support_reviews', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  confirmationId: uuid('confirmation_id').notNull().unique()
+    .references(() => supportPurchaseConfirmations.id),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  customerAccountId: uuid('customer_account_id').notNull().references(() => accounts.id),
+  rating: integer('rating').notNull(),
+  body: text('body').notNull(),
+  status: text('status').notNull().default('PENDING'),
+  version: integer('version').notNull().default(1),
+  approvedBy: uuid('approved_by').references(() => accounts.id),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  hiddenBy: uuid('hidden_by').references(() => accounts.id),
+  hiddenAt: timestamp('hidden_at', { withTimezone: true }),
+  hiddenReason: text('hidden_reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('support_reviews_public_idx').on(table.productId, table.status, table.createdAt),
+  check('support_reviews_rating_ck', sql`${table.rating} BETWEEN 1 AND 5`),
+  check('support_reviews_body_ck', sql`length(trim(${table.body})) BETWEEN 1 AND 2000`),
+  check('support_reviews_status_ck', sql`${table.status} IN ('PENDING','APPROVED','HIDDEN')`),
+  check('support_reviews_version_ck', sql`${table.version} > 0`),
+  check('support_reviews_visibility_ck', sql`
+    (${table.status} = 'PENDING' AND ${table.approvedAt} IS NULL AND ${table.hiddenAt} IS NULL)
+    OR (${table.status} = 'APPROVED' AND ${table.approvedBy} IS NOT NULL
+      AND ${table.approvedAt} IS NOT NULL AND ${table.hiddenAt} IS NULL)
+    OR (${table.status} = 'HIDDEN' AND ${table.hiddenBy} IS NOT NULL
+      AND ${table.hiddenAt} IS NOT NULL AND ${table.hiddenReason} IS NOT NULL
+      AND length(trim(${table.hiddenReason})) BETWEEN 1 AND 500)`),
+]);
+
+export const supportReviewEvents = pgTable('support_review_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventSeq: bigint('event_seq', { mode: 'number' }).generatedAlwaysAsIdentity().unique(),
+  reviewId: uuid('review_id').notNull().references(() => supportReviews.id),
+  action: text('action').notNull(),
+  actorAccountId: uuid('actor_account_id').notNull().references(() => accounts.id),
+  actorRole: text('actor_role').notNull(),
+  reason: text('reason'),
+  beforeValue: jsonb('before_value').notNull().default({}),
+  afterValue: jsonb('after_value').notNull().default({}),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('support_review_events_review_idx').on(table.reviewId, table.occurredAt),
+  check('support_review_events_action_ck', sql`${table.action} IN
+    ('CREATED','EDITED','APPROVED','HIDDEN','REPORTED')`),
+  check('support_review_events_role_ck', sql`${table.actorRole} IN ('customer','admin')`),
+  check('support_review_events_snapshot_ck', sql`jsonb_typeof(${table.beforeValue}) = 'object'
+    AND jsonb_typeof(${table.afterValue}) = 'object'
+    AND NOT (${table.beforeValue} ? 'objectKey') AND NOT (${table.afterValue} ? 'objectKey')`),
+]);
+
+export const supportReviewImages = pgTable('support_review_images', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  reviewId: uuid('review_id').notNull().references(() => supportReviews.id),
+  objectKey: text('object_key').notNull().unique(),
+  mimeType: text('mime_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  scanStatus: text('scan_status').notNull().default('PENDING'),
+  scannedAt: timestamp('scanned_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('support_review_images_review_idx').on(table.reviewId),
+  check('support_review_images_type_ck', sql`${table.mimeType} = 'image/webp'
+    AND ${table.sizeBytes} BETWEEN 1 AND 5242880`),
+  check('support_review_images_scan_ck', sql`
+    (${table.scanStatus} = 'PENDING' AND ${table.scannedAt} IS NULL)
+    OR (${table.scanStatus} IN ('PASS','FAILED') AND ${table.scannedAt} IS NOT NULL)`),
+  check('support_review_images_key_ck', sql`${table.objectKey} ~ '^quarantine/[0-9a-f-]{36}\\.webp$'`),
+]);
+
+export const supportReviewReports = pgTable('support_review_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  reviewId: uuid('review_id').notNull().references(() => supportReviews.id),
+  reporterAccountId: uuid('reporter_account_id').notNull().references(() => accounts.id),
+  reason: text('reason').notNull(),
+  reportedAt: timestamp('reported_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique('support_review_reports_once_uq').on(table.reviewId, table.reporterAccountId),
+  check('support_review_reports_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
+]);
+
+export const supportQuestions = pgTable('support_questions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  customerAccountId: uuid('customer_account_id').notNull().references(() => accounts.id),
+  sellerId: uuid('seller_id').notNull().references(() => sellers.id),
+  body: text('body').notNull(),
+  status: text('status').notNull().default('OPEN'),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique('support_questions_request_uq').on(table.customerAccountId, table.idempotencyKey),
+  index('support_questions_seller_idx').on(table.sellerId, table.status, table.createdAt),
+  check('support_questions_body_ck', sql`length(trim(${table.body})) BETWEEN 1 AND 2000`),
+  check('support_questions_status_ck', sql`${table.status} IN ('OPEN','ANSWERED','PUBLISHED','HIDDEN')`),
+]);
+
+export const supportQuestionMessages = pgTable('support_question_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  messageSeq: bigint('message_seq', { mode: 'number' }).generatedAlwaysAsIdentity().unique(),
+  questionId: uuid('question_id').notNull().references(() => supportQuestions.id),
+  authorAccountId: uuid('author_account_id').notNull().references(() => accounts.id),
+  authorRole: text('author_role').notNull(),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  body: text('body').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique('support_question_messages_request_uq').on(table.authorAccountId, table.idempotencyKey),
+  index('support_question_messages_question_idx').on(table.questionId, table.createdAt, table.id),
+  check('support_question_messages_role_ck', sql`${table.authorRole} IN ('customer','seller','admin')`),
+  check('support_question_messages_body_ck', sql`length(trim(${table.body})) BETWEEN 1 AND 2000`),
+]);
+
+export const supportQuestionMessageEvents = pgTable('support_question_message_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventSeq: bigint('event_seq', { mode: 'number' }).generatedAlwaysAsIdentity().unique(),
+  messageId: uuid('message_id').notNull().references(() => supportQuestionMessages.id),
+  action: text('action').notNull(),
+  actorAccountId: uuid('actor_account_id').notNull().references(() => accounts.id),
+  actorRole: text('actor_role').notNull(),
+  reason: text('reason'),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('support_question_message_events_message_idx').on(table.messageId, table.occurredAt, table.id),
+  check('support_question_message_events_action_ck', sql`${table.action} IN ('SUBMITTED','PUBLISHED','HIDDEN')`),
+  check('support_question_message_events_role_ck', sql`
+    (${table.action} = 'SUBMITTED' AND ${table.actorRole} IN ('customer','seller','admin'))
+    OR (${table.action} IN ('PUBLISHED','HIDDEN') AND ${table.actorRole} = 'admin')`),
+  check('support_question_message_events_reason_ck', sql`${table.reason} IS NULL
+    OR length(trim(${table.reason})) BETWEEN 1 AND 500`),
+]);
+
+export const supportClaims = pgTable('support_claims', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  checkoutOrderId: uuid('checkout_order_id').notNull(),
+  shipmentOrderId: uuid('shipment_order_id').notNull(),
+  optionId: uuid('option_id').notNull(),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  customerAccountId: uuid('customer_account_id').notNull().references(() => accounts.id),
+  sellerId: uuid('seller_id').notNull().references(() => sellers.id),
+  kind: text('kind').notNull(),
+  reasonCode: text('reason_code').notNull(),
+  reason: text('reason').notNull(),
+  quantity: integer('quantity').notNull(),
+  status: text('status').notNull().default('REQUESTED'),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  policyVersionId: uuid('policy_version_id').references(() => supportPolicyVersions.id),
+  decisionBy: uuid('decision_by').references(() => accounts.id),
+  decisionReason: text('decision_reason'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  decisionIdempotencyKey: uuid('decision_idempotency_key'),
+  decisionFingerprint: text('decision_fingerprint'),
+  goodsRefundWon: integer('goods_refund_won').notNull().default(0),
+}, (table) => [
+  foreignKey({ name: 'support_claims_order_fk',
+    columns: [table.checkoutOrderId, table.shipmentOrderId],
+    foreignColumns: [shipmentOrders.checkoutOrderId, shipmentOrders.id] }),
+  foreignKey({ name: 'support_claims_line_fk',
+    columns: [table.shipmentOrderId, table.optionId],
+    foreignColumns: [shipmentOrderLines.shipmentOrderId, shipmentOrderLines.optionId] }),
+  unique('support_claims_request_uq').on(table.customerAccountId, table.idempotencyKey),
+  unique('support_claims_bridge_uq').on(table.id, table.checkoutOrderId,
+    table.shipmentOrderId, table.customerAccountId),
+  uniqueIndex('support_claims_decision_author_key_uq')
+    .on(table.decisionBy, table.decisionIdempotencyKey)
+    .where(sql`${table.decisionIdempotencyKey} IS NOT NULL`),
+  index('support_claims_seller_idx').on(table.sellerId, table.status, table.createdAt),
+  check('support_claims_kind_ck', sql`${table.kind} IN ('CLAIM','RETURN','EXCHANGE')`),
+  check('support_claims_reason_code_ck', sql`${table.reasonCode} IN
+    ('quality_issue','damaged','wrong_delivery','change_of_mind','other')`),
+  check('support_claims_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 2000`),
+  check('support_claims_quantity_ck', sql`${table.quantity} > 0`),
+  check('support_claims_status_ck', sql`${table.status} IN
+    ('REQUESTED','SELLER_REPLIED','APPROVED','REJECTED','REFUND_PROCESSING','REFUNDED','REVIEW_REQUIRED')`),
+  check('support_claims_decision_ck', sql`
+    (${table.status} IN ('REQUESTED','SELLER_REPLIED') AND ${table.decisionBy} IS NULL
+      AND ${table.decisionReason} IS NULL AND ${table.decidedAt} IS NULL
+      AND ${table.policyVersionId} IS NULL)
+    OR (${table.status} NOT IN ('REQUESTED','SELLER_REPLIED')
+      AND ${table.decisionBy} IS NOT NULL AND ${table.decisionReason} IS NOT NULL
+      AND ${table.decidedAt} IS NOT NULL AND ${table.policyVersionId} IS NOT NULL)`),
+  check('support_claims_decision_key_ck', sql`
+    (${table.status} IN ('REQUESTED','SELLER_REPLIED')
+      AND ${table.decisionIdempotencyKey} IS NULL AND ${table.decisionFingerprint} IS NULL
+      AND ${table.goodsRefundWon} = 0)
+    OR (${table.status} NOT IN ('REQUESTED','SELLER_REPLIED')
+      AND ${table.decisionIdempotencyKey} IS NOT NULL
+      AND ${table.decisionFingerprint} ~ '^[0-9a-f]{64}$'
+      AND ${table.goodsRefundWon} >= 0)`),
+]);
+
+export const supportClaimEvents = pgTable('support_claim_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventSeq: bigint('event_seq', { mode: 'number' }).generatedAlwaysAsIdentity().unique(),
+  claimId: uuid('claim_id').notNull().references(() => supportClaims.id),
+  action: text('action').notNull(),
+  actorAccountId: uuid('actor_account_id').references(() => accounts.id),
+  actorRole: text('actor_role').notNull(),
+  reason: text('reason').notNull(),
+  beforeStatus: text('before_status'),
+  afterStatus: text('after_status').notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('support_claim_events_claim_idx').on(table.claimId, table.occurredAt),
+  check('support_claim_events_action_ck', sql`${table.action} IN
+    ('REQUESTED','SELLER_REPLIED','EVIDENCE_ADDED','APPROVED','REJECTED','REFUND_PROCESSING','REFUNDED','REVIEW_REQUIRED')`),
+  check('support_claim_events_role_ck', sql`${table.actorRole} IN ('customer','seller','admin','system')`),
+  check('support_claim_events_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
+]);
+
+export const supportClaimMessages = pgTable('support_claim_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  messageSeq: bigint('message_seq', { mode: 'number' }).generatedAlwaysAsIdentity().unique(),
+  claimId: uuid('claim_id').notNull().references(() => supportClaims.id),
+  authorAccountId: uuid('author_account_id').notNull().references(() => accounts.id),
+  authorRole: text('author_role').notNull(),
+  body: text('body').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  idempotencyKey: uuid('idempotency_key'),
+}, (table) => [
+  uniqueIndex('support_claim_messages_author_key_uq')
+    .on(table.authorAccountId, table.idempotencyKey)
+    .where(sql`${table.idempotencyKey} IS NOT NULL`),
+  index('support_claim_messages_claim_idx').on(table.claimId, table.createdAt, table.id),
+  check('support_claim_messages_role_ck', sql`${table.authorRole} IN ('customer','seller','admin')`),
+  check('support_claim_messages_body_ck', sql`length(trim(${table.body})) BETWEEN 1 AND 2000`),
+]);
+
+export const supportClaimEvidence = pgTable('support_claim_evidence', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  claimId: uuid('claim_id').notNull().references(() => supportClaims.id),
+  uploadedBy: uuid('uploaded_by').notNull().references(() => accounts.id),
+  objectKey: text('object_key').notNull().unique(),
+  mimeType: text('mime_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  idempotencyKey: uuid('idempotency_key'),
+  requestSha256: text('request_sha256'),
+}, (table) => [
+  index('support_claim_evidence_claim_idx').on(table.claimId),
+  uniqueIndex('support_claim_evidence_author_key_uq')
+    .on(table.uploadedBy, table.idempotencyKey)
+    .where(sql`${table.idempotencyKey} IS NOT NULL`),
+  check('support_claim_evidence_type_ck', sql`${table.mimeType} = 'image/webp'
+    AND ${table.sizeBytes} BETWEEN 1 AND 5242880`),
+  check('support_claim_evidence_key_ck', sql`${table.objectKey} ~ '^quarantine/[0-9a-f-]{36}\\.webp$'`),
+  check('support_claim_evidence_request_ck', sql`
+    (${table.idempotencyKey} IS NULL AND ${table.requestSha256} IS NULL)
+    OR (${table.idempotencyKey} IS NOT NULL
+      AND ${table.requestSha256} ~ '^[0-9a-f]{64}$')`),
 ]);

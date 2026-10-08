@@ -15,11 +15,23 @@ import { AdminRefundController } from './refunds/admin.controller.js';
 import { CustomerRefundController } from './refunds/customer.controller.js';
 import { SellerFulfillmentController } from './fulfillment/seller.controller.js';
 import { AdminFulfillmentController } from './fulfillment/admin.controller.js';
+import { AdminSupportQuestionController, CustomerSupportQuestionController,
+  PublicSupportQuestionController, SellerSupportQuestionController } from './support/questions.controller.js';
+import { CustomerSupportConfirmationController } from './support/confirmations.controller.js';
+import { AdminSupportReviewController, CustomerSupportReviewController,
+  PublicSupportReviewController } from './support/reviews.controller.js';
+import { AdminSupportClaimController, CustomerSupportClaimController,
+  SellerSupportClaimController } from './support/claims.controller.js';
+import { AdminMonitoringController } from './monitoring/controller.js';
 
 @Module({ controllers: [HealthController, AuthController, CustomerController, CustomerCartController,
   CustomerReservationController, AdminReservationController, CatalogController, ShippingController,
   HomeAdminController, HomePublicController, PromotionAdminController, CustomerPromotionController,
   CustomerOrderController, CustomerRefundController, AdminRefundController,
-  SellerFulfillmentController, AdminFulfillmentController],
+  SellerFulfillmentController, AdminFulfillmentController, CustomerSupportQuestionController,
+  SellerSupportQuestionController, AdminSupportQuestionController, PublicSupportQuestionController,
+  CustomerSupportConfirmationController, CustomerSupportReviewController,
+  AdminSupportReviewController, PublicSupportReviewController, CustomerSupportClaimController,
+  SellerSupportClaimController, AdminSupportClaimController, AdminMonitoringController],
   providers: [DatabaseService] })
 export class AppModule {}

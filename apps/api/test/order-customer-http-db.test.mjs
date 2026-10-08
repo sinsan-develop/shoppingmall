@@ -19,7 +19,7 @@ async function requireTask7Schema(context, pool) {
   const migrations = (await pool.query(
     'SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations',
   )).rows[0].count;
-  assert.equal(migrations, 16);
+  assert.equal(migrations, 19);
   return true;
 }
 

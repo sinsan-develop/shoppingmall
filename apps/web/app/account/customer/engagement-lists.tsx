@@ -8,8 +8,9 @@ type Restock = { id: string; productId: string; optionName: string; status: stri
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
-export function EngagementListsView({ favorites, restock, busy, message, onCancel }: {
-  favorites: Favorite[]; restock: Restock[]; busy: string; message: string; onCancel: (id: string) => void;
+export function EngagementListsView({ favorites, restock, busy, message, onCancel,onRefresh }: {
+  favorites: Favorite[]; restock: Restock[]; busy: string; message: string;
+  onCancel: (id: string) => void; onRefresh?: () => void;
 }) {
   const optionLabel: Record<string, string> = {
     unpublished: '상품 공개 중단', sale_stopped: '판매중지', missing: '현재 없는 옵션',
@@ -25,9 +26,13 @@ export function EngagementListsView({ favorites, restock, busy, message, onCance
     </section>
     <section className="account-card profile-card" aria-labelledby="restock-list-title">
       <h2 id="restock-list-title">재입고 신청</h2>
+      {onRefresh ? <button type="button" className="secondary-button" disabled={Boolean(busy)}
+        onClick={onRefresh}>재입고 상태 새로고침</button> : null}
       {restock.length ? <ul className="engagement-list">{restock.map((item) => <li key={item.id}>
         <a className="text-link" href={`/products/${encodeURIComponent(item.productId)}`}>{item.title ?? '상품 정보 없음'}</a>
         <span>{item.optionName} · {optionLabel[item.optionState] ?? '상태 확인 중'} · {item.status === 'active' ? '신청 중' : item.status === 'cancelled' ? '취소됨' : '알림 완료'}</span>
+        {item.status === 'active' && item.optionState === 'available' ?
+          <span>외부 알림을 받지 못했어도 쇼핑몰 화면에서 바로 확인해 주세요</span> : null}
         {item.status === 'active' ? <button type="button" className="secondary-button"
           aria-label={`${item.title ?? '상품'} ${item.optionName} 재입고 신청 취소`}
           disabled={Boolean(busy)} onClick={() => onCancel(item.id)}>신청 취소</button> : null}
@@ -89,7 +94,27 @@ export function EngagementLists() {
     }
   }
 
+  async function refresh() {
+    if (!apiOrigin || operation.current || !lifetime.current || lifetime.current.signal.aborted) return;
+    operation.current = true;
+    setBusy('refresh'); setMessage('');
+    const signal = lifetime.current.signal;
+    try {
+      const response = await fetch(`${apiOrigin}/customer/restock-subscriptions`,
+        { credentials:'include',cache:'no-store',signal });
+      if (!response.ok) throw new Error('Refresh failed');
+      const rows = await response.json() as Restock[];
+      if (!signal.aborted) setRestock(rows);
+    } catch {
+      if (!signal.aborted) setMessage('재입고 상태를 새로고침하지 못했습니다');
+    } finally {
+      operation.current = false;
+      if (!signal.aborted) setBusy('');
+    }
+  }
+
   if (state === 'loading') return <p role="status">찜과 재입고 신청을 불러오는 중</p>;
   if (state === 'unavailable') return <p role="alert">찜과 재입고 신청 내역을 불러올 수 없습니다</p>;
-  return <EngagementListsView favorites={favorites} restock={restock} busy={busy} message={message} onCancel={cancel} />;
+  return <EngagementListsView favorites={favorites} restock={restock} busy={busy}
+    message={message} onCancel={cancel} onRefresh={refresh} />;
 }

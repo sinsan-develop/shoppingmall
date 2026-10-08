@@ -1,0 +1,229 @@
+import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
+import test from 'node:test';
+import { Pool } from 'pg';
+import { qaNames } from '../scripts/qa-fixture.ts';
+import { runQaPublicFixture } from '../scripts/qa-public-fixture.ts';
+import { CustomerEngagement } from '../src/customer/engagement.ts';
+import { InventoryService } from '../src/inventory/service.ts';
+import { runMockNotificationOnce } from '../src/notifications/mock.ts';
+import { assertOrderMutationQaTarget } from './order-schema-guard.mjs';
+
+test('only approved zero-to-sellable public stock queues an active restock request once', {
+  skip: !process.env.S53_RESTOCK_TEST_DB_SYSTEM_ID,
+}, async () => {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const runId = randomBytes(4).toString('hex');
+  let seeded = false;
+  let productId;
+  let subscriptionId;
+  try {
+    await assertOrderMutationQaTarget(pool, process.env.S53_RESTOCK_TEST_DB_SYSTEM_ID);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations')).rows[0].n, 20);
+    ({ productId } = await runQaPublicFixture('seed', runId,
+      process.env.DATABASE_URL, 'test-only-password-12345'));
+    seeded = true;
+    const names = qaNames(runId);
+    const identities = (await pool.query(`SELECT identifier,account_id AS id FROM account_identities
+      WHERE identifier=ANY($1::text[])`, [names.emails])).rows;
+    const byEmail = new Map(identities.map(({ identifier, id }) => [identifier, id]));
+    const customerId = byEmail.get(names.emails[0]);
+    const sellerId = byEmail.get(names.emails[1]);
+    const adminId = byEmail.get(names.emails[4]);
+    assert.ok(customerId && sellerId && adminId);
+    const option = (await pool.query(`SELECT o.id,p.seller_id AS "sellerId" FROM product_publications pub
+      JOIN product_revisions r ON r.id=pub.revision_id AND r.status='approved'
+      JOIN product_options o ON o.revision_id=r.id AND o.name='500g'
+      JOIN products p ON p.id=pub.product_id WHERE p.id=$1`, [productId])).rows[0];
+    assert.ok(option?.id);
+    const seller = { accountId: sellerId, role: 'seller', sellerId: option.sellerId };
+    const admin = { accountId: adminId, role: 'admin' };
+    const inventory = new InventoryService(pool);
+    await inventory.setStock(seller, option.id, 0);
+    const subscription = await new CustomerEngagement(pool).addRestockSubscription(
+      { accountId: customerId, role: 'customer' }, productId, option.id);
+    subscriptionId = subscription.id;
+    const pending = await inventory.setStock(seller, option.id, 5);
+    assert.equal(pending.sellable, 0);
+    assert.ok(pending.requestId);
+    const jobs = async () => (await pool.query(`SELECT kind,source_event_id AS "eventId",
+      restock_subscription_id AS "subscriptionId",account_id AS "accountId",channel
+      FROM notification_jobs WHERE restock_subscription_id=$1`, [subscriptionId])).rows;
+    assert.deepEqual(await jobs(), []);
+    assert.equal((await inventory.approveIncrease(admin, pending.requestId)).sellable, 5);
+    assert.deepEqual(await jobs(), [{ kind: 'restock_available',eventId: pending.requestId,
+      subscriptionId,accountId: customerId,channel: 'email' }]);
+    await assert.rejects(() => inventory.approveIncrease(admin, pending.requestId),
+      /Pending stock request required/);
+    assert.equal((await jobs()).length, 1);
+
+    const stopId = (await pool.query(`INSERT INTO product_sale_stop_requests
+      (product_id,status,reason,requested_by_account_id,decided_by_account_id,decided_at)
+      VALUES ($1,'approved','가상 판매중지',$2,$3,now()) RETURNING id`,
+    [productId, sellerId, adminId])).rows[0].id;
+    const worker = await pool.connect();
+    try {
+      await worker.query('BEGIN');
+      const now = (await worker.query('SELECT clock_timestamp() AS now')).rows[0].now;
+      assert.deepEqual(await runMockNotificationOnce(worker, new Date(now.getTime() + 1000), {
+        APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
+        NOTIFICATION_MODE: 'mock',
+      }), { processed: true });
+      const result = (await worker.query(`SELECT j.status AS "jobStatus",a.status AS "attemptStatus",
+        a.error_code AS "errorCode",s.status AS "subscriptionStatus"
+        FROM notification_jobs j JOIN notification_attempts a ON a.job_id=j.id
+        JOIN restock_subscriptions s ON s.id=j.restock_subscription_id
+        WHERE j.restock_subscription_id=$1`, [subscriptionId])).rows[0];
+      assert.deepEqual(result, { jobStatus: 'FAILED', attemptStatus: 'PERMANENT_FAILURE',
+        errorCode: 'RESTOCK_UNAVAILABLE', subscriptionStatus: 'active' });
+    } finally {
+      await worker.query('ROLLBACK');
+      worker.release();
+    }
+
+    await pool.query('DELETE FROM product_sale_stop_requests WHERE id=$1', [stopId]);
+    const availableWorker = await pool.connect();
+    try {
+      await availableWorker.query('BEGIN');
+      const now = (await availableWorker.query('SELECT clock_timestamp() AS now')).rows[0].now;
+      assert.deepEqual(await runMockNotificationOnce(availableWorker, new Date(now.getTime() + 1000), {
+        APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
+        NOTIFICATION_MODE: 'mock',
+      }), { processed: true });
+      const sent = (await availableWorker.query(`SELECT j.status AS "jobStatus",
+        a.status AS "attemptStatus",s.status AS "subscriptionStatus",
+        s.notified_at AS "notifiedAt"
+        FROM notification_jobs j JOIN notification_attempts a ON a.job_id=j.id
+        JOIN restock_subscriptions s ON s.id=j.restock_subscription_id
+        WHERE j.restock_subscription_id=$1`, [subscriptionId])).rows[0];
+      assert.equal(sent.jobStatus, 'SENT');
+      assert.equal(sent.attemptStatus, 'SUCCEEDED');
+      assert.equal(sent.subscriptionStatus, 'notified');
+      assert.ok(sent.notifiedAt instanceof Date);
+    } finally {
+      await availableWorker.query('ROLLBACK');
+      availableWorker.release();
+    }
+
+    const stockBlocker = await pool.connect();
+    const soldOutWorker = await pool.connect();
+    let blockerOpen = false;
+    try {
+      await stockBlocker.query('BEGIN');
+      blockerOpen = true;
+      await stockBlocker.query('SELECT id FROM products WHERE id=$1 FOR UPDATE', [productId]);
+      await soldOutWorker.query('BEGIN');
+      const workerPid = (await soldOutWorker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      const now = (await soldOutWorker.query('SELECT clock_timestamp() AS now')).rows[0].now;
+      const processing = runMockNotificationOnce(soldOutWorker, new Date(now.getTime() + 1000), {
+        APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
+        NOTIFICATION_MODE: 'mock',
+      }).then(value => ({ value }), error => ({ error }));
+      let waiting = false;
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline) {
+        const activity = (await pool.query(`SELECT wait_event_type AS "waitType"
+          FROM pg_stat_activity WHERE pid=$1`, [workerPid])).rows[0];
+        if (activity?.waitType === 'Lock') { waiting = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      assert.equal(waiting, true, 'notification worker must wait for the product decision');
+      await stockBlocker.query(`UPDATE inventory_levels
+        SET on_hand_quantity=0,sellable_quantity=0 WHERE option_id=$1`, [option.id]);
+      await stockBlocker.query('COMMIT');
+      blockerOpen = false;
+      const processed = await processing;
+      if (processed.error) throw processed.error;
+      assert.deepEqual(processed.value, { processed: true });
+      const stopped = (await soldOutWorker.query(`SELECT j.status AS "jobStatus",
+        a.status AS "attemptStatus",a.error_code AS "errorCode",
+        s.status AS "subscriptionStatus" FROM notification_jobs j
+        JOIN notification_attempts a ON a.job_id=j.id
+        JOIN restock_subscriptions s ON s.id=j.restock_subscription_id
+        WHERE j.restock_subscription_id=$1`, [subscriptionId])).rows[0];
+      assert.deepEqual(stopped, { jobStatus: 'FAILED', attemptStatus: 'PERMANENT_FAILURE',
+        errorCode: 'RESTOCK_UNAVAILABLE', subscriptionStatus: 'active' });
+    } finally {
+      if (blockerOpen) await stockBlocker.query('ROLLBACK');
+      await soldOutWorker.query('ROLLBACK');
+      stockBlocker.release();
+      soldOutWorker.release();
+    }
+
+    await pool.query(`UPDATE inventory_levels SET on_hand_quantity=5,sellable_quantity=5
+      WHERE option_id=$1`, [option.id]);
+    const replacementRevisionId = (await pool.query(`INSERT INTO product_revisions
+      (product_id,version,title,description,origin_label,shipping_mode,status,
+       proposed_by_account_id,reviewed_by_account_id,reviewed_at)
+      VALUES ($1,2,'QA revised product','QA option replacement','경남 진주',
+        'seller_direct','approved',$2,$3,now()) RETURNING id`,
+    [productId, sellerId, adminId])).rows[0].id;
+    const replacementOptionId = (await pool.query(`INSERT INTO product_options
+      (revision_id,name,price_won,display_order) VALUES ($1,'1kg',45000,0) RETURNING id`,
+    [replacementRevisionId])).rows[0].id;
+    await pool.query(`INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity)
+      VALUES ($1,5,5)`, [replacementOptionId]);
+    await pool.query('UPDATE product_publications SET revision_id=$2 WHERE product_id=$1',
+      [productId, replacementRevisionId]);
+    const currentOptions = (await pool.query(`SELECT o.name,i.sellable_quantity AS "sellable"
+      FROM product_publications pub JOIN product_options o ON o.revision_id=pub.revision_id
+      JOIN inventory_levels i ON i.option_id=o.id WHERE pub.product_id=$1`, [productId])).rows;
+    assert.deepEqual(currentOptions, [{ name: '1kg', sellable: 5 }]);
+    const revisedWorker = await pool.connect();
+    try {
+      await revisedWorker.query('BEGIN');
+      const now = (await revisedWorker.query('SELECT clock_timestamp() AS now')).rows[0].now;
+      assert.deepEqual(await runMockNotificationOnce(revisedWorker, new Date(now.getTime() + 1000), {
+        APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
+        NOTIFICATION_MODE: 'mock',
+      }), { processed: true });
+      const afterRevision = (await revisedWorker.query(`SELECT j.status AS "jobStatus",
+        a.status AS "attemptStatus",a.error_code AS "errorCode",
+        s.status AS "subscriptionStatus" FROM notification_jobs j
+        JOIN notification_attempts a ON a.job_id=j.id
+        JOIN restock_subscriptions s ON s.id=j.restock_subscription_id
+        WHERE j.restock_subscription_id=$1`, [subscriptionId])).rows[0];
+      assert.deepEqual(afterRevision, { jobStatus: 'FAILED', attemptStatus: 'PERMANENT_FAILURE',
+        errorCode: 'RESTOCK_UNAVAILABLE', subscriptionStatus: 'active' });
+    } finally {
+      await revisedWorker.query('ROLLBACK');
+      revisedWorker.release();
+    }
+
+    const cancelled = await new CustomerEngagement(pool).cancelRestockSubscription(
+      { accountId: customerId, role: 'customer' }, subscriptionId);
+    assert.deepEqual(cancelled, { id: subscriptionId, status: 'cancelled' });
+    const cancelledWorker = await pool.connect();
+    try {
+      await cancelledWorker.query('BEGIN');
+      const now = (await cancelledWorker.query('SELECT clock_timestamp() AS now')).rows[0].now;
+      assert.deepEqual(await runMockNotificationOnce(cancelledWorker, new Date(now.getTime() + 1000), {
+        APP_ENV: 'development', NODE_ENV: 'test', API_HOST: '127.0.0.1',
+        NOTIFICATION_MODE: 'mock',
+      }), { processed: true });
+      const afterCancel = (await cancelledWorker.query(`SELECT j.status AS "jobStatus",
+        a.status AS "attemptStatus",a.error_code AS "errorCode",
+        s.status AS "subscriptionStatus",s.notified_at AS "notifiedAt"
+        FROM notification_jobs j JOIN notification_attempts a ON a.job_id=j.id
+        JOIN restock_subscriptions s ON s.id=j.restock_subscription_id
+        WHERE j.restock_subscription_id=$1`, [subscriptionId])).rows[0];
+      assert.deepEqual(afterCancel, { jobStatus: 'FAILED', attemptStatus: 'PERMANENT_FAILURE',
+        errorCode: 'SUBSCRIPTION_INACTIVE', subscriptionStatus: 'cancelled', notifiedAt: null });
+    } finally {
+      await cancelledWorker.query('ROLLBACK');
+      cancelledWorker.release();
+    }
+  } finally {
+    if (subscriptionId) {
+      const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j
+        WHERE j.restock_subscription_id=$1 AND
+          (j.status<>'QUEUED' OR EXISTS (SELECT 1 FROM notification_attempts a WHERE a.job_id=j.id))`,
+      [subscriptionId])).rows;
+      assert.equal(unsafe.length, 0, 'QA restock notification was already processed');
+      await pool.query(`DELETE FROM notification_jobs WHERE restock_subscription_id=$1`, [subscriptionId]);
+      await pool.query('DELETE FROM restock_subscriptions WHERE id=$1', [subscriptionId]);
+    }
+    if (seeded) await runQaPublicFixture('reset', runId, process.env.DATABASE_URL);
+    await pool.end();
+  }
+});

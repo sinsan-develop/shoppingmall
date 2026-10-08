@@ -9,6 +9,7 @@ import { submitPendingOrder } from '../src/orders/service.ts';
 import { MockPaymentAdapter } from '../src/payments/mock-adapter.ts';
 import { processVerifiedPaymentEvent } from '../src/payments/processor.ts';
 import { recordVerifiedPaymentEvent, startPaymentAttempt } from '../src/payments/service.ts';
+import { AdminFulfillmentService, SellerFulfillmentService } from '../src/fulfillment/service.ts';
 import {
   assertOrderMutationQaTarget,
   skipWithoutFulfillmentSchema,
@@ -25,7 +26,7 @@ async function requireFreshIsolatedSchema(context, pool) {
     (SELECT count(*)::int FROM drizzle.__drizzle_migrations) AS migrations,
     to_regclass('public.payment_attempts') IS NOT NULL AS attempts,
     to_regclass('public.payment_events') IS NOT NULL AS events`)).rows[0];
-  assert.deepEqual(schema, { migrations: 16, attempts: true, events: true });
+  assert.deepEqual(schema, { migrations: 20, attempts: true, events: true });
   return true;
 }
 
@@ -179,6 +180,24 @@ async function cleanupScenario(pool, scenario) {
   if (!scenario) return;
   const orderIds = scenario.orderIds ?? [];
   if (orderIds.length) {
+    if (scenario.buyerId && (await pool.query(`SELECT
+      to_regclass('public.notification_jobs') IS NOT NULL AS ready`)).rows[0].ready) {
+      const owned = `account_id=$1 AND
+        ((kind='order_submitted' AND source_event_id=ANY($2::uuid[])) OR
+         (kind IN ('payment_approved','payment_declined') AND source_event_id IN
+           (SELECT e.id FROM payment_events e JOIN payment_attempts a
+            ON a.id=e.payment_attempt_id WHERE a.checkout_order_id=ANY($2::uuid[]))) OR
+         (kind='shipment_updated' AND source_event_id IN
+           (SELECT e.id FROM shipment_fulfillment_events e JOIN shipment_orders s
+            ON s.id=e.shipment_order_id WHERE s.checkout_order_id=ANY($2::uuid[]))))`;
+      const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j WHERE ${owned}
+        AND (j.status<>'QUEUED' OR EXISTS
+          (SELECT 1 FROM notification_attempts n WHERE n.job_id=j.id))`,
+      [scenario.buyerId, orderIds])).rows;
+      assert.equal(unsafe.length, 0, 'QA payment notification was already processed');
+      await pool.query(`DELETE FROM notification_jobs WHERE ${owned}`,
+        [scenario.buyerId, orderIds]);
+    }
     await pool.query(`DELETE FROM payment_event_conflicts WHERE original_event_id IN
       (SELECT e.id FROM payment_events e JOIN payment_attempts a ON a.id=e.payment_attempt_id
        WHERE a.checkout_order_id=ANY($1::uuid[])) OR incoming_attempt_id IN
@@ -438,4 +457,63 @@ test('verified payment opens every fulfillment once and rejects partial payment 
       assert.deepEqual(await stockState(pool, scenario.optionIds), stockBefore);
       });
     });
+});
+
+test('seller shipment transitions and admin correction enqueue customer notices once per saved event', {
+  skip: !process.env.DATABASE_URL || !process.env.S5_PAYMENT_TEST_DB_SYSTEM_ID,
+  timeout: 120000,
+}, async (context) => {
+  await withIsolatedScenario(context, async (pool, scenario) => {
+    const order = await createPendingOrder(pool, scenario);
+    const payment = await createPaymentEvent(pool, scenario, order);
+    assert.equal((await processVerifiedPaymentEvent(pool, payment.event.id)).processingStatus, 'APPLIED');
+    const shipment = (await pool.query(`SELECT s.id FROM shipment_orders s
+      WHERE s.checkout_order_id=$1 AND s.seller_id=$2`,
+    [order.id, scenario.sellerA.id])).rows[0];
+    assert.ok(shipment?.id);
+    const seller = new SellerFulfillmentService(pool, {
+      accountId: scenario.sellerA.accountId, role: 'seller', sellerId: scenario.sellerA.id,
+    });
+    const other = new SellerFulfillmentService(pool, {
+      accountId: scenario.sellerB.accountId, role: 'seller', sellerId: scenario.sellerB.id,
+    });
+    const admin = new AdminFulfillmentService(pool, {
+      accountId: scenario.adminId, role: 'admin',
+    });
+    const noticeRows = async () => (await pool.query(`SELECT j.source_event_id AS "eventId",
+      j.account_id AS "accountId",j.channel,e.action,e.to_status AS status
+      FROM notification_jobs j JOIN shipment_fulfillment_events e ON e.id=j.source_event_id
+      WHERE j.kind='shipment_updated' AND e.shipment_order_id=$1
+      ORDER BY e.occurred_at,e.id`, [shipment.id])).rows;
+    const packingKey = randomUUID();
+    const packing = await seller.transition(shipment.id, packingKey,
+      { targetStatus: 'PACKING', expectedVersion: 1 });
+    assert.equal(packing.status, 'PACKING');
+    assert.equal((await noticeRows()).length, 1);
+    await seller.transition(shipment.id, packingKey,
+      { targetStatus: 'PACKING', expectedVersion: 1 });
+    assert.equal((await noticeRows()).length, 1);
+    await assert.rejects(() => other.transition(shipment.id, randomUUID(),
+      { targetStatus: 'PACKING', expectedVersion: 2 }), /Fulfillment unavailable/);
+    assert.equal((await noticeRows()).length, 1);
+
+    const shipped = await seller.transition(shipment.id, randomUUID(),
+      { targetStatus: 'SHIPPED', expectedVersion: 2, carrierCode: 'hanjin',
+        trackingNumber: 'QA12345' });
+    assert.equal(shipped.status, 'SHIPPED');
+    assert.equal((await noticeRows()).length, 2);
+    const corrected = await admin.correct(shipment.id, randomUUID(), {
+      expectedVersion: 3, corrected: { trackingNumber: 'QA54321' },
+      reason: '가상 운송장 정정', customerMessage: '가상 운송장 번호를 바로잡았습니다',
+    });
+    assert.equal(corrected.trackingNumber, 'QA54321');
+    const notices = await noticeRows();
+    assert.deepEqual(notices.map(({ action, status, accountId, channel }) =>
+      ({ action, status, accountId, channel })), [
+      { action: 'START_PACKING', status: 'PACKING', accountId: scenario.buyerId, channel: 'email' },
+      { action: 'MARK_SHIPPED', status: 'SHIPPED', accountId: scenario.buyerId, channel: 'email' },
+      { action: 'ADMIN_CORRECT', status: 'SHIPPED', accountId: scenario.buyerId, channel: 'email' },
+    ]);
+    assert.equal(new Set(notices.map(({ eventId }) => eventId)).size, 3);
+  });
 });

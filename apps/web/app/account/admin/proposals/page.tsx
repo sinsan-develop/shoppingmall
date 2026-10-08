@@ -63,7 +63,7 @@ export function AdminProposalView({ proposals, busy, onReject, onApprove, onLoad
     <h2 id="pending-proposal-title">상품 승인 대기</h2>
     <p>사진과 상품 내용을 확인해 주세요. 승인은 서버의 악성코드 검사 통과 후 고객에게 반영되며, 반려에는 사유가 남습니다</p>
     {proposals.length === 0 ? <p>현재 승인 대기 상품이 없습니다</p> : <ul className="catalog-list">
-      {proposals.map((item) => <li key={item.revisionId} className="draft-product-item">
+      {proposals.map((item) => <li key={item.revisionId} id={`proposal-${item.revisionId}`} className="draft-product-item">
         <strong>{item.title}</strong> · {item.sellerName}<br />
         <small>요청 시각: {new Date(item.proposedAt).toLocaleString('ko-KR')}</small>
         <p>산지: {item.originLabel} · {item.shippingMode === 'seller_direct' ? '판매자 직접 발송' : '어울몰 발송'}</p>
@@ -91,7 +91,7 @@ export function AdminStockView({ requests, busy, onApprove }: {
     <h2 id="pending-stock-title">재고 증가 승인 대기</h2>
     <p>수량 증가·재판매는 승인 전까지 구매 가능 수량에 반영되지 않습니다</p>
     {requests.length === 0 ? <p>현재 대기 중인 재고 요청이 없습니다</p> : <ul className="catalog-list">
-      {requests.map((item) => <li key={item.requestId} className="draft-product-item">
+      {requests.map((item) => <li key={item.requestId} id={`stock-${item.requestId}`} className="draft-product-item">
         <strong>{item.sellerName} · {item.title} · {item.optionName}</strong>
         <p>판매 가능 {item.sellable}개 · 요청 {item.targetOnHand}개</p>
         <small>요청 시각: {new Date(item.createdAt).toLocaleString('ko-KR')}</small>
@@ -110,7 +110,7 @@ export function AdminSaleStopView({ requests, busy, onApprove, onReject }: {
     <h2 id="pending-sale-stop-title">판매중지 승인 대기</h2>
     <p>승인하면 신규 구매가 차단되고 활성 재고 예약은 요청 사유와 함께 취소됩니다. 반려하면 판매가 유지됩니다. 기존 주문은 보존됩니다</p>
     {requests.length === 0 ? <p>현재 판매중지 요청이 없습니다</p> : <ul className="catalog-list">
-      {requests.map((item) => <li key={item.id} className="draft-product-item">
+      {requests.map((item) => <li key={item.id} id={`sale-stop-${item.id}`} className="draft-product-item">
         <strong>{item.sellerName} · {item.title}</strong>
         <p>요청 사유: {item.reason}</p>
         <small>요청 시각: {new Date(item.requestedAt).toLocaleString('ko-KR')}</small>

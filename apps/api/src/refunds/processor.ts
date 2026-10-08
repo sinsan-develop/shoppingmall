@@ -10,6 +10,29 @@ async function finishEvent(client: PoolClient, eventId: string,
   return { id: eventId, processingStatus };
 }
 
+export async function movePostClaim(client: PoolClient, caseId: string, eventId: string,
+  status: 'REFUNDED' | 'REVIEW_REQUIRED', reason: string) {
+  const linked = (await client.query<{ claimId: string | null; adminId: string | null }>(`
+    SELECT post_shipment_claim_id AS "claimId",decision_by AS "adminId"
+    FROM refund_cases WHERE id=$1`, [caseId])).rows[0];
+  if (!linked?.claimId) return;
+  if (!linked.adminId) throw new Error('Refund conflict');
+  const changed = await client.query(`UPDATE support_claims SET status=$2
+    WHERE id=$1 AND status='REFUND_PROCESSING' RETURNING id`,
+  [linked.claimId,status]);
+  if (changed.rowCount !== 1) throw new Error('Refund conflict');
+  await client.query(`INSERT INTO support_claim_events
+    (claim_id,action,actor_role,reason,before_status,after_status)
+    VALUES ($1,$2,'system',$3,'REFUND_PROCESSING',$2)`,
+  [linked.claimId,status,reason]);
+  await client.query(`INSERT INTO audit_events
+    (actor_account_id,active_role,seller_id,action,target_type,target_id,details)
+    VALUES ($1,'admin',NULL,$2,'support_claim',$3,$4::jsonb)`,
+  [linked.adminId,status === 'REFUNDED' ? 'support.claim_refund_applied' :
+    'support.claim_refund_review',linked.claimId,
+  JSON.stringify({ refundCaseId: caseId,refundEventId: eventId,status })]);
+}
+
 async function review(client: PoolClient, caseId: string, attemptId: string, eventId: string,
   reason: string) {
   const changed = await client.query(`UPDATE refund_cases SET status='REVIEW_REQUIRED'
@@ -19,6 +42,7 @@ async function review(client: PoolClient, caseId: string, attemptId: string, eve
   if (changed.rowCount) await client.query(`INSERT INTO refund_case_events
     (refund_case_id,from_status,to_status,actor_account_id,actor_role,reason,refund_event_id)
     VALUES ($1,'PROCESSING','REVIEW_REQUIRED',NULL,'system',$2,$3)`, [caseId, reason, eventId]);
+  if (changed.rowCount) await movePostClaim(client, caseId, eventId, 'REVIEW_REQUIRED', reason);
   return finishEvent(client, eventId, 'REVIEW_REQUIRED');
 }
 
@@ -45,9 +69,12 @@ export async function processVerifiedRefundEvent(pool: Pool, eventId: string) {
     await client.query(`SELECT id FROM refund_cases WHERE shipment_order_id=$1
       ORDER BY id FOR UPDATE`, [anchor.shipmentId]);
     const target = (await client.query<{ id: string; status: string; orderId: string;
-      shipmentId: string; totalWon: number; decisionBy: string | null }>(`SELECT id,status,
+      shipmentId: string; totalWon: number; goodsWon: number; shippingWon: number;
+      requesterId: string; postClaimId: string | null; decisionBy: string | null }>(`SELECT id,status,
       checkout_order_id AS "orderId",shipment_order_id AS "shipmentId",
-      total_refund_won AS "totalWon",decision_by AS "decisionBy"
+      total_refund_won AS "totalWon",goods_refund_won AS "goodsWon",
+      shipping_refund_won AS "shippingWon",requester_account_id AS "requesterId",
+      post_shipment_claim_id AS "postClaimId",decision_by AS "decisionBy"
       FROM refund_cases WHERE id=$1`, [anchor.caseId])).rows[0];
     if (!target || target.shipmentId !== anchor.shipmentId || shipment?.status !== 'PAID' || !fulfillment)
       throw new Error('Refund unavailable');
@@ -69,9 +96,10 @@ export async function processVerifiedRefundEvent(pool: Pool, eventId: string) {
       await client.query('COMMIT');
       return { id: event.id, processingStatus: event.processingStatus };
     }
-    if (fulfillment.status === 'SHIPPED') {
+    if ((fulfillment.status === 'SHIPPED' && !target.postClaimId) ||
+        (fulfillment.status !== 'SHIPPED' && target.postClaimId)) {
       const result = await review(client, target.id, attempt.id, event.id,
-        'Verified refund cannot be applied after shipment was marked SHIPPED');
+        'Refund path does not match the current shipment state');
       await client.query('COMMIT');
       return result;
     }
@@ -97,7 +125,49 @@ export async function processVerifiedRefundEvent(pool: Pool, eventId: string) {
         (refund_case_id,from_status,to_status,actor_account_id,actor_role,reason,refund_event_id)
         VALUES ($1,'PROCESSING','REVIEW_REQUIRED',NULL,'system','Verified refund failure',$2)`,
       [target.id, event.id]);
+      if (changed.rowCount) await movePostClaim(client, target.id, event.id,
+        'REVIEW_REQUIRED', 'Verified refund failure');
       const result = await finishEvent(client, event.id, 'APPLIED');
+      await client.query('COMMIT');
+      return result;
+    }
+    if (target.postClaimId) {
+      const claim = (await client.query<{ orderId: string; shipmentId: string;
+        customerId: string; optionId: string; quantity: number; status: string;
+        goodsWon: number }>(`SELECT checkout_order_id AS "orderId",
+        shipment_order_id AS "shipmentId",customer_account_id AS "customerId",
+        option_id AS "optionId",quantity,status,
+        goods_refund_won AS "goodsWon" FROM support_claims WHERE id=$1 FOR UPDATE`,
+      [target.postClaimId])).rows[0];
+      const lines = (await client.query<{ optionId: string; quantity: number;
+        goodsWon: number; restockMode: string; restockedQuantity: number }>(`
+        SELECT option_id AS "optionId",quantity,goods_refund_won AS "goodsWon",
+        restock_mode AS "restockMode",restocked_quantity AS "restockedQuantity"
+        FROM refund_case_lines WHERE refund_case_id=$1 FOR UPDATE`,
+      [target.id])).rows;
+      if (!claim || claim.status !== 'REFUND_PROCESSING' ||
+          claim.orderId !== target.orderId || claim.shipmentId !== target.shipmentId ||
+          claim.customerId !== target.requesterId || claim.goodsWon !== target.goodsWon ||
+          target.shippingWon !== 0 || target.totalWon !== target.goodsWon ||
+          lines.length !== 1 || lines[0].optionId !== claim.optionId ||
+          lines[0].quantity !== claim.quantity || lines[0].goodsWon !== target.goodsWon ||
+          lines[0].restockMode !== 'none' || lines[0].restockedQuantity !== 0) {
+        const result = await review(client, target.id, attempt.id, event.id,
+          'Post-shipment claim and refund line mismatch');
+        await client.query('COMMIT');
+        return result;
+      }
+      await client.query(`UPDATE refund_attempts SET status='SUCCEEDED',
+        ended_at=clock_timestamp() WHERE id=$1`, [attempt.id]);
+      await client.query(`UPDATE refund_cases SET status='REFUNDED',
+        completed_at=clock_timestamp() WHERE id=$1`, [target.id]);
+      await movePostClaim(client, target.id, event.id, 'REFUNDED',
+        'Verified post-shipment goods refund applied');
+      const result = await finishEvent(client, event.id, 'APPLIED');
+      await client.query(`INSERT INTO refund_case_events
+        (refund_case_id,from_status,to_status,actor_account_id,actor_role,reason,refund_event_id)
+        VALUES ($1,'PROCESSING','REFUNDED',NULL,'system',
+          'Verified post-shipment goods refund applied',$2)`, [target.id,event.id]);
       await client.query('COMMIT');
       return result;
     }

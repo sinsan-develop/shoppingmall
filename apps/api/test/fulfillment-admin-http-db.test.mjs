@@ -23,7 +23,7 @@ async function requirePrivateSchema(context, pool) {
   const schema = (await pool.query(`SELECT
     (SELECT count(*)::int FROM drizzle.__drizzle_migrations) AS migrations,
     to_regclass('public.refund_cases') IS NOT NULL AS refunds`)).rows[0];
-  assert.deepEqual(schema, { migrations: 16, refunds: true });
+  assert.deepEqual(schema, { migrations: 20, refunds: true });
   return true;
 }
 
@@ -195,6 +195,19 @@ async function cleanupFixture(pool, fixture) {
   if (!fixture) return;
   const orderIds = fixture.orderIds ?? [];
   if (orderIds.length) {
+    if (fixture.customerId) {
+      const owned = `j.account_id=$1 AND j.kind='shipment_updated'
+        AND j.source_event_id IN (SELECT e.id FROM shipment_fulfillment_events e
+          JOIN shipment_orders s ON s.id=e.shipment_order_id
+          WHERE s.checkout_order_id=ANY($2::uuid[]))`;
+      const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j
+        WHERE ${owned} AND (j.status<>'QUEUED' OR EXISTS
+          (SELECT 1 FROM notification_attempts a WHERE a.job_id=j.id))`,
+      [fixture.customerId, orderIds])).rows;
+      assert.equal(unsafe.length, 0, 'QA admin shipment notification was already processed');
+      await pool.query(`DELETE FROM notification_jobs j WHERE ${owned}`,
+        [fixture.customerId, orderIds]);
+    }
     await pool.query(`DELETE FROM refund_event_conflicts WHERE original_event_id IN
       (SELECT e.id FROM refund_events e JOIN refund_attempts a ON a.id=e.refund_attempt_id
        JOIN refund_cases c ON c.id=a.refund_case_id WHERE c.checkout_order_id=ANY($1::uuid[]))`, [orderIds]);

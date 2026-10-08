@@ -125,6 +125,20 @@ test('two direct sellers and pooled goods submit once with an exact pending amou
     if (reservationId) {
       const orders = (await pool.query('SELECT id FROM checkout_orders WHERE reservation_id=$1',
         [reservationId])).rows;
+      if (buyerId && orders.length && (await pool.query(`SELECT
+        to_regclass('public.notification_jobs') IS NOT NULL AS ready`)).rows[0].ready) {
+        const orderIds = orders.map(({ id }) => id);
+        const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j
+          WHERE j.account_id=$1 AND j.kind='order_submitted'
+            AND j.source_event_id=ANY($2::uuid[]) AND
+            (j.status<>'QUEUED' OR EXISTS
+              (SELECT 1 FROM notification_attempts a WHERE a.job_id=j.id))`,
+        [buyerId, orderIds])).rows;
+        assert.equal(unsafe.length, 0, 'QA order notification was already processed');
+        await pool.query(`DELETE FROM notification_jobs WHERE account_id=$1
+          AND kind='order_submitted' AND source_event_id=ANY($2::uuid[])`,
+        [buyerId, orderIds]);
+      }
       for (const { id } of orders) {
         await pool.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=$1', [id]);
         await pool.query('DELETE FROM order_status_events WHERE checkout_order_id=$1', [id]);
@@ -154,14 +168,14 @@ test('changed money, stock and campaign roll back order and coupon hold; valid s
   const { submitPendingOrder } = await import('../src/orders/service.ts');
   const runId = randomBytes(4).toString('hex');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
-  let seeded = false; let reservationId; let addressId; let campaignId; let orderId;
+  let seeded = false; let reservationId; let addressId; let campaignId; let orderId; let buyerId;
   try {
     if (await skipWithoutOrderSchema(context, pool)) return;
     if (await skipWithoutFulfillmentSchema(context, pool)) return;
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
     seeded = true;
     const names = qaNames(runId);
-    const buyerId = (await pool.query(`SELECT account_id FROM account_identities
+    buyerId = (await pool.query(`SELECT account_id FROM account_identities
       WHERE identifier=$1`, [names.emails[0]])).rows[0].account_id;
     const adminId = (await pool.query(`SELECT account_id FROM account_identities
       WHERE identifier=$1`, [names.emails[4]])).rows[0].account_id;
@@ -215,6 +229,17 @@ test('changed money, stock and campaign roll back order and coupon hold; valid s
       WHERE reservation_id=$1 AND status='HELD'`, [reservationId])).rows[0].n, 1);
   } finally {
     if (orderId) {
+      if (buyerId && (await pool.query(`SELECT
+        to_regclass('public.notification_jobs') IS NOT NULL AS ready`)).rows[0].ready) {
+        const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j
+          WHERE j.account_id=$1 AND j.kind='order_submitted'
+            AND j.source_event_id=$2 AND (j.status<>'QUEUED' OR EXISTS
+              (SELECT 1 FROM notification_attempts a WHERE a.job_id=j.id))`,
+        [buyerId, orderId])).rows;
+        assert.equal(unsafe.length, 0, 'QA order notification was already processed');
+        await pool.query(`DELETE FROM notification_jobs WHERE account_id=$1
+          AND kind='order_submitted' AND source_event_id=$2`, [buyerId, orderId]);
+      }
       await pool.query('DELETE FROM order_promotion_allocations WHERE checkout_order_id=$1', [orderId]);
       await pool.query('DELETE FROM order_status_events WHERE checkout_order_id=$1', [orderId]);
       await pool.query(`DELETE FROM shipment_fulfillments WHERE shipment_order_id IN

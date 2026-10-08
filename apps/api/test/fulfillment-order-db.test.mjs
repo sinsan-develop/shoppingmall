@@ -180,6 +180,19 @@ async function cleanupScenario(pool, scenario) {
   const orders = (await pool.query(
     'SELECT id FROM checkout_orders WHERE reservation_id=$1', [scenario.reservationId],
   )).rows;
+  if (orders.length && (await pool.query(`SELECT
+    to_regclass('public.notification_jobs') IS NOT NULL AS ready`)).rows[0].ready) {
+    const orderIds = orders.map(({ id }) => id);
+    const unsafe = (await pool.query(`SELECT j.id FROM notification_jobs j
+      WHERE j.account_id=$1 AND j.kind='order_submitted'
+        AND j.source_event_id=ANY($2::uuid[]) AND (j.status<>'QUEUED' OR EXISTS
+          (SELECT 1 FROM notification_attempts a WHERE a.job_id=j.id))`,
+    [scenario.buyerId, orderIds])).rows;
+    assert.equal(unsafe.length, 0, 'QA order notification was already processed');
+    await pool.query(`DELETE FROM notification_jobs WHERE account_id=$1
+      AND kind='order_submitted' AND source_event_id=ANY($2::uuid[])`,
+    [scenario.buyerId, orderIds]);
+  }
   for (const { id } of orders) {
     await pool.query(`DELETE FROM shipment_fulfillment_events WHERE shipment_order_id IN
       (SELECT id FROM shipment_orders WHERE checkout_order_id=$1)`, [id]);

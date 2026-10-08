@@ -74,7 +74,7 @@ test('0015 fulfillment relations enforce settings, state, actor and idempotency 
   try {
     await assertOrderMutationQaTarget(db, process.env.S5_SCHEMA_TEST_DB_SYSTEM_ID);
     await skipWithoutFulfillmentSchema(t, db, true);
-    assert.equal((await db.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations')).rows[0].n, 16);
+    assert.equal((await db.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations')).rows[0].n, 19);
     await db.query('BEGIN');
     const relations = ['fulfillment_settings', 'shipment_fulfillments', 'shipment_fulfillment_events'];
     const fks = (await db.query(`SELECT conrelid::regclass::text AS source,
