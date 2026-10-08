@@ -1,0 +1,103 @@
+// Actual Chrome check against the one-use S6 PostgreSQL fixture.
+import assert from 'node:assert/strict';
+import { closeCdpPage, createCdpCommandChannel, openCdpPage } from './qa-browser-cdp.mjs';
+
+const web = process.env.QA_WEB_BASE;
+const debugging = process.env.QA_CHROME_DEBUGGING;
+const password = process.env.QA_FIXTURE_PASSWORD;
+const runId = process.env.S6_BROWSER_QA_RUN_ID;
+if (web !== 'http://127.0.0.1:9091' || debugging !== 'http://127.0.0.1:9229' ||
+  !/^[a-f0-9]{8}$/i.test(runId ?? '') || !password ||
+  process.env.QA_BROWSER_CONSENT !== `S6_ISOLATED_SETTLEMENT_${runId}`) {
+  throw new Error('S6 browser QA requires exact isolated inputs');
+}
+
+let page;
+let socket;
+let channel;
+const send = (method, params = {}) => channel.send(method, params);
+async function evaluate(expression) {
+  const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+  if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+  return result.result.value;
+}
+async function waitFor(expression, label) {
+  const end = Date.now() + 20000;
+  while (Date.now() < end) {
+    try { if (await evaluate(`Boolean(${expression})`)) return; }
+    catch (error) { if (!String(error).includes('context')) throw error; }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`Timed out: ${label}`);
+}
+async function navigate(route) {
+  await send('Page.navigate', { url: `${web}${route}` });
+  await waitFor(`location.pathname===${JSON.stringify(route)}`, `navigate ${route}`);
+}
+async function setValue(selector, value) {
+  await waitFor(`document.querySelector(${JSON.stringify(selector)})`, `field ${selector}`);
+  assert.equal(await evaluate(`(() => {
+    const element=document.querySelector(${JSON.stringify(selector)});
+    const prototype=element instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(prototype,'value').set.call(element,${JSON.stringify(value)});
+    element.dispatchEvent(new Event('input',{bubbles:true}));
+    element.dispatchEvent(new Event('change',{bubbles:true}));
+    return element.value===${JSON.stringify(value)};
+  })()`), true);
+}
+async function login(role, email) {
+  await send('Storage.clearDataForOrigin', { origin: web, storageTypes: 'cookies,local_storage' });
+  await navigate('/login');
+  await waitFor(`document.querySelector('#login-email')`, 'login form');
+  await waitFor(`Object.keys(document.querySelector('form')).some((key)=>key.startsWith('__reactProps$'))`, 'login hydration');
+  await setValue('#login-role', role);
+  await setValue('#login-email', email);
+  await setValue('#login-password', password);
+  await evaluate(`document.querySelector('form').requestSubmit(); true`);
+  await waitFor(`location.pathname==='/account'`, `${role} login`);
+}
+async function queryPeriod() {
+  await waitFor(`document.querySelector('form[aria-label="정산 조회 조건"]')`, 'settlement form');
+  await setValue('input[name=from]', '2026-05-01');
+  await setValue('input[name=to]', '2026-05-20');
+  await evaluate(`document.querySelector('form[aria-label="정산 조회 조건"]').requestSubmit(); true`);
+  await waitFor(`document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent.includes('12,000원')`, 'settlement report');
+}
+try {
+  ({ page, socket } = await openCdpPage({ debugging }));
+  channel = createCdpCommandChannel(socket);
+  await send('Page.enable');
+  await send('Runtime.enable');
+  await login('admin', `qa+${runId}-admin@example.invalid`);
+  await navigate('/account/admin/settlement');
+  await queryPeriod();
+  const all = await evaluate(`({groups:[...document.querySelectorAll('.settlement-group')].map(x=>x.textContent),
+    total:document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent})`);
+  assert.equal(all.groups.length, 2);
+  assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-a`) && group.includes('12,000원')));
+  assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-b`) && group.includes('7,000원')));
+  assert.match(all.total, /19,000원/);
+  assert.equal(await evaluate(`document.querySelectorAll('.settlement-completion').length`), 2);
+  for (const width of [1440, 430]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 430 });
+    const state = await evaluate(`({width:innerWidth,scroll:document.documentElement.scrollWidth})`);
+    assert.equal(state.width, width);
+    assert.ok(state.scroll <= width, `horizontal overflow at ${width}: ${state.scroll}`);
+  }
+  await login('seller', `qa+${runId}-seller-a@example.invalid`);
+  await navigate('/account/seller/settlement');
+  await queryPeriod();
+  const own = await evaluate(`({groups:[...document.querySelectorAll('.settlement-group')].map(x=>x.textContent),
+    total:document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent,
+    completion:document.querySelectorAll('.settlement-completion').length})`);
+  assert.equal(own.groups.length, 1);
+  assert.match(own.groups[0], new RegExp(`qa-${runId}-seller-a`));
+  assert.match(own.total, /12,000원/);
+  assert.equal(own.completion, 0);
+  await navigate('/account/admin/settlement');
+  await waitFor(`document.querySelector('[role=alert]')?.textContent.includes('현재 역할')`, 'seller denied');
+  console.log(JSON.stringify({status:'PASS', runId, adminGroups:all.groups.length,
+    adminCommission:19000, sellerCommission:12000, viewports:[1440,430], sellerDenied:true}));
+} finally {
+  await closeCdpPage({ debugging, page, socket });
+}
