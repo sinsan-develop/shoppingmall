@@ -18,19 +18,20 @@
 
 ## 검증
 
-- 이번 리뷰 보정 뒤 로컬 전체 Node 시험 538 total / 389 pass / 149 DB·환경 skip / 0 fail, PR 본문 검사 8/8 PASS. pnpm typecheck, pnpm lint, pnpm build, git diff --check exit 0, Next production build 23 routes. 최종 commit과 WSL 재검증 SHA는 후속 기록한다.
+- 보정 제품 SHA `831a969f06a886b1adc568ae728dd4b1367196af`의 로컬 전체 Node 시험 538 total / 389 pass / 149 DB·환경 skip / 0 fail, PR 본문 검사 8/8 PASS. pnpm typecheck, pnpm lint, pnpm build, git diff --check exit 0, Next production build 23 routes. 이 PR 설명만 후속 문서 commit에서 갱신했다.
 - S5.2는 WSL 공유 개발 DB의 합성 계정/상품/주문에서 실제 Chrome으로 고객·판매자·관리자 Q&A·클레임·텍스트 리뷰·사진 미리보기, 1920/1440/430px·키보드를 검증했다. signed reset 뒤 QA 소유 자료 0.
 - S5.3은 WSL 격리 PostgreSQL migration20의 모의 발송·재입고 상태 경합과 공유 개발 DB의 실제 Chrome 고객 알림 설정·찜/재입고 화면을 검증했다. 실제 문자·메일·푸시 수신으로 승격하지 않는다.
-- S5.2/3 최신 WSL 격리 PostgreSQL18.4 migration20에서 고객지원 HTTP·클레임 잔여수량 1/1, 명시 mock·자동 작업 소비 2/2, 주문/결제/재입고 알림 원사건 훅 3/3을 각각 0 skip/0 fail로 검증했다.
+- S5.2/3 최신 제품 SHA `831a969`의 WSL 격리 PostgreSQL18.4 migration20에서 고객지원 HTTP·클레임 잔여수량 1/1, 위조 원사건의 영구 실패·자동 mock 소비 2/2, 유효 주문/결제/재입고 훅 3/3을 각각 0 skip/0 fail로 검증했다. 전용 세 DB의 계정·알림·주문·클레임·재입고 행0을 확인한 뒤 일회성 PG/network를 제거했다.
 - S5.4는 WSL 격리 PostgreSQL18.4 migration20에서 관리자 200/판매자·고객 403, 통합 3주문·상품매출 57,000원, 판매자 A 1주문·23,000원, 혼합 A/B 결제 시도 전체 39,000원, 재결제 뒤 실패 이력, 클레임 상태 필터, 예외 갱신을 실제 HTTP로 검증했다. 별도 shared local-postgres/shoppingmall에서는 관리자 빈 집계·판매자 403을 1/1 확인했다. 각 시험의 signed/run-scoped reset과 정확 임시 자원 제거 뒤 QA 행/컨테이너 0.
 - 최신 화면은 WSL에서 빌드한 API/Web과 실제 WSL Chromium에서 관리자 조회·판매자 필터·출고 상세 이동·1920/430px 가로 넘침 없음·Tab 초점·판매자 접근 차단을 확인했다. 로그인 스크립트 hydration 경합을 수정한 뒤 PASS했다. Windows Chrome 검증으로 표기하지 않는다.
 - S5.4 독립 리뷰는 첫 Critical0/Important3/Minor1을 지적했고, 보정 뒤 해당 4건에 한정해 재리뷰 해결 판정과 격리 DB 회귀를 확인했다.
+- S5.2 재리뷰의 Important1/Minor1과 S5.3 재리뷰의 Important2를 보정한 제품 SHA `831a969`에서 각각 Critical0/Important0/Minor0 및 Critical0/Important0으로 재판정받았다. 재리뷰는 읽기 전용이며 시험 실행 증거와 구분한다.
 
 ## 미검증
 
 - 실제 택배 발송, PG 실거래, 문자·메일·푸시 실제 발송/수신, 외부 계정 공급자 연동, 사용자 인수테스트와 Oracle staging·공개 출시는 신산님이 이번 개발 완료 기준에서 제외한 별도 단계다.
 - 로컬 149개 DB/환경 조건부 skip은 PASS로 세지 않는다. 공유 개발 DB 전체 suite는 격리 전용 가드/과거 migration 고정 기대 때문에 전체 PASS가 아니며, 대상별 공유-safe·격리 시험 근거로 구분했다.
-- S5.2/S5.3 리뷰 보정의 독립 재검토와 최종 PR CI 결과, 최종 HEAD의 merged-main smoke는 아직 수행 전이다. 실제 200% 확대와 Windows Chrome은 미검증이다.
+- 최종 PR CI 결과와 병합 후 merged-main smoke는 아직 수행 전이다. 실제 200% 확대는 계획상 UAT-03으로 이월했고 Windows Chrome은 이번 최신 화면에서 미검증이다.
 - 기기 토큰 등록·실제 푸시 어댑터가 없어 native 푸시 발송/수신은 검증하지 않았다. 기기 등록 계약은 계획상 S7.2 앱·공급자 경계에서 다룬다. DB의 다형 원사건 UUID에는 직접 FK가 없지만, 앱 큐 생성과 mock 소비 경로는 소유·종류를 재검증한다. 고객의 앱 내 상태 확인과 명시 mock 작업은 검증했고, 외부 채널 연결은 별도 단계다.
 - 관리자 관제는 수동 갱신이며 자동 경보·점검 스위치·판매자 강제 정지·SLA 실측이 없다. 별도 결제 시도 관리 화면/자동 재처리는 없고 관제 시도 ID를 운영 로그와 대조한다.
 
