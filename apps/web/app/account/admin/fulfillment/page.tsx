@@ -159,6 +159,7 @@ export function AdminFulfillmentView({ setting, items, selected, statusFilter, s
       <h2 id="admin-detail-heading">발송 상세·정정</h2>
       {!selected ? <p>확인할 발송 주문을 선택해 주세요</p> : <div
         key={`${selected.shipmentOrderId}-${selected.version}`}>
+        <p>발송 주문 ID {selected.shipmentOrderId}</p>
         <p><strong>{selected.status}</strong> · 담당 판매자 {selected.fulfillmentSeller.displayName}</p>
         <p>잠정 예상일 {selected.expectedShipDate} · 휴무일 미반영</p>
         <ul className="fulfillment-lines">{selected.lines.map((line, index) => <li
