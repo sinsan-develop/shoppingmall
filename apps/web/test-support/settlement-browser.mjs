@@ -10,8 +10,8 @@ const evidenceDir = process.env.S6_BROWSER_EVIDENCE_DIR;
 const profileDir = process.env.S6_BROWSER_PROFILE_DIR;
 const chromePath = process.env.S6_BROWSER_CHROME_PATH;
 assert.ok(evidenceDir && profileDir && chromePath, 'browser QA paths required');
-assert.equal(resolve(profileDir), 'D:\\tmp\\shoppingmall-s6-browser-1009-profile');
-assert.equal(resolve(evidenceDir), 'D:\\tmp\\shoppingmall-s6-browser-1009-evidence');
+assert.equal(resolve(profileDir), 'D:\\tmp\\shoppingmall-s6-browser-1009e-profile');
+assert.equal(resolve(evidenceDir), 'D:\\tmp\\shoppingmall-s6-browser-1009e-evidence');
 
 const kinds = { sale: 0, goods_discount: 0, shipping_fee: 0, shipping_support: 0,
   goods_refund: 0, shipping_refund: 0, commission: 0, correction: 0 };
@@ -31,7 +31,11 @@ const farmB = { sellerId: '22222222-2222-4222-8222-222222222222', sellerName: '�
   }] };
 const report = { filter: { from: '2026-07-01', to: '2026-07-31',
   categoryId: null, sellerId: null }, totals: { ...kinds, goods_refund: 12000, sale: 23000 },
- groups: [farmA, farmB], completions: [] };
+ groups: [farmA, farmB], completions: [{
+  id: '33333333-3333-4333-8333-333333333333', sellerId: farmA.sellerId,
+  sellerName: farmA.sellerName, startDate: '2026-07-01', endDate: '2026-07-31',
+  completedAt: '2026-08-01T00:00:00Z', reason: '오프라인 정산 확인',
+ }] };
 let actorRole = 'admin';
 const api = createServer((request, response) => {
   response.setHeader('Access-Control-Allow-Origin', 'http://127.0.0.1:9091');
@@ -142,6 +146,7 @@ try {
     f.querySelector('input[name=from]').value='2026-07-01';
     f.querySelector('input[name=to]').value='2026-07-31';f.requestSubmit()})()`);
   await wait("document.querySelectorAll('.settlement-group').length===2");
+  assert.equal(await evaluate(`document.querySelector('.settlement-history')?.innerText.includes('오프라인 정산 확인')`), true);
   assert.equal(await evaluate(`document.querySelector('.settlement-print').innerText.includes('may-original-order')`), true);
   assert.equal(await evaluate(`document.querySelector('.settlement-print').innerText.includes('23,000원')`), true);
   await evaluate(`(()=>{const f=document.querySelector('.settlement-filter');

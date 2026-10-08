@@ -110,6 +110,10 @@ try {
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.settlement-controls')).display`), 'none');
   assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('.settlement-print')).display`), 'none');
   assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('.settlement-history')).display`), 'none');
+  const printed = await send('Page.printToPDF', { printBackground: true, preferCSSPageSize: true });
+  const pdf = Buffer.from(printed.data ?? '', 'base64');
+  assert.equal(pdf.subarray(0, 5).toString('ascii'), '%PDF-');
+  assert.ok(pdf.length > 10000, `printed PDF too small: ${pdf.length} bytes`);
   await send('Emulation.setEmulatedMedia', {media:'screen'});
   for (const width of [1440, 430]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 430 });
@@ -132,7 +136,8 @@ try {
   await navigate('/account/admin/settlement');
   await waitFor(`document.querySelector('[role=alert]')?.textContent.includes('현재 역할')`, 'seller denied');
   console.log(JSON.stringify({status:'PASS', runId, adminGroups:all.groups.length,
-    adminCommission:19000, sellerCommission:12000, viewports:[1440,430], sellerDenied:true}));
+    adminCommission:19000, sellerCommission:12000, pdfBytes:pdf.length,
+    viewports:[1440,430], sellerDenied:true}));
 } finally {
   await closeCdpPage({ debugging, page, socket });
 }
