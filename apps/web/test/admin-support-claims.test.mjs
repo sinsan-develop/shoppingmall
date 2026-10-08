@@ -9,7 +9,7 @@ import AdminSupportClaimsPage, { AdminSupportClaimsView } from
 const claim = { id: 'claim-1',orderId: 'order-1',shipmentOrderId: 'shipment-1',
   optionId: 'option-1',productId: 'product-1',sellerId: 'seller-1',
   kind: 'EXCHANGE',reasonCode: 'wrong_delivery',reason: '오배송',quantity: 1,
-  status: 'SELLER_REPLIED',goodsRefundWon: 0,policyVersionId: null,
+  status: 'SELLER_REPLIED',goodsRefundWon: 0,policyVersion: 1,
   decisionReason: null,decidedAt: null,createdAt: '2026-10-07T00:00:00Z',
   messages: [{ id: 'message-1',authorRole: 'seller',body: '오배송 확인',
     createdAt: '2026-10-07T00:00:00Z' }],
@@ -31,12 +31,22 @@ test('admin support claims use a private role page and expose the approved mock 
   for (const label of ['클레임 심사','더보기','오배송 확인','답변 등록','승인·모의 환불 실행',
     '반려','대체 발송은 자동 생성되지 않습니다']) assert.match(html,new RegExp(label));
   assert.match(html,/admin\/support\/claims\/claim-1\/evidence\/evidence-1/);
+  assert.match(html,/적용 정책 버전 1/);
   assert.doesNotMatch(html,/objectKey|storageKey|01000000000/);
   const source = readFileSync(new URL('../app/account/admin/support/claims/page.tsx',
     import.meta.url), 'utf8');
   assert.match(source,/decisionKeys\.current/);
   assert.match(source,/idempotency-key/);
   assert.match(source,/credentials: 'include'/);
+});
+
+test('admin claim hides missing policy version', () => {
+  const html = renderToStaticMarkup(createElement(AdminSupportClaimsView, {
+    items: [],selected: { ...claim,policyVersion:null },busy:false,
+    message:'',statusFilter:'',nextCursor:null,onFilter:()=>{},onMore:()=>{},
+    onSelect:()=>{},onDecide:()=>{},
+  }));
+  assert.doesNotMatch(html,/적용 정책 버전/);
 });
 
 test('processing claim offers a bounded mock refund resume action', () => {

@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## S5 병합 전 재리뷰 보정 — 2026-10-08
+
+- **담당·판정:** 어울 단일 writer, 기존 `codex/s52-customer-support`. S5.2 독립 재리뷰 Critical0/Important1/Minor1, S5.3 Critical0/Important2/Minor0으로 병합 보류. S5.2 숨김 본인 리뷰 사진을 읽기 화면에서 계속 표시하고 업로드만 금지하도록 분리했다. 관리자 정책 숫자 버전/없음 화면 fixture를 실제 API 응답 형태로 고쳤다.
+- **S5.3 내부 보정:** 큐 생성 시의 원사건·소유자 확인을 명시 mock 소비 직전에도 재검증한다. 잘못된 원사건은 `SOURCE_EVENT_INVALID` 영구 실패로 닫으며 `SENT`로 표시하지 않는다. 실제 공급자 발송은 여전히 없다. 등록기기/native 푸시는 계획상 S7.2 adapter·앱 계약과 함께 다뤄야 하므로 S5.3의 실제 발송 완료라고 주장하지 않는다. DB 다형 UUID 자체의 FK 보장이나 기기 등록 schema/API는 이번 내부 보정에 포함하지 않았으며, 필요 시 별도 승인 경계다.
+- **RED→GREEN/로컬 gate:** 숨김 리뷰 사진 컴포넌트 부재 시험 RED1→표적 12/12 pass; 위조 원사건 mock 소비 시험 RED1→알림 표적 8/8 pass. `pnpm test` 538 total/389 pass/149 DB·환경 skip/0 fail 및 PR 본문 시험8/8, `pnpm typecheck`, `pnpm lint`, `pnpm build` exit0(Web 23 routes), `git diff --check` exit0. 149 skip은 실 DB PASS가 아니다. 다음은 exact SHA를 WSL 지정 checkout에 적용해 격리 PostgreSQL18.4 migration20에서 S5.2/S5.3 관련 실제 DB 회귀를 검증하고 독립 재리뷰, PR CI를 진행한다.
+
 ## S5.4 관리자 관제 착수 — 2026-10-08
 
 - **S5 리뷰 보정 격리 QA 사전 계획:** 최신 코드 checkpoint `3d1d757d1337f75d2fe5afc2e3f11654990b2189`를 SSH 별칭으로 push하고 지정 WSL checkout `/home/daon/deploy/shopping`에 clean fast-forward했다. WSL에서 정확한 새 internal network `shoppingmall-s5-review-1008-net`, tmpfs PostgreSQL18.4 `shoppingmall-s5-review-1008-pg`(DB `shoppingmall`, 외부 port/영속 volume 없음), 일회성 source-read-only Node24 runner `shoppingmall-s5-review-1008-node`만 생성한다. 이름 충돌0·이미지 존재·checkout clean을 사전 확인했다. DB system ID를 읽어 S5.2/S5.3 실제 DB 시험 환경변수에만 전달한다. migration20 적용→표적 시험→QA 합성행 signed reset·주요 업무행0 확인→정확 runner/PG/network 제거·잔류0 순서로 수행한다. 공유 DB와 실 발송은 변경하지 않는다.

@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { canEditReview,createReviewImageUploadKeys,reviewStatusLabel,CustomerSupportLine } from
+import { canEditReview,createReviewImageUploadKeys,reviewStatusLabel,CustomerSupportLine,
+  CustomerReviewImages } from
   '../app/account/customer/support-line.tsx';
 
 const line = { productId: 'product-a',optionId: 'option-a',productName: '가상 고추',
@@ -73,4 +74,16 @@ test('customer review form offers an image upload through the existing scoped AP
   assert.match(source,/5 \* 1024 \* 1024/);
   assert.match(source,/'idempotency-key': key/);
   assert.match(source,/review\.images\.map/);
+});
+
+test('hidden own review keeps its persisted private photo preview without an upload action', () => {
+  const review = { id:'review-a',rating:5,body:'본인 후기',status:'HIDDEN',
+    images:[{ id:'image-a',sizeBytes:44,scanStatus:'PASS' }] };
+  assert.equal(canEditReview({ id:'confirmation-a',reviewId:review.id,
+    reviewStatus:'HIDDEN' },review),false);
+  const html = renderToStaticMarkup(createElement(CustomerReviewImages,{ review,
+    origin:'http://127.0.0.1:9092' }));
+  assert.match(html,/등록된 사진/);
+  assert.match(html,/customer\/support\/reviews\/review-a\/images\/image-a\/preview/);
+  assert.doesNotMatch(html,/사진 추가|사진 등록/);
 });

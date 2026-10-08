@@ -4,7 +4,9 @@ import { notificationIntentForEvent } from './intent.js';
 import { enqueueNotificationJobs,planNotificationJobs } from './jobs.js';
 import type { NotificationIntent } from './intent.js';
 
-async function assertNotificationSource(client: PoolClient,intent: NotificationIntent) {
+export async function isNotificationSourceValid(client: PoolClient,intent:
+  Pick<NotificationIntent,'kind' | 'sourceEventId' | 'accountId' | 'subscriptionId'>):
+  Promise<boolean> {
   const statements: Record<NotificationIntent['kind'],string> = {
     order_submitted: `SELECT EXISTS(SELECT 1 FROM order_status_events e
       JOIN checkout_orders o ON o.id=e.checkout_order_id
@@ -28,11 +30,13 @@ async function assertNotificationSource(client: PoolClient,intent: NotificationI
       WHERE change.id=$1 AND subscription.account_id=$2
         AND subscription.id=$3 AND change.status='approved') AS "validSource"`,
   };
-  const result = await client.query<{ validSource:boolean }>(statements[intent.kind],
+  const statement = statements[intent.kind];
+  if (!statement) return false;
+  const result = await client.query<{ validSource:boolean }>(statement,
     intent.kind === 'restock_available'
       ? [intent.sourceEventId,intent.accountId,intent.subscriptionId]
       : [intent.sourceEventId,intent.accountId]);
-  if (!result.rows[0]?.validSource) throw new Error('Notification source unavailable');
+  return result.rows[0]?.validSource === true;
 }
 
 /** The source event's caller owns the transaction, so rollback also removes its jobs. */
@@ -40,7 +44,8 @@ export async function queueNotificationEvent(client: PoolClient,event: unknown,
   registeredDevice = false): Promise<string[]> {
   const intent = notificationIntentForEvent(event);
   if (!intent) return [];
-  await assertNotificationSource(client,intent);
+  if (!await isNotificationSourceValid(client,intent))
+    throw new Error('Notification source unavailable');
   const channels = await resolveNotificationChannels(client,intent.accountId,registeredDevice);
   return enqueueNotificationJobs(client,planNotificationJobs(intent,channels));
 }

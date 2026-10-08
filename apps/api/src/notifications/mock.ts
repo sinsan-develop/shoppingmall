@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { claimNextNotificationJob,completeNotificationJob,
   recoverExpiredNotificationJob } from './worker.js';
+import { isNotificationSourceValid } from './event-queue.js';
 
 type MockEnv = { APP_ENV?:string;NODE_ENV?:string;API_HOST?:string;
   NOTIFICATION_MODE?:string };
@@ -25,6 +26,12 @@ export async function runMockNotificationOnce(client: PoolClient,now: Date,
   await recoverExpiredNotificationJob(client,now);
   const claim = await claimNextNotificationJob(client,now);
   if (!claim) return { processed:false };
+  if (!await isNotificationSourceValid(client,{
+    kind:claim.kind as Parameters<typeof isNotificationSourceValid>[1]['kind'],
+    sourceEventId:claim.sourceEventId,accountId:claim.accountId,
+    subscriptionId:claim.restockSubscriptionId ?? undefined,
+  })) return { processed:await completeNotificationJob(client,claim,
+    { kind:'permanent_failure',errorCode:'SOURCE_EVENT_INVALID' },now) };
   let selected = outcome;
   let restockFailureCode: string | null = null;
   if (claim.kind === 'restock_available') {

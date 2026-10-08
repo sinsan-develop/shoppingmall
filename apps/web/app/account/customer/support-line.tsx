@@ -7,6 +7,14 @@ type Line = { productId: string; optionId: string; productName: string;
 type Confirmation = { id: string; reviewId: string | null; reviewStatus: string | null };
 type Review = { id: string; rating: number; body: string; status: string;
   images?: { id: string; sizeBytes: number; scanStatus: string }[] };
+export function CustomerReviewImages({ review,origin }: { review:Review;origin:string }) {
+  return review.images?.length ? <ul>{review.images.map((image) => <li key={image.id}>
+    <a className="text-link" target="_blank" rel="noopener noreferrer"
+      href={`${origin}/customer/support/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(image.id)}/preview`}>
+      등록된 사진</a> · {image.sizeBytes}바이트 ·
+      {image.scanStatus === 'PASS' ? ' 확인됨' : ' 확인 대기'}
+  </li>)}</ul> : null;
+}
 export function reviewStatusLabel(status: string | null) {
   switch (status) {
     case null: return '미작성';
@@ -203,20 +211,14 @@ export function CustomerSupportLine({ orderId,shipmentOrderId,status,line }: {
         onChange={(event) => setText(event.target.value)} rows={3} required />
       <button type="submit" className="primary-button" disabled={busy}>리뷰 저장</button>
     </form> : null}
-    {apiOrigin && review && canEditReview(confirmation,review) ? <>
+    {apiOrigin && review && canEditReview(confirmation,review) ?
       <form className="account-form" onSubmit={uploadReviewImage}>
         <label htmlFor={`review-image-${line.optionId}`}>리뷰 사진 추가(최대 5장, 파일당 5MiB)</label>
         <input id={`review-image-${line.optionId}`} name="review-image" type="file"
           accept="image/png,image/jpeg,image/webp" required />
         <button type="submit" className="secondary-button" disabled={busy}>리뷰 사진 등록</button>
-      </form>
-      {review.images?.length ? <ul>{review.images.map((image) => <li key={image.id}>
-        <a className="text-link" target="_blank" rel="noopener noreferrer"
-          href={`${apiOrigin}/customer/support/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(image.id)}/preview`}>
-          등록된 사진</a> · {image.sizeBytes}바이트 ·
-          {image.scanStatus === 'PASS' ? ' 확인됨' : ' 확인 대기'}
-      </li>)}</ul> : null}
-    </> : null}
+      </form> : null}
+    {apiOrigin && review ? <CustomerReviewImages review={review} origin={apiOrigin} /> : null}
     {message ? <p role="status">{message}</p> : null}
   </section>;
 }

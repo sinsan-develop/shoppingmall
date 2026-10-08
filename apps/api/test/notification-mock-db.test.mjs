@@ -38,10 +38,10 @@ test('private opt-in mock closes a queued job but does not represent real delive
       { processed:false });
     const job = (await client.query(`SELECT status,attempts_completed
       FROM notification_jobs WHERE id=$1`,[jobId])).rows[0];
-    assert.deepEqual(job,{ status:'SENT',attempts_completed:1 });
+    assert.deepEqual(job,{ status:'FAILED',attempts_completed:1 });
     const attempt = (await client.query(`SELECT status,error_code FROM notification_attempts
       WHERE job_id=$1`,[jobId])).rows[0];
-    assert.deepEqual(attempt,{ status:'SUCCEEDED',error_code:null });
+    assert.deepEqual(attempt,{ status:'PERMANENT_FAILURE',error_code:'SOURCE_EVENT_INVALID' });
     await client.query('ROLLBACK'); began = false;
     for (const table of ['accounts','notification_jobs','notification_attempts']) {
       assert.equal((await client.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0].n,0);
@@ -69,14 +69,15 @@ test('opt-in runtime loop consumes a committed DB job without contacting a provi
   const stop = startMockNotificationLoop(pool,env);
   try {
     let status = 'QUEUED';
-    for (let attempt=0; attempt<70 && status !== 'SENT'; attempt++) {
+    for (let attempt=0; attempt<70 && status !== 'FAILED'; attempt++) {
       await new Promise((resolve) => setTimeout(resolve,100));
       status = (await pool.query(`SELECT status FROM notification_jobs WHERE id=$1`,
       [jobId])).rows[0].status;
     }
-    assert.equal(status,'SENT');
+    assert.equal(status,'FAILED');
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM notification_attempts
-      WHERE job_id=$1 AND status='SUCCEEDED'`,[jobId])).rows[0].n,1);
+      WHERE job_id=$1 AND status='PERMANENT_FAILURE'
+        AND error_code='SOURCE_EVENT_INVALID'`,[jobId])).rows[0].n,1);
   } finally {
     stop();
     await pool.query('DELETE FROM notification_attempts WHERE job_id=$1',[jobId]);

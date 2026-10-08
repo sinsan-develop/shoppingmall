@@ -14,7 +14,7 @@ const createdAt = '2026-10-07T00:00:00Z';
 const summary = { id:'claim-1',productId:'product-1',shipmentOrderId:'shipment-1',
   kind:'RETURN',reasonCode:'damaged',status:'SELLER_REPLIED',createdAt };
 const detail = { ...summary,orderId:'order-1',optionId:'option-1',sellerId:'seller-1',
-  reason:'고객 작성 원문 보존',quantity:1,goodsRefundWon:23000,policyVersionId:null,
+  reason:'고객 작성 원문 보존',quantity:1,goodsRefundWon:23000,policyVersion:1,
   decisionReason:null,
   messages:[{ id:'message-1',authorRole:'customer',body:'자유서술 원문 보존',createdAt },
     { id:'message-2',authorRole:'seller',body:'판매자 자유서술 보존',createdAt }],
@@ -64,6 +64,7 @@ test('S5.2 customer, seller and admin render Korean labels without changing free
     })),
   ];
   for (const [index,html] of views.entries()) {
+    if (index === 2) assert.match(html,/적용 정책 버전 1/);
     assert.match(html,index === 2 ? /반품 · 판매자 답변 · 훼손/ : /반품 · 훼손 · 판매자 답변/);
     for (const text of ['자유서술 원문 보존',
       '판매자 자유서술 보존','증빙 추가','클레임 접수','판매자 답변 등록',
