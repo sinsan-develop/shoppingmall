@@ -61,7 +61,17 @@ async function queryPeriod() {
   await setValue('input[name=from]', '2026-05-01');
   await setValue('input[name=to]', '2026-05-20');
   await evaluate(`document.querySelector('form[aria-label="정산 조회 조건"]').requestSubmit(); true`);
-  await waitFor(`document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent.includes('12,000원')`, 'settlement report');
+  try {
+    await waitFor(`document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent.includes('12,000원')`, 'settlement report');
+  } catch (error) {
+    const diagnostic = await evaluate(`({path:location.pathname,
+      from:document.querySelector('input[name=from]')?.value,
+      to:document.querySelector('input[name=to]')?.value,
+      alert:document.querySelector('[role=alert]')?.textContent,
+      report:document.querySelector('.settlement-print')?.textContent.slice(0,600),
+      busy:document.querySelector('main')?.textContent.slice(0,400)})`);
+    throw new Error(`Settlement browser diagnostic: ${JSON.stringify(diagnostic)}`, {cause:error});
+  }
 }
 try {
   ({ page, socket } = await openCdpPage({ debugging }));
