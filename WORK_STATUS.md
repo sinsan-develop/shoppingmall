@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **2026-10-09 S6 WSL 비DB 회귀 결과 (`a857673`):** 지정 checkout `/home/daon/deploy/shopping` clean `631dc06`에서 SSH 별칭 원격의 exact `a857673a281e73d87cd6f4db31774983c35e4ee1`을 clean fast-forward했다. 기존 `node:24-bookworm-slim` 이미지 `sha256:59c575db86dc...`의 일회용 `shoppingmall-s6-wsl-1009-runner`에 `--network none --rm`·checkout bind·호스트 사용자 권한으로 전체 `node --import tsx --test`를 실행해 **562 total / 405 pass / 157 DB·환경 skip / 0 fail**, PR 본문 8/8 pass, exit0(주 suite 약 308초). 종료 후 정확 이름의 컨테이너 잔류0, WSL checkout clean. 공유 `local-postgres/shoppingmall`에 접속하지 않았고 이 결과를 실 DB/정식 WSL E2E로 간주하지 않는다. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 승인된 계약 내 S6 미구현과 정식 DB·브라우저 통합.
+
 - **2026-10-09 S6 WSL 비DB 회귀 계획(실행 전):** 지정 checkout `/home/daon/deploy/shopping`의 현재 clean `631dc06`을 SSH 별칭 원격 `codex/s6-settlement` 최신 exact SHA로 fast-forward한다. 소유 작업은 S6, 일회용 Node24 runner 이름 `shoppingmall-s6-wsl-1009-runner`만 사용하며 기존 `node:24-bookworm-slim` 이미지·checkout의 설치된 의존성을 재사용한다. `--network none --rm`으로 공유 `local-postgres/shoppingmall`·타 서비스 연결 없이 전체 비DB suite를 실행하고 exit/skip을 기록한다. runner 이름 충돌 0 확인 뒤 생성, 종료 후 동일 이름 잔류 0과 checkout clean을 확인한다. 이는 S6의 정식 공유 DB E2E 또는 실제 인수시험을 대신하지 않는다.
 
 - **2026-10-09 브라우저 QA 확장:** 합성 API가 입력 기간을 무시하는 검증 허점을 발견해 실제 요청의 `from/to`가 2026-07-01~31일 때만 사건을 반환하도록 고쳤다. 관리자에서 기간 조회→판매자 B 필터로 B 1구획/A 제외→전체 복귀 2구획, 판매자 모바일에서 기간 조회→A만 표시/B 제외·관리자 완료 입력/판매자 선택 없음, 출력 PDF A4 1쪽을 Chrome에서 재검증했다. 판매자 화면 PNG를 증거 폴더에 추가했고 날짜 입력과 보고서 표시가 같은 기간임을 시각 확인했다. 실제 DB 권한 시험 결과는 별도 HTTP·DB 근거이며 이 브라우저 시험 자체는 합성 응답이다. 최초 재실행의 실패 1회는 잘못 지정한 로컬 `pdfinfo` 실행 경로(미설치 경로) 때문으로 정확한 Poppler 실행파일을 지정해 재실행 PASS; 제품 오류는 아니다. 담당 어울, 동일 원인 연속 오류0, 다음 조치: 정식 DB-브라우저 통합과 승인 대기 계약 외 S6 잔여.
