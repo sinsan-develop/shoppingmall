@@ -7,6 +7,12 @@ type Choice = { id: string; name: string };
 type Filter = { from: string; to: string; categoryId: string; sellerId: string };
 type Role = 'admin' | 'seller';
 
+export function completionOverlaps(completions: SettlementReport['completions'],
+  sellerId: string, from: string, to: string): boolean {
+  return completions.some((entry) => entry.sellerId === sellerId &&
+    entry.startDate <= to && entry.endDate >= from);
+}
+
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
@@ -153,14 +159,18 @@ export function SettlementPage({ role }: { role: Role }) {
     {role === 'admin' && report ? <section className="settlement-controls" aria-label="판매자별 완료 기록">
       <h2>판매자별 완료 기록</h2>
       <p>실제 송금은 시스템 밖에서 진행합니다. 확인한 판매자 한 명씩 완료 여부를 기록해 주세요.</p>
-      {report.groups.map((group) => <form className="account-card settlement-completion"
-        key={group.sellerId} onSubmit={(event) => void complete(event, group.sellerId, group.sellerName)}>
-        <h3>{group.sellerName}</h3>
-        <p>{filter.from} ~ {filter.to}</p>
-        <label>완료 근거 <input name="reason" maxLength={500} required
-          placeholder="예: 오프라인 송금 확인" /></label>
-        <button className="primary-button" type="submit" disabled={saving}>이 판매자 기간 완료 기록</button>
-      </form>)}
+      {report.groups.map((group) => completionOverlaps(report.completions,
+        group.sellerId, filter.from, filter.to) ?
+        <div className="account-card" key={group.sellerId}>
+          <h3>{group.sellerName}</h3><p>이미 완료된 기간과 겹칩니다. 완료 이력을 확인해 주세요.</p>
+        </div> : <form className="account-card settlement-completion"
+          key={group.sellerId} onSubmit={(event) => void complete(event, group.sellerId, group.sellerName)}>
+          <h3>{group.sellerName}</h3>
+          <p>{filter.from} ~ {filter.to}</p>
+          <label>완료 근거 <input name="reason" maxLength={500} required
+            placeholder="예: 오프라인 송금 확인" /></label>
+          <button className="primary-button" type="submit" disabled={saving}>이 판매자 기간 완료 기록</button>
+        </form>)}
     </section> : null}
   </main>;
 }

@@ -87,7 +87,9 @@ try {
   assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-a`) && group.includes('12,000원')));
   assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-b`) && group.includes('7,000원')));
   assert.match(all.total, /19,000원/);
-  assert.equal(await evaluate(`document.querySelectorAll('.settlement-completion').length`), 2);
+  assert.equal(await evaluate(`document.querySelectorAll('.settlement-completion').length`), 1);
+  assert.match(await evaluate(`document.querySelector('[aria-label="판매자별 완료 기록"]')?.textContent`),
+    /이미 완료된 기간과 겹칩니다/);
   assert.match(await evaluate(`document.querySelector('.settlement-history')?.textContent`),
     /오프라인 확인/);
   const categoryId = await evaluate(`[...document.querySelectorAll('select[name=categoryId] option')]
