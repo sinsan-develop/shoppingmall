@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
+import { recordRefundSettlement } from '../settlement/record.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -161,6 +162,7 @@ export async function processVerifiedRefundEvent(pool: Pool, eventId: string) {
         ended_at=clock_timestamp() WHERE id=$1`, [attempt.id]);
       await client.query(`UPDATE refund_cases SET status='REFUNDED',
         completed_at=clock_timestamp() WHERE id=$1`, [target.id]);
+      await recordRefundSettlement(client, { caseId: target.id, eventId: event.id });
       await movePostClaim(client, target.id, event.id, 'REFUNDED',
         'Verified post-shipment goods refund applied');
       const result = await finishEvent(client, event.id, 'APPLIED');
@@ -205,6 +207,7 @@ export async function processVerifiedRefundEvent(pool: Pool, eventId: string) {
       WHERE id=$1`, [attempt.id]);
     await client.query(`UPDATE refund_cases SET status='REFUNDED',completed_at=clock_timestamp()
       WHERE id=$1`, [target.id]);
+    await recordRefundSettlement(client, { caseId: target.id, eventId: event.id });
     const fullyRefunded = (await client.query<{ complete: boolean }>(`SELECT NOT EXISTS (
       SELECT 1 FROM shipment_order_lines line WHERE line.shipment_order_id=$1
         AND COALESCE((SELECT sum(refund_line.quantity)::int

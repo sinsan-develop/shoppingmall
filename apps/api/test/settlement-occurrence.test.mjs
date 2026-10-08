@@ -56,3 +56,12 @@ test('invalid money or missing owner never creates a settlement occurrence', () 
     fulfillmentSeller: undefined, shippingRefundWon: 3000, lines: [] }),
   /Invalid settlement occurrence/);
 });
+
+test('a zero-priced line creates no invalid zero-won ledger row', () => {
+  const events = buildSaleOccurrences({ paymentEventId: 'payment-zero', orderId: 'order-zero',
+    occurredAt: '2026-05-01T00:00:00Z', shipments: [{ id: 'shipment-zero',
+      fulfillmentSeller: owool, shippingFeeWon: 0, shippingSupportWon: 0,
+      lines: [{ productId: 'gift', optionId: 'free', productName: '사은품', optionName: '기본',
+        producer: farm, unitPriceWon: 0, quantity: 1, goodsDiscountWon: 0 }] }] });
+  assert.deepEqual(events, []);
+});

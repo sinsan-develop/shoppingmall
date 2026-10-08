@@ -92,7 +92,7 @@ export function buildSaleOccurrences(input: SaleOccurrenceInput): SettlementOccu
         orderId: input.orderId, shipmentOrderId: shipment.id, occurredAt: input.occurredAt,
         seller: line.producer, productId: line.productId, optionId: line.optionId,
         productName: line.productName, optionName: line.optionName };
-      result.push(occurrence({ ...base, kind: 'sale', amountWon: grossWon }));
+      if (grossWon) result.push(occurrence({ ...base, kind: 'sale', amountWon: grossWon }));
       if (line.goodsDiscountWon) result.push(occurrence({ ...base,
         kind: 'goods_discount', amountWon: line.goodsDiscountWon }));
     }
