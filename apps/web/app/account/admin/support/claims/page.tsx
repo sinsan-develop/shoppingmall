@@ -7,7 +7,7 @@ import { claimActionLabel, claimActorRoleLabel, claimEventReasonLabel,
 type Summary = { id: string; productId: string; shipmentOrderId: string;
   kind: string; reasonCode: string; status: string; createdAt: string };
 type Detail = Summary & { orderId: string; reason: string; quantity: number;
-  goodsRefundWon: number; policyVersionId: string | null; decisionReason: string | null;
+  goodsRefundWon: number; policyVersion: number | null; decisionReason: string | null;
   messages: { id: string; authorRole: string; body: string; createdAt: string }[];
   events: { action: string; actorRole: string; reason: string; occurredAt: string }[];
   evidence: { id: string; mimeType: string; sizeBytes: number }[] };
@@ -59,7 +59,7 @@ export function AdminSupportClaimsView({ items,selected,busy,message,statusFilte
         <p>주문 {selected.orderId} · 발송 {selected.shipmentOrderId} · 상품 {selected.productId}</p>
         <p>사유 {claimReasonCodeLabel(selected.reasonCode)}: {selected.reason}</p>
         <p>승인 상품 환불액 {selected.goodsRefundWon.toLocaleString('ko-KR')}원 · 배송비 환불 0원</p>
-        {selected.policyVersionId ? <p>적용 정책 버전 {selected.policyVersionId}</p> : null}
+        {selected.policyVersion !== null ? <p>적용 정책 버전 {selected.policyVersion}</p> : null}
         {selected.decisionReason ? <p>최종 결정 사유 {selected.decisionReason}</p> : null}
         <h3>대화 이력</h3>
         <ol>{selected.messages.map((item) => <li key={item.id}>

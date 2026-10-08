@@ -162,16 +162,19 @@ export async function getClaim(db: Db, scope: ClaimScope, actorAccountId: string
   const claim = (await db.query<{ id: string; orderId: string; shipmentOrderId: string;
     optionId: string; productId: string; customerAccountId: string; sellerId: string;
     kind: string; reasonCode: string; reason: string; quantity: number; status: string;
-    policyVersionId: string | null; decisionReason: string | null; goodsRefundWon: number;
+    policyVersionId: string | null; policyVersion: number | null;
+    decisionReason: string | null; goodsRefundWon: number;
     decidedAt: Date | null; createdAt: Date }>(`
     SELECT c.id,c.checkout_order_id AS "orderId",
       c.shipment_order_id AS "shipmentOrderId",c.option_id AS "optionId",
       c.product_id AS "productId",c.customer_account_id AS "customerAccountId",
       c.seller_id AS "sellerId",c.kind,c.reason_code AS "reasonCode",
       c.reason,c.quantity,c.status,c.policy_version_id AS "policyVersionId",
+      policy.version AS "policyVersion",
       c.decision_reason AS "decisionReason",c.goods_refund_won AS "goodsRefundWon",
       c.decided_at AS "decidedAt",
       c.created_at AS "createdAt" FROM support_claims c
+    LEFT JOIN support_policy_versions policy ON policy.id=c.policy_version_id
     WHERE c.id=$1 AND ${where}`,
   scope === 'admin' ? [claimId] : scope === 'customer' ?
     [claimId, actorAccountId] : [claimId, actorAccountId, sellerId])).rows[0];

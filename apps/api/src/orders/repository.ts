@@ -15,7 +15,7 @@ export type OrderLineSnapshot = {
   goodsDiscountWon: number; goodsPayableWon: number;
 };
 export type CustomerOrderLineSnapshot = OrderLineSnapshot & {
-  completedRefundQuantity: number; remainingQuantity: number;
+  completedRefundQuantity: number; remainingQuantity: number; claimAvailableQuantity: number;
 };
 export type CustomerFulfillmentView = {
   status: 'PAYMENT_PENDING' | 'READY' | 'PACKING' | 'DELAYED' | 'SHIPPED' | 'CANCELLED';
@@ -226,6 +226,18 @@ export async function getOrderSnapshot(client: PoolClient, accountId: string,
         WHERE rl.shipment_order_id=shipment_order_lines.shipment_order_id
           AND rl.option_id=shipment_order_lines.option_id AND r.status='REFUNDED'),0),0)
         AS "remainingQuantity",
+      GREATEST(quantity-
+        COALESCE((SELECT sum(c.quantity)::int FROM support_claims c
+          WHERE c.shipment_order_id=shipment_order_lines.shipment_order_id
+            AND c.option_id=shipment_order_lines.option_id
+            AND c.status<>'REJECTED'),0)-
+        COALESCE((SELECT sum(rl.quantity)::int FROM refund_case_lines rl
+          JOIN refund_cases r ON r.id=rl.refund_case_id
+          WHERE rl.shipment_order_id=shipment_order_lines.shipment_order_id
+            AND rl.option_id=shipment_order_lines.option_id
+            AND r.post_shipment_claim_id IS NULL
+            AND r.status IN ('APPROVED','PROCESSING','REFUNDED','REVIEW_REQUIRED')),0),0)
+        AS "claimAvailableQuantity",
       goods_discount_won AS "goodsDiscountWon",goods_payable_won AS "goodsPayableWon"
       FROM shipment_order_lines WHERE shipment_order_id=$1 ORDER BY option_id`, [shipment.id]);
     const promotions = await client.query<OrderPromotionAllocation>(`SELECT

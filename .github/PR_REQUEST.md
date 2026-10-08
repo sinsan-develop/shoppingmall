@@ -1,42 +1,39 @@
 ## 목적
 
-S5.1 출고 이행 기능과 최종 Stage review finding 보정을 통합한다. 결제 완료 주문의 판매자·공동출고 담당 처리, 고객 즉시 조회, 관리자 정정·이력과 환불–SHIPPED 경합을 안정 상태로 수렴시키며, 관리자 설정 공개 계약을 PUT 하나로 맞추고 판매자·관리자 화면의 늦은 응답이 최신 상태를 덮어쓰지 못하게 한다.
+승인된 S5 Stage 중 이미 main에 병합된 S5.1 이후의 S5.2 고객지원, S5.3 알림 작업, S5.4 관리자 관제를 한 Stage PR로 통합한다. 이번 개발 완료 기준은 실제 발송·사용자 인수시험을 제외하고 WSL 통합·실 DB·실제 브라우저 검증까지다.
 
 ## 변경 요약
 
-- 판매자 전이와 관리자 정정은 기존 발송 주문→출고 행 잠금 뒤 같은 발송의 `APPROVED|PROCESSING|REVIEW_REQUIRED` 환불 사례를 잠근다. 해당 사례가 있으면 SHIPPED 저장을 conflict로 거부한다.
-- 검증된 환불 processor가 이미 SHIPPED인 출고를 관찰하면 rollback하지 않고 사례·시도·사건을 같은 거래에서 `REVIEW_REQUIRED`로 확정한다. 같은 사건 재호출은 확정 상태를 안정적으로 반환한다.
-- 관리자 공동출고 설정의 계약 밖 `PATCH /fulfillment/admin/settings`를 제거하고 승인된 PUT만 유지했다.
-- 판매자·관리자 출고 화면의 목록·상세 요청을 독립 최신 token으로 구분하고, mutation 시작 시 오래된 읽기를 무효화한다. busy는 전체 진행 요청 수로 계산해 늦은 `finally`가 먼저 해제하지 못한다.
-- 실제 Chrome 조작 전에 React hydration을 확인해 정적 HTML 단계의 조기 입력을 막고, 역할별 시나리오·3 viewport·키보드 검증이 실제 이벤트 처리 뒤 수행되게 했다.
-- S5.1 시험 안내·공유 DB 적용 이력·작업계획·S4/S5 계약을 실제 완료 이력과 남은 S5.2~S5.4 범위에 맞췄다. schema·migration·dependency·새 공개 API는 추가하지 않았다.
+- S5.2: 상품 문의·구매확정 리뷰·사진과 비공개 증빙, 판매자 답변, 관리자 공개·클레임 결정, 출고 후 환불 심사와 모의 환불 재개를 구현했다.
+- S5.3: 주문·결제·출고·환불·재입고 사건에 근거한 알림 작업과 시도 이력, 고객 수신 설정, 중복 억제·재시도·모의 채널 판정을 구현했다. 실제 외부 발송 어댑터는 연결하지 않았다.
+- S5.4: 관리자 전용 읽기 API와 Flat v2 관제 화면에 한국 날짜·판매자·주문/클레임 상태별 주문/상품매출/재고/클레임 요약, 승인 대기·실패 결제 시도·미출고·재고 이상·미처리 문의·진행 중 클레임을 추가했다. 기존 원자료 화면의 상세 이동과 운영 Runbook도 보강했다.
+- 리뷰 수정: 클레임 상태 필터를 진행 목록에 반영하고, 재결제 뒤 실패 시도 이력을 현재 주문 상태와 함께 유지한다. 혼합 판매자 필터의 결제 시도 금액은 판매자별 몫이 아닌 통합 주문 전체 요청액으로 명시한다.
+- schema는 S5.2/3의 additive migration 0016~0019이며 S5.4에는 신규 schema/migration/dependency가 없다.
 
 ## 영향
 
-- 영향 경로는 출고/환불 거래 서비스와 저장소, 관리자 설정 controller, 판매자·관리자 출고 화면, 관련 DB/HTTP/UI 회귀시험 및 S5 정본 문서다.
-- 환불 승리 시 `REFUNDED/SUCCEEDED/APPLIED`와 출고 `CANCELLED`, 배송 승리 시 출고 `SHIPPED`와 환불 사례·시도·사건 `REVIEW_REQUIRED`로 수렴한다. `PROCESSING/PENDING_PROCESSING`은 성공 결과가 아니다.
-- 기존 lock ordering, Flat v2 화면, 고객/판매자/관리자 권한, 원 주문·결제·환불 사건, migration16을 유지한다. 공유 DB, 운영 DB, 외부 공급자, GitHub 계정/토큰은 변경하지 않았다.
+- 고객·판매자·관리자 계정 화면과 상품/주문/출고/결제/환불/재고 사건 연결, 고객지원·알림 영속 자료, 관리자 관제 읽기 경로가 영향을 받는다.
+- 관리자는 전체를 조회하고 판매자는 자기 소유 자료만 처리한다. 관제 조회는 관리자 세션만 허용하고 private no-store 응답을 사용한다. 원주문·결제·환불·감사 기록은 보존한다.
+- 관제 상품매출은 배송비 제외·사후 환불 차감 전 상품 실결제액이다. 실패 결제의 요청액은 통합 주문 전체이고, 판매자 필터는 관련 상품 라인 존재 여부로 적용된다. 정산 지급액이나 실시간 SLA를 뜻하지 않는다.
 
 ## 검증
 
-- TDD RED: SHIPPED 후 환불 안정화 0/1, 기존 환불 상태의 seller/admin SHIPPED 차단 0/1, seller/admin 경쟁 0/2, PATCH 비노출 0/1, 역순 UI 응답·busy 0/2를 각각 재현했다.
-- 전용 PostgreSQL 18.4 migration16에서 관련 실제 DB/HTTP 시험 **38/38 PASS**: 환불 처리 8, 환불–출고 결합 5, 관리자 HTTP 13, 판매자 HTTP 10, 환불 HTTP 2. seller/admin 경쟁 양쪽 결과와 PUT 존재·PATCH 404를 포함한다.
-- UI focused 시험 **17/17 PASS**. 역순 목록 응답, mutation 무효화, 독립 상세, pending busy, 역할 화면과 기존 actual-Chrome runner 계약을 포함한다.
-- 최종 제품·QA SHA `943a8cd99307f968ca21cbeaf283f610b2e52448`에서 Windows와 WSL이 각각 전체 Node 시험 **415 total / 298 pass / 117 planned DB·환경 skip / 0 fail**, PR 본문 validator **8/8 PASS**다. skip은 PASS로 계산하지 않았다.
-- 양쪽 `pnpm typecheck`, `pnpm lint`, `pnpm build`가 exit 0이며 Next production build는 18 routes를 생성했다. `git diff --check`도 통과했다.
-- 전용 PostgreSQL 18.4 migration16에서 관련 실제 DB/HTTP 시험 **38/38 PASS, fail0, skip0**다.
-- 같은 SHA의 별도 격리 DB와 Chrome 154에서 역할 경로, 1920/1440/430·키보드가 PASS이고 screenshot 9개를 직접 확인했다. signed reset 뒤 25관계 합계0·설정1, f5141006 임시자원과 포트 잔류0이다.
-- 공유 `local-postgres/shoppingmall`은 사후 `migration16|settings1|fulfillments0|events0|핵심 업무행0`으로 불변이며 적용 전 backup 2개의 크기·권한·SHA-256도 그대로다.
+- 최종 제품 보정 SHA 080c86030f3f08a8415c9b01739ad6643ed5a7a0의 로컬 전체 Node 시험 529 total / 381 pass / 148 DB·환경 skip / 0 fail, PR 본문 검사 8/8 PASS. pnpm typecheck, pnpm lint, pnpm build, git diff --check exit 0, Next production build 23 routes.
+- S5.2는 WSL 공유 개발 DB의 합성 계정/상품/주문에서 실제 Chrome으로 고객·판매자·관리자 Q&A·클레임·텍스트 리뷰·사진 미리보기, 1920/1440/430px·키보드를 검증했다. signed reset 뒤 QA 소유 자료 0.
+- S5.3은 WSL 격리 PostgreSQL migration20의 모의 발송·재입고 상태 경합과 공유 개발 DB의 실제 Chrome 고객 알림 설정·찜/재입고 화면을 검증했다. 실제 문자·메일·푸시 수신으로 승격하지 않는다.
+- S5.4는 WSL 격리 PostgreSQL18.4 migration20에서 관리자 200/판매자·고객 403, 통합 3주문·상품매출 57,000원, 판매자 A 1주문·23,000원, 혼합 A/B 결제 시도 전체 39,000원, 재결제 뒤 실패 이력, 클레임 상태 필터, 예외 갱신을 실제 HTTP로 검증했다. 별도 shared local-postgres/shoppingmall에서는 관리자 빈 집계·판매자 403을 1/1 확인했다. 각 시험의 signed/run-scoped reset과 정확 임시 자원 제거 뒤 QA 행/컨테이너 0.
+- S5.4 실제 Chrome에서 관리자 조회·판매자 필터·출고 상세 이동·1920/430px 가로 넘침 없음·Tab 초점·판매자 접근 차단을 확인했다. 첫 관리자 로그인 timeout은 동일 환경 재실행에서 PASS했으나 간헐 원인은 미확정이다.
+- S5.4 독립 리뷰는 첫 Critical0/Important3/Minor1을 지적했고, 보정 뒤 해당 4건에 한정해 재리뷰 해결 판정과 격리 DB 회귀를 확인했다.
 
 ## 미검증
 
-- 첫 독립 Stage review는 **Critical 0 / Important 2 / Minor 1, BLOCK**이었고, PMO 승인 docs-only 정본 보정의 독립 재리뷰는 **Critical 0 / Important 0 / Minor 1, Stage gate PASS**다. I1/I2는 해소됐다. PMO 판정상 PR #13/S5.1은 일반 내부 Stage이므로 exact head의 CI 성공 조건을 충족하면 병합 가능하다. Oracle staging/UAT, 실제 택배사·문자·메일·푸시·PG, 실제 200% 확대는 S8 전체 개발 완료 후보 이후 별도 승인·인수 절차의 미검증 범위이며 이번 PR의 병합 gate가 아니다.
-- 판매자·관리자 상세의 여러 `SELECT`는 하나의 read-only snapshot으로 묶이지 않아 동시 정정/환불 중 상태·수량·사건이 서로 다른 시점에서 일시적으로 섞일 수 있다. `expectedVersion`은 쓰기 훼손을 막지만 이 읽기 일관성 위험까지 제거하지 않으므로 미해결 Minor 후속이다.
-- actual Chrome은 별도 격리 DB 증거이며 공유 개발 DB를 브라우저가 사용했다는 뜻이 아니다.
-- S5.2 문의/리뷰/클레임·출고 후 심사/환불, S5.3 알림, S5.4 관제는 미구현이며 S5 전체 완료가 아니다.
+- 실제 택배 발송, PG 실거래, 문자·메일·푸시 실제 발송/수신, 외부 계정 공급자 연동, 사용자 인수테스트와 Oracle staging·공개 출시는 신산님이 이번 개발 완료 기준에서 제외한 별도 단계다.
+- 로컬 148개 DB/환경 조건부 skip은 PASS로 세지 않는다. 공유 개발 DB 전체 suite는 격리 전용 가드/과거 migration 고정 기대 때문에 전체 PASS가 아니며, 대상별 공유-safe·격리 시험 근거로 구분했다.
+- S5.2/S5.3 병합 전 독립 도메인 리뷰와 최종 PR CI 결과, 최종 HEAD의 merged-main smoke는 아직 수행 전이다. 실제 200% 확대와 S5.4 첫 로그인 시간 초과의 원인도 미검증이다.
+- 관리자 관제는 수동 갱신이며 자동 경보·점검 스위치·판매자 강제 정지·SLA 실측이 없다. 별도 결제 시도 관리 화면/자동 재처리는 없고 관제 시도 ID를 운영 로그와 대조한다.
 
 ## 롤백
 
-- 코드 문제 시 이 PR의 fix commit을 일반 revert하고 출고/환불 쓰기를 중지한 뒤 마지막 검증된 S5.1 기준으로 재검증한다. 이미 기록된 출고·환불·감사 사건은 삭제하거나 상태를 임의 덮어쓰지 않는다.
-- migration16은 이미 공유 개발 DB에 적용된 additive migration이므로 역마이그레이션하거나 이력을 삭제하지 않는다. DB 보정이 필요하면 보존된 적용 전 backup과 현재 상태를 먼저 읽기 확인하고 별도 승인된 전진 보정을 사용한다.
-- QA reset이 실패하면 거래 전체 rollback을 유지하고 임의 SQL로 삭제하지 않는다. 공유 DB 적용 전 backup 2개는 merged-main smoke와 복구 불필요 확인 전까지 보존한다.
+- PR 병합 뒤 코드 회귀는 해당 squash merge를 일반 revert하고 마지막 검증된 main으로 Web/API를 복구한다. 진단 중 고객지원·알림 쓰기를 중단하고 기존 주문·클레임·결제·감사·알림 원사건은 삭제하거나 임의 변경하지 않는다.
+- 공유 개발 DB에 이미 승인 적용된 additive migration 0016~0019는 역마이그레이션하지 않는다. 스키마 보정이 필요하면 현재 DB/백업을 읽기 확인하고 별도 승인된 전진 migration을 작성한다.
+- 합성 QA reset 실패 시 다른 계정·상품·주문을 일괄 삭제하지 않는다. run-scoped manifest와 DB identity를 확인해 소유 자료만 복구하고 필요 시 작업을 중지·보고한다.

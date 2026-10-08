@@ -24,7 +24,7 @@ export async function claimNextNotificationJob(client: PoolClient,
   const result = await client.query<Omit<NotificationClaim,'leaseToken'>>(`
     WITH due AS (
       SELECT id FROM notification_jobs
-      WHERE status='QUEUED' AND available_at <= $1
+      WHERE status='QUEUED' AND attempts_completed < 3 AND available_at <= $1
       ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1
     ), claimed AS (
       UPDATE notification_jobs j SET status='PROCESSING',available_at=NULL,

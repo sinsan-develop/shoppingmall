@@ -5,7 +5,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 type Line = { productId: string; optionId: string; productName: string;
   optionName: string; quantity: number; remainingQuantity: number };
 type Confirmation = { id: string; reviewId: string | null; reviewStatus: string | null };
-type Review = { id: string; rating: number; body: string; status: string };
+type Review = { id: string; rating: number; body: string; status: string;
+  images?: { id: string; sizeBytes: number; scanStatus: string }[] };
 export function reviewStatusLabel(status: string | null) {
   switch (status) {
     case null: return '미작성';
@@ -48,7 +49,6 @@ export function CustomerSupportLine({ orderId,shipmentOrderId,status,line }: {
   const [message,setMessage] = useState('');
   const keys = useRef(new Map<string,string>());
   const imageKeys = useRef(createReviewImageUploadKeys(() => crypto.randomUUID()));
-  const [uploadedImages,setUploadedImages] = useState<{ id: string; sizeBytes: number }[]>([]);
   const confirmationPath = `${apiOrigin}/customer/support/confirmations`;
 
   useEffect(() => {
@@ -129,7 +129,8 @@ export function CustomerSupportLine({ orderId,shipmentOrderId,status,line }: {
       if (response.status === 404) { setMessage('본인 구매확정 또는 리뷰를 찾을 수 없습니다'); return; }
       if (!response.ok) { setMessage('리뷰 결과를 확인하지 못했습니다. 같은 내용으로 다시 시도해 주세요'); return; }
       const saved = await response.json() as { id: string; status: string };
-      setReview({ id: saved.id,rating,body: text.trim(),status: saved.status });
+      setReview((current) => ({ id: saved.id,rating,body: text.trim(),status: saved.status,
+        images: current?.id === saved.id ? current.images : [] }));
       setConfirmation({ ...confirmation,reviewId: saved.id,reviewStatus: saved.status });
       setMessage('리뷰를 저장했습니다. 관리자 승인 전에는 공개되지 않습니다');
     } catch { setMessage('리뷰 결과를 확인하지 못했습니다. 같은 내용으로 다시 시도해 주세요'); }
@@ -161,9 +162,10 @@ export function CustomerSupportLine({ orderId,shipmentOrderId,status,line }: {
       if (response.status === 404) { setMessage('본인 리뷰를 찾을 수 없습니다'); return; }
       if (!response.ok) { setMessage('사진 등록 결과를 확인하지 못했습니다. 같은 사진으로 다시 시도해 주세요'); return; }
       const saved = await response.json() as { id: string; sizeBytes: number };
-      setUploadedImages((current) => current.some((image) => image.id === saved.id) ? current :
-        [...current,{ id:saved.id,sizeBytes:saved.sizeBytes }]);
-      setReview({ ...review,status:'PENDING' });
+      setReview((current) => current ? { ...current,status:'PENDING',
+        images: current.images?.some((image) => image.id === saved.id) ? current.images :
+          [...(current.images ?? []),{ id:saved.id,sizeBytes:saved.sizeBytes,
+            scanStatus:'PENDING' }] } : current);
       setConfirmation((current) => current ? { ...current,reviewStatus:'PENDING' } : current);
       form.reset();
       setMessage('리뷰 사진을 등록했습니다. 관리자 확인 전에는 공개되지 않습니다');
@@ -208,10 +210,11 @@ export function CustomerSupportLine({ orderId,shipmentOrderId,status,line }: {
           accept="image/png,image/jpeg,image/webp" required />
         <button type="submit" className="secondary-button" disabled={busy}>리뷰 사진 등록</button>
       </form>
-      {uploadedImages.length ? <ul>{uploadedImages.map((image) => <li key={image.id}>
+      {review.images?.length ? <ul>{review.images.map((image) => <li key={image.id}>
         <a className="text-link" target="_blank" rel="noopener noreferrer"
           href={`${apiOrigin}/customer/support/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(image.id)}/preview`}>
-          방금 등록한 사진</a> · {image.sizeBytes}바이트
+          등록된 사진</a> · {image.sizeBytes}바이트 ·
+          {image.scanStatus === 'PASS' ? ' 확인됨' : ' 확인 대기'}
       </li>)}</ul> : null}
     </> : null}
     {message ? <p role="status">{message}</p> : null}

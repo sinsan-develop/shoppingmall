@@ -7,7 +7,7 @@ import { CustomerClaimLine, CustomerClaimsView, createEvidenceUploadKeys } from
   '../app/account/customer/customer-claims.tsx';
 
 const line = { productId: 'product-a',optionId: 'option-a',productName: '가상 고추',
-  optionName: '기본',quantity: 2,remainingQuantity: 2 };
+  optionName: '기본',quantity: 2,remainingQuantity: 2,claimAvailableQuantity: 2 };
 const claim = { id: 'claim-1',productId: 'product-a',shipmentOrderId: 'shipment-a',
   kind: 'RETURN',reasonCode: 'damaged',status: 'REQUESTED',
   createdAt: '2026-10-07T00:00:00Z',reason: '훼손',quantity: 1,
@@ -57,6 +57,14 @@ test('evidence retry keeps one key after success or uncertain response', () => {
   assert.notEqual(keys.forFile('claim-2',file),first);
   assert.notEqual(keys.forFile('claim-1',{ ...file,type: 'image/png' }),first);
   assert.equal(issued,3);
+});
+
+test('an occupied shipped line does not offer another claim form', () => {
+  const occupied = renderToStaticMarkup(createElement(CustomerClaimLine, {
+    orderId: 'order-a',shipmentOrderId: 'shipment-a',status: 'SHIPPED',
+    line: { ...line,claimAvailableQuantity: 0 },onCreated: () => {},
+  }));
+  assert.doesNotMatch(occupied,/클레임 접수/);
 });
 
 test('closed claims do not offer evidence upload after a decision', () => {

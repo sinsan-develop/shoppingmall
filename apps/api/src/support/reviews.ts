@@ -228,6 +228,10 @@ export async function getCustomerReview(db: Db, customerAccountId: string, revie
     FROM support_reviews WHERE id=$1 AND customer_account_id=$2`,
   [reviewId, customerAccountId])).rows[0];
   if (!review) return undefined;
+  const images = (await db.query<{ id: string; sizeBytes: number; scanStatus: string }>(`
+    SELECT id,size_bytes AS "sizeBytes",scan_status AS "scanStatus"
+    FROM support_review_images WHERE review_id=$1 ORDER BY created_at,id`,
+  [reviewId])).rows;
   const events = (await db.query<{ action: string; actorRole: string; reason: string | null;
     beforeValue: Record<string, unknown>; afterValue: Record<string, unknown>;
     occurredAt: Date }>(`SELECT action,actor_role AS "actorRole",reason,
@@ -239,7 +243,7 @@ export async function getCustomerReview(db: Db, customerAccountId: string, revie
     ...(typeof value.body === 'string' ? { body: value.body } : {}),
     ...(typeof value.version === 'number' ? { version: value.version } : {}),
   });
-  return { ...review, events: events.map((event) => ({
+  return { ...review, images, events: events.map((event) => ({
     action: event.action, actorRole: event.actorRole, reason: event.reason,
     beforeValue: content(event.beforeValue), afterValue: content(event.afterValue),
     occurredAt: event.occurredAt,

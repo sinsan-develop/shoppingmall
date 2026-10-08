@@ -17,7 +17,8 @@ type PendingOrder = { id: string; status: 'PENDING_PAYMENT' | 'EXPIRED' | 'PAID'
   expiresAt: string; paidAt?: string | null;
   shipments: ({ id: string; key: string; payableWon: number; status?: string;
     lines: { productId: string; optionId: string; productName: string;
-      optionName: string; quantity: number; remainingQuantity: number }[] } &
+      optionName: string; quantity: number; remainingQuantity: number;
+      claimAvailableQuantity: number }[] } &
     CustomerShipmentWithFulfillment)[] };
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -71,13 +72,12 @@ export default function CustomerProfilePage() {
     if (saved) setOrderId(saved);
   }, [state]);
 
-  async function loadOrder(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!apiOrigin || !orderId.trim()) return;
+  async function refreshOrder(requestedId: string) {
+    if (!apiOrigin || !requestedId.trim()) return;
     const request = orderRequests.current.begin();
     setOrder(undefined); setOrderMessage('');
     try {
-      const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(orderId.trim())}`,
+      const response = await fetch(`${apiOrigin}/customer/checkout/orders/${encodeURIComponent(requestedId.trim())}`,
         { credentials: 'include', cache: 'no-store' });
       if (!orderRequests.current.isLatest(request)) return;
       if (response.status === 404) { setOrderMessage('본인 주문을 찾을 수 없습니다'); return; }
@@ -89,6 +89,11 @@ export default function CustomerProfilePage() {
     } catch {
       if (orderRequests.current.isLatest(request)) setOrderMessage('주문 상태를 불러오지 못했습니다');
     }
+  }
+
+  async function loadOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await refreshOrder(orderId);
   }
 
   async function addAddress(event: FormEvent<HTMLFormElement>) {
@@ -209,7 +214,8 @@ export default function CustomerProfilePage() {
                     status={shipment.fulfillment?.status ?? ''} line={line} />
                   <CustomerClaimLine orderId={order.id} shipmentOrderId={shipment.id}
                     status={shipment.fulfillment?.status ?? ''} line={line}
-                    onCreated={() => setClaimRefresh((value) => value + 1)} />
+                    onCreated={() => { setClaimRefresh((value) => value + 1);
+                      void refreshOrder(order.id); }} />
                 </div>)}
               </li>)}</ul>
               <p>{order.status === 'PAID' ? '결제가 확인됐습니다' : '결제는 아직 완료되지 않았습니다'}</p>

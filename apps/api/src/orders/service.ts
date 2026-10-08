@@ -170,8 +170,14 @@ export async function submitPendingOrderWithDisposition(pool: Pool, accountId: s
       (actor_account_id,active_role,action,target_type,target_id,details)
       VALUES ($1,'customer','pending_order_created','checkout_order',$2,$3::jsonb)`,
     [accountId, order.id, JSON.stringify({ reservationId: input.reservationId })]);
+    const submittedEvent = (await client.query<{ id:string }>(`
+      SELECT id FROM order_status_events
+      WHERE checkout_order_id=$1 AND status='PENDING_PAYMENT'
+        AND actor_account_id=$2 ORDER BY created_at DESC,id DESC LIMIT 1`,
+    [order.id,accountId])).rows[0];
+    if (!submittedEvent) throw new Error('Order submission event unavailable');
     await queueNotificationEvent(client, { kind: 'order_submitted',
-      sourceEventId: order.id, accountId });
+      sourceEventId: submittedEvent.id, accountId });
     await client.query('COMMIT');
     return { view: order, created: true };
   } catch (error) {

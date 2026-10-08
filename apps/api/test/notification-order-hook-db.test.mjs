@@ -46,7 +46,9 @@ test('new order queues one transactional notice in its commit but invalid and re
     orderId = order.id;
     const first = (await pool.query(`SELECT kind,source_event_id,account_id,channel,status
       FROM notification_jobs WHERE account_id=$1`, [buyerId])).rows;
-    assert.deepEqual(first, [{ kind:'order_submitted', source_event_id:orderId,
+    const submittedEvent = (await pool.query(`SELECT id FROM order_status_events
+      WHERE checkout_order_id=$1 AND status='PENDING_PAYMENT'`,[orderId])).rows[0].id;
+    assert.deepEqual(first, [{ kind:'order_submitted', source_event_id:submittedEvent,
       account_id:buyerId, channel:'email', status:'QUEUED' }]);
     assert.deepEqual(await submitPendingOrder(pool, buyerId, input), order);
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM notification_jobs

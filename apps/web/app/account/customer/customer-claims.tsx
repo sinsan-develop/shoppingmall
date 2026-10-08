@@ -5,7 +5,7 @@ import { claimActionLabel, claimActorRoleLabel, claimEventReasonLabel,
   claimKindLabel, claimReasonCodeLabel, claimStatusLabel } from '../support-claim-labels';
 
 type Line = { productId: string; optionId: string; productName: string;
-  optionName: string; quantity: number; remainingQuantity: number };
+  optionName: string; quantity: number; remainingQuantity: number; claimAvailableQuantity: number };
 type Summary = { id: string; productId: string; shipmentOrderId: string;
   kind: string; reasonCode: string; status: string; createdAt: string };
 type Detail = Summary & { reason: string; quantity: number;
@@ -64,7 +64,7 @@ export function CustomerClaimLine({ orderId,shipmentOrderId,status,line,onCreate
     } catch { setMessage('접수 결과를 확인하지 못했습니다. 같은 내용으로 다시 시도해 주세요'); }
     finally { setBusy(false); }
   }
-  if (status !== 'SHIPPED' || line.remainingQuantity <= 0) return null;
+  if (status !== 'SHIPPED' || line.claimAvailableQuantity <= 0) return null;
   return <section className="account-card profile-card" aria-label={`${line.productName} 클레임`}>
     <h4>{line.productName} · {line.optionName}</h4>
     <p>결제 후 출고된 품목만 신청할 수 있습니다. 상품 판매자가 답변하고 관리자가 결정합니다.</p>
@@ -83,7 +83,7 @@ export function CustomerClaimLine({ orderId,shipmentOrderId,status,line,onCreate
       </select>
       <label htmlFor={`claim-quantity-${line.optionId}`}>수량</label>
       <input id={`claim-quantity-${line.optionId}`} name="quantity" type="number"
-        min="1" max={line.remainingQuantity} defaultValue="1" required />
+        min="1" max={line.claimAvailableQuantity} defaultValue="1" required />
       <label htmlFor={`claim-reason-${line.optionId}`}>상세 사유</label>
       <textarea id={`claim-reason-${line.optionId}`} name="reason" rows={3}
         maxLength={2000} required />

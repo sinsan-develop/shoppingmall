@@ -389,6 +389,11 @@ test('S5.2 isolated DB/HTTP support flow scopes shipped lines, reviews and claim
       const imagePath = join(uploadRoot, savedImage.object_key);
       const originalBytes = await readFile(imagePath);
       const imageId = uploaded.id;
+      const persistedReview = await (await reviewRequest(customer, detailPath, 'GET')).json();
+      assert.deepEqual(persistedReview.images.map(({ id,sizeBytes,scanStatus }) =>
+        ({ id,sizeBytes,scanStatus })),
+      [{ id:imageId,sizeBytes:uploaded.sizeBytes,scanStatus:'PENDING' }],
+      'customer detail must recover private image references after a new session');
       const customerPreview = `${detailPath}/images/${imageId}/preview`;
       const adminPreview = `${adminReviewPath}/images/${imageId}/preview`;
       assert.equal((await reviewRequest(otherCustomer, customerPreview, 'GET')).status, 404);

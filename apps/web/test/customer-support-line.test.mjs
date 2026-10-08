@@ -72,4 +72,5 @@ test('customer review form offers an image upload through the existing scoped AP
   assert.match(source,/accept="image\/png,image\/jpeg,image\/webp"/);
   assert.match(source,/5 \* 1024 \* 1024/);
   assert.match(source,/'idempotency-key': key/);
+  assert.match(source,/review\.images\.map/);
 });

@@ -11,15 +11,17 @@ test('one source event reads verified facts and enqueues chosen work on the same
   const client = { async query(sql,params) {
     calls.push({ sql,params });
     return calls.length === 1
-      ? { rows:[{ verifiedEmail:true,verifiedPhone:false,pushConsent:false }] }
-      : { rows:[{ id:jobId }] };
+      ? { rows:[{ validSource:true }] } : calls.length === 2
+        ? { rows:[{ verifiedEmail:true,verifiedPhone:false,pushConsent:false }] }
+        : { rows:[{ id:jobId }] };
   } };
   assert.deepEqual(await queueNotificationEvent(client,
     { kind:'order_submitted',accountId,sourceEventId }),[jobId]);
-  assert.equal(calls.length,2);
-  assert.match(calls[0].sql,/verified_at IS NOT NULL/);
-  assert.match(calls[1].sql,/ON CONFLICT \(dedupe_key\) DO NOTHING/);
-  assert.deepEqual(calls[1].params,[accountId,'order_submitted',sourceEventId,null,'email',
+  assert.equal(calls.length,3);
+  assert.match(calls[0].sql,/order_status_events/);
+  assert.match(calls[1].sql,/verified_at IS NOT NULL/);
+  assert.match(calls[2].sql,/ON CONFLICT \(dedupe_key\) DO NOTHING/);
+  assert.deepEqual(calls[2].params,[accountId,'order_submitted',sourceEventId,null,'email',
     `order_submitted:${sourceEventId}:${accountId}:email`]);
 });
 
@@ -27,10 +29,19 @@ test('no outbound route creates no job while retaining app status fallback', asy
   let queries = 0;
   const client = { async query() {
     queries++;
-    return { rows:[{ verifiedEmail:false,verifiedPhone:false,pushConsent:false }] };
+    return queries === 1 ? { rows:[{ validSource:true }] } :
+      { rows:[{ verifiedEmail:false,verifiedPhone:false,pushConsent:false }] };
   } };
   assert.deepEqual(await queueNotificationEvent(client,
     { kind:'payment_declined',accountId,sourceEventId }),[]);
+  assert.equal(queries,2);
+});
+
+test('unknown or wrong-owner source cannot create a notification job', async () => {
+  let queries = 0;
+  const client = { async query() { queries++;return { rows:[{ validSource:false }] }; } };
+  await assert.rejects(queueNotificationEvent(client,
+    { kind:'order_submitted',accountId,sourceEventId }),/Notification source unavailable/);
   assert.equal(queries,1);
 });
 

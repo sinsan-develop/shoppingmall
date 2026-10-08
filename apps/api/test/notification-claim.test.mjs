@@ -20,6 +20,7 @@ test('claim locks one due job and records the attempt in one SQL statement', asy
   assert.match(queries[0].sql,/FOR UPDATE SKIP LOCKED/);
   assert.match(queries[0].sql,/INSERT INTO notification_attempts/);
   assert.match(queries[0].sql,/available_at <= \$1/);
+  assert.match(queries[0].sql,/attempts_completed\s*<\s*3/);
   assert.equal(queries[0].params[0],now);
   assert.equal(queries[0].params[2].getTime(),now.getTime()+60_000);
   assert.match(queries[0].params[1],/^[0-9a-f-]{36}$/);
