@@ -22,17 +22,17 @@ test('admin monitoring aggregates paid orders per seller and denies other roles'
     await app.listen(0, '127.0.0.1');
     const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
     const emails = fulfillmentUiEmails(runId);
-    async function login(email) {
+    async function login(email, role) {
       const response = await fetch(`${base}/auth/login`, {
         method: 'POST', headers: { origin, 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, role }),
       });
       assert.equal(response.status, 201);
       return response.headers.get('set-cookie')?.split(';')[0];
     }
-    const adminCookie = await login(emails[4]);
-    const sellerCookie = await login(emails[1]);
-    const customerCookie = await login(emails[0]);
+    const adminCookie = await login(emails[4], 'admin');
+    const sellerCookie = await login(emails[1], 'seller');
+    const customerCookie = await login(emails[0], 'customer');
     const path = '/admin/monitoring?from=2026-10-06&to=2026-10-06';
     for (const cookie of [sellerCookie, customerCookie]) {
       const denied = await fetch(`${base}${path}`, { headers: { cookie } });

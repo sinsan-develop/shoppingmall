@@ -7,6 +7,7 @@
 - **검증·다음 작업:** 로컬 시작 기준 521 total/375 pass/146 환경 skip/0 fail, lint/typecheck/build exit0; 실 DB skip은 통과 아님. TDD로 필터·관리자 권한·집계부터 구현, 이어 Next 화면·정식 WSL/Chrome 검증. 개발 자원 생성 전 이름·범위·정리 방법을 추가 기록한다.
 - **TDD 첫 절편:** `monitoring-query.test.mjs` 3건은 누락 구현으로 RED→파서 구현 후 3/3 GREEN. `monitoring-http.test.mjs`는 미등록 404→관리자 controller 등록 후 미인증 401 GREEN; typecheck exit0. 실제 집계 `monitoring-http-db.test.mjs`는 기존 서명된 3판매자·3주문 출고 QA fixture를 사용하도록 먼저 작성했으며 아직 실행 전/미구현 RED 단계다.
 - **격리 DB 검증 자원 사전 등록:** S5.4 집계 RED→GREEN은 WSL의 정확 이름 internal network `shoppingmall-s54-monitor-1008-net`, tmpfs PostgreSQL `shoppingmall-s54-monitor-1008-pg`(DB `shoppingmall_s5_fulfillment_ui_c84f10ab`), source-read-only Node24 `shoppingmall-s54-monitor-1008-node`만 사용한다. `QA_RUN_ID=c84f10ab`, DB system ID를 시험에 명시한다. 외부 포트·영속 volume 없음. 생성 전 동명0→migration20→서명 fixture seed/시험/reset→QA 행0→정확 자원 제거/동명0을 확인한다. 공유 `local-postgres/shoppingmall`과 실 채널은 바꾸지 않는다.
+- **격리 첫 실행·시험 수정:** 등록 자원0 확인 뒤 `postgres:18.4` 내부 tmpfs DB에 기존 migration20 적용, system ID `7694141435206631474`, mount `[]`·port `{}` 확인. 첫 집계 시험은 제품 집계 전에 QA 로그인 401로 멈췄다(오류 1회). 원인은 시험이 `auth/login`의 기본 `customer` 역할로 관리자·판매자 계정을 로그인하려 한 것이며, fixture는 `finally` reset을 실행했다. 역할 인자를 명시하도록 시험만 수정해 같은 격리 DB에서 재실행한다. 제품 API RED 증거나 PASS로 혼동하지 않는다.
 
 ## S5 정식 브라우저 QA 실행 자원 — 2026-10-08
 
