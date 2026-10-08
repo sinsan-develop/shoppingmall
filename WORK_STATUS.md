@@ -2,6 +2,8 @@
 
 ## S6 정산 착수 — 2026-10-08
 
+- **S6 격리 QA 자원 정리:** exact work SHA `b330057c84c3c7a6f8164963cf78efc2ce281e15`·clean WSL 확인. 이번에 만든 tmpfs 컨테이너 `shoppingmall-s6-1008-pg`(ID `96174d0a...`)와 internal network `shoppingmall-s6-1008-net`(ID `19f72c61...`)만 정확 이름/ID 확인 후 정상 stop·rm했다. runner는 `--rm`으로 이미 없었고 사후 동명 컨테이너·네트워크 0, WSL checkout clean. QA 데이터는 비영속 tmpfs와 함께 제거되어 DB 복원 대상이 아니며 공유 `local-postgres/shoppingmall`은 변경하지 않았다. S6 후속 실제 장부 훅 시험에는 새 격리 DB를 다시 준비해야 한다.
+
 - **S6.2 개별 완료 RED→GREEN:** exact WSL `63d0ca3`에서 관리자/판매자 권한·A/B 독립·같은 판매자 겹침의 completion 시험 1 fail(미구현) 확인. `99ede43`에서 관리자 DB 역할 확인 뒤 판매자 한 명의 기간 이력을 삽입하고, 중복 기간은 기존 GiST 배제 제약이 거부한다. `pnpm typecheck` exit0, WSL 전용 격리 DB의 완료1·조회1·schema2 합계 4/4 pass, 0 skip. 완료 공개 API/화면, 실제 수수료 입력 및 결제·환불 장부 훅은 아직 미구현이다.
 
 - **S6.2 실제 DB 읽기 RED→GREEN:** `24658a5` WSL 전용 격리 DB에서 읽기 미구현 오류 1/1 RED. `9a0e709`의 read repository를 거쳐 판매자 순서가 무작위 UUID를 따르는 오류 1건을 발견해 `3f29bf2`에서 이름/ID 안정 순서로 보정했다. exact WSL `3f29bf2`에서 실제 PostgreSQL read 1건과 schema/불변 제약 2건 합계 3/3 pass, 0 skip, 0 fail; 사용한 시험은 트랜잭션 rollback으로 QA 행을 남기지 않는다. 출고/결제·환불 연동, 완료 API, 브라우저, 공유 개발 DB는 미검증이다.
