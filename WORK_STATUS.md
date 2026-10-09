@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 2026-10-09 S6 공유 행 QA 승인안 산정 — 격리 자원 계획
+
+- **격리 실행 결과(동일 절 업데이트):** 새 PG15 system ID `7694494292543561767`는 shared `7622490131194466339`와 다르고 기존 행0. 최초 migrator 호출은 작업 디렉터리를 `/work`로 둬 `meta/_journal.json`을 찾지 못해 exit1·스키마 행0(경로 오류1, 재현·해결). `/work/apps/api`로 수정해 migration22 적용, 고유 `a6101009`의 기존 실제 HTTP 정산 시험 1/1 pass·0 skip. 종료 시 정확 계수: 계정/identity/role 각5, 세션3, 감사3, 판매자4/판매자 분류2, 상품 분류8, 상품/revision/option/inventory/publication 각5, 정산 사건3, 완료기간1, 기간-사건 연결1 = **총65행**. 브라우저의 0건 판매자 C 완료와 추가 로그인은 이 측정에 포함되지 않아 공유 DB에서 실행한다면 상한·manifest 별도 고정 필요. 감사 세부유형을 잘못된 `event_type` 칼럼으로 조회한 읽기 쿼리 오류1은 데이터 변경0; 총 감사 행3은 정확 조회했다. DB 컨테이너 ID `1efa746d...`는 mount0/tmpfs, 전용 network ID `89d0be9...`에 단독 연결을 대조한 뒤 정확 ID만 stop/rm했고 network도 제거, 접두명 잔류0. shared DB QA 쓰기0.
+- **최신 로컬 gate:** `pnpm test` 577 total/417 pass/160 환경·DB skip/0 fail 및 PR 설명8/8, `pnpm typecheck`, `pnpm lint`, `pnpm build` 모두 exit0(Web25 routes). 이는 격리 QA와 별개이며 공유 행 E2E PASS가 아니다.
+- **PMO 판단·사용자 질문:** PMO는 migration 승인으로 영구 QA 행 보존을 승인할 수 없고 신산님 직접 선택이 필요하다고 회신했다. 고유 가상 기록 약70행을 공유 DB에 영구 보존하며 정식 행/브라우저 QA를 할지, 공유 DB는 빈 스키마/권한 smoke로 두고 행 E2E를 `UNVERIFIED`로 기록할지 신산님께 질문했다. 답변 전 공유 QA 쓰기0·PR 병합 보류, 독립 검증/문서 작업만 계속한다.
+- PMO 판정: 공유 `shoppingmall`의 삭제 불가 완료/연결/불변 장부 시험 행은 migration 승인 밖의 영속 데이터 변경이다. 신산님 ‘사용 후 정리’ 지시와 긴장하므로 PMO는 포괄 승인하지 않았고, 정확한 fixture·행 수·보존/복구안을 격리 검증한 뒤 이 작업에서 신산님께 직접 선택받도록 했다. 공유 DB QA 쓰기0 유지; 행 E2E `UNVERIFIED`.
+- 계획 자원/담당: 어울 단일 writer. WSL의 전용 Docker network `shoppingmall-s6-qa-proposal-1009-net`, tmpfs PostgreSQL15 `shoppingmall-s6-qa-proposal-1009-pg`(DB `shoppingmall`, 새 system ID), 일회용 Node24 runner `shoppingmall-s6-qa-proposal-1009-node`만 사용한다. 기존 shared `local-postgres`와 연결/포트/volume을 공유하지 않는다. 정확 WSL Git SHA·이름 충돌0·DB system ID를 확인한 뒤 migration22와 기존 S6 실제 HTTP fixture를 실행, 생성 행 수/식별자/불변 관계를 읽어 manifest 초안을 산정한다. 실계좌/실주소/실결제 정보는 사용하지 않는다. 시험 후 정확 ID의 runner/PG/network만 제거하고 동명 잔류0을 확인한다. 공유 DB와 사전 백업은 보존한다.
+- 오류 횟수0; 다음 조치: 격리 fixture 재현·행 수 측정→PMO 권고에 따른 신산님 선택 요청. 다른 로컬 gate·PR 준비는 계속한다.
+
 ## 2026-10-09 S6 공유 개발 DB 적용·읽기 smoke 결과
 
 - 단계/담당/상태: S6 정식 WSL 공유 DB migration·빈 DB API smoke, 어울 단일 writer, **0020·0021 적용 및 읽기 smoke 통과 / 행 기반 E2E 미검증**. PMO의 특정 승인 범위만 사용했고 QA 거래·완료 불변 행 생성은 승인받지 않았다. 동일 근본 원인 연속 오류0.
