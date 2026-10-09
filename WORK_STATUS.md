@@ -4646,3 +4646,9 @@
 - `codex/next-work-20261010@4425e64be456e3116c1f768443ad7f6f9147a1df`와 원격 추적 SHA가 같다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 보존했다. 원격은 승인된 SSH 별칭이다.
 - 공개 읽기 API로 PR #17은 open, head `4425e64be456e3116c1f768443ad7f6f9147a1df`, base `399f77bcc72131ca9a03b0f0b8da39867fe7936f`를 확인했다. 같은 head의 push run `37998917444`와 PR run `37998923030`은 각각 실제 `verify` job의 test/typecheck/lint/build 4단계 모두 success다. GitHub 계정·토큰은 사용하지 않았다.
 - G2의 0023 별도 적용 여부를 질문했다. 답변 전 공유 DB 쓰기 0. G3 실제 OS 인쇄·200% 확대와 G4 정정 사건 Y 귀속은 여전히 미충족이다. Task 5 Important 0/병합 gate는 통과로 표시하지 않고 병합 요청 태그·merged-main smoke를 실행하지 않는다.
+
+## 2026-10-10 C2 최신 독립 검토·로컬 회귀
+
+- 담당: 어울. 기준 `main@399f77b` → `codex/next-work-20261010@cabc4f7`. 읽기 전용 독립 검토는 신규 Critical 0·Important 0, 기존 G4 Important 1, 신규 Minor 1로 판정했다. 신규 Minor는 선택 분류 조회의 사건/완료 이력은 당시 분류를 따르지만 관리자 완료 버튼 후보는 현재 판매자 분류를 따르는 불일치다. 과거 X 사건·현재 Y 판매자는 X 조회에서 버튼이 빠질 수 있고, 현재 X·Y 완료 판매자는 X 조회에서 이미 완료된 기간의 버튼이 보여 서버 409를 받을 수 있다. 서버 중복 완료 방어와 전체 분류 조회 우회가 있어 Minor로 분류하고 이번 계획의 필수 gate 보정과 구분한다. 검토는 브라우저 재현이 아닌 코드 경로 대조이며 이전 보고서 문구 두 건은 현 head에 반영됐음을 확인했다.
+- 최신 로컬 `apps/web/test/settlement-report.test.mjs`는 9 pass·0 skip·0 fail. 루트 `pnpm test`는 제품 601건/434 pass/167 DB·환경 조건부 skip/0 fail, PR 본문 8 pass/0 skip/0 fail, exit 0이다. 이 로컬 시험의 skip을 공유 DB 실증으로 취급하지 않는다.
+- 승인된 계획 밖 C1/0022·설계서·작업계획서·공유 DB는 변경하지 않았다. G2 별도 승인 답변 전 적용 0, G3 직접 실측 미검증, G4 Important 유지. PR 병합·merged-main smoke는 조건 미충족으로 실행하지 않는다.
