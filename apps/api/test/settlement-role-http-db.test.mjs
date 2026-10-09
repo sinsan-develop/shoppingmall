@@ -106,6 +106,30 @@ test('actual HTTP confines settlement reads to role and seller, with admin-only 
     const sellerAfterCompletion = await fetch(sellerPath, { headers: { cookie: sellerA } });
     assert.equal(sellerAfterCompletion.status, 200);
     assert.deepEqual((await sellerAfterCompletion.json()).completions.map(({ sellerId }) => sellerId), [a.id]);
+    const commissionPath = `${base}/admin/settlement/commissions`;
+    const manual = { sellerId: a.id, requestId: randomUUID(), amountWon: 1300,
+      occurredAt: '2026-05-02T00:00:00.000Z', reason: '뒤늦은 5월 수수료' };
+    const commissionHeaders = { origin, 'content-type': 'application/json' };
+    assert.equal((await fetch(commissionPath, { method: 'POST',
+      headers: { ...commissionHeaders, cookie: sellerA }, body: JSON.stringify(manual) })).status, 403);
+    const firstCommission = await fetch(commissionPath, { method: 'POST',
+      headers: { ...commissionHeaders, cookie: admin }, body: JSON.stringify(manual) });
+    assert.equal(firstCommission.status, 201);
+    const commissionId = (await firstCommission.json()).id;
+    const repeatedCommission = await fetch(commissionPath, { method: 'POST',
+      headers: { ...commissionHeaders, cookie: admin }, body: JSON.stringify(manual) });
+    assert.equal(repeatedCommission.status, 201);
+    assert.equal((await repeatedCommission.json()).id, commissionId);
+    assert.equal((await fetch(commissionPath, { method: 'POST',
+      headers: { ...commissionHeaders, cookie: admin },
+      body: JSON.stringify({ ...manual, amountWon: 1400 }) })).status, 409);
+    const frozenReport = await (await fetch(adminPath, { headers: { cookie: admin } })).json();
+    assert.equal(frozenReport.totals.commission, 19000);
+    assert.equal(frozenReport.lateTotals.commission, 1300);
+    assert.equal(frozenReport.completions[0].frozenTotals.commission, 12000);
+    assert.deepEqual(frozenReport.lateGroups.map(({ sellerId }) => sellerId), [a.id]);
+    const sellerFrozen = await (await fetch(sellerPath, { headers: { cookie: sellerA } })).json();
+    assert.equal(sellerFrozen.lateTotals.commission, 1300);
     const rows = (await pool.query(`SELECT seller_id AS "sellerId" FROM seller_settlement_periods`))
       .rows;
     assert.deepEqual(rows, [{ sellerId: a.id }]);
