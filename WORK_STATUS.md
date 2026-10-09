@@ -4392,3 +4392,15 @@
 - 담당: 어울. 신산님이 `docs/WORK_PLAN_20260-10-09.md`의 전 항목 충족을 목표로 재지시하고, 계획서 밖 작업은 금지했다. 지정 설계서·계획서는 수정하지 않았다.
 - B2의 요청/응답·금액 방향·과거 분류 예·migration 영향/복구 대조를 `docs/S6_FOLLOWUP_CONTRACT.md`에 현재 코드·0022/0023 SQL 기준으로 기록했다. 실제 DB 적용이나 신규 API 추가가 아니라 검토용 계약 대조다.
 - 공유 `local-postgres/shoppingmall`에 0022/0023을 적용하는 별도 환경 승인 질문을 보냈다. 답변 전에는 공유 DB schema·가상 거래 행을 변경하지 않는다. C1/C2의 순차 PR 구성과 OS 인쇄 창·키보드 실제 조작 증거도 계획 gate로 남아 있다.
+- 같은 후보 SHA `370bf74`에서 로컬 `pnpm test` 제품 596건/433 pass/163 조건부 skip/0 fail 및 PR 본문 검사 8/8, `pnpm lint`, `pnpm build`(웹 25경로), 빌드 후 순차 `pnpm typecheck` 모두 exit0. 조건부 skip을 실DB 통과로 바꾸지 않는다.
+- 현재 브랜치의 첫 구현 커밋 `6609389`에서 C1·C2가 이미 함께 들어간 것을 `origin/main..HEAD` 변경 구획으로 확인했다. 계획의 순차 PR 권고와 달라 그대로 한 PR로 제출하지 않고 비파괴 분리 절차를 검토한다. 이 상태를 루트 `docs/design_change.md`에 기록했다.
+- C3 직접 키보드·인쇄 검증용 자원 계획: WSL 격리 네트워크 `shoppingmall-s6-ui-1009-net`, DB 컨테이너 `shoppingmall-s6-ui-1009-pg`(DB `shoppingmall_s6_followup_1009`, 새 system ID), API `shoppingmall-s6-ui-1009-api`(loopback 9092), 웹 `shoppingmall-s6-ui-1009-web`(loopback 9091), Windows 임시 브라우저 profile `D:/tmp/shoppingmall-s6-ui-1009`를 이 시험 동안만 사용한다. 소유자 어울. 생성 전 이름·포트·마운트 충돌을 확인하고, 시험 후 해당 정확한 자원·익명 볼륨·임시 profile을 제거해 잔류를 확인한다. 공유 DB와 실계정은 사용하지 않는다.
+
+## 2026-10-09 격리 브라우저 재확인·자원 정리
+
+- 담당: 어울. C3 범위의 새 격리 PostgreSQL 15(`shoppingmall_s6_followup_1009`, system ID `7694645499261399076`)에 0000~0023 migration을 적용하고 시험용 관리자·판매자·정산 사건만 생성했다. 공유 `shoppingmall` DB에는 쓰지 않았다.
+- 새 API 컨테이너에서 기존 `apps/api/dist/main.js`가 오래된 빌드라 정산 경로가 404였다. WSL의 `dist` 일부가 root 소유여서 일반 사용자 재빌드가 `EACCES`로 실패했다. 소유권·기존 산출물을 변경하지 않고 현재 TypeScript 소스 런타임으로 시험 API 컨테이너만 다시 띄웠으며 같은 경로의 인증 전 응답이 401로 바뀐 것을 확인했다. 이 시험은 WSL production API 빌드 검증으로 주장하지 않는다. 환경 원인 오류 2회(구형 산출물·쓰기 권한)로 기록한다.
+- 관리자 시험 로그인 후 2026-05-01~12-31 정산 화면에서 원수수료 10,000원·감소 정정 2,000원·순수수료 8,000원 및 원사건 식별자를 직접 확인했다. Tab 입력은 포커스 이동을 입증하지 못했고 인쇄 버튼 조작은 브라우저 제어의 시간 초과로 운영체제 인쇄 창의 PDF 저장까지 검증하지 못했다. 앞선 Chrome 출력 PDF 2쪽 검증과 별개로 유지한다.
+- 시험용 브라우저 탭을 닫았다. Windows 임시 profile은 생성하지 않았다. 정확한 세 컨테이너와 DB 익명 볼륨·전용 네트워크를 제거하고 WSL 해당 컨테이너·네트워크·9091/9092/15439 listener가 0인 것을 재확인했다. 터널 세션은 재조회 시 존재하지 않아 추가 종료 대상이 없었다.
+- 로컬 제품 시험 596건/433 pass/163 조건부 skip/0 fail, PR 설명 시험 8/8 pass, `pnpm lint`, `pnpm build`(25경로), 빌드 후 순차 `pnpm typecheck` exit0. 이 수치는 공유 DB 적용·OS 인쇄·키보드 검증을 뜻하지 않는다.
+- 다음 조치: C1/C2를 승인된 순차 PR 경계로 비파괴 분리하고 각 단계 검증·병합 후 smoke를 수행한다. 공유 DB 0022/0023 적용은 별도 승인 답변 전 금지한다. 공유 DB 가상 거래 행은 신산님 결정대로 만들지 않는다. 설계서·작업계획서는 수정하지 않는다.
