@@ -19,6 +19,8 @@ test('completion inserts membership for same seller and Seoul dates before retur
   await completeSellerPeriod(client, adminId, { sellerId, from: '2026-05-01',
     to: '2026-05-20', reason: '오프라인 확인' });
   assert.equal(calls.length, 2);
+  assert.match(calls[0].sql, /seller_category_id,seller_category_name/);
+  assert.match(calls[0].sql, /JOIN seller_categories category ON category.id=seller.category_id/);
   assert.match(calls[1].sql, /event\.seller_id=\$2/);
   assert.match(calls[1].sql, /Asia\/Seoul/);
   assert.deepEqual(calls[1].params, ['33333333-3333-4333-8333-333333333333', sellerId,

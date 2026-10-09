@@ -1486,6 +1486,8 @@ export const settlementEvents = pgTable('settlement_events', {
   optionName: text('option_name'),
   sourceEventKind: text('source_event_kind').notNull(),
   sourceEventId: uuid('source_event_id').notNull(),
+  originalEventId: uuid('original_event_id').references((): AnyPgColumn => settlementEvents.id),
+  correctionDirection: text('correction_direction'),
   recordedBy: uuid('recorded_by').references(() => accounts.id),
   reason: text('reason'),
   recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1494,6 +1496,8 @@ export const settlementEvents = pgTable('settlement_events', {
   index('settlement_events_seller_occurred_idx').on(table.sellerId, table.occurredAt, table.id),
   index('settlement_events_category_occurred_idx').on(table.sellerCategoryId, table.occurredAt),
   index('settlement_events_order_idx').on(table.checkoutOrderId),
+  index('settlement_events_original_idx').on(table.originalEventId)
+    .where(sql`${table.originalEventId} IS NOT NULL`),
   check('settlement_events_dedupe_ck', sql`length(${table.dedupeKey}) BETWEEN 1 AND 250`),
   check('settlement_events_kind_ck', sql`${table.kind} IN
     ('sale','goods_discount','shipping_fee','shipping_support',
@@ -1522,11 +1526,18 @@ export const settlementEvents = pgTable('settlement_events', {
       AND length(trim(${table.productName})) > 0 AND length(trim(${table.optionName})) > 0)`),
   check('settlement_events_kind_product_ck', sql`(${table.kind} IN
     ('sale','goods_discount','goods_refund')) = (${table.optionId} IS NOT NULL)`),
+  check('settlement_events_correction_link_ck', sql`
+    (${table.kind} = 'correction' AND ${table.originalEventId} IS NOT NULL
+      AND ${table.correctionDirection} IN ('increase','decrease'))
+    OR (${table.kind} <> 'correction' AND ${table.originalEventId} IS NULL
+      AND ${table.correctionDirection} IS NULL)`),
 ]);
 
 export const sellerSettlementPeriods = pgTable('seller_settlement_periods', {
   id: uuid('id').primaryKey().defaultRandom(),
   sellerId: uuid('seller_id').notNull().references(() => sellers.id),
+  sellerCategoryId: uuid('seller_category_id').notNull().references(() => sellerCategories.id),
+  sellerCategoryName: text('seller_category_name').notNull(),
   startDate: date('start_date').notNull(),
   endDate: date('end_date').notNull(),
   completedBy: uuid('completed_by').notNull().references(() => accounts.id),
@@ -1536,6 +1547,7 @@ export const sellerSettlementPeriods = pgTable('seller_settlement_periods', {
   index('seller_settlement_periods_seller_idx').on(table.sellerId, table.startDate, table.endDate),
   check('seller_settlement_periods_dates_ck', sql`${table.startDate} <= ${table.endDate}`),
   check('seller_settlement_periods_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
+  check('seller_settlement_periods_category_name_ck', sql`length(trim(${table.sellerCategoryName})) > 0`),
   // The PostgreSQL GiST exclusion constraint is in migration 0020.
 ]);
 

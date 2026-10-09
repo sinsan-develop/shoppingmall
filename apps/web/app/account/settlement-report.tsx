@@ -14,6 +14,8 @@ export type SettlementReport = {
     totals: Record<Kind, number>;
     items: { id: string; kind: Kind; amountWon: number; occurredAt: string;
       recordedAt?: string; reason?: string | null;
+      originalEventId?: string | null; correctedKind?: Kind | null;
+      correctionDirection?: 'increase' | 'decrease' | null;
       checkoutOrderId: string | null; shipmentOrderId: string | null;
       productName: string | null; optionName: string | null }[];
   }[];
@@ -28,6 +30,13 @@ const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
 const occurred = (value: string) => new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short',
 }).format(new Date(value));
+
+function itemKind(item: SettlementReport['groups'][number]['items'][number]) {
+  const label = kinds.find(([kind]) => kind === item.kind)?.[1] ?? item.kind;
+  if (item.kind !== 'correction') return label;
+  const target = kinds.find(([kind]) => kind === item.correctedKind)?.[1] ?? item.correctedKind;
+  return `${label} · ${target ?? '원항목'} ${item.correctionDirection === 'increase' ? '증가' : '감소'}`;
+}
 
 function Totals({ values }: { values: SettlementReport['totals'] }) {
   return <dl className="settlement-totals">
@@ -56,11 +65,12 @@ export function SettlementReportView({ report }: { report: SettlementReport }) {
           <th scope="col">금액</th></tr></thead>
         <tbody>{group.items.map((item) => <tr key={item.id}>
           <td>{occurred(item.occurredAt)}</td>
-          <td>{kinds.find(([kind]) => kind === item.kind)?.[1] ?? item.kind}</td>
+          <td>{itemKind(item)}</td>
           <td>{item.productName ? `${item.productName} · ${item.optionName}` : '발송 주문'}</td>
           <td>{item.checkoutOrderId ?? '별도 근거'}
             {item.shipmentOrderId ? <small> / {item.shipmentOrderId}</small> : null}
-            {item.reason ? <small> · {item.reason}</small> : null}</td>
+            {item.reason ? <small> · {item.reason}</small> : null}
+            {item.originalEventId ? <small> · 원사건 {item.originalEventId}</small> : null}</td>
           <td>{won(item.amountWon)}</td>
         </tr>)}</tbody>
       </table></div>
@@ -81,9 +91,10 @@ export function SettlementReportView({ report }: { report: SettlementReport }) {
             <tbody>{group.items.map((item) => <tr key={item.id}>
               <td>{occurred(item.occurredAt)}</td>
               <td>{occurred(item.recordedAt ?? item.occurredAt)}</td>
-              <td>{kinds.find(([kind]) => kind === item.kind)?.[1] ?? item.kind}</td>
+              <td>{itemKind(item)}</td>
               <td>{item.checkoutOrderId ?? '원주문 없음'}
-                {item.reason ? <small> · {item.reason}</small> : null}</td>
+                {item.reason ? <small> · {item.reason}</small> : null}
+                {item.originalEventId ? <small> · 원사건 {item.originalEventId}</small> : null}</td>
               <td>{won(item.amountWon)}</td>
             </tr>)}</tbody>
           </table></div>

@@ -25,6 +25,15 @@ test('admin can enter a manual commission with explicit Seoul occurrence and evi
   assert.doesNotMatch(seller, /수수료 수동 기록/);
 });
 
+test('only admin sees a correction form with original event, direction, amount and reason', () => {
+  const admin = renderToStaticMarkup(createElement(SettlementPage, { role: 'admin' }));
+  for (const expected of ['정정 사건 기록', '원사건 ID', '증가', '감소', '정정 금액', '정정 사유']) {
+    assert.ok(admin.includes(expected), expected);
+  }
+  const seller = renderToStaticMarkup(createElement(SettlementPage, { role: 'seller' }));
+  assert.doesNotMatch(seller, /정정 사건 기록/);
+});
+
 test('a seller with zero events remains a completion candidate in all, category and individual views', () => {
   const sellers = [
     { id: 'farm-a', name: '농가 A', categoryId: 'farms' },

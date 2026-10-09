@@ -22,9 +22,12 @@ export async function completeSellerPeriod(client: PoolClient, adminId: string,
   const result = await client.query<{ id: string; sellerId: string;
     startDate: string; endDate: string; completedAt: Date }>(`
     INSERT INTO seller_settlement_periods
-      (seller_id,start_date,end_date,completed_by,reason,completed_at)
-    SELECT seller.id,$2::date,$3::date,$4,$5,statement_timestamp()
-    FROM sellers seller WHERE seller.id=$1 AND EXISTS (
+      (seller_id,seller_category_id,seller_category_name,
+       start_date,end_date,completed_by,reason,completed_at)
+    SELECT seller.id,category.id,category.name,
+      $2::date,$3::date,$4,$5,statement_timestamp()
+    FROM sellers seller JOIN seller_categories category ON category.id=seller.category_id
+    WHERE seller.id=$1 AND EXISTS (
       SELECT 1 FROM account_roles role WHERE role.account_id=$4 AND role.role='admin')
     RETURNING id,seller_id AS "sellerId",start_date::text AS "startDate",
       end_date::text AS "endDate",completed_at AS "completedAt"`,

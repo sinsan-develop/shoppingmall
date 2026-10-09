@@ -89,3 +89,18 @@ test('late-only reports name the empty frozen section accurately and print toget
   const css = readFileSync(new URL('../app/styles.css', import.meta.url), 'utf8');
   assert.match(css, /@media print\{[^}]*\.settlement-late\{break-inside:avoid;page-break-inside:avoid\}/);
 });
+
+test('print shows correction direction, target kind, original event and reason', () => {
+  const correction = { ...report.groups[0], totals: { ...totals, correction: 2000, sale: -2000 },
+    items: [{ id: 'correction-a', kind: 'correction', amountWon: 2000,
+      occurredAt: '2026-07-01T00:00:00Z', recordedAt: '2026-07-01T00:00:00Z',
+      correctionDirection: 'decrease', correctedKind: 'sale', originalEventId: 'sale-a',
+      reason: '판매액 오입력 정정', checkoutOrderId: 'may-order',
+      shipmentOrderId: 'may-shipment', productName: '고추', optionName: '500g' }] };
+  const html = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, groups: [correction], totals: correction.totals,
+  } }));
+  for (const expected of ['판매액 오입력 정정', '원사건 sale-a', '감소', '상품 매출']) {
+    assert.ok(html.includes(expected), expected);
+  }
+});

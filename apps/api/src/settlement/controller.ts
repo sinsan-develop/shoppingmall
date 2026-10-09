@@ -7,6 +7,7 @@ import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
 import { completeSellerPeriodTransaction, type CompleteSellerPeriodInput } from './complete.js';
 import { recordManualCommission, type ManualCommissionInput } from './commission.js';
+import { recordCorrectionTransaction, type CorrectionInput } from './correction.js';
 import { parseSettlementQuery, type SettlementQuery } from './query.js';
 import { readSettlement } from './repository.js';
 
@@ -112,6 +113,35 @@ export class AdminSettlementController {
         throw new ConflictException({ status: 'manual_commission_request_conflict' });
       throw error;
     } finally { client.release(); }
+  }
+
+  @Post('corrections')
+  @HttpCode(201)
+  async correction(@Req() request: RequestHeaders, @Body() raw: unknown) {
+    requireOrigin(request);
+    const { pool, accountId } = await this.context(request);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+      throw new BadRequestException({ status: 'invalid_settlement_correction' });
+    const body = raw as Record<string, unknown>;
+    if (Object.keys(body).some((key) => !['originalEventId', 'requestId', 'direction',
+      'amountWon', 'reason'].includes(key)) ||
+      typeof body.originalEventId !== 'string' || typeof body.requestId !== 'string' ||
+      typeof body.direction !== 'string' || typeof body.amountWon !== 'number' ||
+      typeof body.reason !== 'string')
+      throw new BadRequestException({ status: 'invalid_settlement_correction' });
+    try {
+      return await recordCorrectionTransaction(pool, accountId, body as CorrectionInput);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid settlement correction')
+        throw new BadRequestException({ status: 'invalid_settlement_correction' });
+      if (error instanceof Error && error.message === 'Settlement correction access denied')
+        throw new ForbiddenException();
+      if (error instanceof Error && error.message === 'Settlement correction request conflict')
+        throw new ConflictException({ status: 'settlement_correction_request_conflict' });
+      if (error instanceof Error && error.message === 'Settlement correction exceeds original amount')
+        throw new ConflictException({ status: 'settlement_correction_exceeds_original' });
+      throw error;
+    }
   }
 }
 

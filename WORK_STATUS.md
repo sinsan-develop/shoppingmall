@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-09 `design_change.md`의 승인된 S6 설계변경 반영
+
+- 담당/대상: 어울, `codex/next-work-20261009@07e996e` 격리 worktree. 신산님 직접 지시로 `docs/design/DESIGN.md`의 R09·데이터 경계·관리자 흐름에 승인된 정산 계약을 반영했다. `docs/WORK_PLAN.md`, 제품 코드, DB, 원격은 변경하지 않았다.
+- 반영: 발생 당시 판매자 분류가 있는 불변 사건, 판매자별 개별 완료와 사건 ID·항목별 금액 고정, 완료 후 추가 발생, 관리자 수수료 입력 및 전체·분류·개별 조회/인쇄. 정정 공개 계약과 분류 변경 후 과거 완료 귀속은 미확정으로 남겼다.
+- 검증/미검증: `design_change.md` 및 승인된 S6 계약 문서와 변경 diff를 대조하고 `git diff --check`를 확인한다. 문서 변경만 수행했으므로 제품 기능·DB·브라우저/인쇄·WSL 통합 시험을 새로 통과했다고 주장하지 않는다. 다음 조치는 신산님의 문서 검토다.
+
 ## 2026-10-09 신산님 직접 S6 PR 병합·로컬 브랜치 정리 지시
 
 - 신산님이 `codex/s6-settlement`의 `main` 병합과 `main` 외 모든 로컬 branch/worktree 정리를 직접 지시했다. 정본 설계서·작업계획서는 수정하지 않는다. 이 지시는 제품 기능/미검증 항목의 실제 PASS를 뜻하지 않는다.
@@ -4341,3 +4347,11 @@
 - 모바일 #f6bae4 지시에 따라 이전 주기 완료보고 후 대기하지 않고 `docs/NEXT_CYCLE_DESIGN_DRAFT.md`, `docs/NEXT_CYCLE_WORK_PLAN_DRAFT.md`를 검토용으로 작성했다. 기존 정본 변경이나 새 구현 branch 생성은 하지 않았다.
 - 초안은 S6 정정/DB 검증 충돌·PR gate, S7 앱/아이콘, S8 전체 회귀와 각각의 실제 완료증거·미검증 구분을 담는다. 최신 정본·Git 대조 및 문서 commit/push는 실행기 복구 전 미실행.
 - **2026-10-09 실행 경로 복구·재검증:** 일반 명령 실행기의 MXC 오류는 지속되지만 승인된 실행 경로로 `PMO/AGENTS.md`, 정본 `DESIGN.md`·`WORK_PLAN.md`, S6 worktree Git을 다시 읽었다. branch `codex/s6-settlement`, HEAD·원격 branch·PR #15 head `c7985d33e071b74cdda577d3354d590dbdebadab`, main `cf93d98d7bef6ada62c64a26f9b16adf03bb358e`. 이 문서·`design_change.md` 수정과 다음 주기 초안 2개가 dirty/untracked다. 로컬 `pnpm test` exit0: 제품 시험 577건/417 pass/160 조건부 skip/0 fail, PR 설명 시험 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build` 모두 exit0(웹 정적 페이지 25개 생성). 조건부 skip은 실 DB 검증 PASS가 아니다. SSH 별칭 `WSL-server`의 지정 checkout은 같은 SHA·같은 branch·clean임을 읽기 전용으로 확인했다. 공유 DB 최신 재대조와 WSL 시험 재실행, 문서 commit/push는 미실행. 과거 실행기 장애 기록은 당시 사실로 보존한다.
+
+## 2026-10-09 정산 후속 계획 C1·C2·C3 진행
+
+- 담당: 어울 단일 writer. 신산님이 `docs/WORK_PLAN_20260-10-09.md`의 A1~A3 권고안을 승인했다. 설계서·작업계획서는 이 주기에서 수정하지 않는다. 지정 `docs/design_change.md`는 루트 사용자 경로에 초기화했다.
+- C1 정정 사건 0022·관리자 API·화면/인쇄 및 C2 완료 분류 스냅샷 0023·역사적 분류 조회를 시험 실패 확인 후 구현했다. 기존 0020·0021 SQL은 수정하지 않았다. C1/C2는 아직 PR·실 DB 검증 전 작업 중 상태이며 완료 판정이 아니다.
+- 로컬 전체 `pnpm test`: 제품 589건/428 pass/161 조건부 skip/0 fail, PR 본문 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build` exit0(Next 정적 25경로 생성), `git diff --check` 0. 최초 전체 검사에서 구형 마지막 migration 가정 3건 실패 후 검사 불변 접두사를 유지하고 0022·0023 확장에 맞춰 수정, 재검증 성공. 동일 근본 원인 오류 1회.
+- WSL 사전 읽기: 지정 `/home/daon/deploy/shopping`은 `codex/s6-settlement@14e16fc` clean, Docker 사용 가능, `local-postgres` PostgreSQL 15.18, 공유 `shoppingmall` DB의 완료 기간 0행·migration 22건. 이 정보는 읽기 전용이며 신규 migration 미적용·공유 거래 시험 행 0이다.
+- C3 일회성 자원 계획: `shoppingmall-s6-followup-pg-1009` 컨테이너와 `shoppingmall_s6_followup_1009` DB, 소유자 어울, 정확한 후보 SHA 검증 동안만 사용한다. 같은 PostgreSQL 15 이미지로 0000~0023 적용·실 DB 시험을 마친 뒤 컨테이너를 중지·삭제하고 잔류를 확인한다. 브라우저/API 임시 자원은 생성 전에 별도 기록한다. 공유 DB 신규 migration 적용은 별도 승인 답변 및 백업/복구 대조 전 금지한다.

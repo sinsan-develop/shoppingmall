@@ -24,5 +24,18 @@ test('settlement routes deny anonymous read and reject cross-origin completion',
         occurredAt: '2026-05-02T00:00:00.000Z', reason: 'test' }),
     });
     assert.equal(commission.status, 403);
+    const correctionBody = JSON.stringify({ originalEventId: '11111111-1111-4111-8111-111111111111',
+      requestId: '22222222-2222-4222-8222-222222222222', direction: 'decrease',
+      amountWon: 1000, reason: '시험 정정' });
+    const correctionWithoutOrigin = await fetch(`${base}/admin/settlement/corrections`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: correctionBody,
+    });
+    assert.equal(correctionWithoutOrigin.status, 403);
+    const correctionWithoutSession = await fetch(`${base}/admin/settlement/corrections`, {
+      method: 'POST', headers: { origin: 'http://127.0.0.1:9091',
+        'Content-Type': 'application/json' }, body: correctionBody,
+    });
+    assert.equal(correctionWithoutSession.status, 401);
   } finally { await app.close(); }
 });

@@ -155,6 +155,20 @@
       "when": 1791532800000,
       "tag": "0021_s6_completed_event_links",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791619200000,
+      "tag": "0022_s6_corrections",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791705600000,
+      "tag": "0023_s6_completion_category",
+      "breakpoints": true
     }
   ]
 }

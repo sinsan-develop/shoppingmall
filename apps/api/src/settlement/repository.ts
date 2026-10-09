@@ -22,13 +22,20 @@ export async function readSettlement(client: PoolClient, filter: SettlementQuery
     event.seller_category_name AS "sellerCategoryName",event.kind,
     event.amount_won::text AS "amountWon",event.occurred_at AS "occurredAt",
     event.recorded_at AS "recordedAt",event.reason,
-    event.checkout_order_id AS "checkoutOrderId",
-    event.shipment_order_id AS "shipmentOrderId",event.product_id AS "productId",
-    event.option_id AS "optionId",event.product_name AS "productName",
-    event.option_name AS "optionName",event.source_event_kind AS "sourceEventKind",
+    event.original_event_id AS "originalEventId",
+    original.kind AS "correctedKind",
+    event.correction_direction AS "correctionDirection",
+    coalesce(event.checkout_order_id,original.checkout_order_id) AS "checkoutOrderId",
+    coalesce(event.shipment_order_id,original.shipment_order_id) AS "shipmentOrderId",
+    coalesce(event.product_id,original.product_id) AS "productId",
+    coalesce(event.option_id,original.option_id) AS "optionId",
+    coalesce(event.product_name,original.product_name) AS "productName",
+    coalesce(event.option_name,original.option_name) AS "optionName",
+    event.source_event_kind AS "sourceEventKind",
     event.source_event_id AS "sourceEventId",period.id AS "completionPeriodId",
     link.period_id AS "linkedPeriodId"
     FROM settlement_events event
+    LEFT JOIN settlement_events original ON original.id=event.original_event_id
     LEFT JOIN seller_settlement_periods period ON period.seller_id=event.seller_id
       AND (event.occurred_at AT TIME ZONE 'Asia/Seoul')::date
         BETWEEN period.start_date AND period.end_date
@@ -56,25 +63,48 @@ export async function readSettlement(client: PoolClient, filter: SettlementQuery
     FROM seller_settlement_periods period
     JOIN sellers seller ON seller.id=period.seller_id
     WHERE period.start_date <= $2::date AND period.end_date >= $1::date
-      AND ($3::uuid IS NULL OR seller.category_id=$3)
+      AND ($3::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM seller_settlement_period_event_links linked
+        JOIN settlement_events event ON event.id=linked.event_id
+        WHERE linked.period_id=period.id AND event.seller_category_id=$3
+      ) OR (period.seller_category_id=$3 AND NOT EXISTS (
+        SELECT 1 FROM seller_settlement_period_event_links linked
+        WHERE linked.period_id=period.id)))
       AND ($4::uuid IS NULL OR period.seller_id=$4)
     ORDER BY seller.display_name,period.start_date,period.id`,
   [filter.from, filter.to, filter.categoryId, filter.sellerId]);
   const frozen = completionResult.rows.length
     ? await client.query<{ periodId: string; kind: SettlementKind; amountWon: string }>(`
-      SELECT link.period_id AS "periodId",event.kind,
-        sum(event.amount_won)::text AS "amountWon"
-      FROM seller_settlement_period_event_links link
-      JOIN settlement_events event ON event.id=link.event_id
-      WHERE link.period_id=ANY($1::uuid[])
-      GROUP BY link.period_id,event.kind`, [completionResult.rows.map((row) => row.id)])
+      SELECT amount.period_id AS "periodId",amount.kind,
+        sum(amount.amount_won)::text AS "amountWon"
+      FROM (
+        SELECT link.period_id,event.kind,event.amount_won
+        FROM seller_settlement_period_event_links link
+        JOIN settlement_events event ON event.id=link.event_id
+        WHERE link.period_id=ANY($1::uuid[])
+          AND ($2::uuid IS NULL OR event.seller_category_id=$2)
+        UNION ALL
+        SELECT link.period_id,original.kind,
+          CASE WHEN correction.correction_direction='increase'
+            THEN correction.amount_won ELSE -correction.amount_won END
+        FROM seller_settlement_period_event_links link
+        JOIN settlement_events correction ON correction.id=link.event_id
+          AND correction.kind='correction'
+        JOIN settlement_events original ON original.id=correction.original_event_id
+        WHERE link.period_id=ANY($1::uuid[])
+          AND ($2::uuid IS NULL OR correction.seller_category_id=$2)
+      ) amount
+      GROUP BY amount.period_id,amount.kind`,
+    [completionResult.rows.map((row) => row.id), filter.categoryId])
     : { rows: [] };
   const completions = completionResult.rows.map((row) => {
     const frozenTotals = { ...summarizeSettlement([]).totals };
     for (const total of frozen.rows.filter((value) => value.periodId === row.id)) {
       const amount = Number(total.amountWon);
-      if (!Number.isSafeInteger(amount) || amount < 0) throw new Error('Settlement amount overflow');
-      frozenTotals[total.kind] = amount;
+      if (!Number.isSafeInteger(amount) ||
+          !Number.isSafeInteger(frozenTotals[total.kind] + amount))
+        throw new Error('Settlement amount overflow');
+      frozenTotals[total.kind] += amount;
     }
     return { ...row, completedAt: row.completedAt.toISOString(), frozenTotals };
   });
