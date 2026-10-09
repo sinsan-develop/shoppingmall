@@ -23,12 +23,13 @@
 - 최신 브라우저 후보 `24deb93d9cf689944e1384888e379339a6a35c5b`의 별도 격리 DB에서 관리자/판매자 실제 화면을 확인했다. 원수수료 10,000원, 감소 정정 2,000원, 현재 8,000원, 과거 완료 고정 10,000원이 원사건/사유와 일치했다. 430 CSS px 가로 넘침 0, 시작일에서 종료일로 일부 Tab 이동 확인. 시험용 컨테이너·네트워크·볼륨·포트 전달은 제거했다.
 - C1 인쇄 수정 제품 SHA `56c1b55`를 WSL 격리 PostgreSQL 15(system identifier `7694665941122375717`, migration 0000~0022)와 같은 웹/API 소스에서 검증했다. 실제 Chrome CDP가 관리자·판매자 PDF 각각 288,157 byte·A4 2쪽을 생성했고 원수수료 10,000원·정정 2,000원·현재 8,000원·완료 당시 10,000원 및 원사건·사유가 인쇄됐다. 첫 PDF에서 완료 이력 카드가 페이지 사이에 나뉘는 결함을 재현해 A4/분할 방지로 수정했고, 최종 PNG로 카드 전체가 한 쪽에 있는 것을 직접 확인했다. 1440·430 CSS px 가로 넘침 0, 실제 Tab 이동·`:focus-visible` 확인. 전용 컨테이너·DB 볼륨·네트워크·Chrome 프로필/PDF는 제거해 잔류 0이다.
 - 인쇄 수정 후 로컬 `pnpm test` 제품 592건/428 pass/164 조건부 skip/0 fail, PR 본문 시험 8/8, `pnpm lint`, `pnpm typecheck`, `pnpm build` exit0(웹 25경로). 동일 SHA WSL Next production build 25경로도 통과했다.
+- 현재 후보를 재검증해 로컬 제품 592건/428 pass/164 조건부 skip/0 fail, PR 본문 시험 8/8 pass, lint/build/typecheck exit0을 확인했다. 지정 WSL 시험 checkout은 동일 작업 SHA로 fast-forward했고 clean이다. 공유 DB를 읽기 전용 재조회해 migration 22건과 정산 사건·기간·연결 각 0행을 확인했다.
 
 ## 미검증
 
-- 공유 개발 DB 0022 적용·읽기 smoke는 별도 승인 전이므로 미실행이다. 공유 DB 거래 행 E2E는 사용자 결정에 따라 실행하지 않는다. 로컬 조건부 skip 163건은 PASS로 계산하지 않는다.
+- 공유 개발 DB 0022 적용·읽기 smoke는 별도 승인 전이므로 미실행이다. 공유 DB 거래 행 E2E는 사용자 결정에 따라 실행하지 않는다. 로컬 조건부 skip 164건은 PASS로 계산하지 않는다. 새 조회 코드가 0022의 original_event_id 열을 참조하므로 공유 DB 적용 전 새 API를 연결하면 조회 실패 위험이 있다.
 - 정확한 C1 SHA의 Chrome 자동 PDF와 일부 실제 Tab 이동은 확인했지만 OS 인쇄 창 ‘PDF로 저장’, 브라우저 200% 실제 확대, 전체 폼 키보드 탐색, WSL production API image 검증은 미검증이다. 확대 단축키 전후 브라우저 값이 변하지 않아 430px 반응형 시험을 확대 증거로 대체하지 않는다.
-- 독립 읽기 전용 리뷰의 최초 Important 1·Minor 2와 재리뷰 Important 1(동시 동일 요청)을 수정했다. 동일 reviewer의 수정본 재검토에서 C1/C1.2 코드의 잔여 Critical/Important 0으로 판정했다. reviewer는 시험을 재실행하지 않았다. PR CI, 병합 및 merged-main smoke는 이 본문 작성 시점에는 아직 수행되지 않았다. 실제 발송·PG 실거래·Oracle 배포·사용자 인수시험은 승인된 이번 계획의 대상 밖이다.
+- 독립 읽기 전용 리뷰의 최초 Important 1·Minor 2와 재리뷰 Important 1(동시 동일 요청)을 수정했다. 최신 재검토의 확인 가능한 C1 정정 경로에서 새 계산 결함은 발견되지 않았으나 파일 읽기 정체로 전체 PR 차이·Git 인덱스 상태를 끝까지 대조하거나 재시험하지 못했다. PDF 내부 금액·사유·원사건 자동 단언도 없다. 전체 리뷰 PASS로 표시하지 않는다. PR CI 상세, 병합 및 merged-main smoke는 이 본문 작성 시점에는 아직 확인·수행되지 않았다. 실제 발송·PG 실거래·Oracle 배포·사용자 인수시험은 승인된 이번 계획의 대상 밖이다.
 
 ## 롤백
 
