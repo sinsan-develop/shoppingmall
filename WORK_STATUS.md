@@ -4664,3 +4664,18 @@
 - 담당: 어울. 작업 브랜치 `3fa5cb789c70bd4dde59ca002d33637dbf4927ea`의 제품 코드를 그대로 두고 G2 공유 대상만 읽었다. 이 SHA의 push run `38001240869`과 PR run `38001244713`은 각 verify job의 test/typecheck/lint/build가 모두 success다. 정확한 `WSL-server/local-postgres/shoppingmall`은 PostgreSQL 15.18, system ID `7622490131194466339`, Drizzle 이력 23건, 정산 사건·완료 기록 각각 0건이다. 0023 SQL SHA-256은 `A1E20884C1F65DB944C15DEB443E948F80E2821E144A3296DD05122B3DC67D9B`로 격리 검증본과 같다. 별도 승인 전 적용·백업 생성·시험 거래 생성은 0이다.
 - G3의 허용된 브라우저 인벤토리에는 이 시험의 실제 정산 화면 탭이 없었다. 앞선 OS 인쇄/200% 제어 실패를 다시 실행하거나 CDP PDF를 직접 실측으로 대체하지 않았다. 사용자 기존 탭은 변경하지 않았다. G4는 `correction.ts`가 X를 복사하고 0022 trigger가 원사건과 같은 분류를 강제함을 재확인했으며 현 계획 밖 C1/0022/추가 migration을 수정하지 않았다.
 - G2의 정확한 별도 승인 질문을 다시 전달했다. 답변 또는 후속 계획/검증 기준 결정 전까지 세 항목은 `docs/design_change.md`에 남기고, 작업계획서 Task 5 병합 요청·merged-main smoke를 실행하지 않는다.
+
+## 2026-10-10 G2 공유 DB 0023 적용 준비
+
+- 담당: 어울. 신산님이 공유 `WSL-server/local-postgres/shoppingmall`의 0023만 적용하는 별도 질문에 `지시대로해`라고 답해 권고안 실행으로 해석했다. 적용 범위는 이 DB의 0023 한 건이며 시험 거래·기존 사건 변경·다른 DB는 제외한다.
+- 적용 전 WSL 지정 checkout `codex/next-work-20261010@8eef276552f6c06059571c7dde2138865df91d79` clean, SQL SHA-256 `a1e20884c1f65db944c15deb443e948f80e2821e144a3296dd05122b3dc67d9b`, PostgreSQL 15.18, system ID `7622490131194466339`, migration 23건, 정산 사건/완료 기간 및 계정/판매자/주문/결제/환불 사건 각 0건을 확인했다. 사전 행 수 확인의 첫 SQL은 존재하지 않는 `users` 테이블을 참조해 읽기 전용 오류 1회였고 실제 `accounts`로 바로잡아 재조회했다. 자료 변경은 없었다.
+- 백업 계획: `/home/daon/deploy/shopping-s6-db-backups/pre-0023-8eef276-20261010.dump`에 0600 custom-format 전량 백업을 생성하고 크기·SHA-256·TOC를 확인한다. 기존 로컬 이미지 `pgvector/pgvector:0.8.2-pg15`의 일회용 `shoppingmall-s6-0023-restore-1010` 컨테이너는 `--network none`과 tmpfs로 격리해 복원/행 수/migration 수를 시험한 뒤 정확 ID 대조로 제거하고 잔류 0을 확인한다. 공유 DB 적용 실패 시 자동 역마이그레이션·임의 복원/삭제 없이 상태와 백업을 보존한다.
+- 공유 DB 적용 뒤 읽기 smoke에는 정확히 `shoppingmall-s6-0023-smoke-1010` 일회용 Node 24 API 컨테이너를 사용한다. `local-postgres`의 network namespace에서만 루프백 9092로 띄우고 공개 포트·새 네트워크·영속 볼륨·시험 거래는 만들지 않는다. `/health`, `/ready`, 익명 정산 조회와 교차 origin 차단을 확인한 즉시 컨테이너 ID 대조 후 제거한다.
+
+## 2026-10-10 G2 공유 DB 0023 적용·읽기 검증 결과
+
+- 담당: 어울. 승인된 정확한 WSL DB PostgreSQL 15.18/system ID `7622490131194466339`에 0023만 적용했다. 적용 직전 checkout `8eef276552f6c06059571c7dde2138865df91d79` clean, SQL SHA-256 `a1e20884c1f65db944c15deb443e948f80e2821e144a3296dd05122b3dc67d9b`, migration 23건, 정산 사건/완료 및 기존 주요 6범주 0건을 재확인했다. 표준 읽기 전용 dry-run은 23 적용·0023 하나 대기(2문장)였다.
+- 0700 백업 디렉터리에 custom-format 전량 백업 `pre-0023-8eef276-20261010.dump`를 0600·272193 bytes로 만들었다. SHA-256 `3cc59a0767a4beb2081d80f0fdf99f54c48080d7c30fa92262e88415503aaa98`, `pg_restore -l` 통과. 기존 로컬 PG15 이미지의 `--network none`·tmpfs 일회용 복원 컨테이너 ID `c797bef3...`에 실제 복원해 migration 23·기존 주요 행 0을 확인하고 정확 ID 대조 후 제거·잔류 0을 확인했다. 백업은 복구 검토용으로 보존한다.
+- 같은 소스의 표준 Drizzle migrator `node --import tsx scripts/migrate.ts`가 exit 0. 적용 후 DB 식별자 불변, migration **24건/대기 0**, 스냅샷 두 열 실제 조회 가능, 정산 사건/완료와 기존 계정/판매자/주문/결제/환불 사건 0건을 확인했다. 적용 후 첫 열 확인 SQL은 원격 셸에서 `$$`가 PID로 확장돼 읽기 전용 구문 오류 1회였으며, 열을 직접 선택하는 SQL로 고쳐 확인했다. 데이터 변경·복구 작업은 없었다.
+- 일회용 API ID `fee02fdf...`에서 공유 DB에 대한 `/health` 200, `/ready` 200, 익명 관리자·판매자 정산 조회 각 401, 교차 Origin 관리자 완료 POST 403을 실측했다. POST는 origin 단계에서 거부돼 거래를 만들지 않았다. 정확 ID 대조 후 API 컨테이너 제거·잔류 0, 사후 migration 24 및 주요 행 0을 다시 확인했다. 공개 포트/새 네트워크/영속 볼륨은 만들지 않았다.
+- G2는 공유 DB 스키마·읽기 경계에 한해 확인했다. 신산님 지시대로 공유 DB의 가상 불변 거래 행 검증은 하지 않았고 격리 거래 E2E와 구분한다. 남은 G3 실제 OS PDF 저장·200% 확대와 G4 정정 사건 당시 분류 Important는 `docs/design_change.md`에 남긴다. 지정 계획 Task 5 병합 조건은 여전히 충족하지 않는다.
