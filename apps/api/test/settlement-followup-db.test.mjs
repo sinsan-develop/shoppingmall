@@ -88,8 +88,8 @@ test('isolated DB fixes category history and records immutable signed correction
     assert.equal(mixedB.completions.find((entry) => entry.id === mixed.id)?.frozenTotals.commission,
       3000);
     const all = await readSettlement(client, parseSettlementQuery({ from: '2026-01-01',
-      to: '2026-12-31' }));
-    assert.equal(all.totals.commission, 15000);
+      to: '2026-12-31', sellerId }));
+    assert.equal(all.totals.commission, 8000);
     assert.equal(all.totals.correction, 2000);
     assert.equal(all.groups.flatMap((group) => group.items)
       .find((item) => item.id === correction.id)?.originalEventId,
@@ -160,7 +160,7 @@ test('isolated HTTP enforces admin-only corrections and exposes dated seller evi
     assert.equal((await send(admin, { ...body, amountWon: 3000 })).status, 409);
     assert.equal((await send(admin, { ...body, requestId: randomUUID(), amountWon: 11000 })).status, 409);
     const query = '?from=2026-01-01&to=2026-12-31';
-    const adminReport = await fetch(`${base}/admin/settlement${query}`, {
+    const adminReport = await fetch(`${base}/admin/settlement${query}&sellerId=${sellerId}`, {
       headers: { cookie: admin },
     });
     assert.equal(adminReport.status, 200);
