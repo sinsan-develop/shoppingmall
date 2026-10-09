@@ -4493,3 +4493,20 @@
 - WSL 지정 checkout을 원격 작업 branch SHA `867d34d`로 fast-forward했다. Node 24 일회성 컨테이너에서 저장소 읽기 전용 마운트·컨테이너 내부 `/tmp` 출력으로 API TypeScript 컴파일과 생성 `main.js` 구문 검사를 실행해 exit0이었다. 이 컨테이너는 `--rm`으로 폐기됐으며 실제 컴파일 API/DB E2E의 대체 증거가 아니다.
 - 새 격리 PostgreSQL system identifier `7694674146640224294`, migration 0000~0022(23 이력), 가상 시험 run `bd86bb05`로 준비했다. API `/ready`와 웹 `/login` Windows loopback HTTP 200, WSL 웹 25경로 production build 통과. 가시 Chrome 별도 프로필과 PID 19256을 열었으나 Windows Computer Use가 현재 브라우저 URL을 충분히 확정하지 못해 정책상 UI 조작을 중단했다. 따라서 OS ‘PDF로 저장’과 실제 200% 확대는 이번 재시도에서도 미검증이며 이전 CDP 자동 PDF 근거와 구분한다. 동일 원인 UI 도구 실패 1회.
 - 이번 시험 전용 웹/API/PG 세 컨테이너와 익명 DB 볼륨 `7696ea6ddbc749337d4b68219f9dfb4f474e69c232f64dc8ce4fbdfbe1b2f829`, 연결 0인 전용 네트워크, Chrome PID 19256·프로필 `D:/tmp/shoppingmall-s6-c1-visible-1009`를 정확히 대조해 제거했다. 가상 계정·사건도 격리 DB 볼륨과 함께 폐기했다. 사용자 Chrome 창과 공유 `local-postgres/shoppingmall`은 변경하지 않았다. 미검증과 재개 조건은 루트 `docs/design_change.md`에 기록한다.
+
+## 2026-10-09 지정 작업계획 항목별 최종 대조
+
+- 담당: 어울. 기준 계획 `D:/Project/shoppingmall2/docs/WORK_PLAN_20260-10-09.md`, 작업 브랜치 `codex/next-work-20261009`, 현재 제품 구현은 C1/C1.2와 migration 0022만 포함한다. C2의 과거 구현 근거는 이전 후보 SHA `4afa2db`에 보존했지만 현재 PR 결과에는 포함하지 않는다. 설계서·지정 계획서는 수정하지 않았다.
+- B0: 지정 설계서의 사용자 소유 미커밋 변경을 보존하고 원격 `main@07e996e`·PR #16·WSL checkout 및 공유 DB를 읽기 전용 대조했다. B1: 기존 정산 회귀와 신규 C1 시험을 포함한 로컬 전체 592건/428 pass/164 조건부 skip/0 fail, PR 본문 시험 8/8 pass. `pnpm lint`, `pnpm build`(Next 25경로), 빌드 후 `pnpm typecheck` 각각 exit0. B2: 승인 전 계약 비교자료 `docs/S6_FOLLOWUP_CONTRACT.md` 작성 이력과 현재 코드 대조 기록이 있다.
+- C1/C1.2: 0022 불변 정정·원사건 링크·증감·멱등/경합·관리자 권한/입력·판매자 자기 조회를 구현했다. 격리 PostgreSQL에서 0000~0022 적용/재실행과 불변·HTTP·경합 4/4 pass·0 skip을 앞 절에서 확인했다. 정확한 C1 제품의 Chrome 자동 A4 PDF 관리자·판매자 각 2쪽, 원수수료 10,000원·감소 정정 2,000원·현재 8,000원·완료 당시 고정 10,000원, 원사건·사유, 1440/430px 및 일부 실제 Tab 이동을 확인했다. Windows OS 인쇄 창 저장과 실제 200% 확대는 이 근거에 포함되지 않는다.
+- C2: 계획의 순차 PR 조건상 C1의 검증·main 병합·smoke·정리 전에는 별도 구현 브랜치를 만들지 않는다. 이번 주기에 실행할 수 없는 의존 단계로 루트 `docs/design_change.md`에 기록했다. 이는 C2 코드나 기능이 현재 main에 있다는 뜻이 아니다.
+- C3: 원격 작업 SHA와 WSL 지정 checkout을 맞추고 격리 DB·브라우저·출력 시험의 일회성 자원을 정리했다. 공유 `local-postgres/shoppingmall` 읽기 전용 재조회 결과 system ID `7622490131194466339`, migration 22건, 정산 사건/기간/연결 0행이다. 0022 실제 적용·읽기 smoke는 계획의 별도 환경 승인 전이므로 미실행, 공유 DB 불변 가상 행 E2E는 사용자 결정상 미실행이다. PR #16 생성 전용 요청 태그 처리와 head 일치는 SSH ref로 확인했지만 CI 세부 결과·PR 본문 내용은 별도 확인 근거가 없다. 코드 재리뷰는 `c0b386f`까지이고 그 뒤 인쇄 CSS/QA 스크립트의 전체 PR 독립 재리뷰는 미실행이다. 필수 gate 미충족이므로 병합·merged-main smoke는 실행하지 않았다.
+- 후속 재작업 입력: 공유 DB 별도 승인/읽기 smoke, 지원되는 실제 브라우저의 OS PDF 저장·200% 확대, 허용 경로의 PR CI·본문 확인과 C1 병합/merged-main smoke, 이어서 최신 main의 C2 순차 개발·검증. 위 미진 항목은 루트 `docs/design_change.md`에 판정·영향·재개 조치로 기록하며 신산님이 정한 이번 주기 **계획상 처리**와 기능/검증 PASS를 구별한다. 실제 발송·PG 실거래·Oracle·사용자 인수는 이 계획의 대상 밖이다.
+
+## 2026-10-09 지정 계획 최종 재검증
+
+- 담당: 어울. 원격 `origin/main@07e996e`, 작업 branch/PR #16 head `178de2a`를 SSH 별칭으로 대조했고 PR 생성 전용 요청 태그는 처리 후 사라졌다. 지정 WSL checkout을 동일 SHA로 fast-forward했으며 clean이다. 사용자 소유 설계서 로컬 수정은 stage하지 않았다.
+- 현재 SHA의 로컬 `pnpm test` 제품 592건/428 pass/164 조건부 skip/0 fail, PR 본문 시험 8/8 pass. `pnpm lint`, `pnpm build`(API·웹/25경로), 빌드 후 `pnpm typecheck` 각각 exit0. 조건부 skip을 실DB 시험 PASS로 바꾸지 않는다.
+- 공유 `WSL-server/local-postgres/shoppingmall` 읽기 전용 재확인: system ID `7622490131194466339`, migration 22건, `settlement_events`·`seller_settlement_periods`·`seller_settlement_period_event_links` 각 0행. 0022는 적용하지 않았다. 실제 UI 확대/OS PDF 저장, 공유 DB 0022 적용·읽기 smoke, CI/PR 본문 상세, main 병합/merged-main smoke와 순차 C2는 루트 `docs/design_change.md`의 재작업 항목이다.
+- 최신 PR 전체 차이에 대한 읽기 전용 독립 재리뷰를 요청했다. 결과를 받은 뒤 Critical/Important를 재분류해 계획 내 수정 가능 항목은 바로 처리하고, 승인 경계만 기록한다.
+- 독립 재리뷰: 새 정정 계산의 Critical/Important 결함은 확인되지 않았다. 공유 DB에 0022가 없어 새 조회 코드 선실행 시 실패하는 배포 순서 위험은 Important로 기록한다. PDF 내용의 금액·사유·원사건 자동 단언은 없는 Minor가 있다. 리뷰어의 파일 읽기 정체로 전체 PR 차이·Git 상태·재시험은 미확인이다. 별도 환경 승인·migration·읽기 smoke·전체 검토 전에는 병합하지 않는다.
