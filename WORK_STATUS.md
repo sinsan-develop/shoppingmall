@@ -4452,3 +4452,11 @@
 - 수정 후 로컬 전체 제품 시험 591건/428 pass/163 조건부 skip/0 fail, PR 본문 8/8 pass. `pnpm lint`, `pnpm typecheck`, `pnpm build`(Web 25경로) exit0. 새 격리 DB 실증 전이라 조건부 skip을 통과로 바꾸지 않는다.
 - C1 수정 SHA `9a80ff7ca005d9d441542a4924e967f6b2733e71`을 SSH 별칭 원격에 push하고 지정 WSL checkout에서 fast-forward해 같은 SHA·clean 상태를 확인했다. 격리 PG15 DB `shoppingmall_s6_followup_1009`, system identifier `7694660615772590117`에 0000~0022 migration을 적용·재실행해 이력 23건을 확인했다. 새 대소문자 재시도·다른 원사건 충돌 포함 실DB 불변/HTTP 역할/동시 경합 3건 pass·0 skip·0 fail. 정확한 시험 컨테이너 `shoppingmall-s6-c1-1009-pg`와 익명 볼륨을 제거했고 이름·볼륨·15439 listener 잔류 0을 확인했다. 공유 DB는 건드리지 않았다.
 - 다음: 수정 후 독립 재리뷰와 PR/CI를 진행한다. 정확한 C1 SHA의 OS PDF 저장·200% 확대 및 공유 DB 0022 적용은 여전히 미검증/별도 승인 경계다.
+
+## 2026-10-09 C1 동시 동일 요청 재시도 보정
+
+- 독립 재리뷰가 Important 1건을 발견했다. 동일 UUID·동일 본문의 동시 7,000원 감소 두 건이 원사건 잠금을 기다리면, 두 번째가 기록된 첫 사건을 재확인하기 전 잔액 3,000원을 검사해 잘못 거절될 수 있었다. 동일 요청을 모두 잠금 대기 상태로 만든 격리 PostgreSQL 시험을 추가해 수정 전 `Settlement correction exceeds original amount` RED를 재현했다.
+- 원사건 잠금 획득 직후 기존 요청을 다시 조회해 동일 본문에는 첫 사건을 반환하고 다른 본문에는 충돌을 반환하도록 수정했다. WSL SHA `c0b386f4021ec3f1fc2434f22c6ec832d485d2bf`·격리 DB `shoppingmall_s6_followup_1009`(system identifier `7694662024638005286`)에서 migration 0000~0022 재실행 후 실DB 불변·HTTP·서로 다른 요청 경합·같은 요청 경합 4/4 pass·0 skip·0 fail. 전용 컨테이너와 익명 볼륨·15439 listener 잔류 0을 확인했다.
+- 수정 후 로컬 전체 제품 시험 592건/428 pass/164 조건부 skip/0 fail, PR 본문 8/8 pass, lint/typecheck/build(Web 25경로) exit0. 새 실DB 시험 1건은 로컬에서는 환경 조건부 skip, WSL 격리 DB에서 별도 0 skip 통과로 구분한다.
+- PR #16은 생성 전용 자동화로 열렸고 자동 병합 요청은 하지 않았다. 브랜치 push로 PR head가 바뀌었으므로 최신 본문·정확한 head/CI와 독립 재리뷰를 확인해야 한다. 공유 DB 0022, OS PDF 저장·200% 확대는 여전히 미검증 경계다.
+- 같은 독립 reviewer가 `c0b386f`까지 읽기 전용 재검토한 결과, 최초 UUID/문서 지적과 동시 재시도 결함이 수정됐고 C1/C1.2 코드의 남은 Critical/Important는 확인되지 않았다. 코드 리뷰 gate PASS이며 reviewer가 직접 실행하지 않은 환경·CI gate는 별도로 남는다.
