@@ -25,7 +25,7 @@
 
 - 공유 DB의 0023 적용/연결 smoke는 G2 별도 승인 답변 전이라 미실행이다. OS 인쇄 창에서 직접 ‘PDF로 저장’과 브라우저 실제 200% 확대는 G3 미검증이며 CDP PDF/430px로 대신하지 않는다.
 - 독립 리뷰 Critical 0, Important 2 중 인쇄물의 0건 분류명 누락은 보정·재검증했다. 남은 Important는 계획의 ‘정정 발생 당시 분류’와 기존 C1/0022의 ‘원사건 분류’ 강제 충돌이다. X→Y 변경 후 정정의 귀속은 `docs/design_change.md` G4의 설계 판단 전까지 PASS로 표시하지 않는다. 따라서 Important 0 및 자동 병합 조건은 미충족이다.
-- 로컬 전체 시험의 조건부 skip 167건은 DB 실증 통과가 아니다. 이 PR의 생성 시점 push CI `verify`는 success였지만 PR 이벤트 run `37967360814`는 jobs 없이 `completed/action_required`여서 PR CI 통과가 아니다(`docs/design_change.md` G5). merged-main smoke도 미실행이다. 실제 발송·PG 실거래·Oracle·사용자 인수는 이 계획 범위 밖이다.
+- 로컬 전체 시험의 조건부 skip 167건은 DB 실증 통과가 아니다. 최초 PR 이벤트 run `37967360814`는 jobs 없이 `action_required`였으나 후속 head `de7625a`의 push run `37967798086` 및 PR run `37967805609`는 모두 `completed/success`였다. 이 본문을 포함한 추가 head는 새 SHA의 CI를 다시 확인해야 한다(`docs/design_change.md` G5). merged-main smoke는 미실행이다. 실제 발송·PG 실거래·Oracle·사용자 인수는 이 계획 범위 밖이다.
 
 ## 롤백
 

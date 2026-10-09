@@ -25,9 +25,9 @@
 - 수행 조치: 기존 불변 장부나 0022 트리거를 임의 수정하지 않았다. 계획은 C1/0022 재구현·수정을 명시적으로 금지하므로 충돌을 이 문서에 기록하고 다른 계획 범위의 검증을 계속한다.
 - 다음 조치: 원사건 분류 X 유지와 정정 발생 시점 분류 Y 중 어느 계약이 맞는지 설계 결정 후, 필요한 경우 별도 설계·작업계획과 DB 변경 승인을 받아 시험·구현한다. 결정 전에는 이 경계를 PASS나 리뷰 해소로 표시하지 않는다.
 
-## G5 — PR 이벤트 CI가 승인 요청 상태
+## G5 — PR 이벤트 CI 초기 승인 요청 상태(후속 실행으로 해소)
 
-- 판정: **PR 검사 미실행·미검증**. 생성 전용 자동화로 PR #17(head `f7988a39974dc2993d5b18312d7a4c4a64f1c53b`, base `399f77bcc72131ca9a03b0f0b8da39867fe7936f`)이 열렸다. 같은 head의 push `verify`는 success지만 pull_request run `37967360814`는 jobs 없이 `completed/action_required`다.
-- 영향: 지정 계획 Task 5의 PR 이벤트 test/typecheck/lint/build 성공 조건은 충족했다고 할 수 없다. G2/G3/G4와 함께 자동 병합·merged-main smoke가 열리지 않는다.
+- 판정: **초기 미검증은 해소**. 생성 전용 자동화로 PR #17(base `399f77bcc72131ca9a03b0f0b8da39867fe7936f`)이 열렸다. 최초 head `f7988a3`의 pull_request run `37967360814`는 jobs 없이 `completed/action_required`였다. 후속 head `de7625a23fe35b86cf791d8c7c23067cf68930d7`의 push run `37967798086`과 pull_request run `37967805609`는 모두 `completed/success`, PR의 `verify` job도 success를 확인했다. 이후 head가 바뀌면 새 SHA에서 재확인한다.
+- 영향: 초기 PR CI 차단 자체는 해소됐으나 G2/G3/G4의 독립 미충족 조건 때문에 자동 병합·merged-main smoke는 열리지 않는다.
 - 수행 조치: PR 본문에 목적·영향·검증·미검증·복구와 G4를 명시했고, 병합 요청 태그를 보내지 않았다. GitHub 계정 사용 금지 지시를 지켰으며 PR 이벤트 승인 조작은 하지 않았다. PMO 지정 대화에 정확한 run과 지시 요청을 전달했다.
-- 다음 조치: 저장소 권한자가 GitHub의 해당 PR 이벤트 실행 승인을 검토하고, 같은 head의 PR 검사 jobs가 실제 실행되어 성공했는지 확인한다. 승인 없이 push 검사 success를 PR 검사 success로 대체하지 않는다.
+- 다음 조치: 추가 변경이 생기면 최종 head의 push/PR CI를 다시 확인한다. G2/G3/G4 해소 전에는 성공한 CI만으로 병합하지 않는다.
