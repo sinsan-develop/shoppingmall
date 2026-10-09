@@ -23,6 +23,8 @@ export type SettlementReport = {
   lateGroups?: SettlementReport['groups'];
   lateTotals?: Record<Kind, number>;
   completions: { id: string; sellerId: string; sellerName: string;
+    sellerCategoryIdAtCompletion?: string | null;
+    sellerCategoryNameAtCompletion?: string | null;
     startDate: string; endDate: string; completedAt: string; reason: string;
     frozenTotals?: Record<Kind, number> }[];
 };
@@ -122,6 +124,8 @@ export function SettlementReportView({ report, selectedCategoryName }: {
       {report.completions.length === 0 ? <p>조회 기간과 겹치는 완료 기록이 없습니다.</p> :
         <ul>{report.completions.map((entry) => <li key={entry.id}>
           <strong>{entry.sellerName}</strong> · {entry.startDate} ~ {entry.endDate}
+          {entry.sellerCategoryNameAtCompletion
+            ? <span> · 완료 당시 판매자 분류: {entry.sellerCategoryNameAtCompletion}</span> : null}
           <span> · {occurred(entry.completedAt)} · {entry.reason}</span>
           {entry.frozenTotals ? <><h3>{report.filter.categoryId
             ? '선택 분류 완료 당시 항목별 금액' : '완료 당시 항목별 금액'}</h3>

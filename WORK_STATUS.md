@@ -4578,3 +4578,9 @@
 - Windows 직접 화면 시험을 위해 별도 Chrome 프로필 `D:/tmp/shoppingmall-s6-c2-ui-1010`과 관리자 정적 시안 창을 만들었다. Windows 화면 제어 도구가 브라우저 URL을 안전하게 확정하지 못해 입력 전 중단했다. 도구 오류 1회, 제품 동일 SHA의 OS 인쇄/200% 실측 증거 0건. PID 9176 및 해당 프로필 자식만 확인해 중지하고 임시 프로필 폴더를 제거했다. 사용자 기존 Chrome 창·공유 DB는 변경하지 않았다.
 - 계획 Task 3 Step 3과 C1/0022 정정 분류 강제의 충돌을 소스에서 재확인했다. `correction.ts`는 원사건 분류를 복사하고 0022 trigger는 원사건과 정정의 분류 동일성을 강제한다. C2 범위 안에서 이를 사건 발생 당시 현재 분류로 고칠 수 없으므로 G4를 유지한다. G2 공유 DB 0023 직접 승인은 아직 확인되지 않아 미적용이다. G3/G4와 함께 Task 5 병합 조건은 계속 충족하지 않는다.
 - G4의 정답은 설계서 R09·계획 Task 3 Step 3에 이미 정해진 정정 발생 당시 Y 분류다. 이전 G4 문구의 X/Y 설계 선택 요청은 잘못된 표현이어서 `docs/design_change.md`를 구현 범위·신규 migration 승인 문제로 바로잡았다. 현 지정 계획이 금지하는 C1/0022 변경이나 신규 0024는 수행하지 않는다.
+
+## 2026-10-10 C2 과거 분류명 표시 보강
+
+- 담당: 어울 단일 writer. `cf20c8f` 기준 독립 읽기 전용 리뷰에서 Critical 0, 기존 G4 Important 1, 신규 Minor 1(0건 정산 이력의 당시 분류명 미표시)을 확인했다. Task 2/3 범위의 이력 응답·표시·시험만 보강한다. 설계서·작업계획서·C1/0022는 수정하지 않는다.
+- 화면 시험은 새 단언 RED 1/8 뒤 보강하여 GREEN 8/8이다. 로컬 제품 시험 600건/433 pass/167 조건부 skip/0 fail, PR 본문 8/8, typecheck·lint·build exit0. DB 전용 시험은 로컬 환경에서 조건부 skip이므로 이를 실DB 통과로 주장하지 않는다. 독립 리뷰의 G4와 공유 DB G2·직접 인쇄/확대 G3는 유지한다.
+- 후속 격리 자원 계획: 정확한 변경 SHA를 지정 WSL checkout에 반영하고 전용 internal network `shoppingmall-s6-c2-name-1010-net`, tmpfs PostgreSQL 15 `shoppingmall-s6-c2-name-1010-pg`, 일회용 Node 24 runner만 만든다. DB는 `shoppingmall_s6_schema_1008` 하나, migration 0000~0023 적용 뒤 system ID를 시험 env에 고정한다. 기존 공유 `local-postgres/shoppingmall`에는 쓰지 않고, 시험 후 정확한 ID·mount를 대조해 이번 컨테이너/network만 제거하며 잔류 0을 확인한다. 원격 사용자 파일은 변경하지 않는다.

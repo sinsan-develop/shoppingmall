@@ -13,6 +13,8 @@ type Row = Omit<SettlementReportItem, 'kind' | 'amountWon' | 'occurredAt'> & {
 
 type CompletionRow = {
   id: string; sellerId: string; sellerName: string;
+  sellerCategoryIdAtCompletion: string | null;
+  sellerCategoryNameAtCompletion: string | null;
   startDate: string; endDate: string; completedAt: Date; reason: string;
 };
 
@@ -58,6 +60,8 @@ export async function readSettlement(client: PoolClient, filter: SettlementQuery
     row.completionPeriodId && row.linkedPeriodId !== row.completionPeriodId);
   const completionResult = await client.query<CompletionRow>(`SELECT period.id,
     period.seller_id AS "sellerId",seller.display_name AS "sellerName",
+    period.seller_category_id_at_completion AS "sellerCategoryIdAtCompletion",
+    period.seller_category_name_at_completion AS "sellerCategoryNameAtCompletion",
     period.start_date::text AS "startDate",period.end_date::text AS "endDate",
     period.completed_at AS "completedAt",period.reason
     FROM seller_settlement_periods period

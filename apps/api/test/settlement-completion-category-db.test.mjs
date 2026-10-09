@@ -35,12 +35,15 @@ test('zero-event completion keeps its completion-time category after seller chan
       WHERE id=$1`, [completed.id])).rows[0];
     assert.deepEqual(snapshot, { id: x, name: '완료 당시 X' });
     await client.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [y, seller]);
+    await client.query('UPDATE seller_categories SET name=$1 WHERE id=$2', ['변경된 X', x]);
     const xReport = await readSettlement(client, parseSettlementQuery({
       from: '2026-05-01', to: '2026-05-20', categoryId: x }));
     const yReport = await readSettlement(client, parseSettlementQuery({
       from: '2026-05-01', to: '2026-05-20', categoryId: y }));
     assert.deepEqual(xReport.completions.map(({ id, frozenTotals }) =>
       [id, frozenTotals.sale]), [[completed.id, 0]]);
+    assert.equal(xReport.completions[0].sellerCategoryIdAtCompletion, x);
+    assert.equal(xReport.completions[0].sellerCategoryNameAtCompletion, '완료 당시 X');
     assert.equal(yReport.completions.length, 0);
   } finally {
     await client.query('ROLLBACK');
