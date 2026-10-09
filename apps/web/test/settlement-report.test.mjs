@@ -45,9 +45,27 @@ test('completion history remains visible even when the selected period has no ev
   const html = renderToStaticMarkup(createElement(SettlementReportView, {
     report: { ...report, groups: [], totals, completions: report.completions },
   }));
-  assert.match(html, /조회 기간에 정산 자료가 없습니다/);
+  assert.match(html, /조회 기간에 발생한 정산 사건이 없습니다/);
+  assert.doesNotMatch(html, /조회 기간에 정산 자료가 없습니다/);
   assert.match(html, /완료 이력/);
   assert.match(html, /오프라인 확인/);
+});
+
+test('a renamed category keeps one category identity in the seller heading', () => {
+  const renamed = { ...report.groups[0], sellerCategoryId: 'same-category',
+    sellerCategoryName: '현재 명칭', items: [
+      { ...report.groups[0].items[0], id: 'before-rename',
+        sellerCategoryId: 'same-category', sellerCategoryName: '과거 명칭' },
+      { ...report.groups[0].items[0], id: 'after-rename',
+        sellerCategoryId: 'same-category', sellerCategoryName: '현재 명칭' },
+    ] };
+  const html = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, groups: [renamed], completions: [],
+  } }));
+  assert.match(html, /<h2>농가 A <small>분류명 변경<\/small><\/h2>/);
+  assert.doesNotMatch(html, /여러 분류/);
+  assert.match(html, /과거 명칭/);
+  assert.match(html, /현재 명칭/);
 });
 
 test('ordinary commission evidence appears in the displayed and printable report', () => {
@@ -105,4 +123,48 @@ test('print shows correction direction, target kind, original event and reason',
   for (const expected of ['판매액 오입력 정정', '원사건 sale-a', '감소', '상품 매출']) {
     assert.ok(html.includes(expected), expected);
   }
+});
+
+test('print distinguishes mixed historical item categories and selected-category completion totals', () => {
+  const mixed = { ...report.groups[0], totals: { ...totals, commission: 14000 },
+    items: [
+      { ...report.groups[0].items[0], id: 'x-event', kind: 'commission', amountWon: 10000,
+        sellerCategoryId: 'x', sellerCategoryName: '과거 X' },
+      { ...report.groups[0].items[0], id: 'y-event', kind: 'commission', amountWon: 4000,
+        sellerCategoryId: 'y', sellerCategoryName: '현재 Y' },
+    ] };
+  const allHtml = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, groups: [mixed], totals: mixed.totals,
+    completions: [{ ...report.completions[0], frozenTotals: mixed.totals }],
+  } }));
+  assert.match(allHtml, /여러 분류/);
+  assert.match(allHtml, /과거 X/);
+  assert.match(allHtml, /현재 Y/);
+  assert.match(allHtml, /전체 합계/);
+  const xHtml = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, filter: { ...report.filter, categoryId: 'x' },
+    groups: [{ ...mixed, items: [mixed.items[0]], totals: { ...totals, commission: 10000 } }],
+    totals: { ...totals, commission: 10000 },
+    completions: [{ ...report.completions[0], frozenTotals: { ...totals, commission: 10000 } }],
+  } }));
+  assert.match(xHtml, /선택 분류 합계/);
+  assert.match(xHtml, /선택 분류 완료 당시 항목별 금액/);
+  assert.match(xHtml, /10,000원/);
+  assert.doesNotMatch(xHtml, /14,000원/);
+});
+
+test('zero-event completion print names the selected historical seller category', () => {
+  const html = renderToStaticMarkup(createElement(SettlementReportView, {
+    report: { ...report,
+      filter: { ...report.filter, categoryId: 'historical-x' },
+      groups: [], totals,
+      completions: [{ ...report.completions[0], frozenTotals: totals,
+        sellerCategoryIdAtCompletion: 'historical-x',
+        sellerCategoryNameAtCompletion: 'C2 과거 X' }],
+    },
+    selectedCategoryName: 'C2 현재 X',
+  }));
+  assert.match(html, /조회 판매자 분류: C2 현재 X/);
+  assert.match(html, /완료 당시 판매자 분류: C2 과거 X/);
+  assert.match(html, /선택 분류 완료 당시 항목별 금액/);
 });

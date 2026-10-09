@@ -1,5 +1,28 @@
 # 어울몰 작업현황
 
+## 2026-10-10 G3 직접 인쇄·확대 재시험 자원 계획
+
+- 담당/범위: 어울, 지정 계획 Task 4 Step 6. 현재 제품 SHA `4c251a5ed3c7e27810bea83c33d7e7545168032f`의 WSL 지정 checkout만 사용한다. 공유 `local-postgres/shoppingmall`에는 연결·쓰기하지 않는다.
+- 격리 자원: WSL Docker internal network `shoppingmall-s6-g3-1010-net`, tmpfs PostgreSQL 15 `shoppingmall-s6-g3-1010-pg`와 같은 네트워크의 일회용 API/Web Node 24 컨테이너 `shoppingmall-s6-g3-1010-api`/`shoppingmall-s6-g3-1010-web`, DB `shoppingmall`에 0000~0023과 고유 시험 run `c3c21010`만 생성한다. WSL 루프백 9091/9092와 Windows 로컬 SSH 터널 9091/9092, 별도 Chrome 시험 프로필 `D:/tmp/shoppingmall-s6-g3-1010-chrome`, 시험 PDF `D:/tmp/shoppingmall-s6-g3-1010-report.pdf`만 사용한다. 기존 이름·포트 충돌 0을 사전 확인한다.
+- 수명/정리: 이번 실제 OS 인쇄 창 PDF 저장과 브라우저 200% 확대 관찰 직후 컨테이너·네트워크의 정확한 ID, 터널의 명령행/PID, Chrome 시험 프로필과 PDF 경로를 확인해 이번 자원만 제거하고 잔류 0을 재조회한다. 결과가 도구에서 관찰되지 않으면 G3 미검증을 유지한다. 기존 사용자 Chrome 창·설정·파일은 변경하지 않는다.
+- 준비 중 환경 보정: 전용 `--internal` 네트워크의 웹/API 컨테이너는 Docker PortBindings가 설정됐어도 호스트 로컬 포트가 실제로 열리지 않았다(`curl` HTTP 000, 네트워크 초기 설정 오류 1회). DB를 외부에 노출하지 않고 웹/API만 별도 전용 bridge network `shoppingmall-s6-g3-1010-webnet`에 추가 연결한다. 이 네트워크도 이번 시험 직후 정확 ID 대조 후 제거한다. 제품 코드·공유 DB 변경은 없다.
+- 실행 결과: exact SHA `4c251a5` WSL source와 별도 tmpfs PostgreSQL 15(system ID `7694794699216998439`)에 migration 24건을 적용하고 `c3c21010` 가상 정산 X 10,000원·Y 4,000원·전체 14,000원·0건 완료를 생성했다. 격리 API `/ready`와 웹 `/login`은 WSL·Windows 로컬에서 HTTP 200. 웹 production build도 같은 SHA로 성공했다. 이는 화면에서 금액을 직접 본 증거가 아니다.
+- 실제 OS 조작 경계: 별도 Chrome 프로필의 시험 창을 열었으나 Windows Computer Use가 브라우저 현재 URL을 정책상 충분히 확인하지 못해 해당 턴의 UI 제어를 중단했다. 로그인·인쇄·200% 확대 조작을 하지 않았고 결과를 PASS로 표시하지 않는다. 이전 file URL 차단을 우회하지도 않았다. 도구 보안 경계 1회, 제품 시험 오류로 세지 않는다.
+- 정리: 명령행에 전용 프로필이 명시된 Chrome root/자식 8개와 이번 SSH 터널 PID 30732만 종료했다. 세 컨테이너의 정확 ID·영속 마운트 부재 및 두 전용 네트워크의 빈 상태를 대조해 제거했다. 시험용 Chrome 폴더는 `D:/tmp` 아래 비재분석 절대경로/잔류 프로세스 0 확인 뒤 제거, PDF는 생성되지 않았다. 이름·포트·프로필·PDF 잔류 0, WSL checkout clean, 공유 `local-postgres/shoppingmall` migration 23건 불변. G3 직접 실측은 미검증으로 유지한다.
+
+## 2026-10-10 C2 표시 보정 원격·WSL·PR 확인
+
+- 제품 변경 commit `a7be1f3b399bf4a56f93d270ce9d6b40cc9152a5`를 승인된 `github-sinsan-develop` SSH 별칭으로 기존 작업 브랜치에 push했다. 지정 WSL `/home/daon/deploy/shopping`은 변경 전 clean·같은 branch임을 확인하고 fast-forward해 정확 SHA·clean을 확인했다. WSL 기존 Node 18 환경에서 `apps/web/test/settlement-report.test.mjs` 9/9 pass·0 skip, 새 시험 자원·공유 DB 쓰기 0.
+- 공개 읽기 API에서 해당 SHA의 push CI `37996968207`과 PR CI `37996974975`가 모두 `completed/success`인 것을 확인했다. 생성 전용 요청 태그의 PR 본문 갱신 run `37997148241`도 `completed/success`이고, 기존 PR #17은 open/base `399f77b`/head `a7be1f3`, 본문에 601건/434 pass와 새 화면 보정을 반영한다. 병합 요청 태그는 보내지 않았다. 로컬 미추적 사용자 파일은 보존했다.
+- 이 결과는 G2 공유 0023 적용, G3 OS 인쇄 저장/실제 200% 실측, G4 정정 당시 분류 Important 결함을 해소하지 않는다. 현 계획의 Important 0·병합·merged-main smoke는 여전히 미충족이다. 동일 원인 오류 0회. 다음 가능한 조치는 G2 별도 승인 확인, G3 실제 지원 브라우저 실측, G4 후속 범위 결정이며 그 외 계획 밖 코드·DB 변경은 하지 않는다.
+
+## 2026-10-10 C2 정산 화면 표시 회귀 보정
+
+- 담당/범위: 어울, `codex/next-work-20261010@cc6bcb5`에서 지정 계획 Task 3 Step 4·Task 4 Step 6의 화면/인쇄 표시만 보정했다. 설계서·지정 작업계획서·C1/0022·공유 DB는 변경하지 않았다. 사용자 소유 미추적 파일 3개 경로는 보존한다.
+- 변경 전/후: 같은 분류 ID의 명칭만 바뀌어도 판매자 제목이 `여러 분류`였으나 이제 분류 ID가 여러 개일 때만 그 문구를 표시하고, 단일 ID의 명칭 이력은 `분류명 변경`으로 표시한다. 사건 0건·완료 이력 있음에도 `정산 자료가 없습니다`로 안내하던 문구는 `발생한 정산 사건이 없습니다. 완료 이력은 아래에서 확인`으로 분리한다. 금액·권한·조회 API 계약 변화는 없다.
+- 시험 우선: 두 회귀 단언을 추가해 표적 시험 7 pass/2 fail의 의도한 RED를 확인한 뒤 최소 화면 변경으로 9/9 pass. 로컬 전체 `pnpm test` 제품 601건/434 pass/167 조건부 skip/0 fail, PR 본문 시험 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 25경로), `git diff --check` 모두 exit 0. 로컬 DB 조건부 skip은 실DB 검증으로 세지 않는다. 동일 원인 오류 0회.
+- 미검증/다음: 이 표시 변경 SHA의 WSL 동일 코드 검증과 PR CI는 commit/push 후 별도 확인한다. G2(공유 0023 별도 승인), G3(OS 인쇄 저장/실제 200% 직접 실측), G4(정정 당시 분류 계약과 기존 C1/0022 충돌)는 `docs/design_change.md`에 유지한다. Important 0/계획 병합 게이트를 통과했다고 주장하지 않는다.
+
 ## 2026-10-09 `design_change.md`의 승인된 S6 설계변경 반영
 
 - 담당/대상: 어울, `codex/next-work-20261009@07e996e` 격리 worktree. 신산님 직접 지시로 `docs/design/DESIGN.md`의 R09·데이터 경계·관리자 흐름에 승인된 정산 계약을 반영했다. `docs/WORK_PLAN.md`, 제품 코드, DB, 원격은 변경하지 않았다.
@@ -4545,3 +4568,120 @@
 - 실행 SHA f11955c의 WSL checkout은 clean이었다. 네임스페이스가 분리된 PostgreSQL 15 system ID 7694692532426174502에 migration 23건을 적용하고 가상 run 04f13351의 관리자/판매자·원수수료 10,000원·감소 정정 2,000원·5월 완료 10,000원을 만들었다. 시험 API /ready·웹 /login은 WSL/Windows 루프백 모두 HTTP 200이었다. Windows WSL relay가 이미 9091/9092를 전달하므로 별도 SSH 터널은 만들지 않았다.
 - 새 Chrome 시험 탭에서 관리자 시험 계정으로 실제 로그인 후 2026-05-01~2026-12-31 조회했다. 실제 접근성 화면에 원수수료 10,000원, 정정 2,000원, 현재 8,000원, 원사건·사유 및 과거 고정 완료 10,000원이 표시됐다. 확대 전 innerWidth 1918/DPR 1/visualViewport.scale 1이고 Ctrl+plus·Ctrl+equal 입력 뒤에도 동일해 실제 200% 확대 성공으로 볼 수 없다. Ctrl+P 뒤 도구에 인쇄 창이 노출되지 않았고 앱 인쇄 버튼 클릭은 브라우저 명령 시간 초과였으므로 OS PDF 저장도 미검증이다. 같은 방식 반복 오류는 확대 2회·인쇄 1회, 원인은 브라우저 UI가 OS 확대/대화상자를 도구에 노출하지 않는 경계로 분류한다. 자동 PDF 실증 결과와 혼동하지 않는다.
 - agent 생성 Chrome 시험 탭은 닫았고 기존 사용자 탭은 그대로 두었다. 정확한 세 QA 컨테이너의 ro bind/tmpfs를 확인한 뒤 제거했고 전용 network도 제거했다. 새 Windows 터널·프로필·PDF 파일은 생성하지 않았다. WSL 재조회에서 전용 이름과 9091/9092 서비스 포트 잔류 0이다. tmpfs 가상 계정·사건도 함께 폐기돼 공유 DB 변화는 없다. 남은 공유 DB 별도 승인·읽기 smoke, OS 확대/인쇄, C1 병합/merged-main smoke, 순차 C2는 루트 docs/design_change.md의 재작업 경계로 유지한다.
+
+## 2026-10-10 지정 S6 후속 계획 실행 시작
+
+- 담당: 어울. 정본 `D:/Project/shoppingmall2/docs/WORK_PLAN_20260-10-09.md`를 신산님이 권고안대로 승인했고 설계서·계획서 수정은 금지했다. 현재 작업 브랜치 `codex/next-work-20261010`, 시작 기준 `main@399f77b`. `docs/design_change.md`는 지시대로 초기화했다. 사용자 소유 다른 미추적 파일은 보존한다.
+- 신산님은 별도 질문에 공유 `WSL-server/local-postgres/shoppingmall`의 **0022 적용만** 직접 승인했다. 0023 적용은 정확한 SQL 개발·격리 검증 뒤 별도 승인 전 금지다. WSL 지정 checkout은 clean `main@399f77b`, 공유 `local-postgres` PostgreSQL 15.18/system ID `7622490131194466339`, Drizzle migration 22건, 계정·판매자·주문·정산 사건·완료·연결 각 0행을 읽기 전용 확인했다.
+- Task 1 로컬 기준선 `pnpm test`: 제품 595건/431 pass/164 조건부 skip/0 fail, PR 본문 8/8 pass. skip을 DB 실증 PASS로 표시하지 않는다. 0022 사전 백업 `/home/daon/deploy/shopping-s6-db-backups/pre-0022-399f77b-20261010.dump`를 기존 0700 디렉터리에 0600으로 생성했다. 269360 bytes, SHA-256 `b49858a74866482eea5a18f26bd7e673e41d6436ce1501d7b6c8cd996d8a4daf`, 목록 조회 성공. 백업은 복구 판단 전 삭제하지 않는다.
+- 다음 자원: WSL 전용 restore 시험 컨테이너 `shoppingmall-s6-0022-restore-1010`을 기존 `pgvector/pgvector:0.8.2-pg15` 이미지로 network none·tmpfs PGDATA에서 사용한다. 소유자는 이번 계획, 수명은 0022 백업 복원·migration/행 수 대조 직후까지이며 정확한 이름/ID 확인 후 컨테이너와 tmpfs를 제거한다. 공유 DB와 격리한다. 반복 오류 0회. OS 인쇄 창 직접 PDF 저장·실제 200% 확대 및 공유 DB 거래 행 E2E는 아직 미검증이다.
+- 위 restore 컨테이너 ID `4a53af222edd0fb35cd2553b7324d8e1ad8a1d3744bca947f29685e3168fdfbe`는 network none으로 실행했고 백업 전량 복원 후 migration 22건·계정/판매자/주문/정산 사건/완료/연결 0행을 확인했다. 정확 ID/이름을 대조해 제거했고 tmpfs 자료 잔류 0이다. 공유 DB 표준 읽기 전용 dry-run은 **22 applied·0022 한 건 pending**, 5문장·SHA-256 `58d052a8bc955b732a7dc1e6f2e980e8d08c40b8f99f89b702240e71cd5ce402`였다.
+- 다음 자원: 같은 백업으로 0022 적용을 미리 시험할 별도 임시 PostgreSQL `shoppingmall-s6-0022-rehearsal-1010`(network none, tmpfs PGDATA)과 일회성 Node 24 migrator를 사용한다. 공유 DB와 격리하고 리허설 직후 정확한 컨테이너/볼륨·프로세스 잔류 0을 확인한다. 기존 백업은 보존한다.
+- 0022 리허설은 restore 백업을 적용한 독립 network-none/tmpfs PostgreSQL에서 migration 22→23, 신규 정정 열 조회, 기존 주요 행 0을 확인했다. 임시 컨테이너는 정확 ID 검증 후 제거했다. 승인된 공유 DB에는 적용 직전 system ID `7622490131194466339`·migration 22·주요 행 0·0022 SQL SHA-256 `58d052a8bc955b732a7dc1e6f2e980e8d08c40b8f99f89b702240e71cd5ce402`를 재확인해 표준 migrator로 **0022만 적용**했다. 사후 migration 23, 주요 행 0, 동일 system ID 및 dry-run 대기 0. `/health`·`/ready` 200, 비인증/교차 출처 차단 HTTP 2 pass/1 조건부 skip. 공유 DB 거래 행은 만들지 않았다. 조회 SQL 확인 과정의 쉘 인용 오류 1회는 읽기 전용 재질의로 해소했다.
+- C2 신규 0023은 격리 PostgreSQL 15에서 먼저 RED(없는 스냅샷 열, 현재 분류 필터가 과거 X 완료를 누락), 이어 migration·완료 스냅샷·연결 사건 당시 분류 조회·인쇄 부분합계를 구현했다. 신규 실제 DB X/Y·0건 시험 2/2, 기존 완료/읽기 시험 3/3, 경합 단독 시험 1/1, 기존 완료 행이 있는 DB의 0023 fail-closed/rollback 1/1; 모두 0 skip. 경합 시험은 의도적으로 commit을 남기는 격리 시험이어서 다른 전체 조회 시험과 병렬 실행하면 2건 충돌한다는 오류 1회를 확인했고, DB를 정확 ID 확인 후 재생성해 비경합 시험을 먼저, 경합 시험을 따로 실행했다. UI 인쇄 단위 시험 7/7.
+- 로컬 전체 gate: 제품 `pnpm test` 599건/432 pass/167 조건부 skip/0 fail, PR 본문 8/8 pass; `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0. 첫 전체 시험에서 migration 파일 개수 단언이 0022 기준 23으로 고정돼 1 fail이었으며 신규 0023을 반영한 24로 좁혀 수정 후 재시험 0 fail. 실제 DB 조건부 시험은 위 격리 결과와 별도로 기록한다. 0023 공유 적용은 별도 승인 질문 진행 중이며, 승인 전에는 공유 DB에 적용하지 않는다. 현재 격리 DB 두 컨테이너와 백업은 후속 검증을 위해 유지한다.
+- 커밋 `66c053fa50f90a63785f207508c5f7edbd138077`을 SSH 별칭 원격에 push했고 지정 WSL checkout `/home/daon/deploy/shopping`에서 같은 SHA를 pull 대조했다. WSL의 제한된 fetch refspec 때문에 자동 upstream 전환 2회가 실패했지만 목표 ref/작업 트리 동등성을 확인해 직접 SHA 브랜치로 안전하게 전환했고 최종 상태는 clean·정확 SHA다. 같은 SHA의 Node 24 읽기 전용 시험 컨테이너/격리 PostgreSQL 15 system ID `7694711684721401894`에서 신규/기존 실제 DB API 5/5 pass, 경합 단독 1/1 pass, 0023 적용·재실행 후 migration 24건을 확인했다. Web JSX 시험을 API 폴더에서 함께 실행한 첫 시도는 JSX 변환 설정이 달라 7 fail이었고, Web 패키지 폴더에서 동일 SHA로 재실행해 7/7 pass했다. 제품 코드 원인으로 분류하지 않는다.
+- 현재 역할별 HTTP 검증용 별도 일회용 PostgreSQL `shoppingmall-s6-c2-http-1010`(ID `8ffc1d7328b93f4c9685d08cbc5eed501f6c9edb0b6c9b41f27757010f5e736a`, tmpfs, DB `shoppingmall`)에 같은 SHA의 0023까지 적용했다. 기존 역할 HTTP 시험의 migration 수 단언 22는 0023 기준 24로 좁혀 보정 중이며 해당 시험·브라우저 실측·독립 리뷰·PR/CI/merged-main은 아직 남았다. 공유 DB 0023은 별도 승인 전 미적용, 공유 DB 가상 거래 행 0.
+- 보정 커밋 `56a990e` 및 시험 fixture 커밋 `2ab92f5`를 SSH 별칭으로 push/WSL fast-forward했다. 격리 HTTP DB system ID `7694712210356326438`의 관리자·판매자·고객 정산 읽기/완료 권한 시험 1/1 pass·0 skip. 별도 브라우저 DB `shoppingmall-s6-c2-browser-1010`, system ID `7694713100514508838`, migration 24, 가상 run `c2a41010`에 X 10,000원·Y 4,000원·전체 14,000원·X 소속 0건 완료를 준비했다.
+- 지정 WSL checkout에서 같은 SHA의 웹 production build 25경로 exit0. 처음 1000:1000 사용자 빌드는 기존 `.next`의 root 소유 QA 파일 EACCES 1회로 실패했으며 파일 권한을 바꾸거나 삭제하지 않고 같은 격리 Node24 이미지의 root 실행으로 재시도해 통과했다. 일회성 API `/ready`와 웹 `/login`은 WSL/Windows 루프백 HTTP 200. Windows 격리 Chrome CDP의 관리자 전체/X/Y·판매자 화면은 각각 14,000/10,000/4,000/14,000원, X의 0원 완료와 Y의 미노출을 확인했다. 1440/430px 가로 넘침 없음, Tab focus-visible true. A4 PDF 4개(292610/293405/284289/280758 bytes)와 렌더 6페이지에서 금액·분류·0건 완료의 포함/제외가 정확하고 눈으로 본 글자 잘림·겹침이 없었다. pdfplumber는 FontBBox 경고를 출력했으나 텍스트 추출/시각 렌더에는 영향이 확인되지 않았다.
+- 별도 일반 Chrome 시험 탭에서 운영자 가상 계정 로그인과 전체 14,000원 화면은 확인했다. 확대 단축키로 200% 상태를 입증하지 못했고 인쇄 버튼 조작은 UI 도구 시간 초과, 재조회에서도 OS 인쇄 창을 확인하지 못했다. CDP PDF/430px 시험으로 대체하지 않고 `docs/design_change.md` G3에 미검증으로 기록했다. 공유 0023 G2 답변 대기, 독립 리뷰·PR/CI/merged-main·임시 자원 정리가 이어진다.
+- 사용 후 일회용 PostgreSQL 네 개(c2/guard/http/browser, 모두 tmpfs)와 API/Web 시험 컨테이너 두 개의 정확한 이름·ID를 확인해 제거했다. 재조회에서 해당 컨테이너 이름, 전용 15433~15436·9091/9092 포트, 지정 WSL checkout dirty 상태는 모두 0. 전용 Chrome 프로필 명령행을 가진 PID 53412와 자식 7개를 확인해 종료했고 전용 프로필 및 4 PDF·6 PNG가 있던 두 절대경로만 삭제했다. 두 경로와 9229 포트 잔류 0. 이 임시 가상 자료·PDF는 폐기했으며 복원 대상이 아니다. 공유 DB 0022 전 백업은 별도 보존한다.
+- C2 전체 차이에 대한 독립 검토: Critical 0, Important 2, Minor 2. 0건 완료의 분류별 인쇄 제목 누락은 기존 카탈로그 분류명을 같은 화면/인쇄 응답에 표시하도록 시험 우선 보정했다. 단위 시험 최초 RED 뒤 8/8 pass, Web typecheck pass. 정정 사건의 발생 시점 분류 요구와 기존 C1/0022의 원사건 분류 강제 충돌은 계획 밖 변경 없이 `docs/design_change.md` G4에 기록했다. 따라서 Important 0이라고 판정하지 않으며 병합 게이트는 열리지 않았다. 인쇄 보정의 최신 SHA 전체 gate와 실제 브라우저 재검증은 후속 실행한다.
+- 인쇄 보정 후 로컬 전체 gate 재실행: 제품 600건/433 pass/167 조건부 skip/0 fail, PR 본문 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 25경로) 모두 exit0. 최초 `pnpm test` 시도는 D: 작업 폴드 sandbox realpath EPERM으로 시험 시작 전 실패했으며, 같은 폴드에서 허용된 실행 경로로 재실행했다. 임시 우회 자료나 사용자 파일은 변경하지 않았다. 이 로컬 gate는 G2/G3/G4의 별도 미충족 조건을 해소하지 않는다.
+- 다음 격리 재검증 자원 계획: WSL 지정 checkout exact SHA `0e929d1`의 소스만 사용한다. `shoppingmall-s6-c2-reprint-1010-net` 전용 Docker network, `shoppingmall-s6-c2-reprint-1010-pg` PostgreSQL 15의 tmpfs DB `shoppingmall`, 전용 Node24 웹/API 시험 컨테이너와 Windows 별도 Chrome 디버깅 프로필 `D:/tmp/shoppingmall-s6-c2-profile-1010`, PDF 출력 `D:/tmp/shoppingmall-s6-c2-pdf-1010`만 사용한다. 시험 run `c2a41010`, 소유자 어울, 수명은 0건 분류 인쇄 PDF 재확인 직후까지. 생성 전 이름·포트 잔류 0, DB system ID·migration 24건과 격리 fixture만 사용, 사용 후 정확한 컨테이너/network/tmpfs·프로필/PDF를 확인해 제거한다. 공유 DB와 사용자 Chrome 탭은 변경하지 않는다.
+- 동일 SHA WSL production API/Web 빌드 exit0(웹 25경로), 격리 DB system ID `7694719902879604774`, migration 24건, 초기 계정 0건을 확인했다. run `c2a41010` 가상 자료에 X 10,000원·Y 4,000원·전체 14,000원·X의 0건 완료를 기록했다. 첫 Chrome 자동 시험은 로그인 hydration 대기 20초 시간 초과 1회였다. 웹 서버/루프백 HTML 200, 별도 CDP 진단에서 JS 자산 실패 0(파비콘 404만), React form hydration 확인 후 동일 자원·스크립트로 재실행해 관리자 전체/X/Y·판매자, 1440/430px·Tab focus-visible 및 PDF 4개 PASS(각 292804/297658/288449/280950 bytes). X PDF 2쪽의 추출 텍스트에서 새 `조회 판매자 분류: C2 과거 X`, X 10,000원과 0건 완료 이력을 확인했다. 이 결과는 실제 OS 인쇄 창 저장/200% 확대의 대체가 아니며 G3 유지. pdfplumber FontBBox 경고는 이전과 동일하고 텍스트 추출에 영향이 확인되지 않았다. 임시 자원 정리는 다음 단계다.
+- 사용한 세 컨테이너의 정확한 ID·마운트와 전용 network ID를 대조한 뒤 웹/API/tmpfs PostgreSQL 컨테이너와 network를 제거했다. Chrome 프로필 전용 root PID 15236과 자식 명령행을 확인해 해당 root를 종료하고 잔류 Chrome 0을 확인했다. 두 `D:/tmp/shoppingmall-s6-c2-*-1010` 경로는 정확한 절대경로·비재분석 지점을 검증하고 제거했으며 재조회에서 없음. WSL 해당 컨테이너/network·9091/9092 포트 잔류 0, 지정 checkout clean `0e929d174d28f0bcd2a024ac64ae522b60193a15`. 공유 DB 거래 행은 생성하지 않았다. 임시 가상 행과 PDF는 폐기돼 복원 대상이 아니며, 공유 0022 사전 백업은 보존한다.
+- 지정 계획 Task 5의 PR 본문은 기존 C1 설명이므로 그대로 사용하면 C2 변경을 왜곡한다. 파일 삭제 방식은 안전 검토에서 거부됐고 삭제하지 않았다. 동일 파일을 제자리에서 C2 목적·영향·검증·미검증·복구 정보로 갱신했으며 저장소 본문 검증기 exit0, `git diff --check` 0이다. G2/G3/G4로 자동 병합 조건은 열리지 않았으며 생성 전용 요청과 병합 요청 태그를 구분한다.
+- C2 작업 브랜치 head `f7988a39974dc2993d5b18312d7a4c4a64f1c53b`를 SSH 별칭으로 push하고 지정 WSL 시험 checkout에 fast-forward해 clean·동일 SHA를 확인했다. `pr-create/<head>/codex/next-work-20261010` 생성 전용 태그만 main SHA `399f77b`에 붙여 push했고, PR #17 `https://github.com/sinsan-develop/shoppingmall/pull/17`가 열린 것을 로그인 없는 공개 API로 확인했다. PR head/base/body G4 표시 일치, draft=false, mergeable=true. 병합 요청 태그는 만들지 않았다. 같은 head의 push CI `verify` run `37967171768` success이지만 PR 이벤트 run `37967360814`는 jobs 없이 `completed/action_required`라 PR CI 통과로 계산하지 않는다. G5에 기록하고 사용자 지정 PMO 대화에 전달했다. G2/G3/G4/G5 해소 전 병합·merged-main smoke는 미실행이다.
+- PR 본문에 초기 CI 차단을 반영한 head `de7625a23fe35b86cf791d8c7c23067cf68930d7`를 push·WSL 동기화하고 생성 전용 태그로 기존 PR #17 본문을 갱신했다. 해당 SHA의 push run `37967798086`과 pull_request run `37967805609`는 실제 `verify` job을 실행해 둘 다 `completed/success`다. 초기 G5는 후속 실행으로 해소됐으며 이 기록을 포함한 새 SHA는 CI를 다시 확인해야 한다. G2/G3/G4는 그대로 미충족이라 병합 요청 태그·merged-main smoke는 실행하지 않았다.
+
+## 2026-10-10 C2 승인 경계·직접 화면 시험 추가 확인
+
+- 담당: 어울. 작업 브랜치/원격/WSL 지정 checkout의 제품 SHA는 `bc7afdd2e66785af4366d297defa096d414c7f07`로 확인했다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 보존한다.
+- Windows 직접 화면 시험을 위해 별도 Chrome 프로필 `D:/tmp/shoppingmall-s6-c2-ui-1010`과 관리자 정적 시안 창을 만들었다. Windows 화면 제어 도구가 브라우저 URL을 안전하게 확정하지 못해 입력 전 중단했다. 도구 오류 1회, 제품 동일 SHA의 OS 인쇄/200% 실측 증거 0건. PID 9176 및 해당 프로필 자식만 확인해 중지하고 임시 프로필 폴더를 제거했다. 사용자 기존 Chrome 창·공유 DB는 변경하지 않았다.
+- 계획 Task 3 Step 3과 C1/0022 정정 분류 강제의 충돌을 소스에서 재확인했다. `correction.ts`는 원사건 분류를 복사하고 0022 trigger는 원사건과 정정의 분류 동일성을 강제한다. C2 범위 안에서 이를 사건 발생 당시 현재 분류로 고칠 수 없으므로 G4를 유지한다. G2 공유 DB 0023 직접 승인은 아직 확인되지 않아 미적용이다. G3/G4와 함께 Task 5 병합 조건은 계속 충족하지 않는다.
+- G4의 정답은 설계서 R09·계획 Task 3 Step 3에 이미 정해진 정정 발생 당시 Y 분류다. 이전 G4 문구의 X/Y 설계 선택 요청은 잘못된 표현이어서 `docs/design_change.md`를 구현 범위·신규 migration 승인 문제로 바로잡았다. 현 지정 계획이 금지하는 C1/0022 변경이나 신규 0024는 수행하지 않는다.
+
+## 2026-10-10 C2 과거 분류명 표시 보강
+
+- 담당: 어울 단일 writer. `cf20c8f` 기준 독립 읽기 전용 리뷰에서 Critical 0, 기존 G4 Important 1, 신규 Minor 1(0건 정산 이력의 당시 분류명 미표시)을 확인했다. Task 2/3 범위의 이력 응답·표시·시험만 보강한다. 설계서·작업계획서·C1/0022는 수정하지 않는다.
+- 화면 시험은 새 단언 RED 1/8 뒤 보강하여 GREEN 8/8이다. 로컬 제품 시험 600건/433 pass/167 조건부 skip/0 fail, PR 본문 8/8, typecheck·lint·build exit0. DB 전용 시험은 로컬 환경에서 조건부 skip이므로 이를 실DB 통과로 주장하지 않는다. 독립 리뷰의 G4와 공유 DB G2·직접 인쇄/확대 G3는 유지한다.
+- 후속 격리 자원 계획: 정확한 변경 SHA를 지정 WSL checkout에 반영하고 전용 internal network `shoppingmall-s6-c2-name-1010-net`, tmpfs PostgreSQL 15 `shoppingmall-s6-c2-name-1010-pg`, 일회용 Node 24 runner만 만든다. DB는 `shoppingmall_s6_schema_1008` 하나, migration 0000~0023 적용 뒤 system ID를 시험 env에 고정한다. 기존 공유 `local-postgres/shoppingmall`에는 쓰지 않고, 시험 후 정확한 ID·mount를 대조해 이번 컨테이너/network만 제거하며 잔류 0을 확인한다. 원격 사용자 파일은 변경하지 않는다.
+- 커밋 `efda3bf473e298c15a59c0a2505a5d0014941f0f`을 SSH 별칭 원격에 push하고 지정 WSL checkout에서 clean fast-forward했다. 새 internal network ID `acc6cd9f...`, tmpfs PG15 ID `7b1d9b7f...`, system ID `7694769934615347239`를 확인했다. 같은 SHA의 0000~0023 적용 결과 migration 24건, 완료 당시 분류 이름이 바뀌어도 스냅샷 이름을 반환하는 실제 DB 시험 포함 **4/4 pass·0 skip**. 시험 후 두 자원의 정확 ID를 확인해 제거했고 동명 잔류 0이다. 공유 DB 쓰기 0. 첫 정리 명령은 Windows PowerShell의 `$()` 해석으로 실행 전 오류 1회였고, 정확한 ID를 인수로 사용하는 명령으로 재시도해 정리했다. 동일 원인 연속 1(해소).
+- PR 설명/상태 기록 head `a21ae13a9d3ad32d90892fb10b720dbd9417f404`를 SSH 별칭 원격에 push·지정 WSL checkout에 fast-forward했다. 생성 전용 `pr-create/**` 태그의 workflow run `37988489971` success, 기존 PR #17 head/base/body의 G4 설명을 공개 API로 대조했다. 같은 head의 push CI `37988432066`, pull_request CI `37988439230` 모두 `completed/success`다. 병합 요청 태그·merged-main smoke는 G2/G3/G4가 남아 실행하지 않았다.
+- WSL Node 24 직접 build 첫 시도는 host에 `pnpm`/`corepack`이 없어 실행 전 실패 2회, 기존 root 소유 `dist`에 일반 사용자 쓰기 EACCES 1회였다. 저장소 권한을 바꾸지 않고 읽기 전용 소스+컨테이너 `/tmp` 출력으로 API 빌드 exit0, 읽기 전용 소스+tmpfs `.next`로 웹 25경로 production 빌드 exit0을 얻었다. 정확 head·clean 상태 확인. 같은 오류 연속 3회가 아니며 환경 설정·소유권은 바꾸지 않았다.
+- 직접 OS 인쇄/200% 실측을 위한 브라우저 제어 인벤토리는 첫 연결 시간 초과 1회 뒤 재조회됐으나 현재 연결된 Chrome에는 이 시험의 실제 정산 화면 탭이 없었다. 인쇄 저장·확대 결과를 추정하지 않고 G3 미검증 유지. G2는 0023 공유 적용의 별도 명시 승인 없음, G4는 계획 밖 C1/0022 후속 구조 변경 필요. 두 경계를 우회하거나 현재 계획의 병합 gate를 통과로 처리하지 않는다.
+- 별도 Chrome 빈 탭에서 인쇄 단축키 후 접근성 상태/화면을 확인했으나 인쇄 창이 나타나지 않아 Esc·시험 탭 닫기로 종료했다. 실제 제품 화면 시험이 아니며 G3 미검증으로 `docs/design_change.md`에 추가 기록했다. 기존 사용자 탭은 건드리지 않았다.
+
+## 2026-10-10 G3 실제 화면 재검증 자원 계획
+
+- 담당: 어울. 정확한 작업 SHA `9d4f98dc78df77e082b9d6cfccecc00df1459d9f`의 지정 WSL checkout만 사용한다. 전용 internal Docker network `shoppingmall-s6-c2-live-1010-net`, tmpfs PostgreSQL 15 `shoppingmall-s6-c2-live-1010-pg`의 격리 `shoppingmall` DB, 일회용 API/Web Node 24 컨테이너 `shoppingmall-s6-c2-live-1010-api`/`-web`, 로컬 9091/9092 터널과 새 브라우저 시험 탭만 사용한다. 기존 포트·이름 충돌 0을 읽기 전용 확인했다. 0000~0023 migration과 시험용 `c2b31010` 계정/정산 사건을 격리 DB에만 생성하고 공유 `local-postgres/shoppingmall`에는 쓰기 0. 실제 브라우저 200% 확대·OS 인쇄 창 직접 저장을 시도하되 도구에서 증거를 볼 수 없는 항목은 미검증으로 유지한다. 시험 후 자원 ID·tmpfs·소유 프로세스를 대조해 이번 자원만 제거, 동명/포트 잔류 0 확인. 사용자 Chrome 기존 탭·설정·파일은 변경하지 않는다.
+
+## 2026-10-10 G3 실제 화면 재검증 결과
+
+- 담당/환경: 어울, WSL 지정 checkout `9d4f98dc78df77e082b9d6cfccecc00df1459d9f` clean. 전용 internal network의 tmpfs PostgreSQL 15(system ID `7694780092314996775`)에 migration 0000~0023을 적용하고, 고유 `c2b31010` 시험 계정·판매자·분류·정산 사건을 생성했다. 로컬 SSH 터널을 통한 실제 Chrome 탭에서 관리자 시험 계정 로그인·기간 조회를 실행했다.
+- 화면에서 판매자 A의 X 수수료 10,000원·Y 수수료 4,000원·전체 14,000원, 판매자 B의 사건 0건 완료 X 및 이력의 당시 분류 표시를 확인했다. 이는 해당 화면 경로의 실 DB/API 연동 증거이며 이 턴에 전체 역할·전체 회귀를 다시 실행한 증거는 아니다.
+- G3 결과: `조회 결과 인쇄 · PDF로 저장` 버튼을 누르자 브라우저 조작 명령이 시간 초과됐고, 재조회·캡처에서는 OS 인쇄 창을 확인할 수 없었다. 실제 `PDF로 저장` 파일도 얻지 못했다. 인쇄 명령이 실행됐는지도 확정할 수 없다. 그 상태에서 읽기 전용 페이지 평가도 시간 초과됐고 Esc 후에도 회복되지 않았다. 실제 200% 확대 적용·화면 상태를 검증하지 못했다. 두 항목을 PASS로 표시하지 않는다.
+- 정리: 새 시험 탭을 닫았다. 소유 ID를 확인한 API `342b3b...`, Web `f43d5e...`, PG `154b8b...` 컨테이너 3개와 전용 network `e843ce...`만 제거했다. SSH 포워딩 프로세스 PID 39356의 정확한 9091/9092 명령줄을 확인한 뒤 종료했다. 동명 Docker 자원·해당 포트 listener 0, WSL checkout clean. DB는 tmpfs 폐기로 시험 행이 남지 않았고 공유 DB 쓰기 0. 사용자 기존 Chrome 탭·파일·설정은 변경하지 않았다. 동일 원인 연속 오류: 인쇄/CDP 시간 초과 2회, 기타 0.
+- 미충족/다음 조치: G3 OS 직접 PDF 저장·실제 200% 확대와 G2 공유 DB 0023 별도 승인, G4 정정 분류 귀속 Important 충돌이 남아 있다. `docs/design_change.md`에 경계와 재개 조건을 유지하며 계획의 PR 병합·merged-main smoke는 조건 충족 전 수행하지 않는다.
+
+## 2026-10-10 지정 계획 재지시·장애 기록 재초기화
+
+- 담당/범위: 어울, `codex/next-work-20261010@9eece3bb352ac8ad031daac585daf5787a311c33`. 신산님 직접 지시에 따라 `docs/design_change.md`를 G2/G3/G4 현재 진행 장애만 남기는 형태로 재초기화했다. 과거 시도·검증 수치는 이 `WORK_STATUS.md`에 보존했다. `docs/design/DESIGN.md`와 지정 `docs/WORK_PLAN_20260-10-09.md`, 제품 코드, 공유 DB는 변경하지 않았다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`도 보존한다.
+- 현재 기준: SSH 별칭 원격 `main@399f77bcc72131ca9a03b0f0b8da39867fe7936f`, 작업 브랜치와 WSL 지정 checkout은 `9eece3bb352ac8ad031daac585daf5787a311c33` clean. 지난 G3 격리 컨테이너·네트워크 잔류 0. 공개 읽기 API에서 PR #17은 open/main base/같은 head이며 필수 설명 절이 있다. 같은 SHA의 push run `37993780509`와 PR run `37993785783`은 실제 verify job에서 install/test/typecheck/lint/build를 모두 실행해 `completed/success`다. GitHub 계정/토큰은 사용하지 않았다.
+- 이번 로컬 재검증: `pnpm test` 제품 600건/433 pass/167 DB·환경 skip/0 fail, PR 본문 시험 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 25경로) 모두 exit 0. 조건부 skip을 실DB 시험 통과로 취급하지 않는다. 이 실행은 제품 코드 변경 없는 기록 재초기화의 회귀 확인이다.
+- 미충족/다음 조치: G2 공유 DB 0023 별도 적용 승인, G3 OS 인쇄 저장·실제 200% 직접 확인, G4 정정 사건 분류 귀속 충돌은 `docs/design_change.md`에 현재 경계·영향·재개 조건을 기록했다. 사용자 지시의 계획 범위 밖 C1/0022 또는 신규 migration 변경은 수행하지 않는다. Task 5 Important 0·병합 조건 미충족이므로 병합 요청·merged-main smoke를 통과로 표시하지 않는다. 이번 재초기화 문서 커밋 뒤의 새 head CI는 별도로 확인한다.
+
+## 2026-10-10 최신 CI·독립 리뷰 대조
+
+- 담당: 어울, 변경 없는 제품 코드/기록 SHA `c9771aad7ee7989d303b44c1d16a3e745093b5cf`. 공개 읽기 API에서 PR #17은 open, base `main`, head 동일 SHA. 해당 SHA의 push run `37994971554`, pull_request run `37994976998`은 모두 `completed/success`이고 두 verify job 각각 `pnpm test`·`typecheck`·`lint`·`build` 단계가 실제 success다. GitHub 계정·토큰은 사용하지 않았다.
+- 공유 DB 읽기 전용 재확인: 정확한 `local-postgres/shoppingmall`, system ID `7622490131194466339`, migration 23건, 기존 판매자 완료 행 0. 로컬 0023 SQL SHA-256 `A1E20884C1F65DB944C15DEB443E948F80E2821E144A3296DD05122B3DC67D9B`. 추가 컬럼 조회 시 원격 셸 인용 오류 1회는 SQL 구문 실행 전 실패했으며 자료 변경은 없다. 0023은 별도 적용 승인 없이 공유 DB에 적용하지 않았다.
+- `main@399f77b`부터 `c9771aa`까지 읽기 전용 독립 리뷰: Critical 0, Important 1(기존 G4 정정 사건의 발생 당시 분류 위반), Minor 2. Minor는 같은 분류 ID의 이름만 달라져도 그룹 제목이 `여러 분류`로 보일 수 있는 점과, 사건 0건·완료 이력만 있을 때 `정산 자료가 없습니다` 안내가 과도하게 넓은 점이다. 실제 코드 53~54·67~69행과 정정 코드 99행을 대조했다. 리뷰어는 시험을 실행하지 않았으므로 위 로컬/CI·격리 DB 근거와 구분한다. Minor는 이번 계획의 병합 차단 항목은 아니지만 후속 UI 정리 후보로 남긴다.
+- G3 별도 시험 탭에서 `file:///D:/Project/shoppingmall2/docs/design/prototypes/admin.html` 열기는 브라우저 보안 정책이 프로토콜을 차단했다. 금지된 URL을 우회하지 않았고 시험 탭·제품 자료를 새로 만들지 않았다. OS 인쇄 저장·실제 200% 확대는 여전히 미검증이다. 계획 밖 변경 0, 동일 원인 연속 오류 0(이번 재지시 기준 보안 정책 거부 1회).
+- 다음 조치: 세 경계의 미충족 상태를 `docs/design_change.md`에 유지한다. 새로운 범위나 검증 기준 승인 없이 G4 수정·G2 적용·G3 대체 PASS·PR 병합을 수행하지 않는다. 독립적으로 가능한 최신 PR/로컬 검증과 기록은 진행했고, 설계서·작업계획서는 수정하지 않았다.
+
+## 2026-10-10 지정 계획 재지시·최신 PR 검증 대조
+
+- 담당: 어울. 신산님 직접 지시에 따라 `docs/design_change.md`를 현재 G2/G3/G4 장애 중심으로 다시 정리했다. 이전 시도·수치·자원 정리는 이 파일에 보존한다. 설계서·지정 작업계획서·제품 코드·공유 DB는 변경하지 않았다.
+- `codex/next-work-20261010@4425e64be456e3116c1f768443ad7f6f9147a1df`와 원격 추적 SHA가 같다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 보존했다. 원격은 승인된 SSH 별칭이다.
+- 공개 읽기 API로 PR #17은 open, head `4425e64be456e3116c1f768443ad7f6f9147a1df`, base `399f77bcc72131ca9a03b0f0b8da39867fe7936f`를 확인했다. 같은 head의 push run `37998917444`와 PR run `37998923030`은 각각 실제 `verify` job의 test/typecheck/lint/build 4단계 모두 success다. GitHub 계정·토큰은 사용하지 않았다.
+- G2의 0023 별도 적용 여부를 질문했다. 답변 전 공유 DB 쓰기 0. G3 실제 OS 인쇄·200% 확대와 G4 정정 사건 Y 귀속은 여전히 미충족이다. Task 5 Important 0/병합 gate는 통과로 표시하지 않고 병합 요청 태그·merged-main smoke를 실행하지 않는다.
+
+## 2026-10-10 C2 최신 독립 검토·로컬 회귀
+
+- 담당: 어울. 기준 `main@399f77b` → `codex/next-work-20261010@cabc4f7`. 읽기 전용 독립 검토는 신규 Critical 0·Important 0, 기존 G4 Important 1, 신규 Minor 1로 판정했다. 신규 Minor는 선택 분류 조회의 사건/완료 이력은 당시 분류를 따르지만 관리자 완료 버튼 후보는 현재 판매자 분류를 따르는 불일치다. 과거 X 사건·현재 Y 판매자는 X 조회에서 버튼이 빠질 수 있고, 현재 X·Y 완료 판매자는 X 조회에서 이미 완료된 기간의 버튼이 보여 서버 409를 받을 수 있다. 서버 중복 완료 방어와 전체 분류 조회 우회가 있어 Minor로 분류하고 이번 계획의 필수 gate 보정과 구분한다. 검토는 브라우저 재현이 아닌 코드 경로 대조이며 이전 보고서 문구 두 건은 현 head에 반영됐음을 확인했다.
+- 최신 로컬 `apps/web/test/settlement-report.test.mjs`는 9 pass·0 skip·0 fail. 루트 `pnpm test`는 제품 601건/434 pass/167 DB·환경 조건부 skip/0 fail, PR 본문 8 pass/0 skip/0 fail, exit 0이다. 이 로컬 시험의 skip을 공유 DB 실증으로 취급하지 않는다.
+- 승인된 계획 밖 C1/0022·설계서·작업계획서·공유 DB는 변경하지 않았다. G2 별도 승인 답변 전 적용 0, G3 직접 실측 미검증, G4 Important 유지. PR 병합·merged-main smoke는 조건 미충족으로 실행하지 않는다.
+
+## 2026-10-10 C2 PR 본문·CI 동기화
+
+- 담당: 어울. `.github/PR_REQUEST.md`의 이전 리뷰/CI 문구를 최신 독립 검토 Critical 0·기존 G4 Important 1·신규 Minor 1과 로컬 시험 601건/434 pass/167 skip/0 fail·PR 본문 시험 8 pass로 갱신했다. 형식 시험 8/8, `git diff --check` 0. 설계서·지정 작업계획서·제품 코드는 수정하지 않았다.
+- `0cae22122a0c4e5d780eb2b415559d8e560460b9`를 승인된 SSH 별칭으로 push하고 지정 WSL checkout에 clean fast-forward했다. 병합 요청이 아닌 `pr-create/**` 생성·본문갱신 전용 자동화 run `38001025937`은 success이고 PR #17 head/base/body가 같은 변경본과 일치한다. 자동화가 원격 요청 태그를 제거한 뒤 해당 로컬 태그 한 개만 정리했다.
+- 같은 head의 push run `38000965378`과 pull_request run `38000969801`은 모두 `completed/success`이며 각 `verify` job의 test/typecheck/lint/build 네 단계가 실제 success다. 별도 G2 승인 전 공유 DB 0023 적용 0, G3 직접 OS 인쇄·200% 미검증, G4 Important 1이 남아 병합 요청·merged-main smoke는 실행하지 않는다. 이 주기에 새 임시 DB/컨테이너/브라우저 시험 자료는 만들지 않았다.
+
+## 2026-10-10 남은 G2·G3·G4 경계 재대조
+
+- 담당: 어울. 작업 브랜치 `3fa5cb789c70bd4dde59ca002d33637dbf4927ea`의 제품 코드를 그대로 두고 G2 공유 대상만 읽었다. 이 SHA의 push run `38001240869`과 PR run `38001244713`은 각 verify job의 test/typecheck/lint/build가 모두 success다. 정확한 `WSL-server/local-postgres/shoppingmall`은 PostgreSQL 15.18, system ID `7622490131194466339`, Drizzle 이력 23건, 정산 사건·완료 기록 각각 0건이다. 0023 SQL SHA-256은 `A1E20884C1F65DB944C15DEB443E948F80E2821E144A3296DD05122B3DC67D9B`로 격리 검증본과 같다. 별도 승인 전 적용·백업 생성·시험 거래 생성은 0이다.
+- G3의 허용된 브라우저 인벤토리에는 이 시험의 실제 정산 화면 탭이 없었다. 앞선 OS 인쇄/200% 제어 실패를 다시 실행하거나 CDP PDF를 직접 실측으로 대체하지 않았다. 사용자 기존 탭은 변경하지 않았다. G4는 `correction.ts`가 X를 복사하고 0022 trigger가 원사건과 같은 분류를 강제함을 재확인했으며 현 계획 밖 C1/0022/추가 migration을 수정하지 않았다.
+- G2의 정확한 별도 승인 질문을 다시 전달했다. 답변 또는 후속 계획/검증 기준 결정 전까지 세 항목은 `docs/design_change.md`에 남기고, 작업계획서 Task 5 병합 요청·merged-main smoke를 실행하지 않는다.
+
+## 2026-10-10 G2 공유 DB 0023 적용 준비
+
+- 담당: 어울. 신산님이 공유 `WSL-server/local-postgres/shoppingmall`의 0023만 적용하는 별도 질문에 `지시대로해`라고 답해 권고안 실행으로 해석했다. 적용 범위는 이 DB의 0023 한 건이며 시험 거래·기존 사건 변경·다른 DB는 제외한다.
+- 적용 전 WSL 지정 checkout `codex/next-work-20261010@8eef276552f6c06059571c7dde2138865df91d79` clean, SQL SHA-256 `a1e20884c1f65db944c15deb443e948f80e2821e144a3296dd05122b3dc67d9b`, PostgreSQL 15.18, system ID `7622490131194466339`, migration 23건, 정산 사건/완료 기간 및 계정/판매자/주문/결제/환불 사건 각 0건을 확인했다. 사전 행 수 확인의 첫 SQL은 존재하지 않는 `users` 테이블을 참조해 읽기 전용 오류 1회였고 실제 `accounts`로 바로잡아 재조회했다. 자료 변경은 없었다.
+- 백업 계획: `/home/daon/deploy/shopping-s6-db-backups/pre-0023-8eef276-20261010.dump`에 0600 custom-format 전량 백업을 생성하고 크기·SHA-256·TOC를 확인한다. 기존 로컬 이미지 `pgvector/pgvector:0.8.2-pg15`의 일회용 `shoppingmall-s6-0023-restore-1010` 컨테이너는 `--network none`과 tmpfs로 격리해 복원/행 수/migration 수를 시험한 뒤 정확 ID 대조로 제거하고 잔류 0을 확인한다. 공유 DB 적용 실패 시 자동 역마이그레이션·임의 복원/삭제 없이 상태와 백업을 보존한다.
+- 공유 DB 적용 뒤 읽기 smoke에는 정확히 `shoppingmall-s6-0023-smoke-1010` 일회용 Node 24 API 컨테이너를 사용한다. `local-postgres`의 network namespace에서만 루프백 9092로 띄우고 공개 포트·새 네트워크·영속 볼륨·시험 거래는 만들지 않는다. `/health`, `/ready`, 익명 정산 조회와 교차 origin 차단을 확인한 즉시 컨테이너 ID 대조 후 제거한다.
+
+## 2026-10-10 G2 공유 DB 0023 적용·읽기 검증 결과
+
+- 담당: 어울. 승인된 정확한 WSL DB PostgreSQL 15.18/system ID `7622490131194466339`에 0023만 적용했다. 적용 직전 checkout `8eef276552f6c06059571c7dde2138865df91d79` clean, SQL SHA-256 `a1e20884c1f65db944c15deb443e948f80e2821e144a3296dd05122b3dc67d9b`, migration 23건, 정산 사건/완료 및 기존 주요 6범주 0건을 재확인했다. 표준 읽기 전용 dry-run은 23 적용·0023 하나 대기(2문장)였다.
+- 0700 백업 디렉터리에 custom-format 전량 백업 `pre-0023-8eef276-20261010.dump`를 0600·272193 bytes로 만들었다. SHA-256 `3cc59a0767a4beb2081d80f0fdf99f54c48080d7c30fa92262e88415503aaa98`, `pg_restore -l` 통과. 기존 로컬 PG15 이미지의 `--network none`·tmpfs 일회용 복원 컨테이너 ID `c797bef3...`에 실제 복원해 migration 23·기존 주요 행 0을 확인하고 정확 ID 대조 후 제거·잔류 0을 확인했다. 백업은 복구 검토용으로 보존한다.
+- 같은 소스의 표준 Drizzle migrator `node --import tsx scripts/migrate.ts`가 exit 0. 적용 후 DB 식별자 불변, migration **24건/대기 0**, 스냅샷 두 열 실제 조회 가능, 정산 사건/완료와 기존 계정/판매자/주문/결제/환불 사건 0건을 확인했다. 적용 후 첫 열 확인 SQL은 원격 셸에서 `$$`가 PID로 확장돼 읽기 전용 구문 오류 1회였으며, 열을 직접 선택하는 SQL로 고쳐 확인했다. 데이터 변경·복구 작업은 없었다.
+- 일회용 API ID `fee02fdf...`에서 공유 DB에 대한 `/health` 200, `/ready` 200, 익명 관리자·판매자 정산 조회 각 401, 교차 Origin 관리자 완료 POST 403을 실측했다. POST는 origin 단계에서 거부돼 거래를 만들지 않았다. 정확 ID 대조 후 API 컨테이너 제거·잔류 0, 사후 migration 24 및 주요 행 0을 다시 확인했다. 공개 포트/새 네트워크/영속 볼륨은 만들지 않았다.
+- G2는 공유 DB 스키마·읽기 경계에 한해 확인했다. 신산님 지시대로 공유 DB의 가상 불변 거래 행 검증은 하지 않았고 격리 거래 E2E와 구분한다. 남은 G3 실제 OS PDF 저장·200% 확대와 G4 정정 사건 당시 분류 Important는 `docs/design_change.md`에 남긴다. 지정 계획 Task 5 병합 조건은 여전히 충족하지 않는다.
+
+## 2026-10-10 PR #17 병합 예외 승인·정리 준비
+
+- 담당: 어울. 신산님이 `main` 병합과 로컬/원격 동기화, 로컬 `main` 외 브랜치·worktree 정리를 지시했고, G4 정정 분류 중요 결함 1건과 G3 OS PDF 저장·실제 200% 확대 미검증의 **병합 예외를 별도 질문에 명시 승인**했다. 이는 해당 기능의 통과 판정이나 `docs/design_change.md` 장애 해소가 아니다. 설계서·지정 작업계획서는 수정하지 않는다.
+- 병합 전 `codex/next-work-20261010@77fb36c1b045cfdbbcfdae05e213ca5a20e9fae4`, `main`/원격 `399f77bcc72131ca9a03b0f0b8da39867fe7936f`, PR #17 open/mergeable clean을 확인했다. 최신 push/PR CI의 test/typecheck/lint/build 모두 success. 로컬 재시험 `pnpm test` 제품 601건/434 pass/167 조건부 skip/0 fail, PR 본문 8/8 pass. skip은 실제 DB 검증으로 바꾸지 않는다.
+- 로컬 브랜치·worktree 목록은 현재 작업 브랜치와 `main`, 저장소 본체 worktree 하나뿐이다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 병합·정리에서 제외해 보존한다. 병합 전 PR 본문에 예외 승인·남은 위험을 명시하고 자동화 요청 태그를 사용한다. 병합 결과·merged-main smoke와 정리 증거는 실제 실행 후 별도 확인한다.

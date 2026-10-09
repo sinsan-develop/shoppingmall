@@ -13,6 +13,7 @@ export type SettlementReport = {
     sellerId: string; sellerName: string; sellerCategoryId: string; sellerCategoryName: string;
     totals: Record<Kind, number>;
     items: { id: string; kind: Kind; amountWon: number; occurredAt: string;
+      sellerCategoryId?: string; sellerCategoryName?: string;
       recordedAt?: string; reason?: string | null;
       originalEventId?: string | null; correctedKind?: Kind | null;
       correctionDirection?: 'increase' | 'decrease' | null;
@@ -22,6 +23,8 @@ export type SettlementReport = {
   lateGroups?: SettlementReport['groups'];
   lateTotals?: Record<Kind, number>;
   completions: { id: string; sellerId: string; sellerName: string;
+    sellerCategoryIdAtCompletion?: string | null;
+    sellerCategoryNameAtCompletion?: string | null;
     startDate: string; endDate: string; completedAt: string; reason: string;
     frozenTotals?: Record<Kind, number> }[];
 };
@@ -46,25 +49,39 @@ function Totals({ values }: { values: SettlementReport['totals'] }) {
   </dl>;
 }
 
-export function SettlementReportView({ report }: { report: SettlementReport }) {
+function categoryLabel(group: SettlementReport['groups'][number]) {
+  const ids = new Set(group.items.map((item) => item.sellerCategoryId ?? group.sellerCategoryId));
+  const names = new Set(group.items.map((item) => item.sellerCategoryName ?? group.sellerCategoryName));
+  if (ids.size > 1) return '여러 분류';
+  if (names.size > 1) return '분류명 변경';
+  return [...names][0] ?? group.sellerCategoryName;
+}
+
+export function SettlementReportView({ report, selectedCategoryName }: {
+  report: SettlementReport; selectedCategoryName?: string;
+}) {
   return <article className="settlement-print" aria-label="조회된 정산 자료">
     <header className="account-card profile-card">
       <h1>정산 자료</h1>
       <p>{report.filter.from} ~ {report.filter.to} 발생 기준</p>
+      {report.filter.categoryId ? <p>조회 판매자 분류: {selectedCategoryName ?? report.filter.categoryId}</p> : null}
       <p>판매자별 발생 금액을 구분해 표시합니다. 실제 송금은 시스템 밖에서 진행합니다.</p>
     </header>
     {report.groups.length === 0 ? <p className="account-card">{report.lateGroups?.length
       ? '조회 기간의 기본 정산 자료가 없습니다. 완료 후 추가 발생은 아래에서 확인해 주세요.'
+      : report.completions.length
+        ? '조회 기간에 발생한 정산 사건이 없습니다. 완료 이력은 아래에서 확인해 주세요.'
       : '조회 기간에 정산 자료가 없습니다.'}</p> : null}
     {report.groups.map((group) => <section className="account-card profile-card settlement-group"
       aria-label={`판매자 ${group.sellerName} 정산 자료`} key={group.sellerId}>
-      <h2>{group.sellerName} <small>{group.sellerCategoryName}</small></h2>
+      <h2>{group.sellerName} <small>{categoryLabel(group)}</small></h2>
       <div className="settlement-table-scroll"><table className="settlement-table">
-        <thead><tr><th scope="col">발생 시점</th><th scope="col">항목</th>
+        <thead><tr><th scope="col">발생 시점</th><th scope="col">당시 판매자 분류</th><th scope="col">항목</th>
           <th scope="col">상품·옵션</th><th scope="col">원주문 근거</th>
           <th scope="col">금액</th></tr></thead>
         <tbody>{group.items.map((item) => <tr key={item.id}>
           <td>{occurred(item.occurredAt)}</td>
+          <td>{item.sellerCategoryName ?? group.sellerCategoryName}</td>
           <td>{itemKind(item)}</td>
           <td>{item.productName ? `${item.productName} · ${item.optionName}` : '발송 주문'}</td>
           <td>{item.checkoutOrderId ?? '별도 근거'}
@@ -77,20 +94,23 @@ export function SettlementReportView({ report }: { report: SettlementReport }) {
       <h3>{group.sellerName} 소계</h3><Totals values={group.totals} />
     </section>)}
     <section className="account-card profile-card settlement-overall" aria-label="전체 정산 자료 합계">
-      <h2>전체 합계</h2><Totals values={report.totals} />
+      <h2>{report.filter.categoryId ? '선택 분류 합계' : '전체 합계'}</h2>
+      <Totals values={report.totals} />
     </section>
     <section className="account-card profile-card settlement-late" aria-label="완료 후 추가 발생">
       <h2>완료 후 추가 발생</h2>
       <p>완료 당시 금액에는 포함되지 않습니다. 발생 시점과 기록 시점을 구분합니다.</p>
       {(report.lateGroups ?? []).length === 0 ? <p>추가 발생 자료가 없습니다.</p> :
         report.lateGroups?.map((group) => <section className="settlement-group" key={group.sellerId}>
-          <h3>{group.sellerName} <small>{group.sellerCategoryName}</small></h3>
+          <h3>{group.sellerName} <small>{categoryLabel(group)}</small></h3>
           <div className="settlement-table-scroll"><table className="settlement-table">
             <thead><tr><th scope="col">발생 시점</th><th scope="col">기록 시점</th>
-              <th scope="col">항목</th><th scope="col">원주문·근거</th><th scope="col">금액</th></tr></thead>
+              <th scope="col">당시 판매자 분류</th><th scope="col">항목</th>
+              <th scope="col">원주문·근거</th><th scope="col">금액</th></tr></thead>
             <tbody>{group.items.map((item) => <tr key={item.id}>
               <td>{occurred(item.occurredAt)}</td>
               <td>{occurred(item.recordedAt ?? item.occurredAt)}</td>
+              <td>{item.sellerCategoryName ?? group.sellerCategoryName}</td>
               <td>{itemKind(item)}</td>
               <td>{item.checkoutOrderId ?? '원주문 없음'}
                 {item.reason ? <small> · {item.reason}</small> : null}
@@ -109,8 +129,11 @@ export function SettlementReportView({ report }: { report: SettlementReport }) {
       {report.completions.length === 0 ? <p>조회 기간과 겹치는 완료 기록이 없습니다.</p> :
         <ul>{report.completions.map((entry) => <li key={entry.id}>
           <strong>{entry.sellerName}</strong> · {entry.startDate} ~ {entry.endDate}
+          {entry.sellerCategoryNameAtCompletion
+            ? <span> · 완료 당시 판매자 분류: {entry.sellerCategoryNameAtCompletion}</span> : null}
           <span> · {occurred(entry.completedAt)} · {entry.reason}</span>
-          {entry.frozenTotals ? <><h3>완료 당시 항목별 금액</h3>
+          {entry.frozenTotals ? <><h3>{report.filter.categoryId
+            ? '선택 분류 완료 당시 항목별 금액' : '완료 당시 항목별 금액'}</h3>
             <Totals values={entry.frozenTotals} /></> : null}
         </li>)}</ul>}
     </section>

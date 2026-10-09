@@ -13,6 +13,8 @@ type Row = Omit<SettlementReportItem, 'kind' | 'amountWon' | 'occurredAt'> & {
 
 type CompletionRow = {
   id: string; sellerId: string; sellerName: string;
+  sellerCategoryIdAtCompletion: string | null;
+  sellerCategoryNameAtCompletion: string | null;
   startDate: string; endDate: string; completedAt: Date; reason: string;
 };
 
@@ -58,12 +60,21 @@ export async function readSettlement(client: PoolClient, filter: SettlementQuery
     row.completionPeriodId && row.linkedPeriodId !== row.completionPeriodId);
   const completionResult = await client.query<CompletionRow>(`SELECT period.id,
     period.seller_id AS "sellerId",seller.display_name AS "sellerName",
+    period.seller_category_id_at_completion AS "sellerCategoryIdAtCompletion",
+    period.seller_category_name_at_completion AS "sellerCategoryNameAtCompletion",
     period.start_date::text AS "startDate",period.end_date::text AS "endDate",
     period.completed_at AS "completedAt",period.reason
     FROM seller_settlement_periods period
     JOIN sellers seller ON seller.id=period.seller_id
     WHERE period.start_date <= $2::date AND period.end_date >= $1::date
-      AND ($3::uuid IS NULL OR seller.category_id=$3)
+      AND ($3::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM seller_settlement_period_event_links category_link
+        JOIN settlement_events category_event ON category_event.id=category_link.event_id
+        WHERE category_link.period_id=period.id AND category_event.seller_category_id=$3
+      ) OR (period.seller_category_id_at_completion=$3 AND NOT EXISTS (
+        SELECT 1 FROM seller_settlement_period_event_links any_link
+        WHERE any_link.period_id=period.id
+      )))
       AND ($4::uuid IS NULL OR period.seller_id=$4)
     ORDER BY seller.display_name,period.start_date,period.id`,
   [filter.from, filter.to, filter.categoryId, filter.sellerId]);
@@ -76,6 +87,7 @@ export async function readSettlement(client: PoolClient, filter: SettlementQuery
         FROM seller_settlement_period_event_links link
         JOIN settlement_events event ON event.id=link.event_id
         WHERE link.period_id=ANY($1::uuid[])
+          AND ($2::uuid IS NULL OR event.seller_category_id=$2)
         UNION ALL
         SELECT link.period_id,original.kind,
           CASE WHEN correction.correction_direction='increase'
@@ -85,9 +97,10 @@ export async function readSettlement(client: PoolClient, filter: SettlementQuery
           AND correction.kind='correction'
         JOIN settlement_events original ON original.id=correction.original_event_id
         WHERE link.period_id=ANY($1::uuid[])
+          AND ($2::uuid IS NULL OR correction.seller_category_id=$2)
       ) amount
       GROUP BY amount.period_id,amount.kind`,
-    [completionResult.rows.map((row) => row.id)])
+    [completionResult.rows.map((row) => row.id), filter.categoryId])
     : { rows: [] };
   const completions = completionResult.rows.map((row) => {
     const frozenTotals = { ...summarizeSettlement([]).totals };

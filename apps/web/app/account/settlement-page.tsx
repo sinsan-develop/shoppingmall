@@ -269,7 +269,8 @@ export function SettlementPage({ role }: { role: Role }) {
     {error ? <p className="account-card settlement-controls" role="alert">{error}</p> : null}
     {notice ? <p className="account-card settlement-controls" role="status">{notice}</p> : null}
     {busy ? <p role="status">정산 자료를 불러오는 중입니다.</p> : null}
-    {report ? <SettlementReportView report={report} /> : null}
+    {report ? <SettlementReportView report={report}
+      selectedCategoryName={categories.find(({ id }) => id === report.filter.categoryId)?.name} /> : null}
     {role === 'admin' ? <section className="account-card profile-card settlement-controls"
       aria-label="수수료 수동 기록">
       <h2>수수료 수동 기록</h2>
