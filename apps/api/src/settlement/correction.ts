@@ -61,6 +61,17 @@ export async function recordCorrection(client: PoolClient, adminId: string,
         WHERE role.account_id=$2 AND role.role='admin')
     FOR UPDATE OF event`, [input.originalEventId, normalizedAdminId])).rows[0];
   if (!original) throw new Error('Settlement correction access denied');
+  // A concurrent retry may have committed while this request waited for the original lock.
+  const committed = (await client.query<CorrectionRow>(`SELECT id,
+    original_event_id AS "originalEventId",source_event_id AS "requestId",
+    correction_direction AS direction,amount_won::text AS "amountWon",
+    reason,recorded_by AS "recordedBy",occurred_at AS "occurredAt"
+    FROM settlement_events WHERE dedupe_key=$1 AND kind='correction'`, [key])).rows[0];
+  if (committed) {
+    if (!sameRequest(committed, input, normalizedAdminId))
+      throw new Error('Settlement correction request conflict');
+    return response(committed);
+  }
 
   const adjusted = (await client.query<{ adjustedWon: string }>(`SELECT
     (original.amount_won + coalesce(sum(CASE
