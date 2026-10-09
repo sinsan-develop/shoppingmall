@@ -88,6 +88,8 @@ async function print(filename) {
   const pdf = Buffer.from(printed.data ?? '', 'base64');
   assert.equal(pdf.subarray(0, 5).toString('ascii'), '%PDF-');
   assert.ok(pdf.length > 10_000, `PDF too small: ${pdf.length}`);
+  const pageCount = (pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length;
+  assert.equal(pageCount, 1, `Fixture print should fit on one page: ${pageCount}`);
   await writeFile(`${output}/${filename}`, pdf);
   await send('Emulation.setEmulatedMedia', { media: 'screen' });
   return pdf.length;
