@@ -4608,3 +4608,11 @@
 - 현재 기준: SSH 별칭 원격 `main@399f77bcc72131ca9a03b0f0b8da39867fe7936f`, 작업 브랜치와 WSL 지정 checkout은 `9eece3bb352ac8ad031daac585daf5787a311c33` clean. 지난 G3 격리 컨테이너·네트워크 잔류 0. 공개 읽기 API에서 PR #17은 open/main base/같은 head이며 필수 설명 절이 있다. 같은 SHA의 push run `37993780509`와 PR run `37993785783`은 실제 verify job에서 install/test/typecheck/lint/build를 모두 실행해 `completed/success`다. GitHub 계정/토큰은 사용하지 않았다.
 - 이번 로컬 재검증: `pnpm test` 제품 600건/433 pass/167 DB·환경 skip/0 fail, PR 본문 시험 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 25경로) 모두 exit 0. 조건부 skip을 실DB 시험 통과로 취급하지 않는다. 이 실행은 제품 코드 변경 없는 기록 재초기화의 회귀 확인이다.
 - 미충족/다음 조치: G2 공유 DB 0023 별도 적용 승인, G3 OS 인쇄 저장·실제 200% 직접 확인, G4 정정 사건 분류 귀속 충돌은 `docs/design_change.md`에 현재 경계·영향·재개 조건을 기록했다. 사용자 지시의 계획 범위 밖 C1/0022 또는 신규 migration 변경은 수행하지 않는다. Task 5 Important 0·병합 조건 미충족이므로 병합 요청·merged-main smoke를 통과로 표시하지 않는다. 이번 재초기화 문서 커밋 뒤의 새 head CI는 별도로 확인한다.
+
+## 2026-10-10 최신 CI·독립 리뷰 대조
+
+- 담당: 어울, 변경 없는 제품 코드/기록 SHA `c9771aad7ee7989d303b44c1d16a3e745093b5cf`. 공개 읽기 API에서 PR #17은 open, base `main`, head 동일 SHA. 해당 SHA의 push run `37994971554`, pull_request run `37994976998`은 모두 `completed/success`이고 두 verify job 각각 `pnpm test`·`typecheck`·`lint`·`build` 단계가 실제 success다. GitHub 계정·토큰은 사용하지 않았다.
+- 공유 DB 읽기 전용 재확인: 정확한 `local-postgres/shoppingmall`, system ID `7622490131194466339`, migration 23건, 기존 판매자 완료 행 0. 로컬 0023 SQL SHA-256 `A1E20884C1F65DB944C15DEB443E948F80E2821E144A3296DD05122B3DC67D9B`. 추가 컬럼 조회 시 원격 셸 인용 오류 1회는 SQL 구문 실행 전 실패했으며 자료 변경은 없다. 0023은 별도 적용 승인 없이 공유 DB에 적용하지 않았다.
+- `main@399f77b`부터 `c9771aa`까지 읽기 전용 독립 리뷰: Critical 0, Important 1(기존 G4 정정 사건의 발생 당시 분류 위반), Minor 2. Minor는 같은 분류 ID의 이름만 달라져도 그룹 제목이 `여러 분류`로 보일 수 있는 점과, 사건 0건·완료 이력만 있을 때 `정산 자료가 없습니다` 안내가 과도하게 넓은 점이다. 실제 코드 53~54·67~69행과 정정 코드 99행을 대조했다. 리뷰어는 시험을 실행하지 않았으므로 위 로컬/CI·격리 DB 근거와 구분한다. Minor는 이번 계획의 병합 차단 항목은 아니지만 후속 UI 정리 후보로 남긴다.
+- G3 별도 시험 탭에서 `file:///D:/Project/shoppingmall2/docs/design/prototypes/admin.html` 열기는 브라우저 보안 정책이 프로토콜을 차단했다. 금지된 URL을 우회하지 않았고 시험 탭·제품 자료를 새로 만들지 않았다. OS 인쇄 저장·실제 200% 확대는 여전히 미검증이다. 계획 밖 변경 0, 동일 원인 연속 오류 0(이번 재지시 기준 보안 정책 거부 1회).
+- 다음 조치: 세 경계의 미충족 상태를 `docs/design_change.md`에 유지한다. 새로운 범위나 검증 기준 승인 없이 G4 수정·G2 적용·G3 대체 PASS·PR 병합을 수행하지 않는다. 독립적으로 가능한 최신 PR/로컬 검증과 기록은 진행했고, 설계서·작업계획서는 수정하지 않았다.
