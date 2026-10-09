@@ -106,3 +106,31 @@ test('print shows correction direction, target kind, original event and reason',
     assert.ok(html.includes(expected), expected);
   }
 });
+
+test('print distinguishes mixed historical item categories and selected-category completion totals', () => {
+  const mixed = { ...report.groups[0], totals: { ...totals, commission: 14000 },
+    items: [
+      { ...report.groups[0].items[0], id: 'x-event', kind: 'commission', amountWon: 10000,
+        sellerCategoryId: 'x', sellerCategoryName: '과거 X' },
+      { ...report.groups[0].items[0], id: 'y-event', kind: 'commission', amountWon: 4000,
+        sellerCategoryId: 'y', sellerCategoryName: '현재 Y' },
+    ] };
+  const allHtml = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, groups: [mixed], totals: mixed.totals,
+    completions: [{ ...report.completions[0], frozenTotals: mixed.totals }],
+  } }));
+  assert.match(allHtml, /여러 분류/);
+  assert.match(allHtml, /과거 X/);
+  assert.match(allHtml, /현재 Y/);
+  assert.match(allHtml, /전체 합계/);
+  const xHtml = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, filter: { ...report.filter, categoryId: 'x' },
+    groups: [{ ...mixed, items: [mixed.items[0]], totals: { ...totals, commission: 10000 } }],
+    totals: { ...totals, commission: 10000 },
+    completions: [{ ...report.completions[0], frozenTotals: { ...totals, commission: 10000 } }],
+  } }));
+  assert.match(xHtml, /선택 분류 합계/);
+  assert.match(xHtml, /선택 분류 완료 당시 항목별 금액/);
+  assert.match(xHtml, /10,000원/);
+  assert.doesNotMatch(xHtml, /14,000원/);
+});
