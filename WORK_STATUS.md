@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-09 정산 설계 변경의 정본 반영
+
+- 담당/범위: 어울 단일 writer, `codex/design-change-sync` (`origin/main@07e996e`에서 분리). 신산님 직접 지시에 따라 `design_change.md`와 승인된 S6 정산 제안의 확정 계약만 `docs/design/DESIGN.md` R09·4·5절에 반영했다. `docs/WORK_PLAN.md`, 제품 코드, DB, 환경은 변경하지 않는다.
+- 반영 내용: 판매자·당시 분류/원거래별 불변 장부, 관리자 수수료 입력, 판매자별 개별 완료·포함 사건/금액 고정, 완료 후 추가 발생의 별도 표시, 전체·분류·개별 조회 및 인쇄 근거. 정정 사건 공개 계약과 분류 변경 후 완료 이력 귀속 기준은 미확정으로 유지하며 설계 변경으로 확정하지 않았다.
+- 검증/다음 조치: `git diff --check` exit0, 승인된 S6 근거 문서 2개가 저장소에 존재함을 확인했다. 로컬 `pnpm test` 578건/418 pass/160 DB·환경 skip/0 fail과 PR 본문 규칙 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0(Web 25 routes). 이는 문서 변경의 회귀 gate이며 실제 앱·DB·WSL·사용자 인수 시험을 이번 변경으로 새로 통과한 뜻이 아니다. 승인된 SSH 별칭 PR 절차로 main 반영 여부를 검증한다. 오류 0.
+
 ## 2026-10-09 신산님 직접 S6 PR 병합·로컬 브랜치 정리 지시
 
 - 신산님이 `codex/s6-settlement`의 `main` 병합과 `main` 외 모든 로컬 branch/worktree 정리를 직접 지시했다. 정본 설계서·작업계획서는 수정하지 않는다. 이 지시는 제품 기능/미검증 항목의 실제 PASS를 뜻하지 않는다.
