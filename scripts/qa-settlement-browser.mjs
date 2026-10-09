@@ -81,7 +81,7 @@ try {
   await login('admin', `qa+${runId}-admin@example.invalid`);
   await navigate('/account/admin/settlement');
   await queryPeriod('19,000원');
-  const all = await evaluate(`({groups:[...document.querySelectorAll('.settlement-group')].map(x=>x.textContent),
+  const all = await evaluate(`({groups:[...document.querySelectorAll('.settlement-print > .settlement-group')].map(x=>x.textContent),
     total:document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent})`);
   assert.equal(all.groups.length, 2);
   assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-a`) && group.includes('12,000원')));
@@ -92,6 +92,10 @@ try {
     /이미 완료된 기간과 겹칩니다/);
   assert.match(await evaluate(`document.querySelector('.settlement-history')?.textContent`),
     /오프라인 확인/);
+  assert.match(await evaluate(`document.querySelector('.settlement-history')?.textContent`),
+    /12,000원/);
+  assert.match(await evaluate(`document.querySelector('.settlement-late')?.textContent`),
+    /1,300원/);
   const categoryId = await evaluate(`[...document.querySelectorAll('select[name=categoryId] option')]
     .find((option)=>option.textContent==='qa-${runId}-sellers')?.value`);
   const sellerBId = await evaluate(`[...document.querySelectorAll('select[name=sellerId] option')]
@@ -99,11 +103,11 @@ try {
   assert.ok(categoryId && sellerBId);
   await setValue('select[name=categoryId]', categoryId);
   await queryPeriod('12,000원');
-  assert.equal(await evaluate(`document.querySelectorAll('.settlement-group').length`), 1);
+  assert.equal(await evaluate(`document.querySelectorAll('.settlement-print > .settlement-group').length`), 1);
   await setValue('select[name=categoryId]', '');
   await setValue('select[name=sellerId]', sellerBId);
   await queryPeriod('7,000원');
-  assert.equal(await evaluate(`document.querySelectorAll('.settlement-group').length`), 1);
+  assert.equal(await evaluate(`document.querySelectorAll('.settlement-print > .settlement-group').length`), 1);
   await setValue('select[name=sellerId]', '');
   await queryPeriod('19,000원');
   await send('Emulation.setEmulatedMedia', {media:'print'});
@@ -124,7 +128,7 @@ try {
   await login('seller', `qa+${runId}-seller-a@example.invalid`);
   await navigate('/account/seller/settlement');
   await queryPeriod('12,000원');
-  const own = await evaluate(`({groups:[...document.querySelectorAll('.settlement-group')].map(x=>x.textContent),
+  const own = await evaluate(`({groups:[...document.querySelectorAll('.settlement-print > .settlement-group')].map(x=>x.textContent),
     total:document.querySelector('[aria-label="전체 정산 자료 합계"]')?.textContent,
     completion:document.querySelectorAll('.settlement-completion').length})`);
   assert.equal(own.groups.length, 1);
@@ -133,6 +137,8 @@ try {
   assert.equal(own.completion, 0);
   assert.match(await evaluate(`document.querySelector('.settlement-history')?.textContent`),
     /오프라인 확인/);
+  assert.match(await evaluate(`document.querySelector('.settlement-late')?.textContent`),
+    /1,300원/);
   await navigate('/account/admin/settlement');
   await waitFor(`document.querySelector('[role=alert]')?.textContent.includes('현재 역할')`, 'seller denied');
   console.log(JSON.stringify({status:'PASS', runId, adminGroups:all.groups.length,
