@@ -63,13 +63,7 @@ export async function readSettlement(client: PoolClient, filter: SettlementQuery
     FROM seller_settlement_periods period
     JOIN sellers seller ON seller.id=period.seller_id
     WHERE period.start_date <= $2::date AND period.end_date >= $1::date
-      AND ($3::uuid IS NULL OR EXISTS (
-        SELECT 1 FROM seller_settlement_period_event_links linked
-        JOIN settlement_events event ON event.id=linked.event_id
-        WHERE linked.period_id=period.id AND event.seller_category_id=$3
-      ) OR (period.seller_category_id=$3 AND NOT EXISTS (
-        SELECT 1 FROM seller_settlement_period_event_links linked
-        WHERE linked.period_id=period.id)))
+      AND ($3::uuid IS NULL OR seller.category_id=$3)
       AND ($4::uuid IS NULL OR period.seller_id=$4)
     ORDER BY seller.display_name,period.start_date,period.id`,
   [filter.from, filter.to, filter.categoryId, filter.sellerId]);
@@ -82,7 +76,6 @@ export async function readSettlement(client: PoolClient, filter: SettlementQuery
         FROM seller_settlement_period_event_links link
         JOIN settlement_events event ON event.id=link.event_id
         WHERE link.period_id=ANY($1::uuid[])
-          AND ($2::uuid IS NULL OR event.seller_category_id=$2)
         UNION ALL
         SELECT link.period_id,original.kind,
           CASE WHEN correction.correction_direction='increase'
@@ -92,10 +85,9 @@ export async function readSettlement(client: PoolClient, filter: SettlementQuery
           AND correction.kind='correction'
         JOIN settlement_events original ON original.id=correction.original_event_id
         WHERE link.period_id=ANY($1::uuid[])
-          AND ($2::uuid IS NULL OR correction.seller_category_id=$2)
       ) amount
       GROUP BY amount.period_id,amount.kind`,
-    [completionResult.rows.map((row) => row.id), filter.categoryId])
+    [completionResult.rows.map((row) => row.id)])
     : { rows: [] };
   const completions = completionResult.rows.map((row) => {
     const frozenTotals = { ...summarizeSettlement([]).totals };

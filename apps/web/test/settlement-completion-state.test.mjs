@@ -13,7 +13,6 @@ test('a completed seller period blocks only that seller when dates overlap', () 
   assert.equal(completionOverlaps(completions, 'farm-a', '2026-05-21', '2026-05-31'), false);
   assert.equal(completionOverlaps(completions, 'farm-b', '2026-05-01', '2026-05-20'), false);
 });
-
 test('admin can enter a manual commission with explicit Seoul occurrence and evidence', () => {
   assert.equal(seoulInputToIso('2026-05-02T09:00'), '2026-05-02T00:00:00.000Z');
   assert.throws(() => seoulInputToIso('2026-02-30T09:00'), /발생 시점/);
@@ -61,12 +60,4 @@ test('a seller with zero events remains a completion candidate in all, category 
     .map(({ id }) => id), ['farm-a', 'farm-empty']);
   assert.deepEqual(completionCandidates(sellers, { categoryId: '', sellerId: 'farm-empty' })
     .map(({ id }) => id), ['farm-empty']);
-});
-
-test('historical category query still offers its seller for seller-wide period completion', () => {
-  const sellers = [{ id: 'farm-a', name: '농가 A', categoryId: 'new' },
-    { id: 'farm-b', name: '농가 B', categoryId: 'new' }];
-  const historical = { groups: [{ sellerId: 'farm-a' }], lateGroups: [], completions: [] };
-  assert.deepEqual(completionCandidates(sellers, { categoryId: 'old', sellerId: '' }, historical)
-    .map(({ id }) => id), ['farm-a']);
 });

@@ -40,13 +40,6 @@ test('report prints the displayed seller sections, source orders and period tota
   assert.match(html, /오프라인 확인/);
 });
 
-test('all-category print heading names every historical seller classification', () => {
-  const group = { ...report.groups[0], sellerCategoryNames: ['이전 분류', '새 분류'] };
-  const html = renderToStaticMarkup(createElement(SettlementReportView, { report: {
-    ...report, groups: [group], totals: group.totals,
-  } }));
-  assert.match(html, /농가 A.*이전 분류.*새 분류/);
-});
 
 test('completion history remains visible even when the selected period has no events', () => {
   const html = renderToStaticMarkup(createElement(SettlementReportView, {
@@ -88,15 +81,6 @@ test('print separates frozen completion amounts from backdated late entries and 
   }
 });
 
-test('category-filtered completion labels its frozen amount as a historical category slice', () => {
-  const html = renderToStaticMarkup(createElement(SettlementReportView, { report: {
-    ...report, filter: { ...report.filter, categoryId: 'farms' },
-    completions: [{ ...report.completions[0], frozenTotals: { ...totals, sale: 4000 } }],
-  } }));
-  assert.match(html, /선택한 판매자 분류의 완료 당시 항목별 금액/);
-  assert.match(html, /판매자 전체 기간 완료 금액과 다를 수 있습니다/);
-  assert.match(html, /4,000원/);
-});
 
 test('late-only reports name the empty frozen section accurately and print together', () => {
   const html = renderToStaticMarkup(createElement(SettlementReportView, { report: {

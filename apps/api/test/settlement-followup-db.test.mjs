@@ -9,7 +9,7 @@ import { readSettlement } from '../src/settlement/repository.ts';
 import { createSessionToken, hashSessionToken } from '../src/auth/credentials.ts';
 import { createApp } from '../src/app.ts';
 
-test('isolated DB fixes category history and records immutable signed correction after completion', {
+test('isolated DB records immutable signed correction after completion', {
   skip: !process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID,
 }, async () => {
   assert.equal(process.env.PGDATABASE, 'shoppingmall_s6_followup_1009');
@@ -22,14 +22,12 @@ test('isolated DB fixes category history and records immutable signed correction
     assert.equal(systemId, process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID);
     const history = (await client.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations'))
       .rows[0].n;
-    assert.equal(history, 24);
+    assert.equal(history, 23);
     await client.query('BEGIN'); began = true;
     const adminId = (await client.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
     await client.query(`INSERT INTO account_roles(account_id,role) VALUES ($1,'admin')`, [adminId]);
     const categoryA = (await client.query(`INSERT INTO seller_categories(name)
       VALUES ('QA 당시 분류 A') RETURNING id`)).rows[0].id;
-    const categoryB = (await client.query(`INSERT INTO seller_categories(name)
-      VALUES ('QA 현재 분류 B') RETURNING id`)).rows[0].id;
     const sellerId = (await client.query(`INSERT INTO sellers(category_id,display_name)
       VALUES ($1,'QA 판매자') RETURNING id`, [categoryA])).rows[0].id;
     const originalEventId = (await client.query(`INSERT INTO settlement_events
@@ -41,7 +39,6 @@ test('isolated DB fixes category history and records immutable signed correction
     [`qa:${randomUUID()}`, sellerId, categoryA, randomUUID(), adminId])).rows[0].id;
     const may = await completeSellerPeriod(client, adminId, { sellerId,
       from: '2026-05-01', to: '2026-05-20', reason: '5월 완료' });
-    await client.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [categoryB, sellerId]);
     const request = { originalEventId, requestId: randomUUID(), direction: 'decrease',
       amountWon: 2000, reason: '입력 오류 정정' };
     const correction = await recordCorrection(client, adminId, request);
@@ -55,38 +52,8 @@ test('isolated DB fixes category history and records immutable signed correction
       to: '2026-05-20', categoryId: categoryA }));
     assert.equal(aReport.completions.find((entry) => entry.id === may.id)?.frozenTotals.commission,
       10000);
-    const bReport = await readSettlement(client, parseSettlementQuery({ from: '2026-05-01',
-      to: '2026-05-20', categoryId: categoryB }));
-    assert.equal(bReport.completions.length, 0);
-    const empty = await completeSellerPeriod(client, adminId, { sellerId,
-      from: '2026-06-01', to: '2026-06-30', reason: '0원 완료' });
-    const june = await readSettlement(client, parseSettlementQuery({ from: '2026-06-01',
-      to: '2026-06-30', categoryId: categoryB }));
-    assert.equal(june.completions.find((entry) => entry.id === empty.id)?.frozenTotals.sale, 0);
     const mixedSellerId = (await client.query(`INSERT INTO sellers(category_id,display_name)
-      VALUES ($1,'QA 혼합 분류 판매자') RETURNING id`, [categoryA])).rows[0].id;
-    for (const [categoryId, categoryName, amount] of [
-      [categoryA, 'QA 당시 분류 A', 4000], [categoryB, 'QA 현재 분류 B', 3000],
-    ]) {
-      await client.query(`INSERT INTO settlement_events
-        (dedupe_key,kind,amount_won,occurred_at,seller_id,seller_name,
-         seller_category_id,seller_category_name,source_event_kind,source_event_id,
-         recorded_by,reason)
-        VALUES ($1,'commission',$2,'2026-05-02T00:00:00Z',$3,'QA 혼합 분류 판매자',
-          $4,$5,'manual_commission',$6,$7,'혼합 분류 근거')`,
-      [`qa:${randomUUID()}`, amount, mixedSellerId, categoryId, categoryName,
-        randomUUID(), adminId]);
-    }
-    const mixed = await completeSellerPeriod(client, adminId, { sellerId: mixedSellerId,
-      from: '2026-05-01', to: '2026-05-20', reason: '혼합 분류 완료' });
-    const mixedA = await readSettlement(client, parseSettlementQuery({ from: '2026-05-01',
-      to: '2026-05-20', categoryId: categoryA }));
-    const mixedB = await readSettlement(client, parseSettlementQuery({ from: '2026-05-01',
-      to: '2026-05-20', categoryId: categoryB }));
-    assert.equal(mixedA.completions.find((entry) => entry.id === mixed.id)?.frozenTotals.commission,
-      4000);
-    assert.equal(mixedB.completions.find((entry) => entry.id === mixed.id)?.frozenTotals.commission,
-      3000);
+      VALUES ($1,'QA 타 판매자') RETURNING id`, [categoryA])).rows[0].id;
     const all = await readSettlement(client, parseSettlementQuery({ from: '2026-01-01',
       to: '2026-12-31', sellerId }));
     assert.equal(all.totals.commission, 8000);
@@ -99,7 +66,7 @@ test('isolated DB fixes category history and records immutable signed correction
       [originalEventId]), /Settlement history is append-only/);
     await client.query('ROLLBACK TO SAVEPOINT immutable_check');
     for (const [label, targetId, targetSellerId, targetSellerName] of [
-      ['foreign_seller', originalEventId, mixedSellerId, 'QA 혼합 분류 판매자'],
+      ['foreign_seller', originalEventId, mixedSellerId, 'QA 타 판매자'],
       ['correction_chain', correction.id, sellerId, 'QA 판매자'],
     ]) {
       await client.query(`SAVEPOINT ${label}`);

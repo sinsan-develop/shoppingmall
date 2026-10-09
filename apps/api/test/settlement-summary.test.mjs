@@ -9,7 +9,6 @@ const item = (sellerId, sellerName, categoryId, kind, amountWon, occurredAt) => 
   shipmentOrderId: 'shipment', productId: 'product', optionId: 'option',
   productName: '고추', optionName: '500g', sourceEventKind: 'payment', sourceEventId: 'event',
 });
-
 test('report keeps farm A, farm B and Owool in distinct sections with category totals', () => {
   const report = summarizeSettlement([
     item('farm-b', '농가 B', '농가', 'sale', 12000, '2026-05-02T00:00:00Z'),
@@ -62,14 +61,4 @@ test('correction keeps its own occurrence and adjusts only the original kind in 
   assert.equal(july.totals.correction, 2000);
   assert.equal(july.totals.sale, -2000);
   assert.equal(july.groups[0].items[0].originalEventId, sale.id);
-});
-
-test('one seller spanning two historical categories names both in the all-category group', () => {
-  const report = summarizeSettlement([
-    item('farm-a', '농가 A', '이전 분류', 'commission', 4000, '2026-05-01T00:00:00Z'),
-    item('farm-a', '농가 A', '새 분류', 'commission', 3000, '2026-05-02T00:00:00Z'),
-  ]);
-  assert.equal(report.groups.length, 1);
-  assert.deepEqual(report.groups[0].sellerCategoryNames, ['이전 분류', '새 분류']);
-  assert.equal(report.groups[0].totals.commission, 7000);
 });

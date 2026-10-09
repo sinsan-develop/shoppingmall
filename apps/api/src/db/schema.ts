@@ -1536,8 +1536,6 @@ export const settlementEvents = pgTable('settlement_events', {
 export const sellerSettlementPeriods = pgTable('seller_settlement_periods', {
   id: uuid('id').primaryKey().defaultRandom(),
   sellerId: uuid('seller_id').notNull().references(() => sellers.id),
-  sellerCategoryId: uuid('seller_category_id').notNull().references(() => sellerCategories.id),
-  sellerCategoryName: text('seller_category_name').notNull(),
   startDate: date('start_date').notNull(),
   endDate: date('end_date').notNull(),
   completedBy: uuid('completed_by').notNull().references(() => accounts.id),
@@ -1547,7 +1545,6 @@ export const sellerSettlementPeriods = pgTable('seller_settlement_periods', {
   index('seller_settlement_periods_seller_idx').on(table.sellerId, table.startDate, table.endDate),
   check('seller_settlement_periods_dates_ck', sql`${table.startDate} <= ${table.endDate}`),
   check('seller_settlement_periods_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
-  check('seller_settlement_periods_category_name_ck', sql`length(trim(${table.sellerCategoryName})) > 0`),
   // The PostgreSQL GiST exclusion constraint is in migration 0020.
 ]);
 

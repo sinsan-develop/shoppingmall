@@ -45,5 +45,5 @@ test('checked-out historical SQL keeps the hashes already applied to the shared 
   ];
   const migrations = readMigrationFiles({ migrationsFolder });
   assert.deepEqual(migrations.slice(0, expected.length).map((item) => item.hash), expected);
-  assert.equal(migrations.length, 24, '0022 and 0023 must append to immutable 0000~0021');
+  assert.equal(migrations.length, 23, '0022 must append to immutable 0000~0021');
 });
