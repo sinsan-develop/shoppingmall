@@ -3,7 +3,7 @@
 ## 2026-10-09 S6 공유 DB 최신 상태
 
 - `WSL-server`의 `local-postgres/shoppingmall`(PostgreSQL 15.18, system ID `7622490131194466339`)에 특정 승인·백업 검증 후 정산 migration 0020·0021을 적용했다. Drizzle 이력은 **22건/대기 0**이며 기존 계정·판매자·주문·결제·환불 행 수는 모두 0으로 유지됐다. 정산 사건·완료 기간·연결 행도 0건이다.
-- `/health`·`/ready` 200 및 익명·cross-origin 정산 접근 차단을 실제 WSL API에서 확인했다. 정산 행 기반 공유 DB E2E는 시험 행 보존 범위의 별도 승인 전 **미검증**이다. 백업·복원 확인, 실행 SHA와 정확한 복구 경계는 [S6 공유 DB 적용 계획](S6_SHARED_DB_APPLICATION_PLAN.md) 및 `WORK_STATUS.md` 최신 절을 따른다. 아래 이전 Stage의 DB 행 수·migration 상태는 당시 이력으로 읽는다.
+- `/health`·`/ready` 200 및 익명·cross-origin 정산 접근 차단을 실제 WSL API에서 확인했다. 신산님은 공유 DB에 불변 시험 행을 남기지 않기로 선택했으므로 정산 행 기반 공유 DB E2E는 **미검증**이며 해당 시험 행을 생성하지 않는다. 백업·복원 확인, 실행 SHA와 정확한 복구 경계는 [S6 공유 DB 적용 계획](S6_SHARED_DB_APPLICATION_PLAN.md) 및 `WORK_STATUS.md` 최신 절을 따른다. 아래 이전 Stage의 DB 행 수·migration 상태는 당시 이력으로 읽는다.
 
 ## 2026-10-05 S4 공유 실제 브라우저 통합 검증 최신 상태
 

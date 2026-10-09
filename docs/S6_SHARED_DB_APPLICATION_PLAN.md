@@ -14,7 +14,7 @@
 
 1. 사용자의 **공유 DB 0020·0021 적용 특정 승인** 후 표준 Drizzle migrator로 0020→0021을 적용한다. 기존 migration 파일은 바꾸지 않는다.
 2. migration 22건, 새 테이블/제약/트리거, 기존 행 수 보존을 읽기 전용으로 대조한다. API health 및 관리자/판매자 권한 없는 접근 거부를 실제 WSL 환경에서 확인한다. 이 검증은 빈 DB의 schema/읽기 smoke이며 행 기반 E2E PASS가 아니다.
-3. 불변 정산 장부·완료 행의 실제 공유 DB QA는 **별도 구체적 승인** 전 생성하지 않는다. 격리 PG15/Chromium의 행 기반 PASS와 공유 DB schema PASS를 혼동하지 않는다. 별도 승인이 없으면 S6 정식 공유 DB 행 기반 E2E는 `UNVERIFIED`로 남긴다.
+3. 신산님은 2026-10-09 **공유 DB에 시험 기록을 남기지 않는 안**을 선택했다. 불변 정산 장부·완료 행의 실제 공유 DB QA는 생성하지 않는다. 격리 PG15/Chromium의 행 기반 PASS와 공유 DB schema PASS를 혼동하지 않고, S6 정식 공유 DB 행 기반 E2E를 `UNVERIFIED`로 남긴다.
 
 ## 2026-10-09 실행 결과
 

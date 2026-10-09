@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 2026-10-09 S6 공유 DB 행 QA 제외 결정
+
+- 신산님 직접 선택: **공유 `local-postgres/shoppingmall`에는 정산 시험 거래·완료·불변 장부 행을 남기지 않는다.** 공유 DB 행 기반 정산 E2E는 `UNVERIFIED`로 표시하고 PR에는 격리 PostgreSQL/실제 Chromium·PDF 증거와 공유 DB의 migration/읽기 smoke를 분리해 적는다. 이는 앞선 약70행 영구 보존 권장안을 채택하지 않은 결정이며, 해당 QA seed·reset/복원·영속 fixture 생성은 하지 않는다.
+- 영향/판정: 이미 적용한 migration22와 사전 백업은 보존한다. 격리 DB 정산 기능 검증과 공유 DB 빈 스키마/API 준비 확인은 유효하지만 정본 공유 DB의 거래 행 처리 통과로 승격하지 않는다. S6의 원래 정식 공유 DB 행 E2E 완료 조건은 충족되지 않았으므로 Stage 전체 완료·자동 병합으로 주장하지 않는다. PR 생성은 검토용으로 진행할 수 있으나 `pr-request/**` 자동 병합 태그는 보내지 않는다. 다음 조치: PR 설명·정본 문서 수정→검증→`pr-create/**`로 검토 PR 생성→미충족 병합 gate를 PMO에 보고. 담당 어울 단일 writer, 오류0.
+
 ## 2026-10-09 S6 공유 행 QA 승인안 산정 — 격리 자원 계획
 
 - **최신 정확 SHA WSL 비DB 회귀 계획:** Windows/SSH 원격과 지정 WSL checkout `codex/s6-settlement@2dd0c9a77b7ab3f80734558ebd45f1ea83afc000` clean을 대조했다. 기존에 사용한 고유 이름 `shoppingmall-s6-wsl-1009-runner`의 잔류0을 확인한 뒤 Node24 일회용 runner 하나를 `--network none --rm`/source read-only bind로 실행하여 전체 `pnpm test`를 재검증한다. 공유 DB/외부 공급자 연결0, 종료 뒤 runner 잔류0·checkout clean을 확인한다. 환경 조건부 skip은 PASS로 표시하지 않는다.
