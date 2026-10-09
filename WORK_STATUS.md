@@ -4429,3 +4429,8 @@
 - 첫 HTTP 시험은 2 pass/1 fail(예상 403 대신 503)이었다. API `DatabaseService`는 `PGHOST` 등보다 `DATABASE_URL` 존재 여부로 pool을 만들며, 시험 명령에 URL이 없어 서비스가 준비되지 않은 것을 소스/응답으로 추적했다. 시험 환경에만 정확한 격리 DB URL을 추가해 재실행 3 pass/0 fail. 동일 근본 원인 1회, 제품 코드 수정 없음.
 - 정확한 컨테이너 이름·이미지·익명 DB 볼륨을 확인한 뒤 전용 컨테이너와 볼륨을 제거했고 15439 listener 및 이름 잔류 0을 확인했다. 격리 DB 안의 시험 행만 함께 폐기됐고 공유 DB schema·자료는 변경하지 않았다.
 - 다음: 같은 SHA의 브라우저/인쇄 근거와 독립 리뷰, C1 PR/CI·병합 후 smoke를 진행한다. 불가한 직접 조작과 공유 DB 별도 승인/읽기 smoke는 루트 `docs/design_change.md`에 남겨 별도로 취급한다. C2는 C1 병합 이후 재개한다.
+
+## 2026-10-09 C1 브라우저 격리 검증 자원 계획
+
+- 소유자 어울. 앞서 제거한 `shoppingmall-s6-c1-1009-pg`를 새 system ID의 일회성 DB로 다시 생성한다. API `shoppingmall-s6-c1-1009-api`(WSL loopback 9092), 웹 `shoppingmall-s6-c1-1009-web`(WSL loopback 9091), 전용 Docker network `shoppingmall-s6-c1-1009-net`, Windows loopback SSH 전달은 이 브라우저 시험 동안만 사용한다. 모든 이름·포트 충돌을 생성 전에 확인한다. 시험 후 정확한 컨테이너·네트워크·DB 익명 볼륨·전달 세션을 정리하고 잔류를 확인한다. 공유 DB와 실제 계정은 사용하지 않는다.
+- 브라우저 자료는 `apps/api/scripts/s6-c1-browser-fixture.ts`가 DB명·system ID·migration 23건을 확인한 뒤에만 생성하는 가상 관리자·판매자·정산 사건이다. 일회성 DB 삭제와 함께 폐기한다. 이 자료를 공유 DB나 실제 운영 자료로 복사하지 않는다.
