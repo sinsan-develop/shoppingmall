@@ -207,3 +207,55 @@ test('concurrent decreases lock one original and reject the second over-correcti
     assert.deepEqual(saved, { n: 1, amount: 7000 });
   } finally { await pool.end(); }
 });
+
+test('concurrent identical UUID retries return one correction even when remaining value is low', {
+  skip: !process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID,
+}, async () => {
+  assert.equal(process.env.PGDATABASE, 'shoppingmall_s6_followup_1009');
+  const pool = new Pool({ application_name: 's6-c1-identical-retry' });
+  const blocker = await pool.connect();
+  try {
+    const systemId = (await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()'))
+      .rows[0].id;
+    assert.equal(systemId, process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID);
+    const run = randomUUID().slice(0, 8);
+    const adminId = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    await pool.query(`INSERT INTO account_roles(account_id,role) VALUES ($1,'admin')`, [adminId]);
+    const categoryId = (await pool.query(`INSERT INTO seller_categories(name)
+      VALUES ($1) RETURNING id`, [`QA 동시 동일요청 ${run}`])).rows[0].id;
+    const sellerId = (await pool.query(`INSERT INTO sellers(category_id,display_name)
+      VALUES ($1,$2) RETURNING id`, [categoryId, `QA 동일요청 판매자 ${run}`])).rows[0].id;
+    const originalEventId = (await pool.query(`INSERT INTO settlement_events
+      (dedupe_key,kind,amount_won,occurred_at,seller_id,seller_name,
+       seller_category_id,seller_category_name,source_event_kind,source_event_id,
+       recorded_by,reason)
+      VALUES ($1,'commission',10000,'2026-05-01T00:00:00Z',$2,$3,
+        $4,$5,'manual_commission',$6,$7,'동일요청 원본') RETURNING id`,
+    [`qa:${randomUUID()}`, sellerId, `QA 동일요청 판매자 ${run}`, categoryId,
+      `QA 동시 동일요청 ${run}`, randomUUID(), adminId])).rows[0].id;
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM settlement_events WHERE id=$1 FOR UPDATE',
+      [originalEventId]);
+    const request = { originalEventId, requestId: randomUUID(), direction: 'decrease',
+      amountWon: 7000, reason: '동일 요청 재시도' };
+    const pending = [recordCorrectionTransaction(pool, adminId, request),
+      recordCorrectionTransaction(pool, adminId, request)];
+    let waiting = 0;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      waiting = (await pool.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+        WHERE application_name='s6-c1-identical-retry' AND wait_event_type='Lock'`)).rows[0].n;
+      if (waiting >= 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(waiting, 2);
+    await blocker.query('COMMIT');
+    const [first, second] = await Promise.all(pending);
+    assert.equal(first.id, second.id);
+    assert.equal((await pool.query(`SELECT count(*)::int AS n FROM settlement_events
+      WHERE original_event_id=$1`, [originalEventId])).rows[0].n, 1);
+  } finally {
+    await blocker.query('ROLLBACK').catch(() => {});
+    blocker.release();
+    await pool.end();
+  }
+});
