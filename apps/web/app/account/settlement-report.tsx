@@ -52,11 +52,14 @@ function categoryLabel(group: SettlementReport['groups'][number]) {
   return names.size > 1 ? '여러 분류' : [...names][0] ?? group.sellerCategoryName;
 }
 
-export function SettlementReportView({ report }: { report: SettlementReport }) {
+export function SettlementReportView({ report, selectedCategoryName }: {
+  report: SettlementReport; selectedCategoryName?: string;
+}) {
   return <article className="settlement-print" aria-label="조회된 정산 자료">
     <header className="account-card profile-card">
       <h1>정산 자료</h1>
       <p>{report.filter.from} ~ {report.filter.to} 발생 기준</p>
+      {report.filter.categoryId ? <p>조회 판매자 분류: {selectedCategoryName ?? report.filter.categoryId}</p> : null}
       <p>판매자별 발생 금액을 구분해 표시합니다. 실제 송금은 시스템 밖에서 진행합니다.</p>
     </header>
     {report.groups.length === 0 ? <p className="account-card">{report.lateGroups?.length

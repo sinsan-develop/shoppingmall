@@ -122,9 +122,11 @@ try {
     assert.ok(size.scroll <= width, `Horizontal overflow at ${width}: ${size.scroll}`);
   }
   await send('Emulation.clearDeviceMetricsOverride');
-  const xReport = await report(x, ['10,000원', 'C2 0건 완료', '선택 분류 합계'], ['14,000원', '4,000원']);
+  const xReport = await report(x, ['10,000원', 'C2 0건 완료', '선택 분류 합계',
+    '조회 판매자 분류: C2 과거 X'], ['14,000원', '4,000원']);
   const xPdf = await print('admin-x.pdf');
-  const yReport = await report(y, ['4,000원', '선택 분류 합계'], ['14,000원', '10,000원', 'C2 0건 완료']);
+  const yReport = await report(y, ['4,000원', '선택 분류 합계',
+    '조회 판매자 분류: C2 현재 Y'], ['14,000원', '10,000원', 'C2 0건 완료']);
   const yPdf = await print('admin-y.pdf');
   await login('seller');
   await navigate('/account/seller/settlement');

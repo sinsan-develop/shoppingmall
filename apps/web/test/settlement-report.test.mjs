@@ -134,3 +134,16 @@ test('print distinguishes mixed historical item categories and selected-category
   assert.match(xHtml, /10,000원/);
   assert.doesNotMatch(xHtml, /14,000원/);
 });
+
+test('zero-event completion print names the selected historical seller category', () => {
+  const html = renderToStaticMarkup(createElement(SettlementReportView, {
+    report: { ...report,
+      filter: { ...report.filter, categoryId: 'historical-x' },
+      groups: [], totals,
+      completions: [{ ...report.completions[0], frozenTotals: totals }],
+    },
+    selectedCategoryName: 'C2 과거 X',
+  }));
+  assert.match(html, /조회 판매자 분류: C2 과거 X/);
+  assert.match(html, /선택 분류 완료 당시 항목별 금액/);
+});
