@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 2026-10-09 S6 공유 개발 DB 0020·0021 적용 — 사전 gate
+
+- 담당/승인: 어울 단일 writer. 신산님이 PMO 채팅에서 정확한 승인 요청을 승인해 진행시키도록 직접 위임했고, PMO `01a054f5-c2b4-7af0-b31a-c8148ef74642`가 이 작업에 `docs/S6_SHARED_DB_APPLICATION_PLAN.md`의 **백업·격리 복원 검증→정확한 공유 `local-postgres/shoppingmall` 0020·0021 적용→schema/read-only smoke** 범위만 특정 승인으로 전달했다. 공유 DB QA 거래/불변 장부 행, 다른 DB·Oracle, 영속 DB 복원은 미승인.
+- 실행 직전 읽기 전용 대조: WSL 지정 checkout `codex/s6-settlement@66537f1de2ce3550eacb96055dc9c0a247f37331` clean; 로컬 최신 `511a3798f76db709d16a0e8d1f3334447730a7bd`와 차이는 PR 설명·작업현황·적용계획 문서뿐. 0020/0021 SHA-256 각각 `6DEFFF2AACA5714845DDFA1A433063CB7A7890F39A743C47A8E2F46CBF8E8CA5`/`6860C47EE26602B2657E74F8A6E23FDDB5C1457C52BAE7CA9D5C334D6B7C0EF7` 일치. `local-postgres` ID `99f3bf939d40...`, system ID `7622490131194466339`, PG15.18, `shoppingmall` 크기15,252,839 bytes/migration20; accounts/sellers/checkout_orders/shipment_orders/payment_events/refund_events/seller_categories 각0, `seller_settlement_periods` 관계 없음. 백업 대상 경로 부재·일회용 자원 이름 충돌0 확인.
+- 생성 전 자원 계획: 호스트 `/home/daon/deploy/shopping-s6-db-backups`를 소유자 전용 0700으로 새로 만들고 `pre-0020-66537f1-20261009.dump` 하나를 custom-format 전량 백업으로 작성한다. 파일 0600·크기·SHA-256·`pg_restore -l`을 검증한다. 백업은 S6 병합 후 복구 필요 여부 판단 때까지 보존. 복원 검증 전용 tmpfs PostgreSQL15 컨테이너 `shoppingmall-s6-backup-1009-pg`, DB `shoppingmall_s6_backup_1009`만 `--network none`·외부 포트/영속 volume 없이 생성한다. 실제 복원 후 migration20·기존 행 수를 확인하고 컨테이너 정확 ID/새 system ID를 대조해 제거·잔류0. 이름·환경·이유·수명·정리 계획을 사용자 commentary에 보고했다.
+- 현재 상태/오류/다음 조치: 공유 DB 쓰기0·백업 미생성, 동일 근본 원인 오류0. 백업 생성·격리 복원→적용 전 상태 재대조→표준 migrator 적용→읽기 전용 schema/API smoke. 불일치·실패 시 중단하고 DB/백업 보존·정확 상태 보고.
+
 ## 2026-10-09 S6 독립 리뷰 수정·격리 재시험 계획
 
 - **2026-10-09 S6 PR 준비:** 이전 Stage(S5) 설명을 담고 있던 `.github/PR_REQUEST.md`를 필수 6개 표제(목적/변경 요약/영향/검증/미검증/롤백)를 유지한 채 S6의 실제 변경·격리 검증·공유 DB 미적용·복구 경계로 갱신했다. 자동화의 설명 검사 `node .github/pr-broker-body.mjs .github/PR_REQUEST.md` exit0, `git diff --check` exit0. 처음 파일 삭제 후 재작성 시도는 안전 검토가 삭제 위험을 이유로 거부해 파일을 삭제하지 않았고, 기존 파일을 보존하는 갱신 방식으로 처리했다(해결된 절차 오류1, 동일 근본 원인 연속1). PR 생성 요청 태그는 아직 보내지 않았으며 공유 DB gate 답변·필수 검증 뒤에만 전송한다. 담당 어울, 다음 조치: 승인·정식 검증 결과에 따라 PR 설명 갱신 후 자동 PR 생성.
