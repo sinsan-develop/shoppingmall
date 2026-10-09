@@ -169,6 +169,13 @@
       "when": 1791705600000,
       "tag": "0023_s6_completion_category",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791792000000,
+      "tag": "0024_s6_correction_category",
+      "breakpoints": true
     }
   ]
 }

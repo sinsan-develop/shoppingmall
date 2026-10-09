@@ -19,3 +19,16 @@ test('0022 adds linked directional corrections without rewriting historical migr
   assert.match(sql, /original\.seller_category_id\s+IS DISTINCT FROM\s+NEW\.seller_category_id/i);
   assert.match(sql, /BEFORE INSERT ON "settlement_events"/i);
 });
+
+test('0024 replaces correction category validation without changing 0022', () => {
+  const next = new URL('../migrations/0024_s6_correction_category.sql', import.meta.url);
+  assert.equal(existsSync(next), true, '0024 correction category migration required');
+  const sql = readFileSync(next, 'utf8');
+  const journal = JSON.parse(readFileSync(new URL('../migrations/meta/_journal.json', import.meta.url), 'utf8'));
+  assert.equal(journal.entries[24].tag, '0024_s6_correction_category');
+  assert.match(sql, /CREATE OR REPLACE FUNCTION validate_settlement_correction\(\)/i);
+  assert.match(sql, /original\.seller_id\s+IS DISTINCT FROM\s+NEW\.seller_id/i);
+  assert.match(sql, /current_category_id\s+IS DISTINCT FROM\s+NEW\.seller_category_id/i);
+  assert.match(sql, /current_category_name\s+IS DISTINCT FROM\s+NEW\.seller_category_name/i);
+  assert.doesNotMatch(sql, /original\.seller_category_id\s+IS DISTINCT FROM\s+NEW\.seller_category_id/i);
+});

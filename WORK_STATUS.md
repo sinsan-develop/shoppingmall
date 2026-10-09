@@ -4685,3 +4685,27 @@
 - 담당: 어울. 신산님이 `main` 병합과 로컬/원격 동기화, 로컬 `main` 외 브랜치·worktree 정리를 지시했고, G4 정정 분류 중요 결함 1건과 G3 OS PDF 저장·실제 200% 확대 미검증의 **병합 예외를 별도 질문에 명시 승인**했다. 이는 해당 기능의 통과 판정이나 `docs/design_change.md` 장애 해소가 아니다. 설계서·지정 작업계획서는 수정하지 않는다.
 - 병합 전 `codex/next-work-20261010@77fb36c1b045cfdbbcfdae05e213ca5a20e9fae4`, `main`/원격 `399f77bcc72131ca9a03b0f0b8da39867fe7936f`, PR #17 open/mergeable clean을 확인했다. 최신 push/PR CI의 test/typecheck/lint/build 모두 success. 로컬 재시험 `pnpm test` 제품 601건/434 pass/167 조건부 skip/0 fail, PR 본문 8/8 pass. skip은 실제 DB 검증으로 바꾸지 않는다.
 - 로컬 브랜치·worktree 목록은 현재 작업 브랜치와 `main`, 저장소 본체 worktree 하나뿐이다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 병합·정리에서 제외해 보존한다. 병합 전 PR 본문에 예외 승인·남은 위험을 명시하고 자동화 요청 태그를 사용한다. 병합 결과·merged-main smoke와 정리 증거는 실제 실행 후 별도 확인한다.
+## 2026-10-10 후속 계획 Task 0 — 기준선·예외 인수
+
+- 담당 어울, 작업 브랜치 `codex/next-work-20261010-2@eab39abc6caf8155edfd20d96de7f014fd06a8c3`. `origin/main`/로컬 `main`은 같은 SHA이며 PR #17 병합 기록을 확인했다. 신산님 승인으로 작성된 `docs/design/DESIGN.md` 수정과 새 `docs/WORK_PLAN_20260-10-10.md`는 아직 로컬 변경이며 더 수정하지 않는다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 보존한다.
+- 신산님 지시대로 `docs/design_change.md`를 새 계획 대상으로 초기화했다. 이전 G3·G4 및 PR #17의 Important 1건·OS PDF 저장/실제 200% 확대 미검증 예외 병합 이력은 이 파일과 새 계획에 보존하며 PASS로 바꾸지 않는다.
+- 로컬 기준 시험 `node --import tsx --test`의 정정 기록/0022 migration/조회 3파일은 5 pass·0 fail·0 skip. 첫 샌드박스 실행은 `D:` realpath EPERM으로 코드 실행 전에 실패했고, 동일 시험의 허용된 실행에서는 통과했다(동일 원인 연속 오류 1). 승인된 SSH 별칭으로 읽은 공유 `WSL-server/local-postgres/shoppingmall`은 system ID `7622490131194466339`, migration 24건, 정산 사건/완료 기간 각각 0건이다. 공유 DB 쓰기·가상 거래 0.
+- 다음: Task 1에서 격리 DB 기준 RED→0024 전진 migration, Task 2에서 정정 당시 분류 기록. 공유 DB 0024 적용은 별도 답변·정확한 SQL/백업 검증 전까지 하지 않는다. G3 직접 OS 인쇄·200% 확대는 아직 미검증이다.
+
+## 2026-10-10 후속 계획 Task 1 격리 DB 자원 계획
+
+- 소유자 어울. 지정 WSL의 기존 PG15 이미지 `pgvector/pgvector:0.8.2-pg15`로 일회용 컨테이너 `shoppingmall-s6-correction-1010-pg`를 만들고 DB `shoppingmall_s6_correction_1010`, Windows에서 접근 가능한 WSL 루프백 `127.0.0.1:15439`만 사용한다. 목적은 0000~0023 기준 X→Y 정정 RED와 후속 0024/코드 격리 실DB 검증이다. 공유 `local-postgres/shoppingmall`과 분리한다.
+- 생성 전 동일 컨테이너명·포트 충돌을 확인한다. 시험 종료 시 정확한 컨테이너 ID·mount를 대조해 이번 임시 컨테이너/익명 볼륨만 제거하고 이름·포트 잔류 0을 확인한다. 자료는 전부 가상이며 실제 고객·정산 자료는 사용하지 않는다.
+
+## 2026-10-10 후속 계획 Task 1·2 격리 구현 검증
+
+- 격리 컨테이너 ID `631c569e9f2ab3d16b51b18e91a3644f8f0db19d168c30052d68bfb5b582dc25`, DB `shoppingmall_s6_correction_1010`, system ID `7694818724457660454`. SSH 루프백 터널 시작 PID `54096`의 15439로만 접근했다. 기존 0000~0023 적용 24건에서 실제 X→Y 정정 INSERT가 `23514 Settlement correction original event mismatch`로 실패하는 RED를 확인했다.
+- 신규 `0024_s6_correction_category.sql` SHA-256 `e1333d47f76965a486e4b74bea091df0014adb601f0dbca842c6e8eb9729f796`은 기존 함수만 전진 교체하고 원사건 불변·판매자 동일성을 유지하며 새 정정 분류를 현재 판매자/분류 행과 대조한다. 격리 DB에 적용 후 migration 25건, 실제 직접 SQL X→Y 허용·과거 X 복사/잘못된 이름·타 판매자·정정 연쇄 거부·원사건 변경 거부 1/1 PASS. 시험 rollback 후 이 시점 정산 사건/완료 행 0. 기존 0022 파일은 변경하지 않았다. SQL 인용 오류 1회는 원격 SQL 실행 전 실패했으며 바로잡아 읽기 확인했다(동일 원인 연속 오류 1).
+- 0024 적용 상태에서 기존 `recordCorrection`가 X를 복사해 `23514 Settlement correction seller category mismatch`를 내는 RED를 확인했다. `correction.ts`는 현재 분류를 같은 트랜잭션에서 `FOR SHARE`로 읽고 INSERT한다. 새 격리 시험 3/3 PASS: 원사건 X/정정 Y·5월 고정 금액·현재 기간/전체 합계, 관리자만 작성·초과 감소/충돌 거부·이름 변경 후 동일 UUID 재시도, 동시 분류 ID/명칭 변경 잠금. 새 시험 자료 일부는 이 전용 tmpfs DB에만 남아 있고 자원 종료 시 함께 폐기한다.
+- 기존 정정 기록·migration 정적 시험과 새 격리 시험 합계 7/7 PASS. 기존 `settlement-followup-db.test.mjs`는 전용 DB명/식별자/migration 25를 명시해 HTTP X/Y 분류·관리자/판매자 권한·동시 감소/동일 UUID 재시도 4/4 PASS. 판매자 역할 시험 자료에 `seller_id`를 누락해 DB `account_roles_scope_ck` 오류 1회 발생했고, 스키마/기존 성공 시험 대조 후 자료 생성문을 보정해 재검증했다(원인 해결, 연속 오류 1). 공유 DB는 migration 24·거래 0인 채 쓰기 0이며 새 기능 공유 검증은 아직 미수행.
+- 다음: 로컬 전체 test/typecheck/lint/build와 같은 SHA WSL 격리 API·브라우저·OS 직접 인쇄/200% 검증, 0024 공유 적용 별도 승인 확인, 독립 리뷰/PR. 실제 발송·PG·Oracle·인수 범위 밖.
+
+## 2026-10-10 후속 계획 Task 3 로컬 gate 중간 결과
+
+- 로컬 `pnpm test` 605건 중 434 pass·170 조건부 skip·1 fail. 유일 실패는 `apps/api/test/migration-preview.test.mjs`의 기존 migration 총수 24 고정 단언이 신규 0024로 총 25건이 된 것을 거부한다. 역사적 SQL 해시 비교 자체는 통과했다. 이 시험 파일은 승인 계획 변경 목록에 없어 임의 수정하지 않고 `docs/design_change.md` G1에 영향·재개 조건을 기록했으며 신산님께 범위 추가 여부를 비동기 요청했다.
+- 독립 로컬 `pnpm typecheck`(API/Web/Mobile/contracts), `pnpm lint`, `pnpm build`(Web 25 routes 포함)는 모두 exit 0. 필수 전체 회귀가 아직 실패이므로 PR 일반 병합 조건 충족으로 표시하지 않는다. 0024 격리 실DB/HTTP 표적 3+4 및 migration/단위 7 시험은 별도 통과 근거다.

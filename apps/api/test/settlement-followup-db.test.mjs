@@ -9,10 +9,13 @@ import { readSettlement } from '../src/settlement/repository.ts';
 import { createSessionToken, hashSessionToken } from '../src/auth/credentials.ts';
 import { createApp } from '../src/app.ts';
 
+const expectedDatabase = process.env.S6_FOLLOWUP_TEST_DB_NAME ?? 'shoppingmall_s6_followup_1009';
+const expectedMigrationCount = Number(process.env.S6_FOLLOWUP_TEST_MIGRATIONS ?? 23);
+
 test('isolated DB records immutable signed correction after completion', {
   skip: !process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_s6_followup_1009');
+  assert.equal(process.env.PGDATABASE, expectedDatabase);
   const pool = new Pool();
   const client = await pool.connect();
   let began = false;
@@ -22,7 +25,7 @@ test('isolated DB records immutable signed correction after completion', {
     assert.equal(systemId, process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID);
     const history = (await client.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations'))
       .rows[0].n;
-    assert.equal(history, 23);
+    assert.equal(history, expectedMigrationCount);
     await client.query('BEGIN'); began = true;
     const adminId = (await client.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
     await client.query(`INSERT INTO account_roles(account_id,role) VALUES ($1,'admin')`, [adminId]);
@@ -99,7 +102,7 @@ test('isolated DB records immutable signed correction after completion', {
 test('isolated HTTP enforces admin-only corrections and exposes dated seller evidence', {
   skip: !process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_s6_followup_1009');
+  assert.equal(process.env.PGDATABASE, expectedDatabase);
   const pool = new Pool();
   let app;
   try {
@@ -122,6 +125,10 @@ test('isolated HTTP enforces admin-only corrections and exposes dated seller evi
       VALUES ($1,'commission',10000,'2026-05-01T00:00:00Z',$2,'QA HTTP 판매자',
         $3,'QA HTTP 분류','manual_commission',$4,$5,'원수수료') RETURNING id`,
     [`qa:${randomUUID()}`, sellerId, categoryId, randomUUID(), adminId])).rows[0].id;
+    const currentCategoryId = (await pool.query(`INSERT INTO seller_categories(name)
+      VALUES ($1) RETURNING id`, [`QA HTTP 현재 분류 ${runTag}`])).rows[0].id;
+    await pool.query('UPDATE sellers SET category_id=$1 WHERE id=$2',
+      [currentCategoryId, sellerId]);
     async function cookie(accountId, role, scope = null) {
       const token = createSessionToken();
       await pool.query(`INSERT INTO auth_sessions(account_id,role,seller_id,token_hash,expires_at)
@@ -159,6 +166,19 @@ test('isolated HTTP enforces admin-only corrections and exposes dated seller evi
     assert.equal(report.totals.commission, 8000);
     assert.equal(report.groups[0].items.find((item) => item.id === correctionId)?.originalEventId,
       originalEventId);
+    const currentReport = await fetch(`${base}/admin/settlement${query}&categoryId=${currentCategoryId}`, {
+      headers: { cookie: admin },
+    });
+    assert.equal(currentReport.status, 200);
+    const current = await currentReport.json();
+    assert.equal(current.totals.commission, -2000);
+    assert.equal(current.groups.flatMap((group) => group.items)
+      .find((item) => item.id === correctionId)?.sellerCategoryId, currentCategoryId);
+    const originalReport = await fetch(`${base}/admin/settlement${query}&categoryId=${categoryId}`, {
+      headers: { cookie: admin },
+    });
+    assert.equal(originalReport.status, 200);
+    assert.equal((await originalReport.json()).totals.commission, 10000);
     const sellerReport = await fetch(`${base}/seller/settlement${query}`, {
       headers: { cookie: seller },
     });
@@ -174,7 +194,7 @@ test('isolated HTTP enforces admin-only corrections and exposes dated seller evi
 test('concurrent decreases lock one original and reject the second over-correction', {
   skip: !process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_s6_followup_1009');
+  assert.equal(process.env.PGDATABASE, expectedDatabase);
   const pool = new Pool();
   try {
     const systemId = (await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()'))
@@ -211,7 +231,7 @@ test('concurrent decreases lock one original and reject the second over-correcti
 test('concurrent identical UUID retries return one correction even when remaining value is low', {
   skip: !process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_s6_followup_1009');
+  assert.equal(process.env.PGDATABASE, expectedDatabase);
   const pool = new Pool({ application_name: 's6-c1-identical-retry' });
   const blocker = await pool.connect();
   try {
