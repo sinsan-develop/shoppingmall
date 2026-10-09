@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-09 S6 문서 체크포인트 이후 WSL 정확 SHA 재검증
+
+- 단계/담당/상태: 다음 주기 검토용 설계·작업계획 초안과 `design_change.md` 기록을 S6 branch 문서 체크포인트 `e5414a60d40fc55f9dd9683930e76415abccbb77`로 commit/push했다. `github-sinsan-develop` SSH 별칭의 원격 branch와 PR #15 head가 같은 SHA이며 로컬 checkout clean임을 확인했다. PR은 검토용·미병합이고 병합 요청 태그는 보내지 않았다. 담당 어울, 동일 원인 오류0.
+- WSL 지정 `/home/daon/deploy/shopping`은 alias `WSL-server`로 clean·같은 branch임을 확인하고 `git pull --ff-only origin codex/s6-settlement`로 `e5414a6`에 맞췄다. 공유 DB/외부망에 연결하지 않는 일회용 `node:24-bookworm-slim` 컨테이너에서 source read-only·network none으로 `node --import tsx --test` 실행: **577건/417 pass/160 조건부 skip/0 fail, exit0**. 종료 뒤 WSL HEAD 동일·checkout clean·해당 컨테이너 잔류0. 시험 소요 286초. 공유 DB 거래 행 E2E, 실제 브라우저 재검증, 공급자 실제 연동 PASS가 아니다.
+- 현재 문서의 재작업 설계·계획은 승인된 정본을 대체하지 않는 초안이다. S6 사유 있는 정정의 공개 경로, 공유 DB 행 E2E(신산님 무기록 결정으로 미검증), 독립 전체 리뷰, PR 병합·merged-main smoke는 미완료로 유지한다. 아이콘은 검토용·미승인·미적용이다. 다음 조치: 허용된 경로로 독립 검토와 CI 확인을 진행하고, 변경 승인 경계는 `design_change.md`에 기록한 채 승인된 독립 작업만 계속한다.
+
 ## 2026-10-09 S6 공유 DB 행 QA 제외 결정
 
 - **추가 사용자 지시 반영:** PMO가 전달한 신산님 모바일 지시에 따라 `design_change.md`에 설계 변경·미진·중단 사유뿐 아니라 판단이 어려운 3쟁점(정정 사건 계약, 공유 행 E2E와 Stage 완료 판정, 독립 리뷰/CI 경로)의 근거·선택지/권고안·영향·미검증·재개 조건을 기록했다. 어느 제안도 새 승인이나 필수 gate 면제가 아니다. 현재 독립적으로 가능한 문서/PR 검증을 계속하고 사용자 질문을 반복하지 않는다.
