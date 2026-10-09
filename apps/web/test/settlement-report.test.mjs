@@ -45,9 +45,27 @@ test('completion history remains visible even when the selected period has no ev
   const html = renderToStaticMarkup(createElement(SettlementReportView, {
     report: { ...report, groups: [], totals, completions: report.completions },
   }));
-  assert.match(html, /조회 기간에 정산 자료가 없습니다/);
+  assert.match(html, /조회 기간에 발생한 정산 사건이 없습니다/);
+  assert.doesNotMatch(html, /조회 기간에 정산 자료가 없습니다/);
   assert.match(html, /완료 이력/);
   assert.match(html, /오프라인 확인/);
+});
+
+test('a renamed category keeps one category identity in the seller heading', () => {
+  const renamed = { ...report.groups[0], sellerCategoryId: 'same-category',
+    sellerCategoryName: '현재 명칭', items: [
+      { ...report.groups[0].items[0], id: 'before-rename',
+        sellerCategoryId: 'same-category', sellerCategoryName: '과거 명칭' },
+      { ...report.groups[0].items[0], id: 'after-rename',
+        sellerCategoryId: 'same-category', sellerCategoryName: '현재 명칭' },
+    ] };
+  const html = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, groups: [renamed], completions: [],
+  } }));
+  assert.match(html, /<h2>농가 A <small>분류명 변경<\/small><\/h2>/);
+  assert.doesNotMatch(html, /여러 분류/);
+  assert.match(html, /과거 명칭/);
+  assert.match(html, /현재 명칭/);
 });
 
 test('ordinary commission evidence appears in the displayed and printable report', () => {

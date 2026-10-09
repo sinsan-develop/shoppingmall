@@ -50,8 +50,11 @@ function Totals({ values }: { values: SettlementReport['totals'] }) {
 }
 
 function categoryLabel(group: SettlementReport['groups'][number]) {
+  const ids = new Set(group.items.map((item) => item.sellerCategoryId ?? group.sellerCategoryId));
   const names = new Set(group.items.map((item) => item.sellerCategoryName ?? group.sellerCategoryName));
-  return names.size > 1 ? '여러 분류' : [...names][0] ?? group.sellerCategoryName;
+  if (ids.size > 1) return '여러 분류';
+  if (names.size > 1) return '분류명 변경';
+  return [...names][0] ?? group.sellerCategoryName;
 }
 
 export function SettlementReportView({ report, selectedCategoryName }: {
@@ -66,6 +69,8 @@ export function SettlementReportView({ report, selectedCategoryName }: {
     </header>
     {report.groups.length === 0 ? <p className="account-card">{report.lateGroups?.length
       ? '조회 기간의 기본 정산 자료가 없습니다. 완료 후 추가 발생은 아래에서 확인해 주세요.'
+      : report.completions.length
+        ? '조회 기간에 발생한 정산 사건이 없습니다. 완료 이력은 아래에서 확인해 주세요.'
       : '조회 기간에 정산 자료가 없습니다.'}</p> : null}
     {report.groups.map((group) => <section className="account-card profile-card settlement-group"
       aria-label={`판매자 ${group.sellerName} 정산 자료`} key={group.sellerId}>
