@@ -4658,3 +4658,9 @@
 - 담당: 어울. `.github/PR_REQUEST.md`의 이전 리뷰/CI 문구를 최신 독립 검토 Critical 0·기존 G4 Important 1·신규 Minor 1과 로컬 시험 601건/434 pass/167 skip/0 fail·PR 본문 시험 8 pass로 갱신했다. 형식 시험 8/8, `git diff --check` 0. 설계서·지정 작업계획서·제품 코드는 수정하지 않았다.
 - `0cae22122a0c4e5d780eb2b415559d8e560460b9`를 승인된 SSH 별칭으로 push하고 지정 WSL checkout에 clean fast-forward했다. 병합 요청이 아닌 `pr-create/**` 생성·본문갱신 전용 자동화 run `38001025937`은 success이고 PR #17 head/base/body가 같은 변경본과 일치한다. 자동화가 원격 요청 태그를 제거한 뒤 해당 로컬 태그 한 개만 정리했다.
 - 같은 head의 push run `38000965378`과 pull_request run `38000969801`은 모두 `completed/success`이며 각 `verify` job의 test/typecheck/lint/build 네 단계가 실제 success다. 별도 G2 승인 전 공유 DB 0023 적용 0, G3 직접 OS 인쇄·200% 미검증, G4 Important 1이 남아 병합 요청·merged-main smoke는 실행하지 않는다. 이 주기에 새 임시 DB/컨테이너/브라우저 시험 자료는 만들지 않았다.
+
+## 2026-10-10 남은 G2·G3·G4 경계 재대조
+
+- 담당: 어울. 작업 브랜치 `3fa5cb789c70bd4dde59ca002d33637dbf4927ea`의 제품 코드를 그대로 두고 G2 공유 대상만 읽었다. 이 SHA의 push run `38001240869`과 PR run `38001244713`은 각 verify job의 test/typecheck/lint/build가 모두 success다. 정확한 `WSL-server/local-postgres/shoppingmall`은 PostgreSQL 15.18, system ID `7622490131194466339`, Drizzle 이력 23건, 정산 사건·완료 기록 각각 0건이다. 0023 SQL SHA-256은 `A1E20884C1F65DB944C15DEB443E948F80E2821E144A3296DD05122B3DC67D9B`로 격리 검증본과 같다. 별도 승인 전 적용·백업 생성·시험 거래 생성은 0이다.
+- G3의 허용된 브라우저 인벤토리에는 이 시험의 실제 정산 화면 탭이 없었다. 앞선 OS 인쇄/200% 제어 실패를 다시 실행하거나 CDP PDF를 직접 실측으로 대체하지 않았다. 사용자 기존 탭은 변경하지 않았다. G4는 `correction.ts`가 X를 복사하고 0022 trigger가 원사건과 같은 분류를 강제함을 재확인했으며 현 계획 밖 C1/0022/추가 migration을 수정하지 않았다.
+- G2의 정확한 별도 승인 질문을 다시 전달했다. 답변 또는 후속 계획/검증 기준 결정 전까지 세 항목은 `docs/design_change.md`에 남기고, 작업계획서 Task 5 병합 요청·merged-main smoke를 실행하지 않는다.
