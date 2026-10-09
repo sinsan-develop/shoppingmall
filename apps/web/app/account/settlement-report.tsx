@@ -44,7 +44,9 @@ export function SettlementReportView({ report }: { report: SettlementReport }) {
       <p>{report.filter.from} ~ {report.filter.to} 발생 기준</p>
       <p>판매자별 발생 금액을 구분해 표시합니다. 실제 송금은 시스템 밖에서 진행합니다.</p>
     </header>
-    {report.groups.length === 0 ? <p className="account-card">조회 기간에 정산 자료가 없습니다.</p> : null}
+    {report.groups.length === 0 ? <p className="account-card">{report.lateGroups?.length
+      ? '조회 기간의 기본 정산 자료가 없습니다. 완료 후 추가 발생은 아래에서 확인해 주세요.'
+      : '조회 기간에 정산 자료가 없습니다.'}</p> : null}
     {report.groups.map((group) => <section className="account-card profile-card settlement-group"
       aria-label={`판매자 ${group.sellerName} 정산 자료`} key={group.sellerId}>
       <h2>{group.sellerName} <small>{group.sellerCategoryName}</small></h2>

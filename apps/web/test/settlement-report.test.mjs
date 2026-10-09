@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { SettlementReportView } from '../app/account/settlement-report.tsx';
 
 const totals = { sale: 0, goods_discount: 0, shipping_fee: 0, shipping_support: 0,
@@ -62,4 +63,14 @@ test('print separates frozen completion amounts from backdated late entries and 
     '1,200원', '기록 시점', '수수료 근거', 'may-original-order']) {
     assert.ok(html.includes(expected), expected);
   }
+});
+
+test('late-only reports name the empty frozen section accurately and print together', () => {
+  const html = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, groups: [], totals, lateGroups: report.groups, lateTotals: report.totals,
+  } }));
+  assert.match(html, /조회 기간의 기본 정산 자료가 없습니다. 완료 후 추가 발생은 아래에서 확인해 주세요/);
+  assert.doesNotMatch(html, /조회 기간에 정산 자료가 없습니다/);
+  const css = readFileSync(new URL('../app/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /@media print\{[^}]*\.settlement-late\{break-inside:avoid;page-break-inside:avoid\}/);
 });
