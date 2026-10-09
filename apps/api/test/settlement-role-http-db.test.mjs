@@ -37,6 +37,9 @@ test('actual HTTP confines settlement reads to role and seller, with admin-only 
       VALUES ($1) RETURNING id`, [`qa-${runId}-other-sellers`])).rows[0].id;
     await pool.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [otherCategory, b.id]);
     b.categoryId = otherCategory;
+    const emptySeller = (await pool.query(`INSERT INTO sellers(category_id,display_name)
+      VALUES ($1,$2) RETURNING id`, [a.categoryId, `qa-${runId}-seller-c`])).rows[0];
+    assert.ok(emptySeller.id);
     for (const [seller, amount] of [[a, 12000], [b, 7000]]) {
       const eventId = randomUUID();
       await pool.query(`INSERT INTO settlement_events

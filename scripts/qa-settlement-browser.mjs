@@ -1,5 +1,6 @@
 // Actual Chrome check against the one-use S6 PostgreSQL fixture.
 import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
 import { closeCdpPage, createCdpCommandChannel, openCdpPage } from './qa-browser-cdp.mjs';
 
 const web = process.env.QA_WEB_BASE;
@@ -87,7 +88,17 @@ try {
   assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-a`) && group.includes('12,000원')));
   assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-b`) && group.includes('7,000원')));
   assert.match(all.total, /19,000원/);
+  assert.equal(await evaluate(`document.querySelectorAll('.settlement-completion').length`), 2);
+  assert.ok(await evaluate(`[...document.querySelectorAll('.settlement-completion h3')]
+    .some((heading)=>heading.textContent==='qa-${runId}-seller-c')`));
+  await evaluate(`(() => { const form=[...document.querySelectorAll('.settlement-completion')]
+    .find((item)=>item.querySelector('h3')?.textContent==='qa-${runId}-seller-c');
+    form.querySelector('input[name=reason]').value='0건 완료 검증';
+    form.requestSubmit(); return true; })()`);
+  await waitFor(`document.querySelector('.settlement-history')?.textContent.includes('0건 완료 검증')`,
+    'zero-event seller completed');
   assert.equal(await evaluate(`document.querySelectorAll('.settlement-completion').length`), 1);
+  assert.match(await evaluate(`document.querySelector('.settlement-history')?.textContent`), /0원/);
   assert.match(await evaluate(`document.querySelector('[aria-label="판매자별 완료 기록"]')?.textContent`),
     /이미 완료된 기간과 겹칩니다/);
   assert.match(await evaluate(`document.querySelector('.settlement-history')?.textContent`),
@@ -118,6 +129,11 @@ try {
   const pdf = Buffer.from(printed.data ?? '', 'base64');
   assert.equal(pdf.subarray(0, 5).toString('ascii'), '%PDF-');
   assert.ok(pdf.length > 10000, `printed PDF too small: ${pdf.length} bytes`);
+  if (process.env.S6_BROWSER_PDF_OUTPUT) {
+    if (process.env.S6_BROWSER_PDF_OUTPUT !== '/evidence/settlement.pdf')
+      throw new Error('Unexpected S6 browser PDF output path');
+    await writeFile(process.env.S6_BROWSER_PDF_OUTPUT, pdf);
+  }
   await send('Emulation.setEmulatedMedia', {media:'screen'});
   for (const width of [1440, 430]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 430 });
