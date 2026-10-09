@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-10 C2 표시 보정 원격·WSL·PR 확인
+
+- 제품 변경 commit `a7be1f3b399bf4a56f93d270ce9d6b40cc9152a5`를 승인된 `github-sinsan-develop` SSH 별칭으로 기존 작업 브랜치에 push했다. 지정 WSL `/home/daon/deploy/shopping`은 변경 전 clean·같은 branch임을 확인하고 fast-forward해 정확 SHA·clean을 확인했다. WSL 기존 Node 18 환경에서 `apps/web/test/settlement-report.test.mjs` 9/9 pass·0 skip, 새 시험 자원·공유 DB 쓰기 0.
+- 공개 읽기 API에서 해당 SHA의 push CI `37996968207`과 PR CI `37996974975`가 모두 `completed/success`인 것을 확인했다. 생성 전용 요청 태그의 PR 본문 갱신 run `37997148241`도 `completed/success`이고, 기존 PR #17은 open/base `399f77b`/head `a7be1f3`, 본문에 601건/434 pass와 새 화면 보정을 반영한다. 병합 요청 태그는 보내지 않았다. 로컬 미추적 사용자 파일은 보존했다.
+- 이 결과는 G2 공유 0023 적용, G3 OS 인쇄 저장/실제 200% 실측, G4 정정 당시 분류 Important 결함을 해소하지 않는다. 현 계획의 Important 0·병합·merged-main smoke는 여전히 미충족이다. 동일 원인 오류 0회. 다음 가능한 조치는 G2 별도 승인 확인, G3 실제 지원 브라우저 실측, G4 후속 범위 결정이며 그 외 계획 밖 코드·DB 변경은 하지 않는다.
+
 ## 2026-10-10 C2 정산 화면 표시 회귀 보정
 
 - 담당/범위: 어울, `codex/next-work-20261010@cc6bcb5`에서 지정 계획 Task 3 Step 4·Task 4 Step 6의 화면/인쇄 표시만 보정했다. 설계서·지정 작업계획서·C1/0022·공유 DB는 변경하지 않았다. 사용자 소유 미추적 파일 3개 경로는 보존한다.
