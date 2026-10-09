@@ -4450,3 +4450,5 @@
 - 수정 전 PR 후보의 로컬 전체 시험은 590건/427 pass/163 조건부 skip/0 fail, PR 설명 8/8, lint/typecheck/build exit0이었다. 제품 코드를 수정했으므로 이 수치를 새 후보의 최종 검증으로 사용하지 않는다.
 - 새 격리 DB 계획: WSL 기존 이미지 `pgvector/pgvector:0.8.2-pg15`의 일회용 컨테이너 `shoppingmall-s6-c1-1009-pg`를 WSL loopback 15439에만 생성한다. DB명 `shoppingmall_s6_followup_1009`와 새 system identifier를 확인해 0000~0022를 적용하고 신규 단위/HTTP/경합 0 skip 시험을 실행한다. 공유 DB와 분리하고 종료 직후 정확한 컨테이너·익명 볼륨·포트 잔류 0을 확인한다.
 - 수정 후 로컬 전체 제품 시험 591건/428 pass/163 조건부 skip/0 fail, PR 본문 8/8 pass. `pnpm lint`, `pnpm typecheck`, `pnpm build`(Web 25경로) exit0. 새 격리 DB 실증 전이라 조건부 skip을 통과로 바꾸지 않는다.
+- C1 수정 SHA `9a80ff7ca005d9d441542a4924e967f6b2733e71`을 SSH 별칭 원격에 push하고 지정 WSL checkout에서 fast-forward해 같은 SHA·clean 상태를 확인했다. 격리 PG15 DB `shoppingmall_s6_followup_1009`, system identifier `7694660615772590117`에 0000~0022 migration을 적용·재실행해 이력 23건을 확인했다. 새 대소문자 재시도·다른 원사건 충돌 포함 실DB 불변/HTTP 역할/동시 경합 3건 pass·0 skip·0 fail. 정확한 시험 컨테이너 `shoppingmall-s6-c1-1009-pg`와 익명 볼륨을 제거했고 이름·볼륨·15439 listener 잔류 0을 확인했다. 공유 DB는 건드리지 않았다.
+- 다음: 수정 후 독립 재리뷰와 PR/CI를 진행한다. 정확한 C1 SHA의 OS PDF 저장·200% 확대 및 공유 DB 0022 적용은 여전히 미검증/별도 승인 경계다.
