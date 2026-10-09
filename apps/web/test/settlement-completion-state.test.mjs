@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { completionOverlaps, SettlementPage, seoulInputToIso } from '../app/account/settlement-page.tsx';
+import { completionCandidates, completionOverlaps, SettlementPage,
+  seoulInputToIso } from '../app/account/settlement-page.tsx';
 
 const completions = [{ sellerId: 'farm-a', startDate: '2026-05-01', endDate: '2026-05-20' }];
 
@@ -22,4 +23,18 @@ test('admin can enter a manual commission with explicit Seoul occurrence and evi
   assert.match(admin, /기록 근거/);
   const seller = renderToStaticMarkup(createElement(SettlementPage, { role: 'seller' }));
   assert.doesNotMatch(seller, /수수료 수동 기록/);
+});
+
+test('a seller with zero events remains a completion candidate in all, category and individual views', () => {
+  const sellers = [
+    { id: 'farm-a', name: '농가 A', categoryId: 'farms' },
+    { id: 'farm-empty', name: '거래 없는 농가', categoryId: 'farms' },
+    { id: 'owool', name: '어울몰', categoryId: 'own' },
+  ];
+  assert.deepEqual(completionCandidates(sellers, { categoryId: '', sellerId: '' })
+    .map(({ id }) => id), ['farm-a', 'farm-empty', 'owool']);
+  assert.deepEqual(completionCandidates(sellers, { categoryId: 'farms', sellerId: '' })
+    .map(({ id }) => id), ['farm-a', 'farm-empty']);
+  assert.deepEqual(completionCandidates(sellers, { categoryId: '', sellerId: 'farm-empty' })
+    .map(({ id }) => id), ['farm-empty']);
 });

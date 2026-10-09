@@ -5,7 +5,7 @@ import type { Pool } from 'pg';
 import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
-import { completeSellerPeriod, type CompleteSellerPeriodInput } from './complete.js';
+import { completeSellerPeriodTransaction, type CompleteSellerPeriodInput } from './complete.js';
 import { recordManualCommission, type ManualCommissionInput } from './commission.js';
 import { parseSettlementQuery, type SettlementQuery } from './query.js';
 import { readSettlement } from './repository.js';
@@ -72,14 +72,9 @@ export class AdminSettlementController {
         typeof body.sellerId !== 'string' || typeof body.from !== 'string' ||
         typeof body.to !== 'string' || typeof body.reason !== 'string')
       throw new BadRequestException({ status: 'invalid_settlement_completion' });
-    const client = await pool.connect();
     try {
-      await client.query('BEGIN');
-      const completed = await completeSellerPeriod(client, accountId, body as CompleteSellerPeriodInput);
-      await client.query('COMMIT');
-      return completed;
+      return await completeSellerPeriodTransaction(pool, accountId, body as CompleteSellerPeriodInput);
     } catch (error) {
-      await client.query('ROLLBACK');
       if (error && typeof error === 'object' && 'code' in error && error.code === '23P01')
         throw new ConflictException({ status: 'settlement_period_overlap' });
       if (error instanceof Error && (error.message === 'Invalid settlement completion' ||
@@ -88,7 +83,7 @@ export class AdminSettlementController {
       if (error instanceof Error && error.message === 'Settlement access denied')
         throw new ForbiddenException();
       throw error;
-    } finally { client.release(); }
+    }
   }
 
   @Post('commissions')

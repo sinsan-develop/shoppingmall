@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 2026-10-09 S6 독립 리뷰 수정·격리 재시험 계획
+
+- 단계/담당: S6 완료 금액 독립 리뷰 중요 3건 수정, 어울 단일 writer.
+- 상태: 판매자 0건 완료 후보를 목록 기준으로 보이게 수정하고 단위 시험 3/3 pass. 완료 삽입·연결을 `REPEATABLE READ` 한 스냅샷으로 묶고 `completed_at`을 해당 삽입 문장 시각으로 기록. 완료 중 다른 트랜잭션이 커밋하는 사건과 0020 기존 완료 행에서 0021 적용 거부를 위한 실DB 시험을 추가함.
+- 변경 파일: `apps/web/app/account/settlement-page.tsx`, `apps/web/test/settlement-completion-state.test.mjs`, `apps/api/src/settlement/{complete,controller}.ts`, `apps/api/test/settlement-{completion-race,migration-guard}-db.test.mjs`, `WORK_STATUS.md`.
+- 검증: 새 경합 시험은 export 미구현 RED 확인 후 구현, 로컬 DB 환경 없는 표적 시험 3 pass/1 skip 및 API/Web typecheck exit0. 실제 PG 경합·마이그레이션 거부·전체 회귀는 아직 미검증.
+- 격리 자원 사전 계획: WSL 지정 checkout을 이 변경의 clean exact SHA로 fast-forward한 뒤 `shoppingmall-s6-review-1009-net` 내부 Docker network와 tmpfs PostgreSQL15 `shoppingmall-s6-review-1009-pg`만 만든다. DB `shoppingmall_s6_schema_1008`는 migration 0000~0021 전체·두 세션 경합 시험용, 별도 DB `shoppingmall_s6_guard_1009`는 0000~0020만 적용하고 기존 완료 행을 넣은 다음 0021 거부 시험용이다. 일회용 Node24 runner `shoppingmall-s6-review-1009-node`는 `--rm`·읽기 전용 소스, 외부 포트/영속 volume 없음. 이름 충돌·tmpfs·system identifier를 검증하고 시험 후 정확 대상 컨테이너와 network만 ID 대조하여 제거·잔류0 확인한다. 공유 `local-postgres/shoppingmall`에는 쓰기0, 0020/0021 미적용 유지.
+- 오류 횟수/미검증/다음 조치: 근본 원인 연속0; 기존 독립 리뷰 중요 3건이 아직 실제 DB gate를 통과하지 않았다. 변경 checkpoint push→WSL exact SHA→격리 DB 두 시험→전체 gate, 별도 공유 DB 적용 승인 경계는 유지.
+
 ## S6 정산 착수 — 2026-10-08
 
 - **2026-10-09 S6 격리 HTTP/실 Chromium/PDF 결과·정리:** 정확 WSL checkout `e33515d55d066bb2923e118180b2da39883fda34` clean, tmpfs PG15 system ID `7694476080443498535`의 별도 `shoppingmall` DB migration22에서 고정 QA `a06f1009` 실제 HTTP 관리자/판매자·완료/소급 수수료·UUID 재시도/본문 변경 1/1 pass·0 skip. 같은 DB의 production API/Web 빌드(Next 25 routes)와 실제 Chromium에서 관리자 전체 A/B 2구획 합계19,000원, A 완료 당시12,000원·늦은 수수료1,300원 별도 표시, 분류/개별, 판매자 자기 조회·관리자 접근 거부, 1440/430px 가로 넘침0, print media 표시와 Chrome `Page.printToPDF` 220,336 bytes(`%PDF-`)를 확인해 script exit0. PDF 내용의 별도 텍스트 추출·육안 렌더는 이번 run에서 미실행(앞선 합성 PDF 증거와 구분). 네트워크 오류1: 내부 전용 bridge가 loopback `-p`도 무효화한 것을 `Ports:null`, 컨테이너 내부 health200으로 확인하고, 계획·사전 보고한 전용 UI bridge 이중 연결 후 9091/9092 host200으로 해결. WSL host Node18의 WebSocket 부재 오류1은 동일 읽기 전용 소스를 Node24 runner에서 실행해 해결. Chromium 최초 CDP 요청은 초기화 전 연결 실패1, 다음 상태 확인에서 HTTP200 후 시험 PASS. 각기 다른 원인 1회씩이며 동일 근본 원인 연속3회 없음. QA 종료 전 전용 DB 계정5/판매자3/사건3/완료1/migration22; 정확 ID의 브라우저/Web/API/PG 4컨테이너, 빌드 volume2, network2 제거, 해당 접두명·9091/9092/9229 잔류0. 시험 데이터는 tmpfs와 함께 폐기(복구 대상 아님), 공유 `local-postgres` 실행 보존·쓰기0, WSL checkout clean SHA. 이는 자체 격리 QA로 정식 공유 DB·Oracle/UAT PASS가 아니다. 담당 어울, 다음 조치: 독립 전체 변경 리뷰·미해결 finding 수정→정식 공유 개발 DB 0020/0021 적용 별도 승인 경계 확인.
