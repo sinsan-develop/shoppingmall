@@ -2,6 +2,7 @@
 
 ## 2026-10-09 S6 공유 DB 행 QA 제외 결정
 
+- **검토 PR 전 gate(최신 문서 HEAD `2a55676`):** 로컬 `pnpm test` 577 total/417 pass/160 DB·환경 skip/0 fail 및 PR 설명8/8, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0(Web25 routes). 공유 DB 읽기 재확인 migration22/accounts0/sellers0/settlement_events0/periods0/links0, 사전 백업 SHA-256 `444DD5F78C00D86138AD931963F9144EF6E5030AE6763309F4B0F677AB6405C8` 불변. 독립 전체 브랜치 read-only reviewer 1명은 로컬 실행기 초기화 오류(`MXC launcher: invalid MXC launcher request`)로 실제 diff/문서/테스트를 읽지 못해 **리뷰 판정 유보**; 코드 finding 0이라고 주장하지 않는다. 이 실패는 제품 시험 실패와 구분한다. 동일 근본 원인 리뷰 도구 오류1. 검토 PR 생성은 허용하되 Critical/Important 해소·정식 공유 행 E2E 미충족 상태에서 `pr-request/**` 병합 태그는 보내지 않는다. 다음 조치: PR 생성·CI 확인, 리뷰 수단 복구/자체 코드 대조, 남은 gate를 PMO에 보고.
 - 신산님 직접 선택: **공유 `local-postgres/shoppingmall`에는 정산 시험 거래·완료·불변 장부 행을 남기지 않는다.** 공유 DB 행 기반 정산 E2E는 `UNVERIFIED`로 표시하고 PR에는 격리 PostgreSQL/실제 Chromium·PDF 증거와 공유 DB의 migration/읽기 smoke를 분리해 적는다. 이는 앞선 약70행 영구 보존 권장안을 채택하지 않은 결정이며, 해당 QA seed·reset/복원·영속 fixture 생성은 하지 않는다.
 - 영향/판정: 이미 적용한 migration22와 사전 백업은 보존한다. 격리 DB 정산 기능 검증과 공유 DB 빈 스키마/API 준비 확인은 유효하지만 정본 공유 DB의 거래 행 처리 통과로 승격하지 않는다. S6의 원래 정식 공유 DB 행 E2E 완료 조건은 충족되지 않았으므로 Stage 전체 완료·자동 병합으로 주장하지 않는다. PR 생성은 검토용으로 진행할 수 있으나 `pr-request/**` 자동 병합 태그는 보내지 않는다. 다음 조치: PR 설명·정본 문서 수정→검증→`pr-create/**`로 검토 PR 생성→미충족 병합 gate를 PMO에 보고. 담당 어울 단일 writer, 오류0.
 
