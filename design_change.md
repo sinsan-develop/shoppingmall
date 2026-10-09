@@ -2,6 +2,7 @@
 
 ## 2026-10-09 최신 직접 지시·일반 수수료 표시 보정
 
+- 후속 격리 인쇄 확인: `bab5fd8` 제품 컴포넌트 SSR을 로컬 Chrome으로 PDF 1쪽(193,172 bytes) 출력했다. 렌더된 PNG의 일반 수수료 행에서 입력 근거와 1,500원을 확인했다. 실제 웹 CSS·인증·API·DB를 거친 브라우저 경로와 지정 WSL 정확 SHA 검증은 여전히 `UNVERIFIED`다. 한글 PDF 텍스트 추출도 일치하지 않아 시각 확인으로만 한정한다. 이 기록은 설계서·작업계획서의 필수 통합 게이트 변경이나 면제가 아니다.
 - 최신 보정 commit `99abe13343dfe63dd6bc0a65a686b70d1c10f1a9`는 SSH 별칭 원격 branch와 PR #15 head에 반영됐다. PR 설명 갱신 요청 태그는 자동화가 제거했으나 본문·CI 세부 결과는 직접 확인하지 못했다. `WSL-server` SSH 별칭과 로컬 `wsl.exe -d Ubuntu -- hostname -I` 모두 응답 없이 정지돼 최신 SHA WSL/실 Chromium/PDF 시험은 미실행이다. 실행 환경 장애를 임의 서버 변경으로 우회하지 않고 `UNVERIFIED`로 기록한다. 재개 조건: 지정 SSH/WSL 응답 복구 후 정확 SHA pull·비DB 회귀 및 격리 브라우저/PDF 재검증.
 - 신산님은 승인된 설계서 `docs/design/DESIGN.md`와 작업계획서 `docs/WORK_PLAN.md`의 수정을 금지했다. 변경 필요 사항은 이 파일에 기록한다. 두 정본은 이번 작업에서 수정하지 않는다.
 - 위에 기록한 일반 수수료 근거 누락은 설계 변경 없이 기존 보고서 표시에서 해결했다. `settlement-report.tsx`의 일반 발생 표에 이미 조회된 `reason`을 표시하고, SSR/인쇄 마크업 회귀 시험을 추가했다. 표적 5/5, 로컬 전체 578건(418 pass/160 환경·DB skip/0 fail), typecheck·lint·build·PR 본문 검사 통과. 실제 최신 브라우저 PDF와 WSL 정확 SHA 재검증은 아직 미실행이므로 완료 증거로 승격하지 않는다.

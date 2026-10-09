@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 2026-10-09 S6 일반 수수료 독립 출력 재검증 계획
+
+- 실행 결과: 제품 소스 `bab5fd8`에서 수정된 정산 보고서 표적 시험을 새로 실행해 5/5 pass/0 fail. React SSR 결과를 로컬 Chrome headless로 `D:\tmp\shoppingmall-s6-local-print-1009\commission-evidence.pdf`에 실제 인쇄했다(193,172 bytes, 1쪽). Poppler 이미지 `commission-evidence-page.png`에서 일반 수수료 행의 `7월 3일 오프라인 수수료 확인`과 `1,500원`이 같은 행에 가독성 있게 표시됨을 육안 확인했다. PDF 한글은 pypdf 추출 문자열과 일치하지 않아 추출 PASS로 주장하지 않는다. 임시 Chrome profile은 정확 경로 확인 후 제거·잔류0, PDF/PNG 2개만 증거로 보존했다. 이 시험은 실제 React 컴포넌트와 격리 합성 자료·간단한 인쇄 CSS를 사용했고, 실제 웹 CSS·로그인/API/DB·정식 WSL 화면을 검증하지 않는다.
+- 실행 오류/해결: 첫 로컬 출력 시도는 저장소 root에 React 패키지가 없어 `ERR_MODULE_NOT_FOUND`로 PDF 생성 전 종료(실행 위치 오류1). `apps/web/node_modules/react` 존재와 기존 시험의 import 경로를 확인하고 작업 디렉터리만 `apps/web`으로 보정해 PDF를 생성했다. Chrome 외부 확장 레지스트리 경고는 PDF 생성에 영향 없음. 제품 코드 오류·변경0, 동일 근본 원인 연속1(해결).
+- 독립 코드 대조: `SettlementReportView` 일반 `group.items`의 근거 셀은 주문/발송 ID와 함께 기존 API의 `reason`을 React 텍스트로 렌더한다. 수수료 금액·집계/권한/DB 호출은 이 수정에서 변경되지 않았다. 이 범위에서 새 Critical/Important finding은 확인하지 못했으나 전체 S6 브랜치 독립 리뷰 PASS는 아니다.
+- 담당/대상: 어울 단일 writer, `codex/s6-settlement@bab5fd8e5c9f3b3b1b780bfb51ab4bd76d5690fa`. 수정된 `settlement-report.tsx`와 회귀시험을 독립 대조했다. 최신 표적 시험 5/5 pass이며 이는 브라우저/PDF 증거가 아니다.
+- 생성 예정 일회성 로컬 QA 자료: `D:\tmp\shoppingmall-s6-local-print-1009` 아래 컴포넌트 SSR을 로드한 Chrome 인쇄 PDF와 검사 자료만 생성한다. 실계정·실DB·WSL·외부 서비스에 연결하지 않는다. 확인 후 PDF 증거는 필요 범위만 보존하고 임시 브라우저 프로필은 정확한 경로 확인 뒤 정리한다. 이 결과를 실제 웹 로그인·API/DB 통합·정식 WSL 인쇄 PASS로 승격하지 않는다.
+- 환경 경계: 지정 WSL SSH 무응답 및 배포판 내부 명령 무응답이 이전 시도에서 확인됐다. 설정·인증 변경이나 공유 DB 쓰기 없이 독립 가능한 출력 검증을 진행하고, 미진 범위는 `design_change.md`에 유지한다. 동일 접속 증상 2회, 이번 독립 출력 검증 오류0.
+
 ## 2026-10-09 S6 일반 수수료 근거 표시 보정·최신 지시
 
 - 실행 환경/원격 후속: `99abe13343dfe63dd6bc0a65a686b70d1c10f1a9`를 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git` 작업 branch에 push했고 `refs/pull/15/head` 동일 SHA를 확인했다. 기존 PR #15 설명 갱신은 `pr-create/<HEAD>/codex/s6-settlement` 요청 태그를 현재 `main@cf93d98d`에 push했고, 자동화가 태그를 제거한 것까지만 확인했다. PR 본문·CI 세부 결과는 직접 미확인, 병합 요청 태그는 전송하지 않았다. `WSL-server` SSH 무응답; `wsl.exe --list --verbose`는 Ubuntu Running, `wsl.exe -d Ubuntu -- hostname -I`도 응답 없이 종료시켰다. 공유 DB 쓰기0·서버 설정 변경0·임시 자원 생성0. 최신 SHA WSL/실 Chromium/PDF `UNVERIFIED`; 동일 접속 증상 2회, 추가 무한 재시도 없이 환경 복구 후 재개.
