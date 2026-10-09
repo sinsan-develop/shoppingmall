@@ -67,11 +67,36 @@ test('isolated DB fixes category history and records immutable signed correction
     const june = await readSettlement(client, parseSettlementQuery({ from: '2026-06-01',
       to: '2026-06-30', categoryId: categoryB }));
     assert.equal(june.completions.find((entry) => entry.id === empty.id)?.frozenTotals.sale, 0);
+    const mixedSellerId = (await client.query(`INSERT INTO sellers(category_id,display_name)
+      VALUES ($1,'QA 혼합 분류 판매자') RETURNING id`, [categoryA])).rows[0].id;
+    for (const [categoryId, categoryName, amount] of [
+      [categoryA, 'QA 당시 분류 A', 4000], [categoryB, 'QA 현재 분류 B', 3000],
+    ]) {
+      await client.query(`INSERT INTO settlement_events
+        (dedupe_key,kind,amount_won,occurred_at,seller_id,seller_name,
+         seller_category_id,seller_category_name,source_event_kind,source_event_id,
+         recorded_by,reason)
+        VALUES ($1,'commission',$2,'2026-05-02T00:00:00Z',$3,'QA 혼합 분류 판매자',
+          $4,$5,'manual_commission',$6,$7,'혼합 분류 근거')`,
+      [`qa:${randomUUID()}`, amount, mixedSellerId, categoryId, categoryName,
+        randomUUID(), adminId]);
+    }
+    const mixed = await completeSellerPeriod(client, adminId, { sellerId: mixedSellerId,
+      from: '2026-05-01', to: '2026-05-20', reason: '혼합 분류 완료' });
+    const mixedA = await readSettlement(client, parseSettlementQuery({ from: '2026-05-01',
+      to: '2026-05-20', categoryId: categoryA }));
+    const mixedB = await readSettlement(client, parseSettlementQuery({ from: '2026-05-01',
+      to: '2026-05-20', categoryId: categoryB }));
+    assert.equal(mixedA.completions.find((entry) => entry.id === mixed.id)?.frozenTotals.commission,
+      4000);
+    assert.equal(mixedB.completions.find((entry) => entry.id === mixed.id)?.frozenTotals.commission,
+      3000);
     const all = await readSettlement(client, parseSettlementQuery({ from: '2026-01-01',
       to: '2026-12-31' }));
-    assert.equal(all.totals.commission, 8000);
+    assert.equal(all.totals.commission, 15000);
     assert.equal(all.totals.correction, 2000);
-    assert.equal(all.groups[0].items.find((item) => item.id === correction.id)?.originalEventId,
+    assert.equal(all.groups.flatMap((group) => group.items)
+      .find((item) => item.id === correction.id)?.originalEventId,
       originalEventId);
   } finally {
     if (began) await client.query('ROLLBACK');
