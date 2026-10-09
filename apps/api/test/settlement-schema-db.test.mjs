@@ -31,8 +31,9 @@ test('0020 adds immutable occurrence and seller-specific completed period relati
   const pool = await privatePool();
   try {
     const history = await pool.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations');
-    assert.equal(history.rows[0].n, 21);
-    for (const table of [schema.settlementEvents, schema.sellerSettlementPeriods]) {
+    assert.equal(history.rows[0].n, 22);
+    for (const table of [schema.settlementEvents, schema.sellerSettlementPeriods,
+      schema.sellerSettlementPeriodEventLinks]) {
       assert.ok(table, 'Drizzle declaration required');
       const name = getTableName(table);
       const actual = (await pool.query(`SELECT column_name FROM information_schema.columns

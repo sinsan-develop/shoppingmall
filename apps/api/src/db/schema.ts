@@ -1538,3 +1538,11 @@ export const sellerSettlementPeriods = pgTable('seller_settlement_periods', {
   check('seller_settlement_periods_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
   // The PostgreSQL GiST exclusion constraint is in migration 0020.
 ]);
+
+export const sellerSettlementPeriodEventLinks = pgTable('seller_settlement_period_event_links', {
+  periodId: uuid('period_id').notNull().references(() => sellerSettlementPeriods.id),
+  eventId: uuid('event_id').notNull().references(() => settlementEvents.id),
+}, (table) => [
+  primaryKey({ name: 'seller_settlement_period_event_links_pk', columns: [table.periodId, table.eventId] }),
+  unique('seller_settlement_period_event_links_event_uq').on(table.eventId),
+]);

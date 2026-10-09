@@ -6,6 +6,7 @@ import { readToken, requireOrigin } from '../auth/controller.js';
 import { AuthRepository } from '../auth/repository.js';
 import { DatabaseService } from '../db/service.js';
 import { completeSellerPeriod, type CompleteSellerPeriodInput } from './complete.js';
+import { recordManualCommission, type ManualCommissionInput } from './commission.js';
 import { parseSettlementQuery, type SettlementQuery } from './query.js';
 import { readSettlement } from './repository.js';
 
@@ -26,7 +27,15 @@ function query(value: Record<string, unknown>): SettlementQuery {
 
 async function report(pool: Pool, filter: SettlementQuery) {
   const client = await pool.connect();
-  try { return await readSettlement(client, filter); }
+  try {
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    const result = await readSettlement(client, filter);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  }
   finally { client.release(); }
 }
 
@@ -65,8 +74,12 @@ export class AdminSettlementController {
       throw new BadRequestException({ status: 'invalid_settlement_completion' });
     const client = await pool.connect();
     try {
-      return await completeSellerPeriod(client, accountId, body as CompleteSellerPeriodInput);
+      await client.query('BEGIN');
+      const completed = await completeSellerPeriod(client, accountId, body as CompleteSellerPeriodInput);
+      await client.query('COMMIT');
+      return completed;
     } catch (error) {
+      await client.query('ROLLBACK');
       if (error && typeof error === 'object' && 'code' in error && error.code === '23P01')
         throw new ConflictException({ status: 'settlement_period_overlap' });
       if (error instanceof Error && (error.message === 'Invalid settlement completion' ||
@@ -74,6 +87,34 @@ export class AdminSettlementController {
         throw new BadRequestException({ status: 'invalid_settlement_completion' });
       if (error instanceof Error && error.message === 'Settlement access denied')
         throw new ForbiddenException();
+      throw error;
+    } finally { client.release(); }
+  }
+
+  @Post('commissions')
+  @HttpCode(201)
+  async commission(@Req() request: RequestHeaders, @Body() raw: unknown) {
+    requireOrigin(request);
+    const { pool, accountId } = await this.context(request);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+      throw new BadRequestException({ status: 'invalid_manual_commission' });
+    const body = raw as Record<string, unknown>;
+    if (Object.keys(body).some((key) => !['sellerId', 'requestId', 'amountWon',
+      'occurredAt', 'reason'].includes(key)) ||
+      typeof body.sellerId !== 'string' || typeof body.requestId !== 'string' ||
+      typeof body.amountWon !== 'number' || typeof body.occurredAt !== 'string' ||
+      typeof body.reason !== 'string')
+      throw new BadRequestException({ status: 'invalid_manual_commission' });
+    const client = await pool.connect();
+    try {
+      return await recordManualCommission(client, accountId, body as ManualCommissionInput);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid manual commission')
+        throw new BadRequestException({ status: 'invalid_manual_commission' });
+      if (error instanceof Error && error.message === 'Manual commission access denied')
+        throw new ForbiddenException();
+      if (error instanceof Error && error.message === 'Manual commission request conflict')
+        throw new ConflictException({ status: 'manual_commission_request_conflict' });
       throw error;
     } finally { client.release(); }
   }

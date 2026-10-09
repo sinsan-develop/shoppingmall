@@ -17,5 +17,12 @@ test('settlement routes deny anonymous read and reject cross-origin completion',
         from: '2026-05-01', to: '2026-05-20', reason: 'test' }),
     });
     assert.equal(completion.status, 403);
+    const commission = await fetch(`${base}/admin/settlement/commissions`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sellerId: '11111111-1111-4111-8111-111111111111',
+        requestId: '22222222-2222-4222-8222-222222222222', amountWon: 1000,
+        occurredAt: '2026-05-02T00:00:00.000Z', reason: 'test' }),
+    });
+    assert.equal(commission.status, 403);
   } finally { await app.close(); }
 });

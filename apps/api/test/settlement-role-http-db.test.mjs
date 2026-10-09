@@ -21,7 +21,7 @@ test('actual HTTP confines settlement reads to role and seller, with admin-only 
     assert.equal(identity, process.env.S6_EVENT_TEST_DB_SYSTEM_ID);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n, 0);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations'))
-      .rows[0].n, 21);
+      .rows[0].n, 22);
     const runId = process.env.S6_BROWSER_QA_RUN_ID ?? randomBytes(4).toString('hex');
     const names = qaNames(runId);
     await runQaCatalogFixture('seed', runId, process.env.DATABASE_URL, password);

@@ -13,6 +13,8 @@ export type SettlementReportItem = {
   kind: SettlementKind;
   amountWon: number;
   occurredAt: string;
+  recordedAt?: string;
+  reason?: string | null;
   checkoutOrderId: string | null;
   shipmentOrderId: string | null;
   productId: string | null;

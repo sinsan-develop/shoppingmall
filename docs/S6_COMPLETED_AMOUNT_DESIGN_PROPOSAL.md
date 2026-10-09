@@ -1,6 +1,6 @@
 # S6 완료 금액 고정·늦은 항목 분리 설계 제안
 
-- 상태: **검토·별도 승인 대기**. 신산님은 2026-10-09에 “완료 당시 금액 고정·늦은 항목 별도 표시”라는 업무 정책을 선택했다. 아래 DB 구조·공개 API 변경과 공유 개발 DB 적용은 그 선택만으로 승인된 것으로 취급하지 않는다.
+- 상태: **설계·0021 구조·공개 API 변경 승인(2026-10-09)**. 신산님은 “완료 당시 금액 고정·늦은 항목 별도 표시” 정책과 아래 사건 ID 연결 방식, 0021 migration, 관리자 수수료 입력 API 및 조회 응답 확장을 승인했다. 공유 개발 DB 실제 적용과 운영 배포는 별도 승인 경계다.
 - 기준: `docs/design/DESIGN.md` R09, `docs/WORK_PLAN.md` S6, `docs/S6_SETTLEMENT_CONTRACT_PROPOSAL.md`의 불변 발생 장부·개별 완료·역할 범위. 자동 지급액 결정·송금은 계속 제외한다.
 
 ## 목적과 완료 의미
@@ -35,6 +35,6 @@
 - 로컬 RED→GREEN·전체 test/typecheck/lint/build 후 격리 PostgreSQL 15에 0020→0021 적용·실제 API/DB/Chromium/PDF를 확인한다. 공유 `local-postgres/shoppingmall`에는 **별도 환경 적용 승인 전** migration·QA 행을 쓰지 않는다. 정식 WSL 통합은 정확 Git SHA, 공유 DB migration/QA entity, 실제 브라우저·원주문·인쇄 대조 및 식별 QA 자료 정리를 별도로 기록한다.
 - 문제가 생기면 제품 코드를 이전 검증 commit으로 되돌리는 PR로 복구한다. 이미 생성된 완료/연결 장부를 임의 삭제하거나 0021을 역적용하지 않는다. 영속 DB 복구는 백업·영향·신산님 승인 절차를 따르며, 새 연결 테이블은 보존한다.
 
-## 필요한 정확한 승인
+## 승인 경계
 
-신산님께 요청할 범위는 위의 **사건 ID 연결 방식**, 신규 0021 schema/migration, 관리자 수수료 입력 API와 조회 응답 필드(`lateGroups`, `lateTotals`, `completions[].frozenTotals`) 변경이다. 승인을 받아도 공유 개발 DB 실제 적용과 Oracle/운영 배포는 별도 gate다.
+위의 **사건 ID 연결 방식**, 신규 0021 schema/migration, 관리자 수수료 입력 API와 조회 응답 필드(`lateGroups`, `lateTotals`, `completions[].frozenTotals`) 변경은 승인되었다. 공유 개발 DB 실제 적용과 Oracle/운영 배포는 별도 gate다.

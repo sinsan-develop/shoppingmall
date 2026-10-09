@@ -30,5 +30,10 @@ export async function completeSellerPeriod(client: PoolClient, adminId: string,
       end_date::text AS "endDate",completed_at AS "completedAt"`,
   [period.sellerId, period.from, period.to, adminId, input.reason.trim()]);
   if (result.rowCount !== 1) throw new Error('Settlement access denied');
+  await client.query(`INSERT INTO seller_settlement_period_event_links (period_id,event_id)
+    SELECT $1,event.id FROM settlement_events event
+    WHERE event.seller_id=$2
+      AND (event.occurred_at AT TIME ZONE 'Asia/Seoul')::date BETWEEN $3::date AND $4::date
+    ORDER BY event.id`, [result.rows[0].id, period.sellerId, period.from, period.to]);
   return { ...result.rows[0], completedAt: result.rows[0].completedAt.toISOString() };
 }

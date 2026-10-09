@@ -4,6 +4,7 @@ import test from 'node:test';
 import { Pool } from 'pg';
 import { parseSettlementQuery } from '../src/settlement/query.ts';
 import { readSettlement } from '../src/settlement/repository.ts';
+import { completeSellerPeriod } from '../src/settlement/complete.ts';
 
 const databaseName = 'shoppingmall_s6_schema_1008';
 const systemId = process.env.S6_SETTLEMENT_TEST_DB_SYSTEM_ID;
@@ -20,6 +21,7 @@ test('actual ledger read preserves category, seller and occurrence-period bounda
     assert.deepEqual(identity, { name: databaseName, system_id: systemId });
     await client.query('BEGIN');
     const adminId = (await client.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    await client.query(`INSERT INTO account_roles(account_id,role) VALUES ($1,'admin')`, [adminId]);
     const categories = (await client.query(`INSERT INTO seller_categories(name)
       VALUES ('S6 농가'),('S6 자체') RETURNING id,name`)).rows;
     const farmCategory = categories.find(({ name }) => name === 'S6 농가').id;
@@ -47,12 +49,10 @@ test('actual ledger read preserves category, seller and occurrence-period bounda
       [`manual:${sourceId}`, amountWon, occurredAt, sellerId, sellerName,
         categoryId, categoryName, sourceId, adminId]);
     }
-    await client.query(`INSERT INTO seller_settlement_periods
-      (seller_id,start_date,end_date,completed_by,reason)
-      VALUES ($1,'2026-05-01','2026-05-20',$2,'오프라인 확인')`, [farmA, adminId]);
-    await client.query(`INSERT INTO seller_settlement_periods
-      (seller_id,start_date,end_date,completed_by,reason)
-      VALUES ($1,'2026-05-01','2026-05-20',$2,'거래 없음 확인')`, [farmC, adminId]);
+    await completeSellerPeriod(client, adminId, { sellerId: farmA,
+      from: '2026-05-01', to: '2026-05-20', reason: '오프라인 확인' });
+    await completeSellerPeriod(client, adminId, { sellerId: farmC,
+      from: '2026-05-01', to: '2026-05-20', reason: '거래 없음 확인' });
     const all = await readSettlement(client, parseSettlementQuery({ from: '2026-05-01',
       to: '2026-05-20' }));
     assert.deepEqual(all.groups.map(({ sellerName, totals }) => [sellerName, totals.commission]),

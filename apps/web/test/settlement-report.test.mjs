@@ -47,3 +47,19 @@ test('completion history remains visible even when the selected period has no ev
   assert.match(html, /완료 이력/);
   assert.match(html, /오프라인 확인/);
 });
+
+test('print separates frozen completion amounts from backdated late entries and evidence', () => {
+  const late = { ...report.groups[0], items: [{ ...report.groups[0].items[0],
+    id: 'late-commission', kind: 'commission', amountWon: 1200,
+    occurredAt: '2026-05-02T00:00:00Z', recordedAt: '2026-07-01T00:00:00Z',
+    checkoutOrderId: 'may-original-order', reason: '수수료 근거' }],
+  totals: { ...totals, commission: 1200 } };
+  const html = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, lateGroups: [late], lateTotals: { ...totals, commission: 1200 },
+    completions: [{ ...report.completions[0], frozenTotals: { ...totals, sale: 23000 } }],
+  } }));
+  for (const expected of ['완료 당시 항목별 금액', '23,000원', '완료 후 추가 발생',
+    '1,200원', '기록 시점', '수수료 근거', 'may-original-order']) {
+    assert.ok(html.includes(expected), expected);
+  }
+});

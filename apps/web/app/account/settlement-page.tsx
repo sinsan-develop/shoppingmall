@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { SettlementReportView, type SettlementReport } from './settlement-report';
 
 type Choice = { id: string; name: string };
@@ -11,6 +11,15 @@ export function completionOverlaps(completions: SettlementReport['completions'],
   sellerId: string, from: string, to: string): boolean {
   return completions.some((entry) => entry.sellerId === sellerId &&
     entry.startDate <= to && entry.endDate >= from);
+}
+
+export function seoulInputToIso(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) throw new Error('발생 시점을 확인해 주세요.');
+  const date = new Date(`${value}:00+09:00`);
+  if (!Number.isFinite(date.getTime())) throw new Error('발생 시점을 확인해 주세요.');
+  if (new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16) !== value)
+    throw new Error('발생 시점을 확인해 주세요.');
+  return date.toISOString();
 }
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -42,6 +51,7 @@ export function SettlementPage({ role }: { role: Role }) {
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
+  const commissionRetry = useRef<{ signature: string; requestId: string } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -128,6 +138,36 @@ export function SettlementPage({ role }: { role: Role }) {
     } finally { setSaving(false); }
   }
 
+  async function commission(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!apiOrigin || saving || role !== 'admin') return;
+    const values = new FormData(event.currentTarget);
+    const sellerId = String(values.get('sellerId') ?? '');
+    const amountWon = Number(values.get('amountWon'));
+    const reason = String(values.get('reason') ?? '').trim();
+    try {
+      const occurredAt = seoulInputToIso(String(values.get('occurredAt') ?? ''));
+      const signature = JSON.stringify([sellerId, amountWon, occurredAt, reason]);
+      if (!commissionRetry.current || commissionRetry.current.signature !== signature) {
+        commissionRetry.current = { signature, requestId: crypto.randomUUID() };
+      }
+      setSaving(true); setError(''); setNotice('');
+      const response = await fetch(`${apiOrigin}/admin/settlement/commissions`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sellerId, amountWon, occurredAt, reason,
+          requestId: commissionRetry.current.requestId }),
+      });
+      if (!response.ok) throw new Error(response.status === 409
+        ? '같은 요청 번호의 내용이 달라 기록하지 않았습니다.'
+        : `수수료 기록에 실패했습니다. (${response.status})`);
+      commissionRetry.current = null;
+      setNotice('수수료 발생 내역을 기록했습니다. 완료 기간에 해당하면 추가 발생으로 표시됩니다.');
+      setReload((value) => value + 1);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '수수료 기록에 실패했습니다.');
+    } finally { setSaving(false); }
+  }
+
   return <main id="main-content" tabIndex={-1} className="shell settlement-page">
     <a className="text-link settlement-controls" href="/account">계정 메뉴</a>
     <section className="account-card profile-card settlement-controls">
@@ -156,6 +196,21 @@ export function SettlementPage({ role }: { role: Role }) {
     {notice ? <p className="account-card settlement-controls" role="status">{notice}</p> : null}
     {busy ? <p role="status">정산 자료를 불러오는 중입니다.</p> : null}
     {report ? <SettlementReportView report={report} /> : null}
+    {role === 'admin' ? <section className="account-card profile-card settlement-controls"
+      aria-label="수수료 수동 기록">
+      <h2>수수료 수동 기록</h2>
+      <p>실제 발생 시점과 근거를 기록합니다. 완료된 기간의 금액은 바뀌지 않습니다.</p>
+      <form className="settlement-filter" onSubmit={(event) => void commission(event)}>
+        <label>판매자 <select name="sellerId" required defaultValue="">
+          <option value="">판매자 선택</option>
+          {sellers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select></label>
+        <label>수수료 금액(원) <input type="number" name="amountWon" min="1" step="1" required /></label>
+        <label>발생 시점 (한국 시각) <input type="datetime-local" name="occurredAt" required /></label>
+        <label>기록 근거 <input name="reason" maxLength={500} required /></label>
+        <button className="primary-button" type="submit" disabled={!authorized || saving}>수수료 기록</button>
+      </form>
+    </section> : null}
     {role === 'admin' && report ? <section className="settlement-controls" aria-label="판매자별 완료 기록">
       <h2>판매자별 완료 기록</h2>
       <p>실제 송금은 시스템 밖에서 진행합니다. 확인한 판매자 한 명씩 완료 여부를 기록해 주세요.</p>
