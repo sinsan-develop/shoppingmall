@@ -40,3 +40,39 @@ test('correction reuses an identical request and rejects a changed retry', async
   await assert.rejects(() => recordCorrection(client, adminId,
     { ...input, amountWon: 3000 }), /Settlement correction request conflict/);
 });
+
+test('UUID case variants represent one correction request and one original event', async () => {
+  const original = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const request = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const byKey = new Map();
+  let inserts = 0;
+  const client = { async query(sql, values) {
+    if (sql.includes('FOR UPDATE OF event')) return { rows: [{
+      id: original, kind: 'commission', amountWon: '10000', sellerId: 'seller-a',
+      sellerName: '판매자 A', sellerCategoryId: 'category-a', sellerCategoryName: '분류 A',
+    }] };
+    if (sql.includes('WHERE dedupe_key=$1')) return { rows: byKey.has(values[0])
+      ? [byKey.get(values[0])] : [] };
+    if (sql.includes('sum(CASE')) return { rows: [{ adjustedWon: '10000' }] };
+    if (sql.includes('INSERT INTO settlement_events')) {
+      inserts++;
+      const row = { id: 'correction-a', originalEventId: values[7],
+        requestId: values[6], direction: values[8], amountWon: String(values[1]),
+        reason: values[10], recordedBy: values[9],
+        occurredAt: new Date('2026-07-01T00:00:00Z') };
+      byKey.set(values[0], row);
+      return { rows: [row] };
+    }
+    throw new Error(`Unexpected query: ${sql}`);
+  } };
+  const mixed = { ...input, originalEventId: original.toUpperCase(),
+    requestId: request.toUpperCase() };
+  const first = await recordCorrection(client, adminId, mixed);
+  const retry = await recordCorrection(client, adminId,
+    { ...mixed, originalEventId: original, requestId: request });
+  assert.equal(retry.id, first.id);
+  assert.equal(inserts, 1);
+  await assert.rejects(() => recordCorrection(client, adminId,
+    { ...mixed, originalEventId: original, requestId: request, amountWon: 3000 }),
+  /Settlement correction request conflict/);
+});

@@ -17,7 +17,8 @@ function normalize(input: CorrectionInput, adminId: string): CorrectionInput {
       !Number.isSafeInteger(input.amountWon) || input.amountWon <= 0 ||
       typeof input.reason !== 'string' || !input.reason.trim() ||
       input.reason.trim().length > 500) throw new Error('Invalid settlement correction');
-  return { ...input, reason: input.reason.trim() };
+  return { ...input, originalEventId: input.originalEventId.toLowerCase(),
+    requestId: input.requestId.toLowerCase(), reason: input.reason.trim() };
 }
 
 function response(row: CorrectionRow) {
@@ -36,7 +37,21 @@ function sameRequest(row: CorrectionRow, input: CorrectionInput, adminId: string
 export async function recordCorrection(client: PoolClient, adminId: string,
   raw: CorrectionInput) {
   const input = normalize(raw, adminId);
+  const normalizedAdminId = adminId.toLowerCase();
   const key = `correction:${input.requestId}`;
+  const existing = (await client.query<CorrectionRow>(`SELECT id,
+    original_event_id AS "originalEventId",source_event_id AS "requestId",
+    correction_direction AS direction,amount_won::text AS "amountWon",
+    reason,recorded_by AS "recordedBy",occurred_at AS "occurredAt"
+    FROM settlement_events WHERE dedupe_key=$1 AND kind='correction'
+      AND EXISTS (SELECT 1 FROM account_roles role
+        WHERE role.account_id=$2 AND role.role='admin')`,
+  [key, normalizedAdminId])).rows[0];
+  if (existing) {
+    if (!sameRequest(existing, input, normalizedAdminId))
+      throw new Error('Settlement correction request conflict');
+    return response(existing);
+  }
   const original = (await client.query<OriginalRow>(`SELECT event.id,event.kind,
     event.amount_won::text AS "amountWon",event.seller_id AS "sellerId",
     event.seller_name AS "sellerName",event.seller_category_id AS "sellerCategoryId",
@@ -44,19 +59,8 @@ export async function recordCorrection(client: PoolClient, adminId: string,
     FROM settlement_events event WHERE event.id=$1 AND event.kind<>'correction'
       AND EXISTS (SELECT 1 FROM account_roles role
         WHERE role.account_id=$2 AND role.role='admin')
-    FOR UPDATE OF event`, [input.originalEventId, adminId])).rows[0];
+    FOR UPDATE OF event`, [input.originalEventId, normalizedAdminId])).rows[0];
   if (!original) throw new Error('Settlement correction access denied');
-
-  const existing = (await client.query<CorrectionRow>(`SELECT id,
-    original_event_id AS "originalEventId",source_event_id AS "requestId",
-    correction_direction AS direction,amount_won::text AS "amountWon",
-    reason,recorded_by AS "recordedBy",occurred_at AS "occurredAt"
-    FROM settlement_events WHERE dedupe_key=$1 AND kind='correction'`, [key])).rows[0];
-  if (existing) {
-    if (!sameRequest(existing, input, adminId))
-      throw new Error('Settlement correction request conflict');
-    return response(existing);
-  }
 
   const adjusted = (await client.query<{ adjustedWon: string }>(`SELECT
     (original.amount_won + coalesce(sum(CASE
@@ -82,14 +86,14 @@ export async function recordCorrection(client: PoolClient, adminId: string,
       amount_won::text AS "amountWon",reason,recorded_by AS "recordedBy",
       occurred_at AS "occurredAt"`, [key, input.amountWon, original.sellerId,
     original.sellerName, original.sellerCategoryId, original.sellerCategoryName,
-    input.requestId, original.id, input.direction, adminId, input.reason])).rows[0];
+    input.requestId, original.id, input.direction, normalizedAdminId, input.reason])).rows[0];
   if (inserted) return response(inserted);
   const collided = (await client.query<CorrectionRow>(`SELECT id,
     original_event_id AS "originalEventId",source_event_id AS "requestId",
     correction_direction AS direction,amount_won::text AS "amountWon",
     reason,recorded_by AS "recordedBy",occurred_at AS "occurredAt"
     FROM settlement_events WHERE dedupe_key=$1 AND kind='correction'`, [key])).rows[0];
-  if (!collided || !sameRequest(collided, input, adminId))
+  if (!collided || !sameRequest(collided, input, normalizedAdminId))
     throw new Error('Settlement correction request conflict');
   return response(collided);
 }

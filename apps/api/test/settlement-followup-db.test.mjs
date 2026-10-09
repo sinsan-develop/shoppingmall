@@ -43,8 +43,17 @@ test('isolated DB records immutable signed correction after completion', {
       amountWon: 2000, reason: '입력 오류 정정' };
     const correction = await recordCorrection(client, adminId, request);
     assert.equal((await recordCorrection(client, adminId, request)).id, correction.id);
+    assert.equal((await recordCorrection(client, adminId, {
+      ...request, originalEventId: originalEventId.toUpperCase(),
+      requestId: request.requestId.toUpperCase(),
+    })).id, correction.id);
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM settlement_events WHERE original_event_id=$1',
+      [originalEventId])).rows[0].n, 1);
     await assert.rejects(() => recordCorrection(client, adminId,
       { ...request, amountWon: 3000 }), /Settlement correction request conflict/);
+    await assert.rejects(() => recordCorrection(client, adminId,
+      { ...request, originalEventId: randomUUID() }),
+    /Settlement correction request conflict/);
     await assert.rejects(() => recordCorrection(client, adminId,
       { ...request, requestId: randomUUID(), amountWon: 11000 }),
     /Settlement correction exceeds original amount/);

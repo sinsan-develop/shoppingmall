@@ -4434,3 +4434,19 @@
 
 - 소유자 어울. 앞서 제거한 `shoppingmall-s6-c1-1009-pg`를 새 system ID의 일회성 DB로 다시 생성한다. API `shoppingmall-s6-c1-1009-api`(WSL loopback 9092), 웹 `shoppingmall-s6-c1-1009-web`(WSL loopback 9091), 전용 Docker network `shoppingmall-s6-c1-1009-net`, Windows loopback SSH 전달은 이 브라우저 시험 동안만 사용한다. 모든 이름·포트 충돌을 생성 전에 확인한다. 시험 후 정확한 컨테이너·네트워크·DB 익명 볼륨·전달 세션을 정리하고 잔류를 확인한다. 공유 DB와 실제 계정은 사용하지 않는다.
 - 브라우저 자료는 `apps/api/scripts/s6-c1-browser-fixture.ts`가 DB명·system ID·migration 23건을 확인한 뒤에만 생성하는 가상 관리자·판매자·정산 사건이다. 일회성 DB 삭제와 함께 폐기한다. 이 자료를 공유 DB나 실제 운영 자료로 복사하지 않는다.
+
+## 2026-10-09 C1 정확한 SHA 브라우저 확인·시험 자원 정리
+
+- 담당: 어울. 후보 `24deb93d9cf689944e1384888e379339a6a35c5b`를 원격과 WSL 지정 checkout에서 대조했다. 일회성 PostgreSQL 15 `shoppingmall_s6_followup_1009`(system identifier `7694655613780422694`)에 0000~0022를 적용하고 전용 가상 관리자·판매자·정산 사건을 생성했다. 공유 DB에는 시험 거래 행을 만들지 않았다.
+- 실제 브라우저에서 관리자에게 원수수료 10,000원, 10월 감소 정정 2,000원과 원사건/사유, 순수수료 8,000원, 5월 완료 당시 고정액 10,000원이 보이는 것을 확인했다. 판매자는 자기 자료에 같은 계산이 보이되 관리자 정정·완료 버튼은 보이지 않았다. 430 CSS px에서 문서 폭 415px로 가로 넘침은 없었다. Tab 조작으로 시작일 내부 입력 구간을 거쳐 종료일에 포커스가 이동하는 것만 확인했으며 전체 폼 키보드 탐색·초점 표시의 완전한 증거는 아니다.
+- 브라우저 200% 확대 조작은 실제 확대값 변화가 확인되지 않았다. 인쇄 버튼 클릭은 운영체제 인쇄 창에서 제어 시간이 초과돼 직접 ‘PDF로 저장’ 결과를 얻지 못했다. 과거 C1+C2 혼합 후보의 Chrome 2쪽 PDF 근거를 이 C1 정확한 SHA의 PDF 근거로 전용하지 않는다. API는 WSL의 오래된 dist 산출물을 회피한 현재 소스 런타임이므로 WSL production API image 통과로 표시하지 않는다.
+- 시험 종료 후 컨테이너 `shoppingmall-s6-c1-1009-web`, `shoppingmall-s6-c1-1009-api`, `shoppingmall-s6-c1-1009-pg`와 전용 네트워크 `shoppingmall-s6-c1-1009-net`, DB 익명 볼륨을 정확한 대상으로 확인해 제거했다. WSL의 해당 이름·9091/9092/15439 listener와 Windows 전달 포트 listener 잔류 0을 재확인했다. 브라우저 시험 탭을 닫았다.
+- 다음 작업: 독립 리뷰와 C1 PR/CI 경계를 진행한다. 공유 DB 신규 migration 적용은 별도 승인 전 금지하고, 직접 200% 확대·운영체제 PDF 저장은 `docs/design_change.md`에 미검증으로 남긴다.
+
+## 2026-10-09 C1 독립 리뷰·멱등성 보정
+
+- 독립 읽기 전용 리뷰에서 Critical 0, Important 1(같은 UUID의 대소문자 표기가 다른 정정 사건으로 기록될 위험), Minor 2(이미 쓴 요청 ID의 다른 원사건 충돌 순서, C1 후보 문서의 C2 시험 오기)를 확인했다. 병합 보류 판정을 받아 세 항목을 C1 계획 범위에서 수정했다.
+- UUID 대소문자 혼용 시험을 먼저 추가해 수정 전 2건 삽입으로 RED를 확인했다. 요청·원사건·관리자 UUID를 정규화하고 관리자 권한을 검사하는 기존 요청 조회를 원사건 잠금보다 앞에 배치해, 같은 본문 재시도 1건 반환·다른 본문 충돌을 보장했다. 표적 단위 시험은 수정 후 3/3 PASS. 격리 DB 시험에 대소문자 재시도·다른 원사건 충돌·단일 사건 수 단언을 추가했다. C1 계약 문서의 C2 구현 오기를 바로잡았다.
+- 수정 전 PR 후보의 로컬 전체 시험은 590건/427 pass/163 조건부 skip/0 fail, PR 설명 8/8, lint/typecheck/build exit0이었다. 제품 코드를 수정했으므로 이 수치를 새 후보의 최종 검증으로 사용하지 않는다.
+- 새 격리 DB 계획: WSL 기존 이미지 `pgvector/pgvector:0.8.2-pg15`의 일회용 컨테이너 `shoppingmall-s6-c1-1009-pg`를 WSL loopback 15439에만 생성한다. DB명 `shoppingmall_s6_followup_1009`와 새 system identifier를 확인해 0000~0022를 적용하고 신규 단위/HTTP/경합 0 skip 시험을 실행한다. 공유 DB와 분리하고 종료 직후 정확한 컨테이너·익명 볼륨·포트 잔류 0을 확인한다.
+- 수정 후 로컬 전체 제품 시험 591건/428 pass/163 조건부 skip/0 fail, PR 본문 8/8 pass. `pnpm lint`, `pnpm typecheck`, `pnpm build`(Web 25경로) exit0. 새 격리 DB 실증 전이라 조건부 skip을 통과로 바꾸지 않는다.
