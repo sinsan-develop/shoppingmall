@@ -4467,3 +4467,9 @@
 - C1/C1.2 구현과 로컬·격리 DB의 위 검증은 수행했다. 공유 DB 0022 적용·읽기 smoke는 계획상 별도 환경 승인 답변이 없어 금지하며, OS 인쇄 창 PDF 저장·실제 200% 확대·정확한 C1 SHA의 PDF 렌더, WSL production API image도 미검증이다. 격리 DB 결과를 이 항목들의 PASS로 치환하지 않는다.
 - C2는 승인된 순차 PR 규칙상 C1이 main에 병합·smoke·작업 브랜치 정리된 뒤 최신 main에서 시작해야 한다. 현재 C1의 필수 게이트가 미충족이므로 C2 구현을 같은 브랜치로 재혼합하거나 후속 브랜치를 선행 생성하지 않는다. 과거 C1+C2 후보 SHA `4afa2db`는 코드 복구 근거로만 보존하며 현재 C1 PR에는 포함하지 않는다. 이 의존 장애와 정확한 재개 절차를 루트 `docs/design_change.md`에 기록한다.
 - 계획 밖 실제 발송·PG 실거래·Oracle 배포·사용자 인수는 제외한다. 계획서·설계서 수정은 하지 않고 사용자 소유 설계서 변경도 stage하지 않는다.
+
+## 2026-10-09 C1 실제 인쇄/PDF 검증 재시도 자원 계획
+
+- 담당: 어울. 신산님 최신 지시로 중단 없이 C1 브라우저 출력 근거를 추가 검증한다. 후보는 현재 PR #16 제품 SHA `0367ac59a2af371d5e8b828932877273c4dd6f7c`이며, 이전 확인 PDF는 C1+C2 혼합 후보였으므로 전용하지 않는다.
+- WSL 기존 이미지의 일회용 DB `shoppingmall-s6-c1-1009-pg`(DB `shoppingmall_s6_followup_1009`, WSL loopback 15439), 전용 network `shoppingmall-s6-c1-1009-net`, API `shoppingmall-s6-c1-1009-api`(loopback 9092), Web `shoppingmall-s6-c1-1009-web`(loopback 9091), Windows loopback SSH 전달을 이번 시험 동안만 사용한다. 새 system identifier·migration 23건을 확인한 후 가상 관리자/판매자·정정 자료를 생성한다. 공유 DB·실계정은 사용하지 않는다.
+- Windows Chrome headless는 전용 디버깅 127.0.0.1:9229와 프로필 `D:/tmp/shoppingmall-s6-c1-print-1009/chrome-profile`로만 실행한다. PDF·렌더 PNG는 `D:/tmp/shoppingmall-s6-c1-print-1009`에 일시 저장해 검토한 뒤 삭제한다. 사용 완료·실패 시 정확한 컨테이너·network·익명 DB 볼륨·Chrome PID/프로필·전달 세션·임시 PDF/PNG를 검증 후 제거하고 이름·포트 잔류 0을 확인한다. 실제 OS 인쇄 창 조작과 CDP 출력은 별도 근거로 표시한다.
