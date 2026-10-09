@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-09 S6~S8 이번 주기 완료보고 준비
+
+- 단계/담당/상태: 어울 단일 writer. 현재 `codex/s6-settlement@8fab7a3c25d9b016d09eaa7e565229fd068d8b0f` clean, 원격 작업 branch/PR #15 head 동일; `main@cf93d98d7bef6ada62c64a26f9b16adf03bb358e`로 S6 미병합. 단일 Stage/branch 규칙을 확인하고 새 branch/worktree 생성0. 설계서·작업계획서 수정0, 공유 DB 쓰기0, 병합 요청0.
+- 계획 대조: S6 실제 제품·격리 시험과 최신 일반 수수료 근거 로컬 PDF 근거는 위 절 참조. 정식 공유 DB 행 E2E, 정정 사건 공개 경로, 최신 WSL·실제 웹 CSS/인증/API/DB 인쇄, 독립 전체 리뷰, PR CI 세부, 병합/merged-main smoke는 미실행. S7 `apps/mobile/App.tsx`는 시작 안내 화면뿐이며 구매 앱·mock·에뮬레이터 검증 없음; 아이콘은 검토용/미적용. S8 전체 후보 연결 회귀·정식 WSL·복구/매뉴얼 실증 없음. 각 미진 근거·영향·재개 조건은 `design_change.md`의 이번 주기 마감 절에 기록했다.
+- 판정: 기록된 불가 항목은 신산님 지시에 따라 **이번 주기 진도상 완료 처리**한다. 이는 S6~S8 실제 기능 완료, 계획 필수 검증 PASS, 최종 제품 완료 또는 출시 승인이 아니다. 로컬 실행기는 복구되어 그 과거 장애는 현재 차단 사유가 아니다. 지정 WSL 무응답, S6 PR gate 및 S7 선행 조건이 실제 재작업 입력이다. 이번 대조에서 새 제품 오류0; 추가 임시 자원0. 다음 작업은 본 주기 완료보고 후 `design_change.md`의 미진을 다음 재작업 주기로 이관하는 것이다.
+
 ## 2026-10-09 S6 일반 수수료 독립 출력 재검증 계획
 
 - 실행 결과: 제품 소스 `bab5fd8`에서 수정된 정산 보고서 표적 시험을 새로 실행해 5/5 pass/0 fail. React SSR 결과를 로컬 Chrome headless로 `D:\tmp\shoppingmall-s6-local-print-1009\commission-evidence.pdf`에 실제 인쇄했다(193,172 bytes, 1쪽). Poppler 이미지 `commission-evidence-page.png`에서 일반 수수료 행의 `7월 3일 오프라인 수수료 확인`과 `1,500원`이 같은 행에 가독성 있게 표시됨을 육안 확인했다. PDF 한글은 pypdf 추출 문자열과 일치하지 않아 추출 PASS로 주장하지 않는다. 임시 Chrome profile은 정확 경로 확인 후 제거·잔류0, PDF/PNG 2개만 증거로 보존했다. 이 시험은 실제 React 컴포넌트와 격리 합성 자료·간단한 인쇄 CSS를 사용했고, 실제 웹 CSS·로그인/API/DB·정식 WSL 화면을 검증하지 않는다.
