@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-09 저장소 동기화·정리
+
+- 담당/상태: 어울 단일 writer. 승인된 `github-sinsan-develop` SSH 원격에서 `git fetch origin` 후 로컬 `main`과 `origin/main`은 `cf93d98d7bef6ada62c64a26f9b16adf03bb358e`, S6 작업 브랜치와 원격/PR #15 head는 동기화 전 `0644ad3d0564a02585fad692a15519b672cbdf29`로 일치했다. 두 체크아웃의 추적 파일 변경은 0. 설계서·작업계획서·제품 코드·DB 변경0, 병합 요청0.
+- 정리: 원격에는 없고 대상 커밋이 모두 현재 `main`의 조상임을 확인한 과거 로컬 `pr-create/*` 요청 태그 5개만 `git tag -d`로 삭제했다. 태그가 가리키던 커밋은 `main`에 남아 복구 가능하다. 활성 S6 branch/worktree/PR #15, `main`의 소유 불명 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`, S6 PDF/PNG 증거는 보존했다. 일괄 삭제·reset·stash 없음.
+- WSL 동기화 미수행: 지정 `WSL-server` SSH alias 접속이 `172.27.253.53:22` 배너 교환 중 timeout(exit1)이라 `/home/daon/deploy/shopping`의 Git 상태를 읽거나 pull하지 못했다. 기존 동일 접속 증상 뒤 이번 확인 1회이며 서버 재시작·SSH 설정/인증 변경0. WSL exact SHA와 정식 통합은 `UNVERIFIED`; 접속 복구 후 clean 여부와 원격 SHA를 먼저 재대조하고 fast-forward만 수행한다. 영향받지 않는 로컬·원격 동기화와 안전한 태그 정리는 완료했다.
+
 ## 2026-10-09 S6~S8 이번 주기 완료보고 준비
 
 - 단계/담당/상태: 어울 단일 writer. 현재 `codex/s6-settlement@8fab7a3c25d9b016d09eaa7e565229fd068d8b0f` clean, 원격 작업 branch/PR #15 head 동일; `main@cf93d98d7bef6ada62c64a26f9b16adf03bb358e`로 S6 미병합. 단일 Stage/branch 규칙을 확인하고 새 branch/worktree 생성0. 설계서·작업계획서 수정0, 공유 DB 쓰기0, 병합 요청0.

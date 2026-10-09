@@ -1,5 +1,10 @@
 # 설계 변경사항·미진사항 기록
 
+## 2026-10-09 저장소 동기화의 외부 환경 미진
+
+- 로컬 `main`·S6 작업 브랜치는 SSH 별칭 Git 원격의 각 branch와 동일 SHA로 확인했다. 지정 `WSL-server`는 SSH 배너 timeout으로 이번 동기화에서 상태 조회/pull을 수행하지 못했다. 원인 단정이나 서버 설정 변경·재시작은 하지 않았다. 이 미진은 이번 주기 진도 기록으로 처리하되 WSL 동기화·정식 테스트 PASS로 간주하지 않는다. 재개 조건: 지정 별칭 접속 복구 후 기존 checkout의 dirty/HEAD/원격 SHA를 읽기 전용 대조하고 fast-forward pull, 같은 SHA로 필수 검증.
+- `main`의 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 소유·용도를 확정하지 못해 보존했다. 이를 임의 삭제하거나 `.gitignore`로 숨기는 정리 방식은 적용하지 않았다. 활성 S6 PR/branch/worktree는 미병합·미검증 범위가 있어 보존한다.
+
 ## 2026-10-09 S6~S8 이번 작업계획 주기 진도 마감 판정
 
 - 신산님 직접 지시의 ‘이 파일에 기록된 불가 항목은 완료로 간주’는 **이번 계획 주기의 진도 처리**에만 적용한다. 아래 기록은 기능 구현·필수 검증 PASS, PR 병합 또는 최종 제품 완료를 뜻하지 않는다. `docs/design/DESIGN.md`와 `docs/WORK_PLAN.md`는 수정하지 않는다.
