@@ -6,7 +6,7 @@
 
 - 신규 0023은 완료 시점의 판매자 분류 ID·이름을 기록한다. 기존 완료 행의 역사적 분류를 증명할 수 없으면 migration 전체를 거부한다.
 - 전체 조회는 완료 당시 모든 사건의 고정 금액, X/Y 조회는 각 분류에 연결된 사건의 고정 금액만 표시한다. 연결 사건이 없는 기간도 완료 당시 분류로 0원 이력을 표시한다.
-- 관리자·판매자 공통 정산 화면과 인쇄에 사건별 당시 분류, 전체/선택 분류 합계, 분류명 및 0건 이력을 표시한다. 격리 DB·실제 브라우저·PDF 자동 검사와 회귀 시험을 추가한다.
+- 관리자·판매자 공통 정산 화면과 인쇄에 사건별 당시 분류, 전체/선택 분류 합계, 분류명 및 0건 이력을 표시한다. 0건 완료 이력에는 이후 분류명이 바뀌어도 저장된 당시 이름을 별도로 표시한다. 격리 DB·실제 브라우저·PDF 자동 검사와 회귀 시험을 추가한다.
 - 진행 증거와 별도 승인/검증 경계를 `WORK_STATUS.md`와 `docs/design_change.md`에 기록한다. 승인된 설계서와 지정 작업계획서는 변경하지 않는다.
 
 ## 영향
@@ -16,16 +16,17 @@
 
 ## 검증
 
-- 기준 `main@399f77b`, 이 브랜치의 인쇄 보정 후보 `0e929d174d28f0bcd2a024ac64ae522b60193a15`. 로컬 `pnpm test`: 제품 600건/433 pass/167 조건부 skip/0 fail, PR 본문 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 25경로) exit0.
+- 기준 `main@399f77b`, 이 브랜치의 분류명 보정 후보 `efda3bf473e298c15a59c0a2505a5d0014941f0f`(이 본문·상태 기록 후 head는 재확인). 로컬 `pnpm test`: 제품 600건/433 pass/167 조건부 skip/0 fail, PR 본문 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 25경로) exit0.
 - 격리 PostgreSQL 15에서 0000~0023 적용/재실행과 기존 완료 행이 있는 DB의 0023 fail-closed/rollback을 확인했다. 신규/기존 DB 조회 5/5, 완료 경합 단독 1/1, 역할별 실제 HTTP 1/1 pass·0 skip. 병렬 시험 fixture 충돌을 분리 실행으로 해결했으며 공유 DB 거래 행은 사용하지 않았다.
+- `efda3bf` WSL 격리 PG15(system ID `7694769934615347239`)에 0000~0023 적용·migration 24건, 당시 분류명 보존을 포함한 실제 DB 시험 4/4 pass·0 skip, 웹 인쇄 단위 시험 8/8 pass. 전용 tmpfs DB와 internal network는 ID 대조 후 제거했다.
 - 동일 SHA의 WSL production 빌드/API·웹과 격리 DB(system ID `7694719902879604774`, migration 24건)의 가상 자료에서 Chrome 관리자 전체/X/Y·판매자 화면, 1440/430px 가로 넘침 없음, Tab focus-visible, 전체 14,000원/X 10,000원/Y 4,000원을 확인했다. A4 PDF 4개를 생성하고 X의 0건 완료·`조회 판매자 분류: C2 과거 X`가 PDF 추출 텍스트에 있는지 확인했다. 시험 DB·컨테이너·네트워크·프로필·PDF는 정확한 대상을 대조해 폐기했다.
 - 공유 0022는 적용 전 백업/격리 복원·리허설 뒤 승인 범위에서 적용했다. 동일 DB system ID, migration 22→23, 기존 주요 행 0, `/health`·`/ready` 200 및 비인증 접근 차단을 확인했다. 0022 사전 백업은 보존한다.
 
 ## 미검증
 
 - 공유 DB의 0023 적용/연결 smoke는 G2 별도 승인 답변 전이라 미실행이다. OS 인쇄 창에서 직접 ‘PDF로 저장’과 브라우저 실제 200% 확대는 G3 미검증이며 CDP PDF/430px로 대신하지 않는다.
-- 독립 리뷰 Critical 0, Important 2 중 인쇄물의 0건 분류명 누락은 보정·재검증했다. 남은 Important는 설계·계획이 확정한 ‘정정 발생 당시 분류 Y’와 기존 C1/0022의 ‘원사건 분류 X’ 강제 충돌이다. `docs/design_change.md` G4에 현 계획에서 금지한 C1/0022 변경과 후속 migration 승인 필요성을 기록했으며, 해당 경계는 불합격이다. 따라서 Important 0 및 자동 병합 조건은 미충족이다.
-- 로컬 전체 시험의 조건부 skip 167건은 DB 실증 통과가 아니다. 최초 PR 이벤트 run `37967360814`는 jobs 없이 `action_required`였으나 후속 head `de7625a`의 push run `37967798086` 및 PR run `37967805609`는 모두 `completed/success`였다. 이 본문을 포함한 추가 head는 새 SHA의 CI를 다시 확인해야 한다(`docs/design_change.md` G5). merged-main smoke는 미실행이다. 실제 발송·PG 실거래·Oracle·사용자 인수는 이 계획 범위 밖이다.
+- 최신 독립 리뷰 Critical 0, Important 1(기존 G4), Minor 1(0건 완료 당시 분류명 표시)이다. Minor는 시험 우선 보정하고 로컬/격리 DB에서 재검증했다. 남은 Important는 설계·계획이 확정한 ‘정정 발생 당시 분류 Y’와 기존 C1/0022의 ‘원사건 분류 X’ 강제 충돌이다. `docs/design_change.md` G4에 현 계획에서 금지한 C1/0022 변경과 후속 migration 승인 필요성을 기록했으며, 해당 경계는 불합격이다. 따라서 Important 0 및 자동 병합 조건은 미충족이다.
+- 로컬 전체 시험의 조건부 skip 167건은 DB 실증 통과가 아니다. 이전 head `cf20c8f`의 push run `37986868050` 및 PR run `37986873685`는 모두 `completed/success`였다. 이 본문을 포함한 새 head의 CI는 별도 재확인이 필요하다. merged-main smoke는 미실행이다. 실제 발송·PG 실거래·Oracle·사용자 인수는 이 계획 범위 밖이다.
 
 ## 롤백
 
