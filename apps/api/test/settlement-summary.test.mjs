@@ -9,7 +9,6 @@ const item = (sellerId, sellerName, categoryId, kind, amountWon, occurredAt) => 
   shipmentOrderId: 'shipment', productId: 'product', optionId: 'option',
   productName: '고추', optionName: '500g', sourceEventKind: 'payment', sourceEventId: 'event',
 });
-
 test('report keeps farm A, farm B and Owool in distinct sections with category totals', () => {
   const report = summarizeSettlement([
     item('farm-b', '농가 B', '농가', 'sale', 12000, '2026-05-02T00:00:00Z'),
@@ -47,4 +46,19 @@ test('unsafe aggregate amount fails instead of silently rounding', () => {
     item('farm-a','농가 A','농가','sale',Number.MAX_SAFE_INTEGER,'2026-05-01T00:00:00Z'),
     item('farm-a','농가 A','농가','sale',1,'2026-05-02T00:00:00Z'),
   ]), /Settlement amount overflow/);
+});
+
+test('correction keeps its own occurrence and adjusts only the original kind in that period', () => {
+  const sale = item('farm-a','농가 A','농가','sale',10000,'2026-05-01T00:00:00Z');
+  const correction = {
+    ...item('farm-a','농가 A','농가','correction',2000,'2026-07-01T00:00:00Z'),
+    id: 'correction-1', sourceEventKind: 'correction', sourceEventId: 'request-1',
+    originalEventId: sale.id, correctedKind: 'sale', correctionDirection: 'decrease',
+  };
+  const may = summarizeSettlement([sale]);
+  const july = summarizeSettlement([correction]);
+  assert.equal(may.totals.sale, 10000);
+  assert.equal(july.totals.correction, 2000);
+  assert.equal(july.totals.sale, -2000);
+  assert.equal(july.groups[0].items[0].originalEventId, sale.id);
 });

@@ -33,3 +33,28 @@ test('late backdated event stays outside frozen period and appears separately', 
   assert.equal(report.lateTotals.commission, 1000);
   assert.equal(report.completions[0].frozenTotals.commission, 1000);
 });
+
+test('a correction linked before completion adjusts frozen original kind only once', async () => {
+  const client = { async query(sql) {
+    if (sql.includes('FROM settlement_events event')) return { rows: [] };
+    if (sql.includes('FROM seller_settlement_periods')) return { rows: [{
+      id: 'period-a', sellerId: 'seller-a', sellerName: '판매자 A',
+      startDate: '2026-07-01', endDate: '2026-07-31',
+      completedAt: new Date('2026-08-01T00:00:00Z'), reason: '완료',
+    }] };
+    if (sql.includes('seller_settlement_period_event_links')) {
+      assert.match(sql, /correction\.correction_direction/);
+      return { rows: [
+        { periodId: 'period-a', kind: 'sale', amountWon: '10000' },
+        { periodId: 'period-a', kind: 'sale', amountWon: '-2000' },
+        { periodId: 'period-a', kind: 'correction', amountWon: '2000' },
+      ] };
+    }
+    throw new Error('Unexpected query');
+  } };
+  const report = await readSettlement(client, parseSettlementQuery({
+    from: '2026-07-01', to: '2026-07-31',
+  }));
+  assert.equal(report.completions[0].frozenTotals.sale, 8000);
+  assert.equal(report.completions[0].frozenTotals.correction, 2000);
+});
