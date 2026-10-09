@@ -4420,3 +4420,12 @@
 - C1 소스·0022 migration·관리자 정정 경로·원사건 및 기간 계산은 남기고, C2 0023 migration과 분류 이력 전용 조회·화면·시험/브라우저 fixture만 제거했다. 사용자 소유 `docs/design/DESIGN.md` 변경은 만지거나 stage하지 않았다.
 - 분리 후 로컬 `pnpm test` 제품 590건/427 pass/163 조건부 skip/0 fail, PR 본문 8/8 pass. `pnpm lint`, `pnpm build`(Next 25경로와 API 빌드), 빌드 후 `pnpm typecheck` 모두 exit0. `git diff --check` 오류 0; Windows 줄바꿈 경고는 기록한다.
 - 다음: C1만 남은 정확한 SHA를 원격·WSL에 동기화하고 새 격리 DB에 0000~0022만 적용해 정정 DB/HTTP 0 skip 검증한다. 이후 C1 브라우저·인쇄·독립 리뷰·PR/CI 경계를 점검한다. C2는 C1의 main 병합·smoke 후 최신 main에서 재개한다. 공유 DB는 별도 승인 전 읽기 전용이다.
+- C1 격리 검증 자원 계획: `WSL-server`의 기존 이미지 `pgvector/pgvector:0.8.2-pg15`로 전용 컨테이너 `shoppingmall-s6-c1-1009-pg`를 생성하고 PostgreSQL 포트를 `127.0.0.1:15439`에만 연다. DB명은 시험 코드가 요구하는 `shoppingmall_s6_followup_1009`, 계정은 컨테이너 안의 시험용 `postgres`다. 소유자는 어울이며 C1 후보 SHA의 0000~0022 재현·실DB/HTTP 시험 동안만 사용한다. 생성 전 이름·포트 충돌이 없음을 확인했다. 시험 후 정확한 컨테이너·익명 볼륨을 제거하고 포트·이름 잔류를 확인한다. 공유 `local-postgres/shoppingmall`은 변경하지 않는다.
+
+## 2026-10-09 C1 동일 SHA WSL 격리 PostgreSQL 검증
+
+- 후보 SHA `ff1ca8bf30018616a52af4e409772616583e7944`를 SSH 별칭 원격에 push하고 지정 WSL checkout에서 fast-forward해 동일 SHA를 대조했다. 공유 DB는 건드리지 않았다.
+- 새 일회성 PG15 DB `shoppingmall_s6_followup_1009`, system ID `7694654330724274214`에 0000~0022 적용 후 동일 migration 재실행을 확인했고 이력은 23건이었다. C1 정정 불변·관리자/판매자 HTTP·동시 감소 경합 시험 3건 0 skip/0 fail. 정정 대상 단위 시험 11/11 통과.
+- 첫 HTTP 시험은 2 pass/1 fail(예상 403 대신 503)이었다. API `DatabaseService`는 `PGHOST` 등보다 `DATABASE_URL` 존재 여부로 pool을 만들며, 시험 명령에 URL이 없어 서비스가 준비되지 않은 것을 소스/응답으로 추적했다. 시험 환경에만 정확한 격리 DB URL을 추가해 재실행 3 pass/0 fail. 동일 근본 원인 1회, 제품 코드 수정 없음.
+- 정확한 컨테이너 이름·이미지·익명 DB 볼륨을 확인한 뒤 전용 컨테이너와 볼륨을 제거했고 15439 listener 및 이름 잔류 0을 확인했다. 격리 DB 안의 시험 행만 함께 폐기됐고 공유 DB schema·자료는 변경하지 않았다.
+- 다음: 같은 SHA의 브라우저/인쇄 근거와 독립 리뷰, C1 PR/CI·병합 후 smoke를 진행한다. 불가한 직접 조작과 공유 DB 별도 승인/읽기 smoke는 루트 `docs/design_change.md`에 남겨 별도로 취급한다. C2는 C1 병합 이후 재개한다.
