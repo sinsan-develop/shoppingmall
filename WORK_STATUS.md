@@ -4679,3 +4679,9 @@
 - 같은 소스의 표준 Drizzle migrator `node --import tsx scripts/migrate.ts`가 exit 0. 적용 후 DB 식별자 불변, migration **24건/대기 0**, 스냅샷 두 열 실제 조회 가능, 정산 사건/완료와 기존 계정/판매자/주문/결제/환불 사건 0건을 확인했다. 적용 후 첫 열 확인 SQL은 원격 셸에서 `$$`가 PID로 확장돼 읽기 전용 구문 오류 1회였으며, 열을 직접 선택하는 SQL로 고쳐 확인했다. 데이터 변경·복구 작업은 없었다.
 - 일회용 API ID `fee02fdf...`에서 공유 DB에 대한 `/health` 200, `/ready` 200, 익명 관리자·판매자 정산 조회 각 401, 교차 Origin 관리자 완료 POST 403을 실측했다. POST는 origin 단계에서 거부돼 거래를 만들지 않았다. 정확 ID 대조 후 API 컨테이너 제거·잔류 0, 사후 migration 24 및 주요 행 0을 다시 확인했다. 공개 포트/새 네트워크/영속 볼륨은 만들지 않았다.
 - G2는 공유 DB 스키마·읽기 경계에 한해 확인했다. 신산님 지시대로 공유 DB의 가상 불변 거래 행 검증은 하지 않았고 격리 거래 E2E와 구분한다. 남은 G3 실제 OS PDF 저장·200% 확대와 G4 정정 사건 당시 분류 Important는 `docs/design_change.md`에 남긴다. 지정 계획 Task 5 병합 조건은 여전히 충족하지 않는다.
+
+## 2026-10-10 PR #17 병합 예외 승인·정리 준비
+
+- 담당: 어울. 신산님이 `main` 병합과 로컬/원격 동기화, 로컬 `main` 외 브랜치·worktree 정리를 지시했고, G4 정정 분류 중요 결함 1건과 G3 OS PDF 저장·실제 200% 확대 미검증의 **병합 예외를 별도 질문에 명시 승인**했다. 이는 해당 기능의 통과 판정이나 `docs/design_change.md` 장애 해소가 아니다. 설계서·지정 작업계획서는 수정하지 않는다.
+- 병합 전 `codex/next-work-20261010@77fb36c1b045cfdbbcfdae05e213ca5a20e9fae4`, `main`/원격 `399f77bcc72131ca9a03b0f0b8da39867fe7936f`, PR #17 open/mergeable clean을 확인했다. 최신 push/PR CI의 test/typecheck/lint/build 모두 success. 로컬 재시험 `pnpm test` 제품 601건/434 pass/167 조건부 skip/0 fail, PR 본문 8/8 pass. skip은 실제 DB 검증으로 바꾸지 않는다.
+- 로컬 브랜치·worktree 목록은 현재 작업 브랜치와 `main`, 저장소 본체 worktree 하나뿐이다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 병합·정리에서 제외해 보존한다. 병합 전 PR 본문에 예외 승인·남은 위험을 명시하고 자동화 요청 태그를 사용한다. 병합 결과·merged-main smoke와 정리 증거는 실제 실행 후 별도 확인한다.
