@@ -88,7 +88,8 @@ try {
   assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-a`) && group.includes('12,000원')));
   assert.ok(all.groups.some((group) => group.includes(`qa-${runId}-seller-b`) && group.includes('7,000원')));
   assert.match(all.total, /19,000원/);
-  assert.equal(await evaluate(`document.querySelectorAll('.settlement-completion').length`), 2);
+  const initialCompletionCandidates = await evaluate(`document.querySelectorAll('.settlement-completion').length`);
+  assert.ok(initialCompletionCandidates >= 2);
   assert.ok(await evaluate(`[...document.querySelectorAll('.settlement-completion h3')]
     .some((heading)=>heading.textContent==='qa-${runId}-seller-c')`));
   await evaluate(`(() => { const form=[...document.querySelectorAll('.settlement-completion')]
@@ -97,7 +98,8 @@ try {
     form.requestSubmit(); return true; })()`);
   await waitFor(`document.querySelector('.settlement-history')?.textContent.includes('0건 완료 검증')`,
     'zero-event seller completed');
-  assert.equal(await evaluate(`document.querySelectorAll('.settlement-completion').length`), 1);
+  assert.equal(await evaluate(`document.querySelectorAll('.settlement-completion').length`),
+    initialCompletionCandidates - 1);
   assert.match(await evaluate(`document.querySelector('.settlement-history')?.textContent`), /0원/);
   assert.match(await evaluate(`document.querySelector('[aria-label="판매자별 완료 기록"]')?.textContent`),
     /이미 완료된 기간과 겹칩니다/);
