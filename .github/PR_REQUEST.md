@@ -21,11 +21,13 @@
 - 수정 SHA `9a80ff7ca005d9d441542a4924e967f6b2733e71`도 WSL 지정 checkout에 동기화했다. 새 격리 PostgreSQL 15(system identifier `7694660615772590117`)에서 0000~0022 적용·재실행 후 UUID 대소문자 재시도·원사건 변경 충돌, 관리자/판매자 HTTP와 동시 감소를 포함한 3건 0 skip/0 fail. 컨테이너·익명 볼륨·포트 잔류 0.
 - 최신 제품 SHA `c0b386f4021ec3f1fc2434f22c6ec832d485d2bf`의 격리 PostgreSQL 15(system identifier `7694662024638005286`)에서 동일 UUID 동시 감소 두 건을 잠금 대기시킨 RED(두 번째 초과 거절)→GREEN(같은 사건 반환)과 전체 DB/HTTP/경합 4/4 pass·0 skip·0 fail. migration 0000~0022 재실행 후 23건, 전용 DB·볼륨·포트 잔류 0.
 - 최신 브라우저 후보 `24deb93d9cf689944e1384888e379339a6a35c5b`의 별도 격리 DB에서 관리자/판매자 실제 화면을 확인했다. 원수수료 10,000원, 감소 정정 2,000원, 현재 8,000원, 과거 완료 고정 10,000원이 원사건/사유와 일치했다. 430 CSS px 가로 넘침 0, 시작일에서 종료일로 일부 Tab 이동 확인. 시험용 컨테이너·네트워크·볼륨·포트 전달은 제거했다.
+- C1 인쇄 수정 제품 SHA `56c1b55`를 WSL 격리 PostgreSQL 15(system identifier `7694665941122375717`, migration 0000~0022)와 같은 웹/API 소스에서 검증했다. 실제 Chrome CDP가 관리자·판매자 PDF 각각 288,157 byte·A4 2쪽을 생성했고 원수수료 10,000원·정정 2,000원·현재 8,000원·완료 당시 10,000원 및 원사건·사유가 인쇄됐다. 첫 PDF에서 완료 이력 카드가 페이지 사이에 나뉘는 결함을 재현해 A4/분할 방지로 수정했고, 최종 PNG로 카드 전체가 한 쪽에 있는 것을 직접 확인했다. 1440·430 CSS px 가로 넘침 0, 실제 Tab 이동·`:focus-visible` 확인. 전용 컨테이너·DB 볼륨·네트워크·Chrome 프로필/PDF는 제거해 잔류 0이다.
+- 인쇄 수정 후 로컬 `pnpm test` 제품 592건/428 pass/164 조건부 skip/0 fail, PR 본문 시험 8/8, `pnpm lint`, `pnpm typecheck`, `pnpm build` exit0(웹 25경로). 동일 SHA WSL Next production build 25경로도 통과했다.
 
 ## 미검증
 
 - 공유 개발 DB 0022 적용·읽기 smoke는 별도 승인 전이므로 미실행이다. 공유 DB 거래 행 E2E는 사용자 결정에 따라 실행하지 않는다. 로컬 조건부 skip 163건은 PASS로 계산하지 않는다.
-- 이번 정확한 C1 SHA의 OS 인쇄 창 ‘PDF로 저장’, 브라우저 200% 실제 확대, 전체 폼 키보드 탐색, WSL production API image 검증은 미검증이다. 이전 C1+C2 혼합 후보의 PDF 출력 근거를 이 SHA의 근거로 사용하지 않는다.
+- 정확한 C1 SHA의 Chrome 자동 PDF와 일부 실제 Tab 이동은 확인했지만 OS 인쇄 창 ‘PDF로 저장’, 브라우저 200% 실제 확대, 전체 폼 키보드 탐색, WSL production API image 검증은 미검증이다. 확대 단축키 전후 브라우저 값이 변하지 않아 430px 반응형 시험을 확대 증거로 대체하지 않는다.
 - 독립 읽기 전용 리뷰의 최초 Important 1·Minor 2와 재리뷰 Important 1(동시 동일 요청)을 수정했다. 동일 reviewer의 수정본 재검토에서 C1/C1.2 코드의 잔여 Critical/Important 0으로 판정했다. reviewer는 시험을 재실행하지 않았다. PR CI, 병합 및 merged-main smoke는 이 본문 작성 시점에는 아직 수행되지 않았다. 실제 발송·PG 실거래·Oracle 배포·사용자 인수시험은 승인된 이번 계획의 대상 밖이다.
 
 ## 롤백

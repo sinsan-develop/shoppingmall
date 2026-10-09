@@ -102,6 +102,15 @@ try {
   await send('Runtime.enable');
   await login('admin');
   const admin = await queryReport('/account/admin/settlement');
+  await evaluate(`document.querySelector('select[name=categoryId]').focus(); true`);
+  await send('Input.dispatchKeyEvent', {
+    type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9,
+  });
+  await send('Input.dispatchKeyEvent', {
+    type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9,
+  });
+  assert.equal(await evaluate(`document.activeElement?.getAttribute('name')`), 'sellerId');
+  assert.equal(await evaluate(`document.activeElement?.matches(':focus-visible')`), true);
   const adminPdfBytes = await print('admin.pdf');
   for (const width of [1440, 430]) {
     await send('Emulation.setDeviceMetricsOverride', {
