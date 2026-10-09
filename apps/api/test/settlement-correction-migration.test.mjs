@@ -13,4 +13,9 @@ test('0022 adds linked directional corrections without rewriting historical migr
   assert.match(sql, /correction_direction/i);
   assert.match(sql, /REFERENCES\s+"settlement_events"\s*\("id"\)/i);
   assert.match(sql, /increase.*decrease/is);
+  assert.match(sql, /CREATE FUNCTION validate_settlement_correction\(\)/i);
+  assert.match(sql, /original\.kind\s*=\s*'correction'/i);
+  assert.match(sql, /original\.seller_id\s+IS DISTINCT FROM\s+NEW\.seller_id/i);
+  assert.match(sql, /original\.seller_category_id\s+IS DISTINCT FROM\s+NEW\.seller_category_id/i);
+  assert.match(sql, /BEFORE INSERT ON "settlement_events"/i);
 });

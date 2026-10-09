@@ -62,6 +62,7 @@ export function summarizeSettlement(items: SettlementReportItem[]) {
     sellerName: string;
     sellerCategoryId: string;
     sellerCategoryName: string;
+    sellerCategoryNames: string[];
     items: SettlementReportItem[];
     totals: Totals;
   }>();
@@ -77,11 +78,14 @@ export function summarizeSettlement(items: SettlementReportItem[]) {
         sellerName: item.sellerName,
         sellerCategoryId: item.sellerCategoryId,
         sellerCategoryName: item.sellerCategoryName,
+        sellerCategoryNames: [item.sellerCategoryName],
         items: [],
         totals: emptyTotals(),
       };
       groups.set(item.sellerId, group);
     }
+    if (!group.sellerCategoryNames.includes(item.sellerCategoryName))
+      group.sellerCategoryNames.push(item.sellerCategoryName);
     group.items.push(item);
     addAmount(group.totals, item.kind, item.amountWon);
     addAmount(totals, item.kind, item.amountWon);

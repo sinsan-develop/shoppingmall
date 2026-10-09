@@ -40,6 +40,14 @@ test('report prints the displayed seller sections, source orders and period tota
   assert.match(html, /오프라인 확인/);
 });
 
+test('all-category print heading names every historical seller classification', () => {
+  const group = { ...report.groups[0], sellerCategoryNames: ['이전 분류', '새 분류'] };
+  const html = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, groups: [group], totals: group.totals,
+  } }));
+  assert.match(html, /농가 A.*이전 분류.*새 분류/);
+});
+
 test('completion history remains visible even when the selected period has no events', () => {
   const html = renderToStaticMarkup(createElement(SettlementReportView, {
     report: { ...report, groups: [], totals, completions: report.completions },

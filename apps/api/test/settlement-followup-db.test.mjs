@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
 import { completeSellerPeriod } from '../src/settlement/complete.ts';
-import { recordCorrection } from '../src/settlement/correction.ts';
+import { recordCorrection, recordCorrectionTransaction } from '../src/settlement/correction.ts';
 import { parseSettlementQuery } from '../src/settlement/query.ts';
 import { readSettlement } from '../src/settlement/repository.ts';
 import { createSessionToken, hashSessionToken } from '../src/auth/credentials.ts';
@@ -98,6 +98,21 @@ test('isolated DB fixes category history and records immutable signed correction
     await assert.rejects(client.query('UPDATE settlement_events SET amount_won=1 WHERE id=$1',
       [originalEventId]), /Settlement history is append-only/);
     await client.query('ROLLBACK TO SAVEPOINT immutable_check');
+    for (const [label, targetId, targetSellerId, targetSellerName] of [
+      ['foreign_seller', originalEventId, mixedSellerId, 'QA 혼합 분류 판매자'],
+      ['correction_chain', correction.id, sellerId, 'QA 판매자'],
+    ]) {
+      await client.query(`SAVEPOINT ${label}`);
+      await assert.rejects(client.query(`INSERT INTO settlement_events
+        (dedupe_key,kind,amount_won,occurred_at,seller_id,seller_name,
+         seller_category_id,seller_category_name,source_event_kind,source_event_id,
+         original_event_id,correction_direction,recorded_by,reason)
+        VALUES ($1,'correction',1,statement_timestamp(),$2,$3,$4,
+          'QA 당시 분류 A','correction',$5,$6,'increase',$7,'거부 시험')`,
+      [`qa:${randomUUID()}`, targetSellerId, targetSellerName, categoryA,
+        randomUUID(), targetId, adminId]), (error) => error.code === '23514');
+      await client.query(`ROLLBACK TO SAVEPOINT ${label}`);
+    }
   } finally {
     if (began) await client.query('ROLLBACK');
     client.release();
@@ -178,4 +193,41 @@ test('isolated HTTP enforces admin-only corrections and exposes dated seller evi
     await pool.end();
     // Only the named disposable PostgreSQL container contains these test rows.
   }
+});
+
+test('concurrent decreases lock one original and reject the second over-correction', {
+  skip: !process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID,
+}, async () => {
+  assert.equal(process.env.PGDATABASE, 'shoppingmall_s6_followup_1009');
+  const pool = new Pool();
+  try {
+    const systemId = (await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()'))
+      .rows[0].id;
+    assert.equal(systemId, process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID);
+    const run = randomUUID().slice(0, 8);
+    const adminId = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    await pool.query(`INSERT INTO account_roles(account_id,role) VALUES ($1,'admin')`, [adminId]);
+    const categoryId = (await pool.query(`INSERT INTO seller_categories(name)
+      VALUES ($1) RETURNING id`, [`QA 동시 정정 ${run}`])).rows[0].id;
+    const sellerId = (await pool.query(`INSERT INTO sellers(category_id,display_name)
+      VALUES ($1,$2) RETURNING id`, [categoryId, `QA 동시 판매자 ${run}`])).rows[0].id;
+    const originalEventId = (await pool.query(`INSERT INTO settlement_events
+      (dedupe_key,kind,amount_won,occurred_at,seller_id,seller_name,
+       seller_category_id,seller_category_name,source_event_kind,source_event_id,
+       recorded_by,reason)
+      VALUES ($1,'commission',10000,'2026-05-01T00:00:00Z',$2,$3,
+        $4,$5,'manual_commission',$6,$7,'동시 정정 원본') RETURNING id`,
+    [`qa:${randomUUID()}`, sellerId, `QA 동시 판매자 ${run}`, categoryId,
+      `QA 동시 정정 ${run}`, randomUUID(), adminId])).rows[0].id;
+    const results = await Promise.allSettled([randomUUID(), randomUUID()].map((requestId) =>
+      recordCorrectionTransaction(pool, adminId, { originalEventId, requestId,
+        direction: 'decrease', amountWon: 7000, reason: '동시 감소 시험' })));
+    assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+    assert.equal(results.filter((result) => result.status === 'rejected' &&
+      /Settlement correction exceeds original amount/.test(String(result.reason))).length, 1);
+    const saved = (await pool.query(`SELECT count(*)::int AS n,
+      coalesce(sum(amount_won),0)::int AS amount FROM settlement_events
+      WHERE original_event_id=$1`, [originalEventId])).rows[0];
+    assert.deepEqual(saved, { n: 1, amount: 7000 });
+  } finally { await pool.end(); }
 });

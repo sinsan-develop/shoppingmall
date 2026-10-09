@@ -11,6 +11,7 @@ export type SettlementReport = {
   totals: Record<Kind, number>;
   groups: {
     sellerId: string; sellerName: string; sellerCategoryId: string; sellerCategoryName: string;
+    sellerCategoryNames?: string[];
     totals: Record<Kind, number>;
     items: { id: string; kind: Kind; amountWon: number; occurredAt: string;
       recordedAt?: string; reason?: string | null;
@@ -38,6 +39,11 @@ function itemKind(item: SettlementReport['groups'][number]['items'][number]) {
   return `${label} · ${target ?? '원항목'} ${item.correctionDirection === 'increase' ? '증가' : '감소'}`;
 }
 
+function categoryLabel(group: SettlementReport['groups'][number]) {
+  return (group.sellerCategoryNames?.length ? group.sellerCategoryNames :
+    [group.sellerCategoryName]).join(' · ');
+}
+
 function Totals({ values }: { values: SettlementReport['totals'] }) {
   return <dl className="settlement-totals">
     {kinds.map(([kind, label]) => <div key={kind}>
@@ -58,7 +64,7 @@ export function SettlementReportView({ report }: { report: SettlementReport }) {
       : '조회 기간에 정산 자료가 없습니다.'}</p> : null}
     {report.groups.map((group) => <section className="account-card profile-card settlement-group"
       aria-label={`판매자 ${group.sellerName} 정산 자료`} key={group.sellerId}>
-      <h2>{group.sellerName} <small>{group.sellerCategoryName}</small></h2>
+      <h2>{group.sellerName} <small>{categoryLabel(group)}</small></h2>
       <div className="settlement-table-scroll"><table className="settlement-table">
         <thead><tr><th scope="col">발생 시점</th><th scope="col">항목</th>
           <th scope="col">상품·옵션</th><th scope="col">원주문 근거</th>
@@ -84,7 +90,7 @@ export function SettlementReportView({ report }: { report: SettlementReport }) {
       <p>완료 당시 금액에는 포함되지 않습니다. 발생 시점과 기록 시점을 구분합니다.</p>
       {(report.lateGroups ?? []).length === 0 ? <p>추가 발생 자료가 없습니다.</p> :
         report.lateGroups?.map((group) => <section className="settlement-group" key={group.sellerId}>
-          <h3>{group.sellerName} <small>{group.sellerCategoryName}</small></h3>
+          <h3>{group.sellerName} <small>{categoryLabel(group)}</small></h3>
           <div className="settlement-table-scroll"><table className="settlement-table">
             <thead><tr><th scope="col">발생 시점</th><th scope="col">기록 시점</th>
               <th scope="col">항목</th><th scope="col">원주문·근거</th><th scope="col">금액</th></tr></thead>

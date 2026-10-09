@@ -28,6 +28,37 @@ export function seoulInputToIso(value: string): string {
   return date.toISOString();
 }
 
+type CorrectionReceipt = { id: string; originalEventId: string;
+  direction: 'increase' | 'decrease'; amountWon: number };
+
+export function correctionResultMessage(saved: CorrectionReceipt): string {
+  if (!saved?.id || !saved.originalEventId ||
+      !['increase', 'decrease'].includes(saved.direction) ||
+      !Number.isSafeInteger(saved.amountWon) || saved.amountWon <= 0)
+    throw new Error('정정 결과를 확인하지 못했습니다. 같은 요청 번호로 다시 조회해 주세요.');
+  return `정정 사건 ${saved.id} 기록 완료 · 원사건 ${saved.originalEventId} · ` +
+    `${saved.direction === 'increase' ? '증가' : '감소'} ${saved.amountWon.toLocaleString('ko-KR')}원. ` +
+    '과거 완료 금액은 변경하지 않습니다.';
+}
+
+export function correctionChoices(report: Pick<SettlementReport, 'groups' | 'lateGroups'> | null) {
+  if (!report) return [];
+  const labels = { sale: '상품 매출', goods_discount: '상품 할인', shipping_fee: '배송비',
+    shipping_support: '배송비 지원', goods_refund: '상품 환불',
+    shipping_refund: '배송비 환불', commission: '수수료', correction: '정정' };
+  const seen = new Set<string>();
+  return [...report.groups, ...(report.lateGroups ?? [])].flatMap((group) =>
+    group.items.filter((item) => item.kind !== 'correction' && !seen.has(item.id))
+      .map((item) => {
+        seen.add(item.id);
+        const date = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul',
+          dateStyle: 'medium' }).format(new Date(item.occurredAt));
+        return { id: item.id, label: `${group.sellerName} · ${date} · ${labels[item.kind]} · ` +
+          `${item.amountWon.toLocaleString('ko-KR')}원` +
+          (item.productName ? ` · ${item.productName}` : '') };
+      }));
+}
+
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
   (process.env.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:9092');
 
@@ -58,9 +89,12 @@ export function SettlementPage({ role }: { role: Role }) {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [selectedOriginalId, setSelectedOriginalId] = useState('');
   const [reload, setReload] = useState(0);
   const commissionRetry = useRef<{ signature: string; requestId: string } | null>(null);
   const correctionRetry = useRef<{ signature: string; requestId: string } | null>(null);
+  const originalChoices = correctionChoices(report);
+  const selectedOriginal = originalChoices.find((item) => item.id === selectedOriginalId);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -198,8 +232,10 @@ export function SettlementPage({ role }: { role: Role }) {
       if (!response.ok) throw new Error(response.status === 409
         ? '정정액이 원사건 잔액을 초과하거나 같은 요청 번호의 내용이 다릅니다.'
         : `정정 기록에 실패했습니다. (${response.status})`);
+      const saved = await response.json() as CorrectionReceipt;
+      const resultMessage = correctionResultMessage(saved);
       correctionRetry.current = null;
-      setNotice('정정 사건을 기록했습니다. 과거 완료 금액은 변경하지 않습니다.');
+      setNotice(resultMessage);
       setReload((value) => value + 1);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '정정 기록에 실패했습니다.');
@@ -255,12 +291,15 @@ export function SettlementPage({ role }: { role: Role }) {
       <p>원사건을 확인해 선택하거나 ID를 입력해 주세요. 원기록과 완료 당시 금액은 바뀌지 않습니다.</p>
       <form className="settlement-filter" onSubmit={(event) => void correction(event)}>
         <label>원사건 ID <input name="originalEventId" list="settlement-original-events"
-          required autoComplete="off" /></label>
+          required autoComplete="off"
+          onChange={(event) => setSelectedOriginalId(event.currentTarget.value.trim())} /></label>
         <datalist id="settlement-original-events">
-          {[...(report?.groups ?? []), ...(report?.lateGroups ?? [])].flatMap((group) => group.items)
-            .filter((item) => item.kind !== 'correction').map((item) =>
-              <option key={item.id} value={item.id}>{item.productName ?? item.kind}</option>)}
+          {originalChoices.map((item) =>
+            <option key={item.id} value={item.id} label={item.label} />)}
         </datalist>
+        {selectedOriginal ? <p role="status">선택한 원사건: {selectedOriginal.label} · {selectedOriginal.id}</p>
+          : selectedOriginalId ? <p role="status">현재 조회에서 찾지 못한 ID입니다. 원사건 내역을 다시 확인해 주세요.</p>
+            : null}
         <label>방향 <select name="direction" required defaultValue="decrease">
           <option value="decrease">감소</option><option value="increase">증가</option>
         </select></label>
