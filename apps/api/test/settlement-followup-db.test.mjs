@@ -51,10 +51,6 @@ test('isolated DB fixes category history and records immutable signed correction
     await assert.rejects(() => recordCorrection(client, adminId,
       { ...request, requestId: randomUUID(), amountWon: 11000 }),
     /Settlement correction exceeds original amount/);
-    await client.query('SAVEPOINT immutable_check');
-    await assert.rejects(client.query('UPDATE settlement_events SET amount_won=1 WHERE id=$1',
-      [originalEventId]), /Settlement history is append-only/);
-    await client.query('ROLLBACK TO SAVEPOINT immutable_check');
     const aReport = await readSettlement(client, parseSettlementQuery({ from: '2026-05-01',
       to: '2026-05-20', categoryId: categoryA }));
     assert.equal(aReport.completions.find((entry) => entry.id === may.id)?.frozenTotals.commission,
@@ -98,6 +94,10 @@ test('isolated DB fixes category history and records immutable signed correction
     assert.equal(all.groups.flatMap((group) => group.items)
       .find((item) => item.id === correction.id)?.originalEventId,
       originalEventId);
+    await client.query('SAVEPOINT immutable_check');
+    await assert.rejects(client.query('UPDATE settlement_events SET amount_won=1 WHERE id=$1',
+      [originalEventId]), /Settlement history is append-only/);
+    await client.query('ROLLBACK TO SAVEPOINT immutable_check');
   } finally {
     if (began) await client.query('ROLLBACK');
     client.release();
@@ -117,8 +117,9 @@ test('isolated HTTP enforces admin-only corrections and exposes dated seller evi
     assert.equal(systemId, process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID);
     const adminId = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
     const sellerActor = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    const runTag = randomUUID().slice(0, 8);
     const categoryId = (await pool.query(`INSERT INTO seller_categories(name)
-      VALUES ('QA HTTP 분류') RETURNING id`)).rows[0].id;
+      VALUES ($1) RETURNING id`, [`QA HTTP 분류 ${runTag}`])).rows[0].id;
     const sellerId = (await pool.query(`INSERT INTO sellers(category_id,display_name)
       VALUES ($1,'QA HTTP 판매자') RETURNING id`, [categoryId])).rows[0].id;
     await pool.query(`INSERT INTO account_roles(account_id,role,seller_id)
