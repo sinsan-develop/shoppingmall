@@ -4652,3 +4652,9 @@
 - 담당: 어울. 기준 `main@399f77b` → `codex/next-work-20261010@cabc4f7`. 읽기 전용 독립 검토는 신규 Critical 0·Important 0, 기존 G4 Important 1, 신규 Minor 1로 판정했다. 신규 Minor는 선택 분류 조회의 사건/완료 이력은 당시 분류를 따르지만 관리자 완료 버튼 후보는 현재 판매자 분류를 따르는 불일치다. 과거 X 사건·현재 Y 판매자는 X 조회에서 버튼이 빠질 수 있고, 현재 X·Y 완료 판매자는 X 조회에서 이미 완료된 기간의 버튼이 보여 서버 409를 받을 수 있다. 서버 중복 완료 방어와 전체 분류 조회 우회가 있어 Minor로 분류하고 이번 계획의 필수 gate 보정과 구분한다. 검토는 브라우저 재현이 아닌 코드 경로 대조이며 이전 보고서 문구 두 건은 현 head에 반영됐음을 확인했다.
 - 최신 로컬 `apps/web/test/settlement-report.test.mjs`는 9 pass·0 skip·0 fail. 루트 `pnpm test`는 제품 601건/434 pass/167 DB·환경 조건부 skip/0 fail, PR 본문 8 pass/0 skip/0 fail, exit 0이다. 이 로컬 시험의 skip을 공유 DB 실증으로 취급하지 않는다.
 - 승인된 계획 밖 C1/0022·설계서·작업계획서·공유 DB는 변경하지 않았다. G2 별도 승인 답변 전 적용 0, G3 직접 실측 미검증, G4 Important 유지. PR 병합·merged-main smoke는 조건 미충족으로 실행하지 않는다.
+
+## 2026-10-10 C2 PR 본문·CI 동기화
+
+- 담당: 어울. `.github/PR_REQUEST.md`의 이전 리뷰/CI 문구를 최신 독립 검토 Critical 0·기존 G4 Important 1·신규 Minor 1과 로컬 시험 601건/434 pass/167 skip/0 fail·PR 본문 시험 8 pass로 갱신했다. 형식 시험 8/8, `git diff --check` 0. 설계서·지정 작업계획서·제품 코드는 수정하지 않았다.
+- `0cae22122a0c4e5d780eb2b415559d8e560460b9`를 승인된 SSH 별칭으로 push하고 지정 WSL checkout에 clean fast-forward했다. 병합 요청이 아닌 `pr-create/**` 생성·본문갱신 전용 자동화 run `38001025937`은 success이고 PR #17 head/base/body가 같은 변경본과 일치한다. 자동화가 원격 요청 태그를 제거한 뒤 해당 로컬 태그 한 개만 정리했다.
+- 같은 head의 push run `38000965378`과 pull_request run `38000969801`은 모두 `completed/success`이며 각 `verify` job의 test/typecheck/lint/build 네 단계가 실제 success다. 별도 G2 승인 전 공유 DB 0023 적용 0, G3 직접 OS 인쇄·200% 미검증, G4 Important 1이 남아 병합 요청·merged-main smoke는 실행하지 않는다. 이 주기에 새 임시 DB/컨테이너/브라우저 시험 자료는 만들지 않았다.
