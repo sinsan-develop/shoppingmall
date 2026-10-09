@@ -23,6 +23,7 @@ import { AdminSupportReviewController, CustomerSupportReviewController,
 import { AdminSupportClaimController, CustomerSupportClaimController,
   SellerSupportClaimController } from './support/claims.controller.js';
 import { AdminMonitoringController } from './monitoring/controller.js';
+import { AdminSettlementController, SellerSettlementController } from './settlement/controller.js';
 
 @Module({ controllers: [HealthController, AuthController, CustomerController, CustomerCartController,
   CustomerReservationController, AdminReservationController, CatalogController, ShippingController,
@@ -32,6 +33,7 @@ import { AdminMonitoringController } from './monitoring/controller.js';
   SellerSupportQuestionController, AdminSupportQuestionController, PublicSupportQuestionController,
   CustomerSupportConfirmationController, CustomerSupportReviewController,
   AdminSupportReviewController, PublicSupportReviewController, CustomerSupportClaimController,
-  SellerSupportClaimController, AdminSupportClaimController, AdminMonitoringController],
+  SellerSupportClaimController, AdminSupportClaimController, AdminMonitoringController,
+  AdminSettlementController, SellerSettlementController],
   providers: [DatabaseService] })
 export class AppModule {}

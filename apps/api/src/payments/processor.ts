@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import { lockPaymentFulfillments, openPaymentFulfillments } from '../fulfillment/repository.js';
 import { PromotionUsageService } from '../promotions/usage-service.js';
 import { queueNotificationEvent } from '../notifications/event-queue.js';
+import { recordPaidSettlement } from '../settlement/record.js';
 import type { PaymentEventView } from './repository.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -174,6 +175,8 @@ export async function processVerifiedPaymentEvent(pool: Pool, eventId: string): 
       VALUES ($1,'PAID','Verified payment')`, [order.id]);
     await client.query(`UPDATE payment_attempts SET status='APPROVED',ended_at=clock_timestamp()
       WHERE id=$1`, [attempt.id]);
+    await recordPaidSettlement(client, { orderId: order.id, eventId: event.id,
+      paidAt, payableWon: order.payableWon });
     const applied = await finishEvent(client, eventId, 'APPLIED');
     await queueNotificationEvent(client, { kind: 'payment_approved',
       sourceEventId: event.id, accountId: context.accountId });

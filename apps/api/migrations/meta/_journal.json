@@ -141,6 +141,20 @@
       "when": 1791428400000,
       "tag": "0019_s53_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791480000000,
+      "tag": "0020_s6_settlement",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791532800000,
+      "tag": "0021_s6_completed_event_links",
+      "breakpoints": true
     }
   ]
 }

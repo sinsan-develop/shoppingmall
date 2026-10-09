@@ -11,10 +11,12 @@ export function AccountRoleLinks({ role }: { role: Session['role'] }) {
     <a className="secondary-button" href="/account/seller/products">상품 초안 등록</a>
     <a className="secondary-button" href="/account/seller/shipping">배송 정책 변경 요청</a>
     <a className="secondary-button" href="/account/seller/support">상품 문의 답변</a>
+    <a className="secondary-button" href="/account/seller/settlement">내 정산 자료</a>
     <a className="primary-button" href="/account/seller/orders">주문·출고 관리</a>
   </nav>;
   if (role === 'admin') return <nav className="account-role-links" aria-label="운영자 메뉴">
     <a className="secondary-button" href="/account/admin/monitoring">관리자 관제</a>
+    <a className="secondary-button" href="/account/admin/settlement">정산 자료·완료</a>
     <a className="secondary-button" href="/account/admin/catalog">분류·판매자 등록</a>
     <a className="secondary-button" href="/account/admin/proposals">상품 요청 검토</a>
     <a className="secondary-button" href="/account/admin/shipping">배송 정책 관리</a>

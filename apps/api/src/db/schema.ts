@@ -1467,3 +1467,82 @@ export const supportClaimEvidence = pgTable('support_claim_evidence', {
     OR (${table.idempotencyKey} IS NOT NULL
       AND ${table.requestSha256} ~ '^[0-9a-f]{64}$')`),
 ]);
+
+export const settlementEvents = pgTable('settlement_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  dedupeKey: text('dedupe_key').notNull(),
+  kind: text('kind').notNull(),
+  amountWon: bigint('amount_won', { mode: 'number' }).notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+  sellerId: uuid('seller_id').notNull().references(() => sellers.id),
+  sellerName: text('seller_name').notNull(),
+  sellerCategoryId: uuid('seller_category_id').notNull().references(() => sellerCategories.id),
+  sellerCategoryName: text('seller_category_name').notNull(),
+  checkoutOrderId: uuid('checkout_order_id').references(() => checkoutOrders.id),
+  shipmentOrderId: uuid('shipment_order_id').references(() => shipmentOrders.id),
+  productId: uuid('product_id').references(() => products.id),
+  optionId: uuid('option_id').references(() => productOptions.id),
+  productName: text('product_name'),
+  optionName: text('option_name'),
+  sourceEventKind: text('source_event_kind').notNull(),
+  sourceEventId: uuid('source_event_id').notNull(),
+  recordedBy: uuid('recorded_by').references(() => accounts.id),
+  reason: text('reason'),
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('settlement_events_dedupe_uq').on(table.dedupeKey),
+  index('settlement_events_seller_occurred_idx').on(table.sellerId, table.occurredAt, table.id),
+  index('settlement_events_category_occurred_idx').on(table.sellerCategoryId, table.occurredAt),
+  index('settlement_events_order_idx').on(table.checkoutOrderId),
+  check('settlement_events_dedupe_ck', sql`length(${table.dedupeKey}) BETWEEN 1 AND 250`),
+  check('settlement_events_kind_ck', sql`${table.kind} IN
+    ('sale','goods_discount','shipping_fee','shipping_support',
+     'goods_refund','shipping_refund','commission','correction')`),
+  check('settlement_events_money_ck', sql`${table.amountWon} > 0`),
+  check('settlement_events_seller_ck', sql`length(trim(${table.sellerName})) > 0
+    AND length(trim(${table.sellerCategoryName})) > 0`),
+  check('settlement_events_source_ck', sql`
+    (${table.sourceEventKind} = 'payment' AND ${table.kind} IN
+      ('sale','goods_discount','shipping_fee','shipping_support')
+      AND ${table.checkoutOrderId} IS NOT NULL AND ${table.shipmentOrderId} IS NOT NULL
+      AND ${table.recordedBy} IS NULL)
+    OR (${table.sourceEventKind} = 'refund' AND ${table.kind} IN
+      ('goods_refund','shipping_refund')
+      AND ${table.checkoutOrderId} IS NOT NULL AND ${table.shipmentOrderId} IS NOT NULL
+      AND ${table.recordedBy} IS NULL)
+    OR (${table.sourceEventKind} = 'manual_commission' AND ${table.kind} = 'commission'
+      AND ${table.recordedBy} IS NOT NULL AND length(trim(${table.reason})) BETWEEN 1 AND 500)
+    OR (${table.sourceEventKind} = 'correction' AND ${table.kind} = 'correction'
+      AND ${table.recordedBy} IS NOT NULL AND length(trim(${table.reason})) BETWEEN 1 AND 500)`),
+  check('settlement_events_product_ck', sql`
+    (${table.productId} IS NULL AND ${table.optionId} IS NULL
+      AND ${table.productName} IS NULL AND ${table.optionName} IS NULL)
+    OR (${table.productId} IS NOT NULL AND ${table.optionId} IS NOT NULL
+      AND ${table.productName} IS NOT NULL AND ${table.optionName} IS NOT NULL
+      AND length(trim(${table.productName})) > 0 AND length(trim(${table.optionName})) > 0)`),
+  check('settlement_events_kind_product_ck', sql`(${table.kind} IN
+    ('sale','goods_discount','goods_refund')) = (${table.optionId} IS NOT NULL)`),
+]);
+
+export const sellerSettlementPeriods = pgTable('seller_settlement_periods', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sellerId: uuid('seller_id').notNull().references(() => sellers.id),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  completedBy: uuid('completed_by').notNull().references(() => accounts.id),
+  reason: text('reason').notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('seller_settlement_periods_seller_idx').on(table.sellerId, table.startDate, table.endDate),
+  check('seller_settlement_periods_dates_ck', sql`${table.startDate} <= ${table.endDate}`),
+  check('seller_settlement_periods_reason_ck', sql`length(trim(${table.reason})) BETWEEN 1 AND 500`),
+  // The PostgreSQL GiST exclusion constraint is in migration 0020.
+]);
+
+export const sellerSettlementPeriodEventLinks = pgTable('seller_settlement_period_event_links', {
+  periodId: uuid('period_id').notNull().references(() => sellerSettlementPeriods.id),
+  eventId: uuid('event_id').notNull().references(() => settlementEvents.id),
+}, (table) => [
+  primaryKey({ name: 'seller_settlement_period_event_links_pk', columns: [table.periodId, table.eventId] }),
+  unique('seller_settlement_period_event_links_event_uq').on(table.eventId),
+]);
