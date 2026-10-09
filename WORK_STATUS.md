@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 2026-10-09 신산님 직접 S6 PR 병합·로컬 브랜치 정리 지시
+
+- 신산님이 `codex/s6-settlement`의 `main` 병합과 `main` 외 모든 로컬 branch/worktree 정리를 직접 지시했다. 정본 설계서·작업계획서는 수정하지 않는다. 이 지시는 제품 기능/미검증 항목의 실제 PASS를 뜻하지 않는다.
+- 병합 직전 제품 HEAD `2a83097a5be851296ec855a13706a2be6435722a`에서 로컬 `pnpm test` 578건/418 pass/160 환경·DB skip/0 fail, PR 본문 규칙8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0(Web 25 routes). `main@cf93d98d7bef6ada62c64a26f9b16adf03bb358e`, 원격 branch/PR #15 head 동일 `2a83097a...`, 양 체크아웃 추적 변경0을 확인했다. 브로커 `pr-broker-gate.sh`는 diff 검사이며 WSL/공유 DB 실증을 실행하지 않는다.
+- 미진 유지: S6 정정 사건 관리자 입력 경로, 공유 DB 정산 거래 행 E2E(신산님 시험행 미보존 선택), 최신 WSL 실제 브라우저/DB 인쇄, PR CI 세부와 전체 독립 리뷰는 미검증/미구현이다. WSL SSH 배너 timeout으로 이번 실제 검증은 불가했다. 병합은 신산님 직접 지시로 진행하지만 이 항목을 PASS로 바꾸지 않고 `design_change.md`의 다음 재작업 입력으로 유지한다. 실제 발송·사용자 인수는 개발 완료 대상 제외.
+- 실행 순서: PR 본문에 직접 지시와 잔여 위험을 명시해 기존 SSH 별칭 원격에 정확 HEAD push→저장소 `pr-request/<HEAD>/codex/s6-settlement` 자동화로 PR #15 병합 요청→원격 merged `main`·PR 상태 검증→로컬 main fast-forward·smoke→S6 worktree/로컬 branch를 main 포함 여부 및 원격 PR 복구 가능성 대조 후 정리. 실패하면 dirty/branch를 보존한다.
+
 ## 2026-10-09 저장소 동기화·정리
 
 - 담당/상태: 어울 단일 writer. 승인된 `github-sinsan-develop` SSH 원격에서 `git fetch origin` 후 로컬 `main`과 `origin/main`은 `cf93d98d7bef6ada62c64a26f9b16adf03bb358e`, S6 작업 브랜치와 원격/PR #15 head는 동기화 전 `0644ad3d0564a02585fad692a15519b672cbdf29`로 일치했다. 두 체크아웃의 추적 파일 변경은 0. 설계서·작업계획서·제품 코드·DB 변경0, 병합 요청0.
