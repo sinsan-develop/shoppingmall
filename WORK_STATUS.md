@@ -4601,3 +4601,10 @@
 - G3 결과: `조회 결과 인쇄 · PDF로 저장` 버튼을 누르자 브라우저 조작 명령이 시간 초과됐고, 재조회·캡처에서는 OS 인쇄 창을 확인할 수 없었다. 실제 `PDF로 저장` 파일도 얻지 못했다. 인쇄 명령이 실행됐는지도 확정할 수 없다. 그 상태에서 읽기 전용 페이지 평가도 시간 초과됐고 Esc 후에도 회복되지 않았다. 실제 200% 확대 적용·화면 상태를 검증하지 못했다. 두 항목을 PASS로 표시하지 않는다.
 - 정리: 새 시험 탭을 닫았다. 소유 ID를 확인한 API `342b3b...`, Web `f43d5e...`, PG `154b8b...` 컨테이너 3개와 전용 network `e843ce...`만 제거했다. SSH 포워딩 프로세스 PID 39356의 정확한 9091/9092 명령줄을 확인한 뒤 종료했다. 동명 Docker 자원·해당 포트 listener 0, WSL checkout clean. DB는 tmpfs 폐기로 시험 행이 남지 않았고 공유 DB 쓰기 0. 사용자 기존 Chrome 탭·파일·설정은 변경하지 않았다. 동일 원인 연속 오류: 인쇄/CDP 시간 초과 2회, 기타 0.
 - 미충족/다음 조치: G3 OS 직접 PDF 저장·실제 200% 확대와 G2 공유 DB 0023 별도 승인, G4 정정 분류 귀속 Important 충돌이 남아 있다. `docs/design_change.md`에 경계와 재개 조건을 유지하며 계획의 PR 병합·merged-main smoke는 조건 충족 전 수행하지 않는다.
+
+## 2026-10-10 지정 계획 재지시·장애 기록 재초기화
+
+- 담당/범위: 어울, `codex/next-work-20261010@9eece3bb352ac8ad031daac585daf5787a311c33`. 신산님 직접 지시에 따라 `docs/design_change.md`를 G2/G3/G4 현재 진행 장애만 남기는 형태로 재초기화했다. 과거 시도·검증 수치는 이 `WORK_STATUS.md`에 보존했다. `docs/design/DESIGN.md`와 지정 `docs/WORK_PLAN_20260-10-09.md`, 제품 코드, 공유 DB는 변경하지 않았다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`도 보존한다.
+- 현재 기준: SSH 별칭 원격 `main@399f77bcc72131ca9a03b0f0b8da39867fe7936f`, 작업 브랜치와 WSL 지정 checkout은 `9eece3bb352ac8ad031daac585daf5787a311c33` clean. 지난 G3 격리 컨테이너·네트워크 잔류 0. 공개 읽기 API에서 PR #17은 open/main base/같은 head이며 필수 설명 절이 있다. 같은 SHA의 push run `37993780509`와 PR run `37993785783`은 실제 verify job에서 install/test/typecheck/lint/build를 모두 실행해 `completed/success`다. GitHub 계정/토큰은 사용하지 않았다.
+- 이번 로컬 재검증: `pnpm test` 제품 600건/433 pass/167 DB·환경 skip/0 fail, PR 본문 시험 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 25경로) 모두 exit 0. 조건부 skip을 실DB 시험 통과로 취급하지 않는다. 이 실행은 제품 코드 변경 없는 기록 재초기화의 회귀 확인이다.
+- 미충족/다음 조치: G2 공유 DB 0023 별도 적용 승인, G3 OS 인쇄 저장·실제 200% 직접 확인, G4 정정 사건 분류 귀속 충돌은 `docs/design_change.md`에 현재 경계·영향·재개 조건을 기록했다. 사용자 지시의 계획 범위 밖 C1/0022 또는 신규 migration 변경은 수행하지 않는다. Task 5 Important 0·병합 조건 미충족이므로 병합 요청·merged-main smoke를 통과로 표시하지 않는다. 이번 재초기화 문서 커밋 뒤의 새 head CI는 별도로 확인한다.
