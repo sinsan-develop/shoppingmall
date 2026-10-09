@@ -253,6 +253,10 @@ test('concurrent identical UUID retries return one correction even when remainin
     assert.equal(first.id, second.id);
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM settlement_events
       WHERE original_event_id=$1`, [originalEventId])).rows[0].n, 1);
+    const savedTimes = (await pool.query(`SELECT recorded_at >= occurred_at AS ordered
+      FROM settlement_events WHERE original_event_id=$1`, [originalEventId])).rows[0];
+    assert.equal(savedTimes.ordered, true,
+      'a lock-delayed correction must not be recorded before it occurs');
   } finally {
     await blocker.query('ROLLBACK').catch(() => {});
     blocker.release();

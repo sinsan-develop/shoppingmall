@@ -4510,3 +4510,8 @@
 - 공유 `WSL-server/local-postgres/shoppingmall` 읽기 전용 재확인: system ID `7622490131194466339`, migration 22건, `settlement_events`·`seller_settlement_periods`·`seller_settlement_period_event_links` 각 0행. 0022는 적용하지 않았다. 실제 UI 확대/OS PDF 저장, 공유 DB 0022 적용·읽기 smoke, CI/PR 본문 상세, main 병합/merged-main smoke와 순차 C2는 루트 `docs/design_change.md`의 재작업 항목이다.
 - 최신 PR 전체 차이에 대한 읽기 전용 독립 재리뷰를 요청했다. 결과를 받은 뒤 Critical/Important를 재분류해 계획 내 수정 가능 항목은 바로 처리하고, 승인 경계만 기록한다.
 - 독립 재리뷰: 새 정정 계산의 Critical/Important 결함은 확인되지 않았다. 공유 DB에 0022가 없어 새 조회 코드 선실행 시 실패하는 배포 순서 위험은 Important로 기록한다. PDF 내용의 금액·사유·원사건 자동 단언은 없는 Minor가 있다. 리뷰어의 파일 읽기 정체로 전체 PR 차이·Git 상태·재시험은 미확인이다. 별도 환경 승인·migration·읽기 smoke·전체 검토 전에는 병합하지 않는다.
+
+## 2026-10-10 전체 독립 검토와 시각 경합 보정 시험 계획
+
+- 담당: 어울. 최신 후보 f58f9ca의 전체 변경 26파일을 새 독립 리뷰어가 확인해 Critical 0, Important 2(0022 선연결 조회 실패 및 경합 시 기록시각 역전), Minor 1(PDF 내부 문구 자동 단언 부재)을 보고했다. 제품 내부 Important는 C1 범위에서 시험 우선으로 보정한다. 0022 공유 적용은 별도 환경 승인 전까지 금지하고 병합하지 않는다.
+- 시각 역전 재현은 지정 WSL checkout의 정확한 작업 branch SHA를 사용한 격리 PostgreSQL 15 DB shoppingmall_s6_followup_1009에서만 한다. 임시 이름은 shoppingmall-s6-c1-time-1010-pg 및 shoppingmall-s6-c1-time-1010-net, 전용 loopback 포트 15440, 실행 중에만 존재한다. Node 24 시험 컨테이너는 --rm으로 읽기 전용 소스·기존 node_modules를 사용한다. 공유 local-postgres 및 사용자 계정·상품·주문은 변경하지 않는다. DB system_identifier와 migration 0000~0022 적용을 먼저 확인하고, 원사건 잠금 대기 후 recorded_at >= occurred_at 실DB 단언을 RED→GREEN으로 실행한다. 종료 시 정확한 임시 컨테이너·network·익명 volume/포트를 확인 후 제거하고 잔류 0을 기록한다.
