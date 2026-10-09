@@ -13,7 +13,7 @@
 ## 영향
 
 - `seller_settlement_periods`에 additive 스냅샷 열이 추가되며 정산 조회 API의 기존 키를 유지한 채 분류별 완료 이력/금액 의미가 정확해진다. 관리자 전체/분류/개별 조회와 판매자 자기 조회가 영향을 받는다.
-- 공유 `WSL-server/local-postgres/shoppingmall`에는 별도 승인된 0022만 적용했다. 0023은 별도 승인 전 공유 DB에 적용하지 않았으며, 신규 API를 공유 DB에 먼저 연결하지 않는다. 공유 DB에 가상 거래 행은 만들지 않았다.
+- 공유 `WSL-server/local-postgres/shoppingmall`에는 0022와 별도 승인된 0023을 각각 적용했다. 0023은 정산 기간 완료 당시 분류 스냅샷 열만 추가했고 기존 계정·정산 행은 변경하지 않았다. 공유 DB에 가상 거래 행은 만들지 않았다.
 
 ## 검증
 
@@ -22,14 +22,15 @@
 - `efda3bf` WSL 격리 PG15(system ID `7694769934615347239`)에 0000~0023 적용·migration 24건, 당시 분류명 보존을 포함한 실제 DB 시험 4/4 pass·0 skip, 웹 인쇄 단위 시험 8/8 pass. 전용 tmpfs DB와 internal network는 ID 대조 후 제거했다.
 - 동일 SHA의 WSL production 빌드/API·웹과 격리 DB(system ID `7694719902879604774`, migration 24건)의 가상 자료에서 Chrome 관리자 전체/X/Y·판매자 화면, 1440/430px 가로 넘침 없음, Tab focus-visible, 전체 14,000원/X 10,000원/Y 4,000원을 확인했다. A4 PDF 4개를 생성하고 X의 0건 완료·`조회 판매자 분류: C2 과거 X`가 PDF 추출 텍스트에 있는지 확인했다. 시험 DB·컨테이너·네트워크·프로필·PDF는 정확한 대상을 대조해 폐기했다.
 - 공유 0022는 적용 전 백업/격리 복원·리허설 뒤 승인 범위에서 적용했다. 동일 DB system ID, migration 22→23, 기존 주요 행 0, `/health`·`/ready` 200 및 비인증 접근 차단을 확인했다. 0022 사전 백업은 보존한다.
+- 공유 0023은 정확한 별도 승인 뒤 SQL SHA-256 `a1e20884c1f65db944c15deb443e948f80e2821e144a3296dd05122b3dc67d9b`와 system ID `7622490131194466339`, migration 23건·완료 행 0을 재확인했다. 0600 전량 백업을 격리 PostgreSQL 15에 실제 복원해 migration 23·주요 행 0을 대조했다. 적용 뒤 migration 24건/대기 0, 스냅샷 두 열 조회 가능, 기존 주요 행 0을 확인했다. 공유 DB 일회용 API의 `/health`·`/ready` 200, 익명 관리자/판매자 조회 각 401, 교차 Origin 완료 POST 403이다. 복원/API 컨테이너는 제거했고 백업만 보존한다.
 
 ## 미검증
 
-- 공유 DB의 0023 적용/연결 smoke는 G2 별도 승인 답변 전이라 미실행이다. OS 인쇄 창에서 직접 ‘PDF로 저장’과 브라우저 실제 200% 확대는 G3 미검증이며 CDP PDF/430px로 대신하지 않는다.
+- 공유 DB의 0023 스키마·읽기 smoke는 확인했지만 신산님 지시로 공유 DB에 가상 불변 거래 행을 남기지 않아 행 기반 E2E는 미검증이다. OS 인쇄 창에서 직접 ‘PDF로 저장’과 브라우저 실제 200% 확대는 G3 미검증이며 CDP PDF/430px로 대신하지 않는다.
 - 최신 독립 리뷰(`399f77b`→`cabc4f7`)는 신규 Critical 0·Important 0, 기존 G4 Important 1, 신규 Minor 1이다. 이전 화면 문구 Minor 두 건은 보정됐다. 신규 Minor는 분류별 조회에서 완료 버튼 후보가 판매자의 현재 분류를 따르는 반면 사건·완료 이력은 당시 분류를 따르는 불일치다. 일부 판매자의 버튼이 누락되거나 이미 완료된 기간의 버튼이 나타나 서버 409를 받을 수 있지만, 서버가 중복 완료를 막고 전체 분류 조회로 우회할 수 있다. 브라우저 재현은 미실행이다. 남은 Important는 설계·계획이 확정한 ‘정정 발생 당시 분류 Y’와 기존 C1/0022의 ‘원사건 분류 X’ 강제 충돌이다. `docs/design_change.md` G4에 현 계획에서 금지한 C1/0022 변경과 후속 migration 승인 필요성을 기록했다. 따라서 Important 0 및 자동 병합 조건은 미충족이다.
-- 로컬 전체 시험의 조건부 skip 167건은 DB 실증 통과가 아니다. `77d2422`의 push run `38000558374` 및 PR run `38000565338`은 모두 `completed/success`다. 이 본문을 포함한 새 head의 CI는 별도 재확인이 필요하다. merged-main smoke는 미실행이다. 실제 발송·PG 실거래·Oracle·사용자 인수는 이 계획 범위 밖이다.
+- 로컬 전체 시험의 조건부 skip 167건은 DB 실증 통과가 아니다. 공유 DB 적용 기록 head `3a6bc33`의 push run `38003130750`과 PR run `38003135661`은 모두 실제 verify job의 test/typecheck/lint/build를 통과했다. 이 본문 변경 head의 CI는 다시 확인한다. merged-main smoke는 미실행이다. 실제 발송·PG 실거래·Oracle·사용자 인수는 이 계획 범위 밖이다.
 
 ## 롤백
 
-- 병합 전에는 작업 브랜치/PR을 유지하고 공유 DB에 새 API를 연결하지 않는다. 코드 회귀 시에는 검증된 `main@399f77b` 기준으로 PR을 보정하거나, 병합 후에는 새 revert PR을 사용한다.
-- 이미 적용한 0022의 불변 장부·완료 자료는 직접 삭제하거나 역마이그레이션하지 않는다. 공유 DB 사전 백업 `/home/daon/deploy/shopping-s6-db-backups/pre-0022-399f77b-20261010.dump`은 보존하고 복원은 별도 영향 판단·승인 뒤 수행한다.
+- 병합 전에는 작업 브랜치/PR을 유지한다. 코드 회귀 시에는 검증된 `main@399f77b` 기준으로 PR을 보정하거나, 병합 후에는 새 revert PR을 사용한다.
+- 이미 적용한 0022/0023의 불변 장부·완료 자료는 직접 삭제하거나 역마이그레이션하지 않는다. 공유 DB 사전 백업 `/home/daon/deploy/shopping-s6-db-backups/pre-0022-399f77b-20261010.dump`와 `/home/daon/deploy/shopping-s6-db-backups/pre-0023-8eef276-20261010.dump`은 보존하고 복원은 별도 영향 판단·승인 뒤 수행한다.
