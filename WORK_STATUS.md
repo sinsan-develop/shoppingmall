@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 2026-10-09 S6 공유 개발 DB 적용·읽기 smoke 결과
+
+- 단계/담당/상태: S6 정식 WSL 공유 DB migration·빈 DB API smoke, 어울 단일 writer, **0020·0021 적용 및 읽기 smoke 통과 / 행 기반 E2E 미검증**. PMO의 특정 승인 범위만 사용했고 QA 거래·완료 불변 행 생성은 승인받지 않았다. 동일 근본 원인 연속 오류0.
+- 변경: `apps/api/test/health-http.test.mjs`에 DB 연결 시 `/ready` 200 계약을 추가. 로컬 DB 미설정 대상 시험2/2 pass, 정확 WSL `f848f18`에서 공유 DB 연결 시험2 pass/1 미설정 전용 skip/0 fail. 실제 `/health`·`/ready` 200, 익명 관리자·판매자 정산 조회401, cross-origin 완료·수수료 POST403. `node:24-bookworm-slim` 일회용 `shoppingmall-s6-migration-1009-node`는 `--rm`, 종료 뒤 잔류0.
+- 공유 DB 결과: 지정 `WSL-server` `local-postgres/shoppingmall` system ID `7622490131194466339` 불변, 표준 migrator exit0, migration20→22, 재실행 dry-run 대기0. 기간·연결 테이블 및 겹침/불변/삽입 제약 확인. accounts/sellers/checkout_orders/shipment_orders/payment_events/refund_events/settlement_events/settlement_periods/event_links 모두0. 시험 행 쓰기0.
+- 복구 자료: `/home/daon/deploy/shopping-s6-db-backups/pre-0020-66537f1-20261009.dump` 251,118 bytes, SHA-256 `444DD5F78C00D86138AD931963F9144EF6E5030AE6763309F4B0F677AB6405C8`, 소유자 전용 0600/디렉터리0700. `pg_restore -l` 및 네트워크 없는 PG15 실제 복원·migration20·행 수 확인. 복원용 일회용 PG는 제거, 백업은 S6 병합 뒤 복구 필요성 판단 전까지 보존.
+- 미검증/다음 조치: 공유 DB 행 기반 정산 완료·늦은 사건·역할별 E2E는 불변 QA 행 생성·보존 범위의 별도 특정 승인 전 `UNVERIFIED`. 격리 DB/Chromium의 통과와 혼동하지 않는다. PR 설명을 적용 사실로 고치고, 정확한 QA fixture·보존/복구 계획을 PMO에 제출해 다음 경계를 확인한다. 이후 필수 검증·PR·병합·merged-main smoke와 자원 정리. 실발송·사용자 인수시험은 이번 완료 대상 제외.
+
 ## 2026-10-09 S6 공유 개발 DB 0020·0021 적용 — 사전 gate
 
 - **백업·복원 실제 결과 및 적용 실행기 계획:** custom-format 백업 `/home/daon/deploy/shopping-s6-db-backups/pre-0020-66537f1-20261009.dump` 크기251,118 bytes/권한0600/소유 daon:daon, 디렉터리0700, SHA-256 `444DD5F78C00D86138AD931963F9144EF6E5030AE6763309F4B0F677AB6405C8`. `pg_restore -l` 통과. 일회용 `shoppingmall-s6-backup-1009-pg`(ID `222be9df...`, system ID `7694491040365146151`, network none, tmpfs)에 실제 복원 후 migration20과 accounts/sellers/checkout_orders/shipment_orders/payment_events/refund_events 모두0·정산 완료 관계 없음 확인, 정확 ID만 stop/rm·동명 잔류0. 공유 DB에는 아직 migration 적용 전, 백업은 보존. 다음 실행기는 `shoppingmall-s6-migration-1009-node` 1개만 `--rm --network container:local-postgres`, WSL Git source read-only bind/Node24로 사용한다. `local-postgres`의 `127.0.0.1` host auth가 trust임을 read-only 확인해 Secret 전달 없이 `DATABASE_URL=postgres://postgres@127.0.0.1:5432/shoppingmall`을 사용한다. 먼저 표준 dry-run의 2건 대기·SQL 해시를 확인하고, 정확 대상 재대조 뒤 표준 migrator를 실행한다. 실행 후 runner 잔류0 확인. 원인 오류0; 복원용 Container와 공유 DB를 혼동하지 않음.

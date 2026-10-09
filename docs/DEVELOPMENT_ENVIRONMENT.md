@@ -1,5 +1,10 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-10-09 S6 공유 DB 최신 상태
+
+- `WSL-server`의 `local-postgres/shoppingmall`(PostgreSQL 15.18, system ID `7622490131194466339`)에 특정 승인·백업 검증 후 정산 migration 0020·0021을 적용했다. Drizzle 이력은 **22건/대기 0**이며 기존 계정·판매자·주문·결제·환불 행 수는 모두 0으로 유지됐다. 정산 사건·완료 기간·연결 행도 0건이다.
+- `/health`·`/ready` 200 및 익명·cross-origin 정산 접근 차단을 실제 WSL API에서 확인했다. 정산 행 기반 공유 DB E2E는 시험 행 보존 범위의 별도 승인 전 **미검증**이다. 백업·복원 확인, 실행 SHA와 정확한 복구 경계는 [S6 공유 DB 적용 계획](S6_SHARED_DB_APPLICATION_PLAN.md) 및 `WORK_STATUS.md` 최신 절을 따른다. 아래 이전 Stage의 DB 행 수·migration 상태는 당시 이력으로 읽는다.
+
 ## 2026-10-05 S4 공유 실제 브라우저 통합 검증 최신 상태
 
 - 최종 QA reset 안전성 SHA `b04d3824a312c8f44ec4bf3f247dad240a43e930`: 공유 reset은 첫 문장에 `READ COMMITTED`를 고정하고, 비결제 정리 뒤 `payment_events` table lock을 payment row lock보다 먼저 얻은 다음 교차 주문 conflict와 외부 사건의 QA 주문 역참조를 다시 검사한다. 이상·잠금 timeout은 전부 rollback한다. 전용 fresh tmpfs DB 경합3/3, Windows355/255pass·100skip, WSL 공유DB356/336pass·20skip, 양쪽 PR본문8/8·typecheck/lint/build 성공, 독립 C0/I0/M0. 공유 환불 QA 14범주0, migration15와 기존 home current/draft·global shipping singleton 각1 유지. 전용 PG/네트워크는 제거해 잔류0이며 정확한 오류·미검증은 `WORK_STATUS.md` 최상단을 따른다.
