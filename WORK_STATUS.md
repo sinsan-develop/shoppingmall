@@ -4571,3 +4571,9 @@
 - 지정 계획 Task 5의 PR 본문은 기존 C1 설명이므로 그대로 사용하면 C2 변경을 왜곡한다. 파일 삭제 방식은 안전 검토에서 거부됐고 삭제하지 않았다. 동일 파일을 제자리에서 C2 목적·영향·검증·미검증·복구 정보로 갱신했으며 저장소 본문 검증기 exit0, `git diff --check` 0이다. G2/G3/G4로 자동 병합 조건은 열리지 않았으며 생성 전용 요청과 병합 요청 태그를 구분한다.
 - C2 작업 브랜치 head `f7988a39974dc2993d5b18312d7a4c4a64f1c53b`를 SSH 별칭으로 push하고 지정 WSL 시험 checkout에 fast-forward해 clean·동일 SHA를 확인했다. `pr-create/<head>/codex/next-work-20261010` 생성 전용 태그만 main SHA `399f77b`에 붙여 push했고, PR #17 `https://github.com/sinsan-develop/shoppingmall/pull/17`가 열린 것을 로그인 없는 공개 API로 확인했다. PR head/base/body G4 표시 일치, draft=false, mergeable=true. 병합 요청 태그는 만들지 않았다. 같은 head의 push CI `verify` run `37967171768` success이지만 PR 이벤트 run `37967360814`는 jobs 없이 `completed/action_required`라 PR CI 통과로 계산하지 않는다. G5에 기록하고 사용자 지정 PMO 대화에 전달했다. G2/G3/G4/G5 해소 전 병합·merged-main smoke는 미실행이다.
 - PR 본문에 초기 CI 차단을 반영한 head `de7625a23fe35b86cf791d8c7c23067cf68930d7`를 push·WSL 동기화하고 생성 전용 태그로 기존 PR #17 본문을 갱신했다. 해당 SHA의 push run `37967798086`과 pull_request run `37967805609`는 실제 `verify` job을 실행해 둘 다 `completed/success`다. 초기 G5는 후속 실행으로 해소됐으며 이 기록을 포함한 새 SHA는 CI를 다시 확인해야 한다. G2/G3/G4는 그대로 미충족이라 병합 요청 태그·merged-main smoke는 실행하지 않았다.
+
+## 2026-10-10 C2 승인 경계·직접 화면 시험 추가 확인
+
+- 담당: 어울. 작업 브랜치/원격/WSL 지정 checkout의 제품 SHA는 `bc7afdd2e66785af4366d297defa096d414c7f07`로 확인했다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 보존한다.
+- Windows 직접 화면 시험을 위해 별도 Chrome 프로필 `D:/tmp/shoppingmall-s6-c2-ui-1010`과 관리자 정적 시안 창을 만들었다. Windows 화면 제어 도구가 브라우저 URL을 안전하게 확정하지 못해 입력 전 중단했다. 도구 오류 1회, 제품 동일 SHA의 OS 인쇄/200% 실측 증거 0건. PID 9176 및 해당 프로필 자식만 확인해 중지하고 임시 프로필 폴더를 제거했다. 사용자 기존 Chrome 창·공유 DB는 변경하지 않았다.
+- 계획 Task 3 Step 3과 C1/0022 정정 분류 강제의 충돌을 소스에서 재확인했다. `correction.ts`는 원사건 분류를 복사하고 0022 trigger는 원사건과 정정의 분류 동일성을 강제한다. C2 범위 안에서 이를 사건 발생 당시 현재 분류로 고칠 수 없으므로 G4를 유지한다. G2 공유 DB 0023 직접 승인은 아직 확인되지 않아 미적용이다. G3/G4와 함께 Task 5 병합 조건은 계속 충족하지 않는다.
