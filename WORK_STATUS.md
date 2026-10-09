@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 2026-10-09 S6 일반 수수료 근거 표시 보정·최신 지시
+
+- 단계/담당/상태: 어울 단일 writer, `codex/s6-settlement` S6 승인 범위의 화면 누락 보정. 신산님 최신 직접 지시에 따라 `docs/design/DESIGN.md`, `docs/WORK_PLAN.md`는 수정하지 않고 필요한 설계·계획 변경은 `design_change.md`에 기록한다. 동일 원인 연속 오류0.
+- 변경 전/후: 일반 발생 표는 수수료 금액과 `별도 근거`만 보여 저장된 `reason`이 빠졌다. 이제 기존 조회값의 `reason`을 같은 표의 근거 칸에 표시한다. 공개 API·DB·권한·정산 계산은 변경하지 않는다. 변경 파일: `apps/web/app/account/settlement-report.tsx`, `apps/web/test/settlement-report.test.mjs`, `design_change.md`, `WORK_STATUS.md`, `.github/PR_REQUEST.md`.
+- 검증: 이유 문자열을 포함한 SSR/인쇄 마크업 시험을 먼저 추가해 RED를 확인하고 표시 수정 후 표적 5/5 GREEN. 로컬 `pnpm test` 578건/418 pass/160 DB·환경 skip/0 fail, PR 본문 시험8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0(Web 25 routes), `git diff --check` exit0. 이는 최신 실제 Chromium/PDF·WSL 동일 SHA·공유 DB 행 E2E PASS가 아니다.
+- 미검증/다음 조치: 변경분을 안전한 commit으로 보존하고 SSH 별칭 원격 branch push→WSL 지정 checkout 정확 SHA 회귀를 진행한다. 최신 브라우저/PDF는 별도 실증 전 `UNVERIFIED`. 정정 사건 계약·공유 DB 행 E2E 사용자 무기록 선택·독립 전체 리뷰·PR CI·병합/merged-main smoke도 기존 미진으로 유지한다.
+
 ## 2026-10-09 S6 계획 대비 추가 읽기 전용 검토
 
 - 추가 중요 검토 결과: 일반 기간에 관리자 수수료를 입력하면 DB·조회 응답에는 `reason`이 있으나 `settlement-report.tsx` 일반 발생 표는 이를 렌더하지 않는다. 완료 후 추가 발생 표에만 근거가 표시되고 기존 인쇄 시험도 이쪽만 검사한다. 인쇄 표적 시험은 현재 4/4 pass지만 이 사례를 포함하지 않아 회귀 PASS 근거가 아니다. 승인된 수수료 근거·인쇄 요구의 누락으로 `design_change.md`에 재현 근거·영향·최소 수정/회귀 검증을 기록했다. 실제 일반 수수료 브라우저/PDF 재현은 미수행, 코드 변경0, 독립 전체 리뷰 아님.

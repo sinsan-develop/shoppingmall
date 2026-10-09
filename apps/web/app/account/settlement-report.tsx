@@ -59,7 +59,8 @@ export function SettlementReportView({ report }: { report: SettlementReport }) {
           <td>{kinds.find(([kind]) => kind === item.kind)?.[1] ?? item.kind}</td>
           <td>{item.productName ? `${item.productName} · ${item.optionName}` : '발송 주문'}</td>
           <td>{item.checkoutOrderId ?? '별도 근거'}
-            {item.shipmentOrderId ? <small> / {item.shipmentOrderId}</small> : null}</td>
+            {item.shipmentOrderId ? <small> / {item.shipmentOrderId}</small> : null}
+            {item.reason ? <small> · {item.reason}</small> : null}</td>
           <td>{won(item.amountWon)}</td>
         </tr>)}</tbody>
       </table></div>

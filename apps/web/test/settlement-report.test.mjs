@@ -49,6 +49,21 @@ test('completion history remains visible even when the selected period has no ev
   assert.match(html, /오프라인 확인/);
 });
 
+test('ordinary commission evidence appears in the displayed and printable report', () => {
+  const commission = { sellerId: 'farm-a', sellerName: '농가 A',
+    sellerCategoryId: 'farms', sellerCategoryName: '농가',
+    totals: { ...totals, commission: 1500 },
+    items: [{ id: 'commission-1', kind: 'commission', amountWon: 1500,
+      occurredAt: '2026-07-03T00:00:00Z', recordedAt: '2026-07-03T00:00:00Z',
+      reason: '7월 3일 오프라인 수수료 확인', checkoutOrderId: null,
+      shipmentOrderId: null, productName: null, optionName: null }] };
+  const html = renderToStaticMarkup(createElement(SettlementReportView, { report: {
+    ...report, groups: [commission], totals: { ...totals, commission: 1500 },
+  } }));
+  assert.match(html, /7월 3일 오프라인 수수료 확인/);
+  assert.match(html, /1,500원/);
+});
+
 test('print separates frozen completion amounts from backdated late entries and evidence', () => {
   const late = { ...report.groups[0], items: [{ ...report.groups[0].items[0],
     id: 'late-commission', kind: 'commission', amountWon: 1200,
