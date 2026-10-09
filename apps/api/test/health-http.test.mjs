@@ -13,6 +13,11 @@ test('GET /health serves the public liveness contract', async () => {
       status: 'ok',
       service: 'shoppingmall-api',
     });
+    if (process.env.DATABASE_URL) {
+      const ready = await fetch(`http://127.0.0.1:${address.port}/ready`);
+      assert.equal(ready.status, 200);
+      assert.deepEqual(await ready.json(), { status: 'ok', dependency: 'database' });
+    }
   } finally {
     await app.close();
   }
