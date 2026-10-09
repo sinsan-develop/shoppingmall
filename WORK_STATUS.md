@@ -2,6 +2,7 @@
 
 ## 2026-10-09 S6 일반 수수료 근거 표시 보정·최신 지시
 
+- 실행 환경/원격 후속: `99abe13343dfe63dd6bc0a65a686b70d1c10f1a9`를 `git@github-sinsan-develop:sinsan-develop/shoppingmall.git` 작업 branch에 push했고 `refs/pull/15/head` 동일 SHA를 확인했다. 기존 PR #15 설명 갱신은 `pr-create/<HEAD>/codex/s6-settlement` 요청 태그를 현재 `main@cf93d98d`에 push했고, 자동화가 태그를 제거한 것까지만 확인했다. PR 본문·CI 세부 결과는 직접 미확인, 병합 요청 태그는 전송하지 않았다. `WSL-server` SSH 무응답; `wsl.exe --list --verbose`는 Ubuntu Running, `wsl.exe -d Ubuntu -- hostname -I`도 응답 없이 종료시켰다. 공유 DB 쓰기0·서버 설정 변경0·임시 자원 생성0. 최신 SHA WSL/실 Chromium/PDF `UNVERIFIED`; 동일 접속 증상 2회, 추가 무한 재시도 없이 환경 복구 후 재개.
 - 단계/담당/상태: 어울 단일 writer, `codex/s6-settlement` S6 승인 범위의 화면 누락 보정. 신산님 최신 직접 지시에 따라 `docs/design/DESIGN.md`, `docs/WORK_PLAN.md`는 수정하지 않고 필요한 설계·계획 변경은 `design_change.md`에 기록한다. 동일 원인 연속 오류0.
 - 변경 전/후: 일반 발생 표는 수수료 금액과 `별도 근거`만 보여 저장된 `reason`이 빠졌다. 이제 기존 조회값의 `reason`을 같은 표의 근거 칸에 표시한다. 공개 API·DB·권한·정산 계산은 변경하지 않는다. 변경 파일: `apps/web/app/account/settlement-report.tsx`, `apps/web/test/settlement-report.test.mjs`, `design_change.md`, `WORK_STATUS.md`, `.github/PR_REQUEST.md`.
 - 검증: 이유 문자열을 포함한 SSR/인쇄 마크업 시험을 먼저 추가해 RED를 확인하고 표시 수정 후 표적 5/5 GREEN. 로컬 `pnpm test` 578건/418 pass/160 DB·환경 skip/0 fail, PR 본문 시험8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit0(Web 25 routes), `git diff --check` exit0. 이는 최신 실제 Chromium/PDF·WSL 동일 SHA·공유 DB 행 E2E PASS가 아니다.
