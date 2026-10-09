@@ -4481,3 +4481,15 @@
 - 로컬 `pnpm test`: 제품 592건/428 pass/164 조건부 skip/0 fail, PR 본문 8/8 pass. `pnpm lint`, `pnpm typecheck`, `pnpm build` exit0(웹 25경로). WSL 동일 제품 커밋의 Next production build도 25경로 통과했다. 이전 격리 실DB 불변/HTTP/경합 4/4 pass·0 skip은 제품 정정 로직이 바뀌지 않은 `c0b386f` 근거이며, 이번 PDF fixture는 화면/출력 근거다. 공유 DB를 건드리지 않았다.
 - 실제 200% 확대 단축키를 전용 Chrome에 전달해 전후 `innerWidth=762`, DPR=1, `visualViewport.scale=1`로 불변임을 확인했다. 따라서 배율 검증은 미검증이며 430px 반응형과 구분한다. 전용 DB/웹/API/네트워크·Chrome/임시 PDF 자원은 정확한 이름·볼륨·PID를 확인해 제거했고 잔류 0을 확인했다. Windows 시스템 관리 `wslrelay.exe` 포트 전달은 우리 전용 자원이 아니므로 종료하지 않았다. 제거된 것은 격리 시험 가상 계정·정산 사건 및 출력 파일뿐이며 공유 DB는 보존했다. 남은 공유 DB 별도 승인, PR CI/병합·merged-main smoke, 순차 C2는 제품 PASS로 합치지 않고 `docs/design_change.md`에 남긴다.
 - 브랜치 기록 SHA `ea0a1665df84708891e9b0700eab4586b5d92135`를 SSH 별칭 원격에 push했고 PR #16 head와 일치한다. 같은 SHA의 PR 본문 갱신용 `pr-create/**` 태그는 원격에서 처리되어 사라졌고 `main`은 `07e996e`로 유지된다. SSH Git ref는 PR 본문 내용·CI 결과를 보여주지 않으므로 해당 세부 항목은 미검증이다. `pr-request/**` 병합 태그는 보내지 않았다. 사용자 소유 `docs/design/DESIGN.md` 로컬 수정은 stage/commit하지 않았다.
+
+## 2026-10-09 C1 WSL API 빌드 후속 확인 계획
+
+- 담당: 어울. 브라우저 실증 때 API를 현재 TypeScript 소스 런타임으로 실행했으므로 컴파일된 API 산출물의 WSL 검증을 추가한다. 지정 WSL checkout의 현재 SHA를 SSH 별칭 원격 작업 브랜치와 맞추고, 기존 Node 24 이미지로 이름 없는 `docker run --rm` 일회성 컨테이너만 사용한다. checkout은 읽기 전용 마운트하고 컴파일 결과는 컨테이너 내부 `/tmp/shoppingmall-s6-c1-api-build`에만 만들며 종료와 함께 폐기한다. 공유 DB·다른 컨테이너·저장소 파일은 변경하지 않는다. 성공해도 실제 컴파일 API의 DB 연동 E2E나 정식 서비스 image 검증으로 확대하지 않는다.
+
+## 2026-10-09 C1 운영체제 브라우저 조작 재시도 자원 계획
+
+- 담당: 어울. 실제 화면에서 200% 확대·인쇄 대화상자를 확인하기 위해 WSL의 기존 C1 전용 이름 `shoppingmall-s6-c1-1009-net`, `shoppingmall-s6-c1-1009-pg`(PostgreSQL 15, DB `shoppingmall_s6_followup_1009`, loopback 15439), `shoppingmall-s6-c1-1009-api`(loopback 9092), `shoppingmall-s6-c1-1009-web`(loopback 9091)을 **새 일회성 인스턴스**로 다시 사용한다. 생성 전 잔류 이름·포트를 읽고 새 DB system identifier와 0000~0022 migration 23건을 확인한 후 `s6-c1-browser-fixture.ts`로 가상 계정·정산 사건만 만든다. Windows에는 별도 가시 Chrome 시험 창·프로필 `D:/tmp/shoppingmall-s6-c1-visible-1009`만 사용한다. 브라우저 UI를 통한 실제 OS PDF 저장이 가능하면 출력도 이 임시 폴더에만 둔다. 소유자 어울, 이번 실측 직후 정확한 컨테이너·전용 네트워크·익명 DB 볼륨·Chrome 프로필·출력 파일을 제거하고 잔류 0을 확인한다. 공유 `local-postgres/shoppingmall`과 사용자 Chrome 창은 변경하지 않는다.
+
+- WSL 지정 checkout을 원격 작업 branch SHA `867d34d`로 fast-forward했다. Node 24 일회성 컨테이너에서 저장소 읽기 전용 마운트·컨테이너 내부 `/tmp` 출력으로 API TypeScript 컴파일과 생성 `main.js` 구문 검사를 실행해 exit0이었다. 이 컨테이너는 `--rm`으로 폐기됐으며 실제 컴파일 API/DB E2E의 대체 증거가 아니다.
+- 새 격리 PostgreSQL system identifier `7694674146640224294`, migration 0000~0022(23 이력), 가상 시험 run `bd86bb05`로 준비했다. API `/ready`와 웹 `/login` Windows loopback HTTP 200, WSL 웹 25경로 production build 통과. 가시 Chrome 별도 프로필과 PID 19256을 열었으나 Windows Computer Use가 현재 브라우저 URL을 충분히 확정하지 못해 정책상 UI 조작을 중단했다. 따라서 OS ‘PDF로 저장’과 실제 200% 확대는 이번 재시도에서도 미검증이며 이전 CDP 자동 PDF 근거와 구분한다. 동일 원인 UI 도구 실패 1회.
+- 이번 시험 전용 웹/API/PG 세 컨테이너와 익명 DB 볼륨 `7696ea6ddbc749337d4b68219f9dfb4f474e69c232f64dc8ce4fbdfbe1b2f829`, 연결 0인 전용 네트워크, Chrome PID 19256·프로필 `D:/tmp/shoppingmall-s6-c1-visible-1009`를 정확히 대조해 제거했다. 가상 계정·사건도 격리 DB 볼륨과 함께 폐기했다. 사용자 Chrome 창과 공유 `local-postgres/shoppingmall`은 변경하지 않았다. 미검증과 재개 조건은 루트 `docs/design_change.md`에 기록한다.
