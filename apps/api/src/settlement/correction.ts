@@ -86,10 +86,10 @@ export async function recordCorrection(client: PoolClient, adminId: string,
     throw new Error('Settlement correction exceeds original amount');
 
   const inserted = (await client.query<CorrectionRow>(`INSERT INTO settlement_events
-    (dedupe_key,kind,amount_won,occurred_at,seller_id,seller_name,
+    (dedupe_key,kind,amount_won,occurred_at,recorded_at,seller_id,seller_name,
      seller_category_id,seller_category_name,source_event_kind,source_event_id,
      original_event_id,correction_direction,recorded_by,reason)
-    VALUES ($1,'correction',$2,statement_timestamp(),$3,$4,$5,$6,
+    VALUES ($1,'correction',$2,statement_timestamp(),statement_timestamp(),$3,$4,$5,$6,
       'correction',$7,$8,$9,$10,$11)
     ON CONFLICT (dedupe_key) DO NOTHING
     RETURNING id,original_event_id AS "originalEventId",
