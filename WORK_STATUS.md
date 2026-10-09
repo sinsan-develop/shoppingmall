@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 2026-10-10 G3 직접 인쇄·확대 재시험 자원 계획
+
+- 담당/범위: 어울, 지정 계획 Task 4 Step 6. 현재 제품 SHA `4c251a5ed3c7e27810bea83c33d7e7545168032f`의 WSL 지정 checkout만 사용한다. 공유 `local-postgres/shoppingmall`에는 연결·쓰기하지 않는다.
+- 격리 자원: WSL Docker internal network `shoppingmall-s6-g3-1010-net`, tmpfs PostgreSQL 15 `shoppingmall-s6-g3-1010-pg`와 같은 네트워크의 일회용 API/Web Node 24 컨테이너 `shoppingmall-s6-g3-1010-api`/`shoppingmall-s6-g3-1010-web`, DB `shoppingmall`에 0000~0023과 고유 시험 run `c3c21010`만 생성한다. WSL 루프백 9091/9092와 Windows 로컬 SSH 터널 9091/9092, 별도 Chrome 시험 프로필 `D:/tmp/shoppingmall-s6-g3-1010-chrome`, 시험 PDF `D:/tmp/shoppingmall-s6-g3-1010-report.pdf`만 사용한다. 기존 이름·포트 충돌 0을 사전 확인한다.
+- 수명/정리: 이번 실제 OS 인쇄 창 PDF 저장과 브라우저 200% 확대 관찰 직후 컨테이너·네트워크의 정확한 ID, 터널의 명령행/PID, Chrome 시험 프로필과 PDF 경로를 확인해 이번 자원만 제거하고 잔류 0을 재조회한다. 결과가 도구에서 관찰되지 않으면 G3 미검증을 유지한다. 기존 사용자 Chrome 창·설정·파일은 변경하지 않는다.
+- 준비 중 환경 보정: 전용 `--internal` 네트워크의 웹/API 컨테이너는 Docker PortBindings가 설정됐어도 호스트 로컬 포트가 실제로 열리지 않았다(`curl` HTTP 000, 네트워크 초기 설정 오류 1회). DB를 외부에 노출하지 않고 웹/API만 별도 전용 bridge network `shoppingmall-s6-g3-1010-webnet`에 추가 연결한다. 이 네트워크도 이번 시험 직후 정확 ID 대조 후 제거한다. 제품 코드·공유 DB 변경은 없다.
+- 실행 결과: exact SHA `4c251a5` WSL source와 별도 tmpfs PostgreSQL 15(system ID `7694794699216998439`)에 migration 24건을 적용하고 `c3c21010` 가상 정산 X 10,000원·Y 4,000원·전체 14,000원·0건 완료를 생성했다. 격리 API `/ready`와 웹 `/login`은 WSL·Windows 로컬에서 HTTP 200. 웹 production build도 같은 SHA로 성공했다. 이는 화면에서 금액을 직접 본 증거가 아니다.
+- 실제 OS 조작 경계: 별도 Chrome 프로필의 시험 창을 열었으나 Windows Computer Use가 브라우저 현재 URL을 정책상 충분히 확인하지 못해 해당 턴의 UI 제어를 중단했다. 로그인·인쇄·200% 확대 조작을 하지 않았고 결과를 PASS로 표시하지 않는다. 이전 file URL 차단을 우회하지도 않았다. 도구 보안 경계 1회, 제품 시험 오류로 세지 않는다.
+- 정리: 명령행에 전용 프로필이 명시된 Chrome root/자식 8개와 이번 SSH 터널 PID 30732만 종료했다. 세 컨테이너의 정확 ID·영속 마운트 부재 및 두 전용 네트워크의 빈 상태를 대조해 제거했다. 시험용 Chrome 폴더는 `D:/tmp` 아래 비재분석 절대경로/잔류 프로세스 0 확인 뒤 제거, PDF는 생성되지 않았다. 이름·포트·프로필·PDF 잔류 0, WSL checkout clean, 공유 `local-postgres/shoppingmall` migration 23건 불변. G3 직접 실측은 미검증으로 유지한다.
+
 ## 2026-10-10 C2 표시 보정 원격·WSL·PR 확인
 
 - 제품 변경 commit `a7be1f3b399bf4a56f93d270ce9d6b40cc9152a5`를 승인된 `github-sinsan-develop` SSH 별칭으로 기존 작업 브랜치에 push했다. 지정 WSL `/home/daon/deploy/shopping`은 변경 전 clean·같은 branch임을 확인하고 fast-forward해 정확 SHA·clean을 확인했다. WSL 기존 Node 18 환경에서 `apps/web/test/settlement-report.test.mjs` 9/9 pass·0 skip, 새 시험 자원·공유 DB 쓰기 0.
