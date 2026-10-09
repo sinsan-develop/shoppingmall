@@ -13,9 +13,14 @@ export function completionOverlaps(completions: SettlementReport['completions'],
     entry.startDate <= to && entry.endDate >= from);
 }
 
-export function completionCandidates(sellers: Choice[], filter: Pick<Filter, 'categoryId' | 'sellerId'>) {
+export function completionCandidates(sellers: Choice[], filter: Pick<Filter, 'categoryId' | 'sellerId'>,
+  report?: Pick<SettlementReport, 'groups' | 'lateGroups' | 'completions'> | null) {
+  const historicalSellerIds = new Set([
+    ...(report?.groups ?? []), ...(report?.lateGroups ?? []), ...(report?.completions ?? []),
+  ].map((item) => item.sellerId));
   return sellers.filter((seller) =>
-    (!filter.categoryId || seller.categoryId === filter.categoryId) &&
+    (!filter.categoryId || seller.categoryId === filter.categoryId ||
+      historicalSellerIds.has(seller.id)) &&
     (!filter.sellerId || seller.id === filter.sellerId));
 }
 
@@ -313,7 +318,8 @@ export function SettlementPage({ role }: { role: Role }) {
     {role === 'admin' && report ? <section className="settlement-controls" aria-label="판매자별 완료 기록">
       <h2>판매자별 완료 기록</h2>
       <p>실제 송금은 시스템 밖에서 진행합니다. 확인한 판매자 한 명씩 완료 여부를 기록해 주세요.</p>
-      {completionCandidates(sellers, filter).map((seller) => completionOverlaps(report.completions,
+      {filter.categoryId ? <p>분류별 금액은 조회용입니다. 완료 기록은 선택한 판매자의 전체 기간에 적용됩니다.</p> : null}
+      {completionCandidates(sellers, filter, report).map((seller) => completionOverlaps(report.completions,
         seller.id, filter.from, filter.to) ?
         <div className="account-card" key={seller.id}>
           <h3>{seller.name}</h3><p>이미 완료된 기간과 겹칩니다. 완료 이력을 확인해 주세요.</p>

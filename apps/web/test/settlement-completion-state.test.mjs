@@ -62,3 +62,11 @@ test('a seller with zero events remains a completion candidate in all, category 
   assert.deepEqual(completionCandidates(sellers, { categoryId: '', sellerId: 'farm-empty' })
     .map(({ id }) => id), ['farm-empty']);
 });
+
+test('historical category query still offers its seller for seller-wide period completion', () => {
+  const sellers = [{ id: 'farm-a', name: '농가 A', categoryId: 'new' },
+    { id: 'farm-b', name: '농가 B', categoryId: 'new' }];
+  const historical = { groups: [{ sellerId: 'farm-a' }], lateGroups: [], completions: [] };
+  assert.deepEqual(completionCandidates(sellers, { categoryId: 'old', sellerId: '' }, historical)
+    .map(({ id }) => id), ['farm-a']);
+});

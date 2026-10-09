@@ -111,12 +111,15 @@ export function SettlementReportView({ report }: { report: SettlementReport }) {
     </section>
     <section className="account-card profile-card settlement-history" aria-label="조회 기간 완료 이력">
       <h2>완료 이력</h2>
-      <p>완료 당시 항목별 금액을 고정합니다. 지급액은 자동으로 계산하지 않습니다.</p>
+      <p>{report.filter.categoryId
+        ? '선택한 판매자 분류에 연결된 완료 당시 금액만 표시합니다. 판매자 전체 기간 완료 금액과 다를 수 있습니다.'
+        : '완료 당시 항목별 금액을 고정합니다.'} 지급액은 자동으로 계산하지 않습니다.</p>
       {report.completions.length === 0 ? <p>조회 기간과 겹치는 완료 기록이 없습니다.</p> :
         <ul>{report.completions.map((entry) => <li key={entry.id}>
           <strong>{entry.sellerName}</strong> · {entry.startDate} ~ {entry.endDate}
           <span> · {occurred(entry.completedAt)} · {entry.reason}</span>
-          {entry.frozenTotals ? <><h3>완료 당시 항목별 금액</h3>
+          {entry.frozenTotals ? <><h3>{report.filter.categoryId
+            ? '선택한 판매자 분류의 완료 당시 항목별 금액' : '완료 당시 항목별 금액'}</h3>
             <Totals values={entry.frozenTotals} /></> : null}
         </li>)}</ul>}
     </section>

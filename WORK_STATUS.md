@@ -4370,3 +4370,10 @@
 - 새 일회용 가상 자료의 관리자 Chrome 조회: 2026-05-01~12-31 전체 조회에서 5월 원수수료 10,000원, 10월 감소 정정 2,000원과 원사건 ID·근거, 현재 소계 8,000원, 완료 당시 고정 10,000원을 확인했다. 원사건 ID 입력 후 판매자·날짜·항목·원금액 미리보기를 확인했다. 전체 조회의 각 판매자 분류 제목을 확인했다. 인쇄 버튼에서 브라우저 제어가 다시 timeout되어 생성 PDF 파일·실제 인쇄 레이아웃은 미검증이다.
 - 남은 검증: 새 SHA의 판매자/분류별 브라우저·430px/키보드 확인, Chrome PDF 실파일, 공유 DB 신규 schema 적용 및 읽기 smoke(별도 승인 대기), 공유 DB 거래 행 E2E(사용자 결정에 따라 미검증). 독립 리뷰의 Important 3건은 수정했지만 재리뷰·PR/CI/병합/merged-main smoke는 미완료. 따라서 제품 완료 또는 PR 병합 gate PASS로 표기하지 않는다.
 - 임시 자원 `shoppingmall-s6-followup-api-1009`, `shoppingmall-s6-followup-web-1009`, `shoppingmall-s6-followup-pg-1009`의 정확한 이미지·마운트를 확인한 뒤 중지·삭제했다. PG 익명 볼륨도 제거해 격리 시험 계정·거래 행은 폐기했다. 로컬 포트 전달도 종료했다. 이름 필터 재조회 결과 0개이며 공유 DB 완료 기간은 여전히 0행이다. 제거한 것은 위 명시적 일회용 자원뿐이다.
+
+## 2026-10-09 정산 PDF·화면 재검증 준비
+
+- 담당: 어울. 계획 C1.2/C2/C3의 미검증 화면·PDF를 동일 제품 SHA로 다시 확인한다. 제품 코드·설계서·작업계획서는 변경하지 않는다.
+- 일회성 QA 자원: 앞서 폐기된 이름 `shoppingmall-s6-followup-pg-1009`와 DB `shoppingmall_s6_followup_1009`를 **새 시스템 식별자**로 다시 만들고, API `shoppingmall-s6-followup-api-1009`(loopback 9092), 웹 `shoppingmall-s6-followup-web-1009`(loopback 9091), Windows loopback SSH 전달, 별도 임시 Chrome profile·debug port 9229를 이번 확인 동안만 사용한다. 생성 전 이름 충돌·포트·마운트를 확인한다. 소유자 어울, 종료 시 정확한 이름·식별자를 다시 확인해 컨테이너·익명 볼륨·profile·터널을 정리한다. 공유 `local-postgres/shoppingmall`에는 쓰지 않는다.
+- 출력 PDF는 시험 증거용 일회성 파일로 `D:/tmp/shoppingmall-s6-followup-1009/settlement.pdf`에만 만들고 원사건·정정·완료금액·페이지 레이아웃 확인 후 제거한다. Chrome의 운영체제 ‘PDF로 저장’ 창 조작과 자동 인쇄 렌더링은 별도 증거로 구분한다.
+- 독립 읽기 전용 리뷰(기준 `5960cc1`)에서 과거 분류 조회의 판매자별 완료 후보 누락과 분류별 완료 부분 금액의 전체 금액처럼 보이는 제목 2건을 Important로 판정했다. 새 화면 시험 2건을 작성해 각각 예상 실패를 확인하고, 완료 후보에 조회 결과의 역사적 판매자를 포함하고 분류별 부분 금액/판매자 전체 기간 완료 범위를 명시했다. 목표 시험 14/14 통과, 전체 제품 596건/433 pass/163 조건부 skip/0 fail 및 PR 본문 8/8, lint/build exit0. 병렬 빌드가 `.next/types`를 갱신하는 중 typecheck가 1회 실패했으며, 빌드 완료 후 순차 typecheck exit0으로 재검증했다. 리뷰 지적의 UUID 재사용+없는 원사건 응답 불일치는 Minor로 보류하고 계약 경계와 함께 후속 검토한다.
