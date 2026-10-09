@@ -4360,3 +4360,13 @@
 - C3 실제 Chrome 브라우저: 격리 DB 한정 가상 관리자·판매자 계정을 생성해 로그인했다. 관리자 2026-05-01~12-31 개별 조회에서 원수수료 10,000원, 10월 감소 정정 2,000원·원사건 ID·사유, 현재 순수수료 8,000원, 완료 당시 고정 10,000원을 확인했다. 이전 분류 필터에는 과거 완료가 보이고 현재 분류 필터에는 잘못 소급되지 않았다. 판매자 화면은 자신의 두 사건·완료 이력만 보여주고 관리자 정정/완료 입력은 노출하지 않았다. 관리자·판매자 브라우저 로그인과 조회 PASS, 시험 세션 로그아웃 및 임시 탭 닫음. 인쇄 버튼은 Chrome 명령이 timeout되어 인쇄 창의 PDF 저장 파일까지 확인하지 못했다. 이 항목은 미검증으로 `docs/design_change.md`에 기록한다.
 - 정확한 WSL SHA `ca72eeb` 전체 Node 시험 590건/428 pass/162 조건부 skip/0 fail. WSL Next production build 정적 25경로 통과, API `/ready` DB 정상·웹 HTTP 200. 공유 DB 읽기 재확인 완료기간 0행·migration 22건으로 불변. 일회성 `shoppingmall-s6-followup-web-1009`, `-api-1009`, `-pg-1009` 세 컨테이너 및 PG 익명 볼륨을 정확한 이름·마운트 확인 후 제거, 9091/9092/15439 listener 0, WSL checkout clean. 제거된 것은 격리 DB 안의 가상 계정·정산 자료뿐이며 공유 DB 자료와 schema는 보존했다.
 - 독립 읽기 전용 리뷰에서 Important 3건: DB 원사건·판매자 관계 제약 부족, 혼합 분류 전체 조회 소계 제목 오류, 관리자 정정 원사건 선택 맥락·결과 확인 부족. 각 항목을 목표 RED 시험 후 보강했으며 동시 감소 경합 실DB 시험도 추가했다. 신규 0022 migration hash가 바뀌므로 기존 격리 DB를 재사용하지 않고 새 일회성 DB에서 0000~0023 재적용·실DB 0 skip을 다시 확인할 예정이다. 공유 DB·설계서·작업계획서 변경 없음.
+
+## 2026-10-09 S6 후속 최신 SHA 재검증
+
+- 담당: 어울. 단일 작업 브랜치 SHA `1a42e287781e4fc28fe2e0b0e2a2498316e8d878`, 같은 SHA의 WSL checkout에서 검증했다. 사용자 설계서·작업계획서는 수정하지 않았다.
+- 새 일회용 PostgreSQL 15 DB `shoppingmall_s6_followup_1009`의 시스템 식별자 `7694628723811663911`을 대조하고 0000~0023 migration을 새로 적용했다. 원사건 관계/역할/이력 및 동시 감소 경합 실DB·HTTP 시험 3 pass/0 skip/0 fail. 공유 `shoppingmall` DB schema와 거래 행은 변경하지 않았다.
+- 로컬 `pnpm test`: 제품 594건/431 pass/163 조건부 skip/0 fail, PR 본문 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build` exit0(웹 25경로). WSL 동일 SHA `/home/daon/.local/bin/node --import tsx --test`: 594건/431 pass/163 skip/0 fail. WSL Next production build 25경로, 격리 API `/ready` 200·웹 관리자 경로 200.
+- WSL 전체 시험 첫 명령은 기본 Node 18을 선택해 sharp `import ... with` 구문 오류로 실패했다. 동일 원인 1회, 설치된 Node 22를 명시해 전체 재실행 통과. 해당 실패를 숨기지 않고 환경 원인으로 기록한다.
+- 새 일회용 가상 자료의 관리자 Chrome 조회: 2026-05-01~12-31 전체 조회에서 5월 원수수료 10,000원, 10월 감소 정정 2,000원과 원사건 ID·근거, 현재 소계 8,000원, 완료 당시 고정 10,000원을 확인했다. 원사건 ID 입력 후 판매자·날짜·항목·원금액 미리보기를 확인했다. 전체 조회의 각 판매자 분류 제목을 확인했다. 인쇄 버튼에서 브라우저 제어가 다시 timeout되어 생성 PDF 파일·실제 인쇄 레이아웃은 미검증이다.
+- 남은 검증: 새 SHA의 판매자/분류별 브라우저·430px/키보드 확인, Chrome PDF 실파일, 공유 DB 신규 schema 적용 및 읽기 smoke(별도 승인 대기), 공유 DB 거래 행 E2E(사용자 결정에 따라 미검증). 독립 리뷰의 Important 3건은 수정했지만 재리뷰·PR/CI/병합/merged-main smoke는 미완료. 따라서 제품 완료 또는 PR 병합 gate PASS로 표기하지 않는다.
+- 임시 자원 `shoppingmall-s6-followup-api-1009`, `shoppingmall-s6-followup-web-1009`, `shoppingmall-s6-followup-pg-1009`의 정확한 이미지·마운트를 확인한 뒤 중지·삭제했다. PG 익명 볼륨도 제거해 격리 시험 계정·거래 행은 폐기했다. 로컬 포트 전달도 종료했다. 이름 필터 재조회 결과 0개이며 공유 DB 완료 기간은 여전히 0행이다. 제거한 것은 위 명시적 일회용 자원뿐이다.
