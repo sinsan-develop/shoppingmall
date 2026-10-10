@@ -5056,3 +5056,8 @@
 - RED: 기존 다섯 상품 fixture는 전용 DB 경로를 거부했다. GREEN: 전용 DB 표적 3/3 pass·0 skip·0 fail, 후조회 계정/판매자/상품분류/상품/역할 모두 0행. WSL exact SHA `f32b8472f4cdf6763f5f6e16fa33199617047467`에서 이전 코드의 실제 HTTP 판매자·관리자 권한 분리 시험 1/1 pass·0 skip이었다. 전체 로컬 `pnpm test` 634건·441 pass·193 조건부 skip·0 fail, PR 본문 8/8, typecheck·lint·build exit 0. 이번 다섯 상품 변경의 WSL exact SHA 시험은 push 뒤 수행한다.
 - Task 4 기존 결제 승인 HTTP 시험은 `payment_events`/주문을 삭제하는 정리 코드를 갖지만 현재 승인 경로는 불변 `settlement_events`를 생성한다. 따라서 지속 전용 QA DB에서 이 기존 시험을 그대로 실행해 잔류나 FK 실패를 만들지 않았다. 안전한 단회 DB 또는 불변 사건 보존형 시험으로 별도 검증할 예정이다. 결제·재고·정산 정합성은 아직 미검증이다.
 - WSL exact SHA `e967722c2797ed3a00ae6ab5d71e433951f7ecb4`(clean)의 Node 24에서 전용 QA DB 다섯 상품·역할 HTTP 표적 4/4 pass·0 skip·0 fail. 후조회 계정·판매자·상품분류·상품·역할·정산 사건 각 0행. 세 역할 18개 브라우저 행렬 전체를 수행한 결과는 아니다.
+
+## 2026-10-11 Task 4 격리 모의 결제 1사용자 자원 사전 선언
+
+- 담당 어울. WSL-server에서 새 전용 Docker network `shoppingmall-qa-1010-2-payment-net`과 PostgreSQL 15 tmpfs container `shoppingmall-qa-1010-2-payment-pg`를 **생성 전 선언**한다. 기존 Docker 이미지 `postgres:15`, `node:24-bookworm-slim`만 사용한다. 포트를 호스트에 공개하지 않고 해당 네트워크의 Node 시험 컨테이너 1개만 연결한다. 목적은 기존 결제 승인 시험이 생성할 수 있는 불변 정산 기록을 보호 `shoppingmall` 및 지속 `shoppingmall_qa_20261010_2`와 격리해 1사용자 모의 결제·정산 경로를 검증하는 것이다.
+- 수명은 이번 Task 4 smoke와 DB 잔류/정합성 증거 수집까지. 8자리 고유 run ID를 사용하고 Secret 값은 로그·문서·Git에 남기지 않는다. tmpfs 최대 512 MiB, 메모리 512 MiB, CPU 0.5개 한도로 시작하며, 다른 서비스 지표 악화 시 중단한다. 시험 후 정확히 이 container→network만 제거하고 이름 잔류 0을 확인한다. 다른 DB·container·volume은 변경·삭제하지 않는다. 생성 전 정확한 이름 부재와 기존 서비스 상태를 재확인한다.
