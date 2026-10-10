@@ -4,6 +4,25 @@ import test from 'node:test';
 import { Pool } from 'pg';
 import { catalogQaSpecs, runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 
+test('dedicated role QA catalog repeats the five-SKU seed without duplicate products', {
+  skip: !process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID || !process.env.DATABASE_URL,
+}, async () => {
+  const id = randomBytes(4).toString('hex');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    assert.equal((await runQaCatalogFixture('seed', id, process.env.DATABASE_URL,
+      'test-only-catalog-password')).products, 5);
+    assert.equal((await runQaCatalogFixture('seed', id, process.env.DATABASE_URL,
+      'test-only-catalog-password')).products, 5);
+    const products = await pool.query('SELECT count(*)::int AS total FROM product_revisions WHERE title LIKE $1',
+      [`qa-${id}-%`]);
+    assert.equal(products.rows[0].total, 5);
+  } finally {
+    try { await runQaCatalogFixture('reset', id, process.env.DATABASE_URL); }
+    finally { await pool.end(); }
+  }
+});
+
 test('five virtual SKUs cover both direct farm sellers and the owool seller', () => {
   assert.deepEqual(catalogQaSpecs.map((item) => item.item),
     ['고추', '고춧가루', '양파', '마늘', '블루베리']);

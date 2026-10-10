@@ -5049,3 +5049,9 @@
 - 변경 대상 `apps/api/scripts/qa-fixture.ts`, `apps/api/scripts/qa-public-fixture.ts`, `apps/api/test/qa-public-fixture-db.test.mjs`, 본 기록이다. 전용 DB 공개 상품 자료는 DB명·PG system ID 검증 후 같은 run ID의 두 번째 seed에서 기존 상품 ID를 돌려주고 중복을 만들지 않는다. 중간 상태나 상품 수 불일치는 거부한다. reset 역시 DB 식별 확인 뒤 소유 run ID 자료만 정리한다.
 - RED: 기존 상품 fixture는 전용 DB 경로를 거부했다. GREEN: 전용 DB 계정·상품 표적 12건 중 11 pass·1 공유 DB 전용 skip·0 fail; 시험 후 계정/판매자/상품분류/상품/역할 각 0행. 전체 로컬 `pnpm test` 633건·441 pass·192 조건부 skip·0 fail, PR 본문 검사 8/8, typecheck·lint·build exit 0. 실제 18화면과 주문·결제·복구·30분 부하는 여전히 미검증이다. 다음 단계는 변경 SHA push→WSL exact SHA에서 계정·상품 표적 회귀 및 실제 18화면 경로 시험이다.
 - WSL exact SHA `f32b8472f4cdf6763f5f6e16fa33199617047467`(clean)에서 Node 24·전용 QA DB 계정/상품 표적 12건 중 11 pass·1 공유 DB 전용 skip·0 fail. 후조회 계정/판매자/상품분류/상품/역할 각 0행. 잔류 조회의 첫 질의는 존재하지 않는 `orders` 관계를 참조해 실패 1회(읽기 전용, DB 변경 없음); 실제 존재하는 핵심 테이블로 다시 확인했다. 이는 아직 18개 메뉴/브라우저 정식 E2E가 아니다.
+
+## 2026-10-11 Task 6 다중 판매자 QA 상품 자료
+
+- 담당 어울. 변경 대상 `apps/api/scripts/qa-catalog-fixture.ts`, `apps/api/test/qa-catalog-fixture-db.test.mjs`, 본 기록이다. 전용 QA DB명·system ID를 검증하고 기존 계정·판매자 소속·상품 5건을 검사한 뒤 같은 run ID의 시드는 중복 없이 재사용한다. 부분 계정/상품 자료는 거부하며 reset은 QA 계정 소유를 검사한다.
+- RED: 기존 다섯 상품 fixture는 전용 DB 경로를 거부했다. GREEN: 전용 DB 표적 3/3 pass·0 skip·0 fail, 후조회 계정/판매자/상품분류/상품/역할 모두 0행. WSL exact SHA `f32b8472f4cdf6763f5f6e16fa33199617047467`에서 이전 코드의 실제 HTTP 판매자·관리자 권한 분리 시험 1/1 pass·0 skip이었다. 전체 로컬 `pnpm test` 634건·441 pass·193 조건부 skip·0 fail, PR 본문 8/8, typecheck·lint·build exit 0. 이번 다섯 상품 변경의 WSL exact SHA 시험은 push 뒤 수행한다.
+- Task 4 기존 결제 승인 HTTP 시험은 `payment_events`/주문을 삭제하는 정리 코드를 갖지만 현재 승인 경로는 불변 `settlement_events`를 생성한다. 따라서 지속 전용 QA DB에서 이 기존 시험을 그대로 실행해 잔류나 FK 실패를 만들지 않았다. 안전한 단회 DB 또는 불변 사건 보존형 시험으로 별도 검증할 예정이다. 결제·재고·정산 정합성은 아직 미검증이다.
