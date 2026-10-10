@@ -190,13 +190,15 @@ test('an increased correction belongs to current Y while the original stays in X
     const yId = (await client.query("INSERT INTO seller_categories(name) VALUES ('QA 증가 Y') RETURNING id")).rows[0].id;
     const sellerId = (await client.query(`INSERT INTO sellers(category_id,display_name)
       VALUES ($1,'QA 증가 판매자') RETURNING id`, [xId])).rows[0].id;
-    const originalId = (await client.query(`INSERT INTO settlement_events
+    const originalEvent = (await client.query(`INSERT INTO settlement_events
       (dedupe_key,kind,amount_won,occurred_at,seller_id,seller_name,
        seller_category_id,seller_category_name,source_event_kind,source_event_id,
        recorded_by,reason)
       VALUES ($1,'commission',10000,clock_timestamp() - interval '2 days',$2,'QA 증가 판매자',
-        $3,'QA 증가 X','manual_commission',$4,$5,'증가 원사건') RETURNING id`,
-    [`qa:${randomUUID()}`, sellerId, xId, randomUUID(), adminId])).rows[0].id;
+        $3,'QA 증가 X','manual_commission',$4,$5,'증가 원사건')
+      RETURNING id,occurred_at AS "occurredAt"`,
+    [`qa:${randomUUID()}`, sellerId, xId, randomUUID(), adminId])).rows[0];
+    const originalId = originalEvent.id;
     await client.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [yId, sellerId]);
     const correction = await recordCorrection(client, adminId, {
       originalEventId: originalId, requestId: randomUUID(),
@@ -210,9 +212,10 @@ test('an increased correction belongs to current Y while the original stays in X
       seller_category_id AS "categoryId" FROM settlement_events WHERE id=$1`,
     [originalId])).rows[0];
     assert.deepEqual(original, { amount: 10000, categoryId: xId });
-    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul',
-      year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(correction.occurredAt));
-    const filter = { from: today, to: today, sellerId };
+    const seoulDay = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul',
+      year: 'numeric', month: '2-digit', day: '2-digit' });
+    const filter = { from: seoulDay.format(new Date(originalEvent.occurredAt)),
+      to: seoulDay.format(new Date(correction.occurredAt)), sellerId };
     const xReport = await readSettlement(client, parseSettlementQuery({ ...filter, categoryId: xId }));
     const yReport = await readSettlement(client, parseSettlementQuery({ ...filter, categoryId: yId }));
     const allReport = await readSettlement(client, parseSettlementQuery(filter));
