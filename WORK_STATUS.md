@@ -5086,3 +5086,9 @@
 - 담당 어울. WSL exact SHA `a530ddd80a60beb63f8b6f1a8af852198a7bf021`에서 승인된 `shoppingmall_qa_20261010_2`로 가입 1건·재설정 2건을 실행하자 세 시험이 기존 `shoppingmall_auth_admin_1010` 고정 이름 단언으로 자료 생성 전에 예상대로 실패했다(RED 0 pass·3 fail·0 skip). QA DB의 계정·수단은 0행이었다. 시험 파일 두 곳만 허용 전용 DB명, URL DB명, 실제 `current_database()`, PG system ID 대조로 보정했다.
 - WSL exact SHA `900e69f8d9be5ee2f89cdd284a4d7ca5c3b93b1c`에서 일회성 Node24·기존 개발 mock 전달로 재실행한 결과 가입 **1/1**, 재설정/세션 경합 **2/2** pass·0 skip·0 fail이었다. 실제 외부 메일은 보내지 않았다. 시험 후 전용 QA DB의 계정·수단·세션·판매자 신청 각 0행, 보호 `shoppingmall`의 계정·수단 각 0행을 확인했다. `--rm` Node24 컨테이너 잔류는 0이다.
 - 로컬 전체 `pnpm test` exit 0(일반 DB 조건부 skip 유지), PR 본문 검사 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로). 이 증거는 실제 수신, 가입/복구 존재 추측 방지의 시간 분포, 관리자 정식 소유 링크, 실제 브라우저 200% 검증을 대신하지 않는다. 다음은 Task 5의 기존 HTTP 흐름과 Task 6·7 브라우저 행렬이다.
+
+## 2026-10-11 Task 5 계정 HTTP 전용 QA DB 회귀
+
+- 담당 어울. WSL exact SHA `6181daf863e2010b02c8bd59b7f6135f32a6b937`에서 `shoppingmall_qa_20261010_2`로 기존 HTTP 계정 4개 시험을 실행하자 모두 옛 전용 DB명 고정 단언에서 자료 생성 전에 예상대로 실패했다(RED 0 pass·4 fail·0 skip). QA DB의 계정·수단은 0행이었다.
+- 시험 파일 `apps/api/test/auth-onboarding-http-db.test.mjs` 한 곳의 공통 가드를 두 허용 전용 DB명, 연결 URL 경로, 실제 `current_database()`와 PG system ID를 첫 쓰기 전에 대조하도록 보정했다. WSL exact SHA `13ac28930b4d4e358cb00efbe47c3c1e399d3a6f`에서 관리자 mock 첫 설정, 판매자 신청/심사, 구매자 가입, 비밀번호 재설정 HTTP 시험 **4 pass·0 skip·0 fail**. `WEB_ORIGIN`은 루프백, 전달은 개발 mock이며 실제 발송은 하지 않았다.
+- 후조회 전용 QA DB 계정·수단·세션·신청 각 0행, 보호 `shoppingmall` 계정·수단 각 0행; 일회성 `--rm` Node24 컨테이너 잔류 0. 로컬 `pnpm test` 634건/441 pass·193 DB 조건부 skip·0 fail, PR 본문 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0. 실제 브라우저 재방문·200%와 실제 이메일 수신, 시간차 방어, 정식 관리자 지속 행은 미검증이다.
