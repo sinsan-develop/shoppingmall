@@ -5116,3 +5116,9 @@
 - 담당 어울. 시작 SHA `3e32c29a071bfbc22ba0198fdb0539f18b829e65`. `apps/api/test/qa-browser-fixture.test.mjs`에 승인된 전용 QA DB를 선택했으나 system ID가 없을 때 DB 연결 전에 거부해야 한다는 시험을 먼저 추가했다. 수정 전 표적 실행은 기대한 식별자 오류 대신 기존 `shoppingmall` 고정 거부로 **1 pass·1 fail(RED)**이었다.
 - `apps/api/scripts/qa-browser-fixture.ts`의 reset 진입점은 기존 보호 DB 경로와 이번에 승인된 전용 QA DB 경로만 허용하고, 후자의 system ID 설정을 연결 전 검사하며, 연결 후에는 실제 `current_database()`·PG system ID를 공통 가드로 대조한 뒤에만 변경 트랜잭션을 시작하도록 좁혀 수정했다. 표적 시험 **2 pass·0 fail(GREEN)**. 전체 로컬 `pnpm test` **635건/442 pass·193 DB 조건부 skip·0 fail**, PR 본문 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0(웹 31경로). 설계서·작업계획서와 제품 API/DB schema는 불변이다.
 - 이 가드의 실제 WSL QA DB 연결·상품 화면/정리 성공은 아직 미검증이고 보호 `shoppingmall`에 시험 행을 쓰지 않았다. 변경 파일은 이 시험·fixture·현황만이다. 다음은 exact SHA로 WSL 전용 DB 실연결·분리 자료의 생성/정리, 이어서 Task 6 화면 조작 행렬이다. 오류 횟수: 표적 RED 1회(의도한 실패), 구현 후 실패 0회.
+
+## 2026-10-11 Task 6 전용 QA DB 실제 식별 확인
+
+- 담당 어울. 로컬 작업 브랜치와 WSL 지정 checkout의 시작 SHA는 모두 `0917afcb63f5b1d2c7e6186337856cca77222697`이며 WSL checkout은 clean이다. 승인된 전용 `shoppingmall_qa_20261010_2`를 읽기 전용으로 조회해 실제 PG system ID `7622490131194466339`를 재확인했다.
+- 같은 WSL SHA에서 기존 `qa-fixture.ts`의 공통 식별 가드를 실제 전용 QA DB 연결로 실행했다. 정확한 DB명·system ID는 통과했고, 의도적으로 잘못 설정한 system ID `0`은 거부됐다. 두 호출 모두 `SELECT`만 수행했고 시험 행·보호 `shoppingmall`의 자료를 변경하지 않았다. 처음 원격 셸 인용 오류 1회는 SQL 실행 전에 발생했으며, 표준입력 스크립트로 수정한 재실행은 성공했다.
+- 이 증거는 식별 가드의 실연결에 한정된다. `qa-public-fixture.ts`의 상품 이름과 `qa-browser-fixture.ts` reset의 대상 이름이 달라 두 스크립트를 한 쌍으로 실행하지 않는다. 전용 QA 상품 seed/reset과 실제 WSL 18개 화면 조작·200% 브라우저 결과는 여전히 미검증이며, 다음에는 소유 범위와 정확한 정리 영수증을 먼저 좁혀 확인한다. 설계서·작업계획서는 변경하지 않았다.
