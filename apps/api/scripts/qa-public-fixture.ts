@@ -10,7 +10,7 @@ function productNames(runId: string) {
   };
 }
 
-async function seedPublicProduct(client: PoolClient, runId: string, count: number) {
+async function seedPublicProduct(client: PoolClient, runId: string, count: number, includeSoldOut: boolean) {
   const names = qaNames(runId);
   const product = productNames(runId);
   const seller = await client.query<{ id: string }>('SELECT id FROM sellers WHERE display_name=$1', [names.sellerA]);
@@ -41,9 +41,18 @@ async function seedPublicProduct(client: PoolClient, runId: string, count: numbe
     const expectedTitles = new Set(Array.from({ length: count }, (_, index) => index === 0
       ? product.title : `${product.title}-extra-${String(index).padStart(2, '0')}`));
     const primary = rows.rows.find((row) => row.title === product.title);
+    const options = primary?.revision_id ? await client.query<{
+      name: string; price_won: number; sellable_quantity: number;
+    }>(`SELECT o.name,o.price_won,i.sellable_quantity FROM product_options o
+       JOIN inventory_levels i ON i.option_id=o.id WHERE o.revision_id=$1 ORDER BY o.display_order`,
+    [primary.revision_id]) : null;
+    const expectedOptions = includeSoldOut
+      ? [['500g', 23000, 5], ['1kg', 46000, 0]] : [['500g', 23000, 5]];
     if (rows.rows.length === count && primary?.revision_id && rows.rows.every((row) =>
       row.revision_id && row.seller_name === names.sellerA && expectedTitles.delete(row.title ?? ''))
-      && expectedTitles.size === 0) {
+      && expectedTitles.size === 0
+      && JSON.stringify(options?.rows.map((row) => [row.name, row.price_won, row.sellable_quantity]))
+        === JSON.stringify(expectedOptions)) {
       return { productId: primary.product_id, revisionId: primary.revision_id,
         majorId: existingMajor.rows[0].id, title: product.title, count };
     }
@@ -69,6 +78,14 @@ async function seedPublicProduct(client: PoolClient, runId: string, count: numbe
     [revisionId, '500g', 23000],
   )).rows[0].id;
   await client.query('INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity) VALUES ($1,5,5)', [optionId]);
+  if (includeSoldOut) {
+    const soldOutId = (await client.query<{ id: string }>(
+      'INSERT INTO product_options(revision_id,name,price_won,display_order) VALUES ($1,$2,$3,1) RETURNING id',
+      [revisionId, '1kg', 46000],
+    )).rows[0].id;
+    await client.query('INSERT INTO inventory_levels(option_id,on_hand_quantity,sellable_quantity) VALUES ($1,0,0)',
+      [soldOutId]);
+  }
   await client.query(
     'INSERT INTO product_publications(product_id,revision_id,published_by_account_id) VALUES ($1,$2,$3)',
     [productId, revisionId, adminAccount.rows[0].account_id],
@@ -150,7 +167,7 @@ async function resetPublicProduct(client: PoolClient, runId: string) {
 }
 
 export async function runQaPublicFixture(action: 'seed' | 'reset', runId: string, databaseUrl: string,
-  password?: string, productCount = 1) {
+  password?: string, productCount = 1, includeSoldOut = false) {
   const id = validateQaRunId(runId);
   if (!['/shoppingmall', '/shoppingmall_qa_20261010_2'].includes(new URL(databaseUrl).pathname)) {
     throw new Error('QA fixture is limited to shoppingmall database or approved role QA database');
@@ -159,6 +176,7 @@ export async function runQaPublicFixture(action: 'seed' | 'reset', runId: string
   if (!Number.isInteger(productCount) || productCount < 1 || productCount > 25) {
     throw new Error('QA product count must be 1..25');
   }
+  if (typeof includeSoldOut !== 'boolean') throw new Error('Invalid QA restock option');
   if (action === 'seed') await runQaFixture('seed', id, databaseUrl, password);
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
@@ -166,7 +184,8 @@ export async function runQaPublicFixture(action: 'seed' | 'reset', runId: string
     try {
       await assertQaFixtureDatabase(client, databaseUrl);
       await client.query('BEGIN');
-      const result = action === 'seed' ? await seedPublicProduct(client, id, productCount) : await resetPublicProduct(client, id);
+      const result = action === 'seed'
+        ? await seedPublicProduct(client, id, productCount, includeSoldOut) : await resetPublicProduct(client, id);
       await client.query('COMMIT');
       if (action === 'reset') await runQaFixture('reset', id, databaseUrl);
       return result;
@@ -182,7 +201,8 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   const action = process.argv[2];
   if (action !== 'seed' && action !== 'reset') throw new Error('usage: qa-public-fixture.ts seed|reset');
   runQaPublicFixture(action, process.env.QA_RUN_ID ?? '', process.env.DATABASE_URL ?? '', process.env.QA_FIXTURE_PASSWORD,
-    action === 'seed' ? Number(process.env.QA_PUBLIC_PRODUCT_COUNT ?? '1') : 1)
+    action === 'seed' ? Number(process.env.QA_PUBLIC_PRODUCT_COUNT ?? '1') : 1,
+    action === 'seed' && process.env.QA_PUBLIC_RESTOCK_OPTION === '1')
     .then((result) => { process.stdout.write(`${JSON.stringify(result ?? { reset: true })}\n`); })
     .catch((error) => { process.stderr.write(`${error instanceof Error ? error.message : 'QA public fixture failed'}\n`); process.exitCode = 1; });
 }

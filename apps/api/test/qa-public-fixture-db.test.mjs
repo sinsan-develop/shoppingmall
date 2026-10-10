@@ -23,6 +23,27 @@ test('dedicated role QA database repeats one public product seed without duplica
   }
 });
 
+test('customer restock QA fixture keeps the sellable cart option and one sold-out option across retries', {
+  skip: !process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID || !process.env.DATABASE_URL,
+}, async () => {
+  const runId = process.env.QA_RUN_ID ?? randomBytes(4).toString('hex');
+  const { runQaPublicFixture } = await import('../scripts/qa-public-fixture.ts');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    const first = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL,
+      'test-only-password-12345', 1, true);
+    const second = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL,
+      'test-only-password-12345', 1, true);
+    assert.equal(second.productId, first.productId);
+    const detail = await new PublicProducts(pool).get(first.productId);
+    assert.deepEqual(detail.options.map((option) => [option.name, option.priceWon, option.sellableQuantity]),
+      [['500g', 23000, 5], ['1kg', 46000, 0]]);
+  } finally {
+    try { await runQaPublicFixture('reset', runId, process.env.DATABASE_URL); }
+    finally { await pool.end(); }
+  }
+});
+
 test('public browser fixture exposes one sellable QA product and resets only its run', {
   skip: !process.env.DATABASE_URL,
 }, async () => {
