@@ -112,13 +112,16 @@ test('admin correction records current Y category and preserves completed X tota
       VALUES ($1,'commission',10000,'2026-05-01T00:00:00Z',$2,'QA 정정 판매자',
         $3,'QA 원분류 X','manual_commission',$4,$5,'원수수료') RETURNING id`,
     [`qa:${randomUUID()}`, sellerId, xId, randomUUID(), adminId])).rows[0].id;
-    const may = await completeSellerPeriod(client, adminId, { sellerId,
-      from: '2026-05-01', to: '2026-05-20', reason: '5월 정산' });
-    await client.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [yId, sellerId]);
     await client.query('CREATE SCHEMA qa_clock');
     await client.query(`CREATE FUNCTION qa_clock.statement_timestamp() RETURNS timestamptz
-      LANGUAGE sql STABLE AS $$ SELECT TIMESTAMPTZ '2026-07-01 00:00:00+00' $$`);
+      LANGUAGE sql STABLE AS $$ SELECT TIMESTAMPTZ '2026-05-20 00:00:00+00' $$`);
     await client.query('SET LOCAL search_path = qa_clock, pg_catalog, public');
+    const may = await completeSellerPeriod(client, adminId, { sellerId,
+      from: '2026-05-01', to: '2026-05-20', reason: '5월 정산' });
+    assert.equal(may.completedAt, '2026-05-20T00:00:00.000Z');
+    await client.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [yId, sellerId]);
+    await client.query(`CREATE OR REPLACE FUNCTION qa_clock.statement_timestamp() RETURNS timestamptz
+      LANGUAGE sql STABLE AS $$ SELECT TIMESTAMPTZ '2026-07-01 00:00:00+00' $$`);
     assert.equal((await client.query('SELECT statement_timestamp() AS at')).rows[0].at.toISOString(),
       '2026-07-01T00:00:00.000Z');
     const request = { originalEventId: originalId, requestId: randomUUID(),
