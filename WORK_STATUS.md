@@ -4754,3 +4754,21 @@
 | PR/CI·병합·merged-main smoke | 미실행: 전체 test 실패와 G2/G3 미검증을 PR #17 예외로 덮지 않는다. 작업 브랜치는 승인 SSH 별칭으로 push되어 복구 가능; `main`은 변경하지 않았다. |
 
 - 이 표는 작업계획서 전체 달성 판정이 아니다. 남은 승인·직접 검증 없이 일반 병합이나 계획 완료보고를 하지 않는다. 사용자 소유 미추적 3개 경로는 건드리지 않았다.
+
+## 2026-10-10 후속 계획 Task 3 재검증 자원 계획
+
+- 담당 어울. 목적은 0024 정정 사례의 관리자·판매자 1440/430px 화면과 자동 PDF를 기존 C2 기준 자료와 함께 실제 동일 SHA 브라우저에서 대조하는 것이다. 이는 OS 인쇄 창 PDF 저장·실제 200% 확대의 대체 증거가 아니다.
+- 지정 WSL checkout `/home/daon/deploy/shopping`은 현재 clean `main`이며 이전 격리 시험 이름·9091/9092/15439 포트의 잔류가 0임을 읽기 확인했다. 승인 SSH 별칭으로 현재 작업 브랜치의 안전한 commit을 push한 뒤 해당 정확한 SHA를 fetch한다. Windows 소스 복사와 WSL 직접 개발은 하지 않는다.
+- 일회용 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-correction-1010b-pg`에만 시험 DB `shoppingmall`을 만들고 WSL 루프백 15439로 제한한다. 일회용 Node 24 검증·API·Web 컨테이너 `shoppingmall-s6-correction-1010b-node/api/web`, 빌드 volume `shoppingmall-s6-correction-1010b-next`, API/Web 루프백 9092/9091, Windows 전달용 SSH 터널과 격리 Chrome CDP 9229를 사용한다. QA ID는 `a10c1010`, 가상 계정·정산 사건만 사용한다.
+- 수명은 이번 Task 3 검증 동안이며 종료·실패 시 정확한 Docker ID·volume mount·터널 PID/명령행·전용 브라우저 탭/프로필을 대조해 이 작업이 만든 자원만 제거하고 잔류 0을 확인한다. 공유 `local-postgres/shoppingmall`에는 연결하거나 거래 행을 만들지 않는다. 새 SQL 적용은 이 격리 DB에만 수행한다.
+
+## 2026-10-10 Task 3 재검증 결과와 직접 UI 경계
+
+- 지정 WSL checkout은 SSH 별칭 원격의 정확한 작업 코드 SHA `5dd6795e2b1b3bab277d5ea18e7b6c8485b0e9da`로 fast-forward했다. 일회용 PG15 tmpfs 컨테이너 `04a319d5b33677b61d23ae54b668be3eb6976e39087b8c7ed5fefdb282a9591a`의 system ID `7694881599351922726`을 대조한 뒤 0000~0024를 적용했다. 공유 DB에는 쓰기 0이다.
+- 격리 가상 계정 5개, 판매자 3곳, 과거 X 수수료 10,000원·Y 수수료 4,000원, 5월 기간 완료 2건(한 판매자는 0건)을 생성했다. 자동 브라우저 스크립트에 10월 X/Y 정정 검증을 추가하고 정정 전 Y 보고서 조회가 실패하는 RED를 확인했다. 현재 Y 분류의 2,000원 감소 정정을 기록한 뒤 같은 스크립트가 관리자·판매자 화면, 1440/430px 가로 넘침 없음, Tab 초점, 기존 5월 분류별 합계·0건 이력, 현재 Y 정정·X 비노출·원사건 링크를 검증해 종료 코드 0을 냈다. 자동 PDF 6개를 생성했다.
+- 관리자·판매자 10월 Y 자동 PDF 각 1쪽을 실제 렌더링해 분류 Y, 정정 항목, 수수료 합계 -2,000원, 원사건 ID 표시와 잘림 없는 레이아웃을 육안 확인했다. PDF 텍스트 추출은 한글 글리프 손실·UUID 줄바꿈이 있어 정확 문구 자동 단언 근거로 사용하지 않았다. CDP `Page.printToPDF` 산출물은 OS 인쇄 창에서 저장한 파일이 아니다.
+- 최초 Windows DB 터널의 시드 재시도는 `ECONNRESET` 1회로 실패·rollback했고, DB 사건/완료 0을 확인한 뒤 WSL 내부 일회용 Node에서 직접 시드했다. RED 실행 후 Node Windows 종료의 `UV_HANDLE_CLOSING` assertion이 부수적으로 출력됐으나 GREEN 실행은 정상 종료했다. 같은 원인 3회 연속은 없다.
+- 별도 가시 Chrome을 고유 제목으로 찾았지만 Windows Computer Use가 `get_window` 단계에서 URL 안전 판별 실패로 이번 턴 사용을 중단했다. 그 도구로 후속 입력을 하지 않는다. 관리자·판매자의 **OS 인쇄 창 PDF 저장·파일 열람과 실제 브라우저 200% 확대는 미검증**이며 `docs/design_change.md` G2를 유지한다. 임시자원 정리와 로컬 정적 시험은 별도 진행한다.
+- 자동 PDF 중 관리자 Y 파일 SHA-256 `C0BF49C6A9468BC4770B0B9C360481D3672CDC738AEED43453BDFD4296CF1F88`, 판매자 Y 파일 `51BD7411CB5994054095FA9B1E0494CE223DADBB0A985E2A40180EE4750A98A7`. 일회용 PDF 원본과 렌더 PNG는 임시 시험 종료 때 삭제했다. 필요하면 같은 스크립트·격리 fixture로 재생성한다.
+- WSL 전용 API/Web/PG 컨테이너 3개와 `.next` volume의 ID·mount를 확인해 제거했고 이름·volume 잔류 0, 지정 checkout clean `main` 복귀를 확인했다. Windows의 15439/9091/9092 터널 세션, CDP/가시 전용 Chrome 프로필 프로세스와 해당 `D:/tmp` 세 디렉터리를 정확한 대상 대조 뒤 제거했다. QA 포트 9229/9091/9092/15439 listener 0, 전용 Chrome 프로세스 0, 전용 디렉터리 0. 격리 가상 계정·정산 사건·기간 기록도 tmpfs PG 폐기와 함께 사라졌다. 공유 DB·기존 사용자 브라우저 창/자료는 건드리지 않았다.
+- 새 브라우저 스크립트와 PR 설명은 `node --check`·PR 본문 검사·PR 자동화 시험 8/8·`git diff --check`를 통과했다. 현재 로컬 전체 `pnpm test`는 605건 중 434 pass·170 조건부 skip·1 fail로 이전 G1과 동일하다. 실패 위치 `apps/api/test/migration-preview.test.mjs:48`의 역사적 24건 고정 단언이며 신규 25건을 거부한다. 이 파일은 승인 계획의 변경 목록 밖이므로 수정하지 않았다. 현재 로컬 `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 25경로) exit 0. 전체 test·CI·일반 PR 병합 gate는 여전히 미충족이다.
