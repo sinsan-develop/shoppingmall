@@ -5104,3 +5104,9 @@
 
 - 담당 어울. 실행 전 로컬 작업 브랜치와 WSL 지정 checkout의 SHA가 모두 `e425dba580e6fd1dccd9166beb5dc12a8ec2da0e`임을 확인했다. 로컬 `pnpm test` 634건 중 441 pass·193 DB 조건부 skip·0 fail, PR 본문 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` 모두 exit 0. Web 31경로 빌드 중 Task 6의 대표 18경로가 모두 생성됨을 대조했다. 이는 실제 WSL API/DB 조작이나 브라우저 200% 검증이 아니며 행렬 판정은 모두 `UNVERIFIED`다.
 - WSL 2 vCPU의 load average 2.50/3.62/4.07, swap 사용 5.0/8.0 GiB, 디스크 여유 385GiB를 읽기 전용으로 확인했다. 다른 서비스 영향 기준을 충족했다는 근거가 없으므로 Task 4의 공유 30분 부하는 시작하지 않았다. 코드·시험 DB·보호 `shoppingmall` 자료는 변경하지 않았다. 변경 파일은 본 현황과 18경로 행렬의 정적 준비 문구만이며 설계·계획은 불변이다. 다음은 Task 6의 전용 QA DB 정상·오류·권한·재시도 행별 실제 통합 검증과 Task 5에서 허용된 처리시간 기준 측정이다.
+
+## 2026-10-11 Task 5·6 시험 도구 경계 점검
+
+- 담당 어울. 실행 전 로컬/WSL exact SHA `87dcd524377f2d134ea70d0e811a4070de839927`, 지정 작업 브랜치·WSL checkout clean(사용자 비추적 자료 제외)을 대조했다. 프로젝트 루트 `AGENTS.md`는 현재 없고 신산님이 이 대화에 제공한 전역 지침과 PMO 지침·승인 설계/계획을 적용했다. 보호 DB·QA DB에 이 점검으로 쓰지 않았다.
+- 18개 대표 Web route는 앞선 빌드에서 존재하지만 실제 행렬은 모두 `UNVERIFIED`다. 기존 `qa-public-fixture.ts`/`qa-fixture.ts`는 전용 `shoppingmall_qa_20261010_2`와 실제 PG system ID 대조를 지원한다. 반면 `qa-browser-fixture.ts`는 보호 `shoppingmall`만 허용하고, `scripts/qa-auth-browser.mjs`는 이전 `shoppingmall_auth_admin_1010`/구 system ID/포트 15442로 고정되어 있다. 따라서 이 둘을 승인된 전용 QA DB에 맞춘 가드·정리 검증 없이 실행하지 않는다. 다음 독립 작업은 변경 대상 시험 도구를 RED→GREEN으로 좁혀 전용 DB의 실제 화면 경로에 재사용하는 것이다.
+- 가입 시작은 기존 이메일에서 `account_identities` 조회 후 즉시 수락, 신규 이메일은 추가 token 발급·mock 전달을 수행한다. 복구 시작도 미등록 이메일에서 즉시 수락, 등록 이메일에서 token 발급·mock 전달을 수행한다. 동일 JSON 응답만으로 처리시간 차이 방어가 입증되지 않는 코드 경로다. 이 실행에서는 반복 시간 분포를 측정하지 않았으므로 Task 5 A8의 기준 RED·방어는 아직 미검증이다. 새 비동기 계약이나 고정 sleep을 임의 구현하지 않는다.
