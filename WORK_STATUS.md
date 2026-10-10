@@ -5149,3 +5149,10 @@
 
 - 담당 어울. 시작 로컬/WSL SHA `7602c1c2fa21c8eb49a35f56518cf636330d0454`. 승인된 전용 `shoppingmall_qa_20261010_2`의 홈 초안 version 1·빈 menu/events/recommendations·current publication NULL·발행 0건을 읽기 전용 선조회했고 보호 `shoppingmall`도 같은 값이다. 기존 `apps/api/test/home-public-http-db.test.mjs`가 난수 식별자의 가상 계정·판매자·상품 2개·이미지 메타데이터와 전용 DB 홈 초안/현재 발행을 시험 중에만 사용한다. 시험 `finally`가 원래 단일 설정을 복원하고 자기 발행/상품을 ID로 정리하는지 후조회한다. 실행 자원은 `shoppingmall-task6-home-http-1011` 이름의 Node24 `--rm` 컨테이너 1개(CPU 0.5·메모리 384MiB·읽기 전용 소스·host loopback)로 한정하고 외부 발송/PG·보호 DB 쓰기는 없다. 실패 시 전용 DB의 소유 ID와 복원 상태를 먼저 확인하고 다른 자료의 포괄 삭제는 하지 않는다.
 - WSL exact SHA에서 공개 홈 실제 HTTP 시험 **1 pass·0 fail·0 skip**. 미발행 초안의 비노출, 활성 행사와 공개 상품만 노출, 상품 가격·이미지/품절 상태 변경 시 공개 자료 갱신, 행사 비활성·미존재 응답을 확인했다. 후조회 전용/보호 DB 모두 홈 초안 version 1·빈 payload·current NULL·발행 0건으로 원상 유지되며 QA 계정·상품 버전·이미지 메타데이터 각 0행이다. 이름 지정 컨테이너 잔류 0. 행렬 #1의 API 부분 증거이며 Next 화면 조작·재시도·PC 200%는 `UNVERIFIED`다. 실행 오류 0회; 설계·계획·제품 코드 불변.
+
+## 2026-10-11 Task 8 현재 SHA 회귀 및 Task 6 브라우저 실행 경계
+
+- 담당 어울. 로컬 작업 브랜치와 WSL 지정 checkout의 exact SHA는 모두 `8b27f15ce59cca0a54cc891c137c40b8de016166`이다. WSL checkout은 clean, 9091/9092 listener는 없고 Web `.next` 빌드는 존재한다. 사용자 소유 비추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 변경하지 않았다.
+- 같은 SHA에서 로컬 `pnpm test` 635건/442 pass·193 DB 조건부 skip·0 fail, PR 본문 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로)을 확인했다. 193 skip은 실제 DB 시험 합격에 포함하지 않는다. 이번 실행은 새 DB 행·컨테이너·브라우저 프로필·포트를 만들지 않았다.
+- WSL 읽기 전용 자원 확인 시 2 vCPU 공유 호스트의 load average 3.73/3.72/3.98, swap 사용 5110/8192 MiB였다. 이 상태로 Task 4의 공유 30분 부하를 시작할 안전 근거가 없어 기존 `docs/design_change.md` 경계를 유지한다. 실제 18개 화면의 Next/API/DB 조작 행렬 및 PC 200% 증거는 계속 `UNVERIFIED`다.
+- 기존 `scripts/qa-auth-browser.mjs`는 구 전용 DB `shoppingmall_auth_admin_1010`, 구 system ID 및 15442 포트로 고정돼 있고 현재 승인된 QA DB를 그대로 사용할 수 없다. 다른 고객/판매자 브라우저 스크립트는 합성 계정 입력을 받지만 자체적으로 DB 식별·자료 생성을 하지 않으므로 먼저 승인된 전용 QA DB와 정확한 fixture·서비스·정리 경계를 연결해야 한다. 코드 변경이나 보호 DB 접속 없이 이 위험을 확인했다. 다음은 Task 6의 한 화면부터 실제 QA DB/Next 브라우저 경로를 제한적으로 연결하고 행별 증거를 쌓는 것이다.
