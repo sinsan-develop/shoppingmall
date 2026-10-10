@@ -5072,3 +5072,8 @@
 - 담당 어울, 브랜치 `codex/work-plan-20261010-2`. 지정 설계·계획을 변경하지 않고 `docs/design_change.md`에 A1~A3의 저장소/PITR/결합 복원 계약과 A6~A8의 공개 신청 조회/인증 전달/실제 수신 경계를 판정·영향·재개 조건으로 기록했다. 이는 기능 구현이나 실제 복구·수신 합격이 아니다.
 - 현행 이미지 격리·정제·스캐너 4개 표적 시험은 9건 중 8 pass·1 ClamAV 실환경 조건부 skip·0 fail이었다. SeaweedFS 객체 버전, 7일 PITR, 14개 보관, 동일 시점 결합 복원은 미검증이다. 남은 독립 작업은 Task 4 부하 사전 안전 검사, Task 5 기존 mock/disabled 회귀, Task 6·7 전용 QA DB와 실제 브라우저 경로 검증이다.
 - WSL 자원 재측정: 2 vCPU 서버의 load average 4.67/4.87/4.61, swap 5.0/8.0 GiB, 디스크 여유 385 GiB이며 k6·SeaweedFS 이미지가 없어 30분 공유 부하 안전 조건은 여전히 불충족이다. WSL Git checkout 갱신의 첫 시도는 수동으로 잘못 적은 SHA 때문에 실패 1회(자료 변경 없음); 실제 원격 `FETCH_HEAD` SHA `2f57ef5956cc448bf033094d2cbc3c4226e9bcd9`로 재실행해 clean detached checkout을 확인했다.
+
+## 2026-10-11 Task 5 전용 QA DB 인증 시험 준비
+
+- 담당 어울. 기존 판매자 신청 DB 시험은 `PGDATABASE=shoppingmall_auth_admin_1010`에만 고정되어 있어 이번에 승인된 `shoppingmall_qa_20261010_2`에서 실행되지 않는다. 실제 연결 DB명까지 비교하지 않아 환경 변수와 URL의 불일치가 보호 대상에 도달할 가능성도 있다. 설계/API를 변경하지 않고 시험 가드의 정확한 DB명·PG system ID 대조부터 RED→GREEN으로 보정한다.
+- 실행 전 일회성 자원 선언: WSL 지정 checkout의 읽기 전용 `/app` mount를 가진 `node:24-bookworm-slim` 컨테이너 한 개를 `--rm`·메모리 384MiB·CPU 0.5개·호스트 포트 공개 없음으로 실행한다. host 네트워크는 `127.0.0.1:5432`의 기존 PostgreSQL에만 연결하며 URL의 DB명은 `shoppingmall_qa_20261010_2`로 고정한다. 기존 DB 비밀번호는 컨테이너 환경으로만 일시 전달하고 로그/파일에 남기지 않는다. 시험 자료는 해당 QA DB 내 고유 식별자로 만들고 기존 시험의 소유 행 정리를 확인하며, 프로세스 종료 뒤 컨테이너 잔류 0을 검증한다. 보호 `shoppingmall`에는 쓰지 않는다.
