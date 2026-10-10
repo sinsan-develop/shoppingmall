@@ -22,6 +22,22 @@ test('mock payment startup refuses production and public API bindings', () => {
     API_HOST: '127.0.0.1', NODE_ENV: 'production' }));
 });
 
+test('QA load startup requires a distinct run ID before the listener opens', () => {
+  const safe = { APP_ENV: 'development', PAYMENT_MODE: 'mock',
+    API_HOST: '127.0.0.1', NODE_ENV: 'development', QA_LOAD_MODE: '1' };
+  assert.throws(() => assertPaymentBootConfig(safe), /QA load/);
+  assert.throws(() => assertPaymentBootConfig({ ...safe, QA_LOAD_RUN_ID: 'bad id' }), /QA load/);
+  assert.equal(assertPaymentBootConfig({ ...safe, QA_LOAD_RUN_ID: 'a1b2c3d4' }), 'mock');
+});
+
+test('QA load startup refuses an external payment credential even in development', () => {
+  const safe = { APP_ENV: 'development', PAYMENT_MODE: 'mock',
+    API_HOST: '127.0.0.1', NODE_ENV: 'development', QA_LOAD_MODE: '1',
+    QA_LOAD_RUN_ID: 'a1b2c3d4' };
+  assert.throws(() => assertPaymentBootConfig({ ...safe,
+    TOSS_PAYMENTS_SECRET_KEY: 'test-only' }), /QA load/);
+});
+
 test('mock verification derives one stable event from the server-started order and won amount', () => {
   const orderId = randomUUID();
   const adapter = new MockPaymentAdapter();

@@ -5017,3 +5017,9 @@
 - Task 6의 실제 18경로를 코드와 대조해 `docs/evidence/three-role-menu-matrix.md`를 작성했다. 전 행은 아직 `UNVERIFIED`이며 QA 계정·상품·주문은 `qa-1010-2-<runId>` 소유 식별 후 생성한다. 전용 DB는 정확한 식별·수명·정리 절차를 먼저 기록한다. 보호 DB에 시험 거래를 만들지 않는다.
 - 이번 실행에서 변경한 추적 파일은 `docs/design_change.md` 초기화, 본 `WORK_STATUS.md`, 18경로 행렬이다. 설계서와 작업계획서 본문은 수정하지 않았다. 오류: `apply_patch`의 동일 파일 Delete/Add 동시 시도 1회(패치 거부, 파일 영향 없음); 별도 Delete·Add로 초기화. 미검증: 공유 DB 최신 행/이력 읽기, 격리 DB 필수 시험, SeaweedFS 결합 복원, 30분 부하, 18화면 WSL, PC 자체 200%, 실제 메일 수신. 다음 조치: 허용된 독립 검증과 정확한 환경 식별 후 계획 Task 1~7 순차 진행.
 - 공유 DB 읽기 전용 대조: WSL `local-postgres`는 PostgreSQL 15 컨테이너, DB `shoppingmall`, system ID `7622490131194466339`, Drizzle migration 26건이다. 계정·판매자·상품·주문·정산 사건·인증 수단은 각 0행. 쓰기 0. 테이블 목록 질의의 첫 인용 시도는 SQL 문자열 `public` 인용 누락으로 오류 1회였고 `\dt public.*` 메타 명령으로 목록을 확인했다. 이 읽기만으로 백업·복원 가능성을 주장하지 않는다.
+
+## 2026-10-11 Task 4 모의 부하 시작 안전 경계
+
+- 담당 어울, 브랜치 `codex/work-plan-20261010-2`. 변경 파일 `apps/api/test/payment-adapter.test.mjs`, `apps/api/src/payments/adapter.ts`. QA 부하 모드에서 고유 8자리 run ID가 없거나 실제 결제사 Secret 계열 환경키가 함께 있으면 HTTP listener 시작 전 거부하도록 기존 부팅 경계에 연결했다. 개발·mock·loopback 조건도 `assertQaLoadMode`로 재확인한다. 기존 일반 mock 모드의 동작은 유지한다.
+- RED: 신규 2개 시험은 기존 코드에서 예상한 거부가 없어 각각 실패했다. GREEN: 목표 7/7 pass·0 skip; 전체 `pnpm test` 630건/441 pass·189 DB/환경 조건부 skip·0 fail, PR 본문 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `git diff --check`는 exit 0. 이 결과는 부하 도구 실행이나 주문/재고/정산 실DB 정합성, 30분 계측의 증거가 아니다.
+- 루트 `.env`는 7개 설정행이며 SMTP 연결·발신·수신 키 이름이 있다. 값은 출력·문서화하지 않았다. 실제 이메일 수신/관리자 지속 행은 아직 실행하지 않았다. 다음 작업은 Task 4의 격리 1사용자 smoke 및 다른 계획 Task의 독립 RED/격리 검증이다.
