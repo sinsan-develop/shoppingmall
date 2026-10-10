@@ -120,3 +120,74 @@ test('verified owner reset revokes customer, seller and admin sessions atomicall
     }
   }
 });
+
+test('a login paused before session insert cannot leave an old-password session after reset', {
+  skip: !systemId,
+}, async () => {
+  assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_admin_1010');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const fixtureLock = await pool.connect();
+  await fixtureLock.query("SELECT pg_advisory_lock(hashtext('auth-admin-qa-fixture'))");
+  const system = await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()');
+  assert.equal(system.rows[0].id, systemId);
+  const email = `reset-race+${randomUUID()}@example.invalid`;
+  const oldPassword = 'isolated-race-old-password-123';
+  const nextPassword = 'isolated-race-next-password-123';
+  const now = new Date();
+  let accountId;
+  let releaseInsert;
+  let insertSeen;
+  const enteredInsert = new Promise((resolve) => { insertSeen = resolve; });
+  const insertGate = new Promise((resolve) => { releaseInsert = resolve; });
+  try {
+    accountId = await new AuthRepository(pool).createCustomerAccount(email, oldPassword);
+    await pool.query('UPDATE account_identities SET verified_at=$2 WHERE account_id=$1', [accountId, now]);
+    const token = await issueActionToken(pool, { purpose: 'password_reset', email,
+      accountId, source: `qa-${randomUUID()}`, now });
+    let intercepted = false;
+    const intercept = (args, run) => {
+      const sql = typeof args[0] === 'string' ? args[0] : args[0]?.text ?? args[0]?.sql ?? '';
+      if (!intercepted && /insert\s+into[\s\S]*auth_sessions/i.test(sql)) {
+        intercepted = true;
+        insertSeen();
+        return insertGate.then(run);
+      }
+      return run();
+    };
+    const delayedPool = {
+      query: (...args) => intercept(args, () => pool.query(...args)),
+      connect: async () => {
+        const client = await pool.connect();
+        const query = client.query.bind(client);
+        client.query = (...args) => intercept(args, () => query(...args));
+        return client;
+      },
+    };
+    const repository = new AuthRepository(delayedPool);
+    const login = repository.loginEmail(email, oldPassword, 'customer');
+    await Promise.race([enteredInsert, login.then(() => { throw new Error('Session insert was not intercepted'); }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Session insert wait timed out')), 5000))]);
+    const reset = completePasswordReset(pool, token, nextPassword, now, `qa-${randomUUID()}`);
+    await Promise.race([reset.catch(() => {}), new Promise((resolve) => setTimeout(resolve, 1000))]);
+    releaseInsert();
+    const [loginResult, resetResult] = await Promise.allSettled([login, reset]);
+    assert.equal(resetResult.status, 'fulfilled');
+    if (loginResult.status === 'fulfilled') {
+      assert.equal(await new AuthRepository(pool).getSession(loginResult.value.token), undefined);
+    }
+    await assert.rejects(new AuthRepository(pool).loginEmail(email, oldPassword, 'customer'), /Invalid credentials/);
+  } finally {
+    releaseInsert?.();
+    await pool.query('DELETE FROM auth_action_tokens WHERE email=$1', [email]);
+    if (accountId) {
+      await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
+      await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [accountId]);
+      await pool.query('DELETE FROM account_roles WHERE account_id=$1', [accountId]);
+      await pool.query('DELETE FROM account_identities WHERE account_id=$1', [accountId]);
+      await pool.query('DELETE FROM accounts WHERE id=$1', [accountId]);
+    }
+    await fixtureLock.query("SELECT pg_advisory_unlock(hashtext('auth-admin-qa-fixture'))");
+    fixtureLock.release();
+    await pool.end();
+  }
+});

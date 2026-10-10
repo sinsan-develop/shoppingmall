@@ -154,3 +154,34 @@ test('initial admin CLI refuses missing owner proof or delivery without writing 
     }
   }
 });
+
+test('an existing admin grant without an email identity still blocks initial provisioning', {
+  skip: !systemId,
+}, async () => {
+  const pool = await isolatedPool();
+  const fixtureLock = await pool.connect();
+  await fixtureLock.query("SELECT pg_advisory_lock(hashtext('auth-admin-qa-fixture'))");
+  const email = `admin-orphan+${randomUUID()}@example.invalid`;
+  let accountId;
+  try {
+    const account = await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id');
+    accountId = account.rows[0].id;
+    await pool.query("INSERT INTO account_roles(account_id,role) VALUES ($1,'admin')", [accountId]);
+    await assert.rejects(provisionInitialAdmin(pool, {
+      email, ownerConfirmed: true,
+      operatorId: 'qa-operator', source: `qa-${randomUUID()}`, now: new Date(),
+      mockSink: async () => {},
+    }), /Initial admin exists/);
+    const count = await pool.query("SELECT count(*)::int AS n FROM account_roles WHERE role='admin'");
+    assert.equal(count.rows[0].n, 1);
+  } finally {
+    await removeFixture(pool, email);
+    if (accountId) {
+      await pool.query('DELETE FROM account_roles WHERE account_id=$1', [accountId]);
+      await pool.query('DELETE FROM accounts WHERE id=$1', [accountId]);
+    }
+    await fixtureLock.query("SELECT pg_advisory_unlock(hashtext('auth-admin-qa-fixture'))");
+    fixtureLock.release();
+    await pool.end();
+  }
+});

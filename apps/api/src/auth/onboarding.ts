@@ -41,17 +41,19 @@ export async function provisionInitialAdmin(pool: Pool, input: InitialAdminInput
   try {
     await client.query('BEGIN');
     await client.query("SELECT pg_advisory_xact_lock(hashtext('initial-admin'), hashtext('provision'))");
-    const existing = await client.query(`SELECT a.id, i.identifier, i.password_hash, i.verified_at, a.disabled_at
-      FROM account_roles r JOIN accounts a ON a.id=r.account_id
-      JOIN account_identities i ON i.account_id=a.id AND i.kind='email'
-      WHERE r.role='admin' AND r.seller_id IS NULL FOR UPDATE OF a, i`);
-    if ((existing.rowCount ?? 0) > 1 || (existing.rowCount === 1 &&
-        (existing.rows[0].identifier !== email || existing.rows[0].password_hash ||
-         existing.rows[0].verified_at || existing.rows[0].disabled_at))) {
+    const grants = await client.query("SELECT account_id,seller_id FROM account_roles WHERE role='admin' FOR UPDATE");
+    if ((grants.rowCount ?? 0) > 1 || (grants.rowCount === 1 && grants.rows[0].seller_id !== null)) {
       throw new Error('Initial admin exists');
     }
-    if (existing.rowCount === 1) {
-      accountId = existing.rows[0].id;
+    if (grants.rowCount === 1) {
+      accountId = grants.rows[0].account_id;
+      const account = await client.query('SELECT disabled_at FROM accounts WHERE id=$1 FOR UPDATE', [accountId]);
+      const identity = await client.query(`SELECT identifier,password_hash,verified_at FROM account_identities
+        WHERE account_id=$1 AND kind='email' FOR UPDATE`, [accountId]);
+      if (account.rowCount !== 1 || account.rows[0].disabled_at || identity.rowCount !== 1 ||
+          identity.rows[0].identifier !== email || identity.rows[0].password_hash || identity.rows[0].verified_at) {
+        throw new Error('Initial admin exists');
+      }
     } else {
       const duplicate = await client.query("SELECT id FROM account_identities WHERE kind='email' AND identifier=$1", [email]);
       if (duplicate.rowCount) throw new Error('Admin email unavailable');
