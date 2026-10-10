@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 2026-10-10 후속 화면 검증 접근·정확한 PR head 재확인
+
+- 담당 어울. 작업 경로 `D:/Project/shoppingmall2`, 브랜치 `codex/next-work-20261010-2@477ccfacbbf737ce304c837b12ca73521304f6a8`; 원격 추적과 일치한다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 건드리지 않았다. root `AGENTS.md`는 현재 파일이 없어 사용자 제공 공통 지침과 PMO 지침·정본 계획을 적용한다.
+- PR #18은 해당 정확한 head로 open·미병합, push CI `38036327011`과 PR CI `38036330783`은 둘 다 completed/success. PR 생성 자동화 `38036342234`도 success이며 최신 리뷰·공유 DB 백업 근거가 PR 본문에 포함된 것을 읽기 확인했다. 원격 일회용 요청 태그는 자동 삭제됐고 동일 이름의 로컬 태그 1개만 정상 Git 명령으로 정리했다.
+- G2 직접 실측 접근을 위해 Windows Computer Use에서 Chrome 창을 읽기 전용으로 선택했다. 도구가 대상 브라우저의 현재 URL을 안전하게 판별할 수 없다며 이번 턴의 조작을 중단했다. 입력·인쇄·확대 동작은 없었고 기존 사용자 창·탭은 변경하지 않았다. 같은 도구로 다시 조작하지 않는다. OS 창 PDF 저장/파일 열람과 실제 200% 확대는 계속 미검증이다. 동일 원인 안전 제한은 과거 기록과 같은 범주이며 `docs/design_change.md` G2에 후속 상태를 남겼다.
+- G5 공유 DB 실제 교차 역할 세션은 계정·판매자 0건 및 공유 가상 거래 금지 경계로 미검증 유지. 작업계획 C/D의 기준을 바꾸거나 예외 병합하지 않고, 승인된 범위 밖 설계서·작업계획서는 수정하지 않았다. 다음 작업 결정 대상은 G2의 안전한 직접 실측 또는 별도 검증 기준 결정, G5의 실계정 시험 경계다.
+
 ## 2026-10-10 0024 승인 범위 실행·검증 결과
 
 - 담당 어울. 신산님이 추가 승인한 `migration-preview.test.mjs`의 24건 고정 단언을 25건으로만 보정했다. 기존 0000~0015 해시 단언은 유지. 변경 전 표적 2 pass·1 fail(25≠24) → 변경 후 3/3 pass, 전체 `pnpm test` **605건/435 pass·170 조건부 skip·0 fail**와 PR 본문 시험 8/8 pass. `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(Web 25경로), `git diff --check` 이상 0. 코드·시험 SHA `5c5341aa9899133d1515ec85e2c7a6d157fe5092`를 SSH 별칭으로 push하고 WSL 지정 checkout에서 같은 SHA·clean·0024 SQL SHA-256 `e1333d47f76965a486e4b74bea091df0014adb601f0dbca842c6e8eb9729f796`을 확인했다.
