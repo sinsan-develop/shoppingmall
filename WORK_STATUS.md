@@ -4739,3 +4739,18 @@
 - 첫 재시험은 WSL checkout이 main 상태라 격리 DB에 24건까지만 적용된 준비 오류로 3/3 실패했다. checkout을 계획 브랜치 `9810e0b...`로 전환하고 0024까지 25건을 적용한 뒤 2/3 통과, 역순 경합에서 서버가 `seller category missing`으로 전체 요청을 거부하는 실제 동작을 확인했다. 계획은 혼합 저장 없이 전체 실패·재시도를 허용하므로 시험은 이 경우 기록 0을 확인하고 새 트랜잭션으로 재시도하도록 바로잡았다. 최종 새 격리 DB 시험 3/3 통과·0 skip. 준비 오류 1회와 시험 기대치 오류 1회는 각각 원인 확인 후 해결했으며 동일 원인 3회 연속은 없었다.
 - 보강 commit `ae8f02d02ebb6407d0483b48f19e788751a6222a`을 SSH 별칭 원격에 push하고 WSL checkout을 정확히 fast-forward한 뒤 Node 24 격리 시험 8/8 통과·0 skip. 기존 후속 HTTP 시험의 첫 실행은 잘못 지정한 게이트 변수로 4건 skip이었고 이를 증거로 쓰지 않았다. 올바른 변수의 다음 실행은 앱 `DATABASE_URL` 누락으로 3/4 통과·1 실패(HTTP 503); 그 변수를 **격리 DB**로 명시한 재실행은 4/4 통과·0 skip이다. 시험 설정 원인은 각각 바로잡았으며 공유 DB 쓰기 0이다.
 - 재생성 격리 PG 컨테이너의 ID `2d0a470e...`, running 상태, 영속 mount 0을 확인한 뒤 정확 ID만 stop/rm했다. `shoppingmall-s6-correction-1010` 이름의 Docker 컨테이너 잔류 0, WSL 지정 checkout clean `main` 복귀를 확인했다. tmpfs 가상 거래는 폐기됐고 공유 DB에는 반영되지 않았다.
+
+## 2026-10-10 지정 계획 현재 판정
+
+| 계획 게이트 | 판정·근거 |
+|---|---|
+| G4 정정 당시 분류 기록 | 격리 DB/HTTP PASS. SQL 0024와 관리자 기록이 X 원사건·Y 정정·고정 기간·원사건 링크·권한/경합을 검증. 공유 DB 적용은 별도 칸. |
+| 격리 거래 E2E | PASS: 새 SHA WSL 8/8 및 HTTP·동시성 4/4, 모두 0 skip. |
+| 공유 DB 0024/schema/읽기 smoke | 미검증: 별도 적용 승인 답변 전 24건·거래 0, 쓰기 0. `docs/design_change.md` G3. |
+| OS 직접 PDF 저장·파일 대조 | 미검증: 브라우저 인쇄 명령 시간 초과 및 OS 창 안전 경계. `docs/design_change.md` G2. |
+| 실제 200% 확대·키보드/가로 넘침 | 미검증: OS 브라우저 제어 안전 경계. `docs/design_change.md` G2. |
+| 로컬 전체 test/typecheck/lint/build | test는 605건 중 1 fail, 434 pass, 170 조건부 skip. 원인은 계획 밖의 migration 수 고정 시험(`docs/design_change.md` G1). 나머지 세 명령은 exit 0. |
+| 독립 리뷰 | Critical 0, Important 1(G1 전체 시험), Minor 2는 범위 안의 시험 보강으로 반영·격리 재검증. |
+| PR/CI·병합·merged-main smoke | 미실행: 전체 test 실패와 G2/G3 미검증을 PR #17 예외로 덮지 않는다. 작업 브랜치는 승인 SSH 별칭으로 push되어 복구 가능; `main`은 변경하지 않았다. |
+
+- 이 표는 작업계획서 전체 달성 판정이 아니다. 남은 승인·직접 검증 없이 일반 병합이나 계획 완료보고를 하지 않는다. 사용자 소유 미추적 3개 경로는 건드리지 않았다.
