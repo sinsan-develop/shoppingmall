@@ -5092,3 +5092,10 @@
 - 담당 어울. WSL exact SHA `6181daf863e2010b02c8bd59b7f6135f32a6b937`에서 `shoppingmall_qa_20261010_2`로 기존 HTTP 계정 4개 시험을 실행하자 모두 옛 전용 DB명 고정 단언에서 자료 생성 전에 예상대로 실패했다(RED 0 pass·4 fail·0 skip). QA DB의 계정·수단은 0행이었다.
 - 시험 파일 `apps/api/test/auth-onboarding-http-db.test.mjs` 한 곳의 공통 가드를 두 허용 전용 DB명, 연결 URL 경로, 실제 `current_database()`와 PG system ID를 첫 쓰기 전에 대조하도록 보정했다. WSL exact SHA `13ac28930b4d4e358cb00efbe47c3c1e399d3a6f`에서 관리자 mock 첫 설정, 판매자 신청/심사, 구매자 가입, 비밀번호 재설정 HTTP 시험 **4 pass·0 skip·0 fail**. `WEB_ORIGIN`은 루프백, 전달은 개발 mock이며 실제 발송은 하지 않았다.
 - 후조회 전용 QA DB 계정·수단·세션·신청 각 0행, 보호 `shoppingmall` 계정·수단 각 0행; 일회성 `--rm` Node24 컨테이너 잔류 0. 로컬 `pnpm test` 634건/441 pass·193 DB 조건부 skip·0 fail, PR 본문 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0. 실제 브라우저 재방문·200%와 실제 이메일 수신, 시간차 방어, 정식 관리자 지속 행은 미검증이다.
+
+## 2026-10-11 Task 7 PC 브라우저 확대 사전 선언
+
+- 담당 어울. 실제 Chrome·Edge 확대의 독립 검증을 위해 현재 로컬 Web 빌드 `c0fe1de1fb490373b3115e359a79a1fca4cf81dc`를 `127.0.0.1:9091`에 일회성으로 띄운다. 시작 전 포트 9091·9092에 청취자가 없음을 확인했다. API/DB/외부 메일을 연결하지 않고 계정 공개 진입 화면의 200% 가로 넘침·Tab·오류 표시만 관찰한다. 이 화면 증거를 보호 WSL 18경로 정식 통합이나 가입 성공으로 바꾸지 않는다.
+- Web 프로세스는 정확한 PID와 명령줄·포트 소유를 기록한 뒤 종료하고 9091 잔류 0을 확인한다. Chrome·Edge는 격리 QA 탭에서 현재 로컬 URL만 열며 사용자 기존 탭·세션·비밀값을 변경하지 않는다. 브라우저가 실제 200%를 제공하지 못하면 미검증으로 기록한다.
+- 실행 결과: 로컬 Web `next start --hostname 127.0.0.1 --port 9091`의 PID 14112, 포트 소유도 14112, `/signup` HTTP 200. Chrome 신규 QA 탭에서 `/signup`, `/login`, `/forgot-password`, `/reset-password`, `/admin-setup`의 공개 상태를 확인했다. API 미연결을 명시하고 요청 버튼을 비활성화했으며, 유효 링크가 없는 두 비밀번호 화면은 입력·변경 버튼을 비활성화하고 재요청/운영 담당자 안내를 표시했다. `/login`의 Tab 초점은 본문 건너뛰기→홈→접속 역할 순서, `/signup` 첫 Tab 초점은 본문 건너뛰기였다. API/DB 연결이나 실제 가입·재설정·관리자 설정 성공은 검증하지 않았다.
+- Chrome에서 `Ctrl++`·`Ctrl+=` 입력 전후 `devicePixelRatio=1`, `innerWidth=1892` 불변이므로 **실제 200% 확대 미검증**. Edge 실행 파일은 설치되어 있지만 현재 브라우저 제어에 연결되지 않아 Edge 화면 시험은 미실행. 계획 Task 7의 18+6 화면 행을 합격으로 표시하지 않는다. 이유·영향·재개 조건을 `docs/design_change.md`에 기록했다. 생성한 Chrome QA 탭만 닫았고 Web PID 14112의 명령줄·포트 소유를 대조해 종료했다. 종료 후 9091 listener 0; 사용자 기존 탭·보호 DB·메일 변경 없음.
