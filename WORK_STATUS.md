@@ -4778,3 +4778,10 @@
 - 담당 어울. 원격 `main@eab39abc6caf8155edfd20d96de7f014fd06a8c3`, 작업 브랜치 `codex/next-work-20261010-2@c4e7004fd4fa3b1d3502aa945ffdbb2f4c21e636`, 사용자 소유 미추적 3경로를 재확인했다. 승인 SSH 별칭의 `pr-create/**` 요청 태그만 전송했고 자동화가 태그를 제거했다. `pr-request/**` 자동 병합 태그는 전송하지 않았다.
 - [PR #18](https://github.com/sinsan-develop/shoppingmall/pull/18)이 정확한 head `c4e7004...`와 base `eab39ab...`로 OPEN임을 익명 읽기 API에서 확인했다. push CI run `38022904378`은 `pnpm test` 단계 FAILURE; PR 이벤트 run `38024599649`는 `action_required`이고 실행 job 0건으로 표시된다. 원인은 공개 API 근거만으로 단정하지 않는다. CI 통과·병합·merged-main smoke를 수행한 것으로 표시하지 않는다.
 - 다음: 계획 밖 고정 migration 수 시험의 범위 승인 여부, G3 OS PDF/200% 직접 실측 가능성, 공유 DB 0024 별도 적용 승인 및 PR 이벤트 CI 조치 상태를 각각 대조한다. 승인 전 공유 DB 쓰기나 후속 PR 예외 병합은 하지 않는다.
+
+## 2026-10-10 Task 3 브라우저 직접 실측 재시도
+
+- 담당 어울. 지정 WSL checkout을 SSH 별칭 원격의 정확한 `94604a2d52e5357a582e6570a6cd346f2389543e`로 fast-forward했다. 일회용 tmpfs PostgreSQL `shoppingmall-s6-correction-1010b-pg`(ID `52389099fefa...`, WSL 루프백 15439)에 0000~0024 25건을 적용하고 고유 `a10c1010` 가상 5계정과 X 원수수료 10,000원·Y 정정 감소 2,000원만 생성했다. 공유 `local-postgres/shoppingmall` 쓰기 0. 일회용 API ID `58cd5cf8...`의 `/health`·`/ready` 200, 같은 SHA 새 Web 빌드 25경로와 전용 Web ID `b4371407...`의 정산 경로 200을 확인했다.
+- 실제 Chrome의 운영자 시험계정으로 로그인해 관리자 정산 화면에 현재 Y 정정 -2,000원, 원사건 ID, 판매자·전체 수수료 -2,000원 표시를 확인했다. 인쇄 버튼을 직접 누르자 브라우저 입력 명령이 약 3초 후 시간 초과됐고 페이지 포커스만 버튼에 남았다. OS 인쇄 창의 PDF 저장 파일·열람은 확인하지 못했다. 별도 탭에서 브라우저 `Ctrl++`/`Ctrl+=` 입력 뒤에도 `devicePixelRatio=1`, `innerWidth=1563`이 그대로여서 실제 200% 확대 근거가 아니다. 판매자 시험 로그인은 `확인 중` 상태 이후 결과를 확인하지 못했으며 이 재시도의 판매자 직접 실측으로 표시하지 않는다. G2 미검증 유지.
+- agent가 만든 Chrome 시험 탭 두 개와 빈 탭 한 개만 닫았다. QA 컨테이너 3개는 ID·mount 확인 후 제거, 전용 `.next` volume도 제거해 이름 잔류 0. WSL 지정 checkout은 clean `main`으로 복귀했다. Windows 9091/9092의 기존 `wslrelay.exe` PID 23348은 이 작업에서 생성한 프로세스가 아니므로 종료하지 않았다.
+- PR #18은 이 문서 전 커밋 `94604a2...`로 OPEN이고, 그 정확한 head의 push CI `38024789954`와 PR CI `38024793018`은 모두 `pnpm test` 단계 FAILURE다. 이전 bot-triggered `action_required`는 최신 head의 현재 판정이 아니며, G1의 계획 밖 고정 migration 수 시험이 남아 일반 병합 불가다.
