@@ -103,12 +103,14 @@ test('isolated HTTP enforces admin-only corrections and exposes dated seller evi
   skip: !process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID,
 }, async () => {
   assert.equal(process.env.PGDATABASE, expectedDatabase);
-  const pool = new Pool();
+  assert.ok(process.env.DATABASE_URL, 'HTTP test DATABASE_URL required');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   let app;
   try {
-    const systemId = (await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()'))
-      .rows[0].id;
-    assert.equal(systemId, process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID);
+    const target = (await pool.query(`SELECT system_identifier::text AS id,
+      current_database() AS database FROM pg_control_system()`)).rows[0];
+    assert.equal(target.id, process.env.S6_FOLLOWUP_TEST_DB_SYSTEM_ID);
+    assert.equal(target.database, expectedDatabase);
     const adminId = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
     const sellerActor = (await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
     const runTag = randomUUID().slice(0, 8);
