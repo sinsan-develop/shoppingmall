@@ -124,6 +124,14 @@ async function login(role, email, password) {
   await clickButton('로그인');
   await waitFor("location.pathname === '/account'", `${role} login`);
 }
+async function invalidActionLink(route, passwordSelector, repeatSelector, buttonText, failureText) {
+  await navigate(`${web}${route}#token=invalid-browser-token`);
+  await waitFor(`document.querySelector(${JSON.stringify(passwordSelector)}) && !location.hash`, `${route} invalid fragment scrub`);
+  await setInput(passwordSelector, 'Browser-isolated-invalid-123');
+  await setInput(repeatSelector, 'Browser-isolated-invalid-123');
+  await clickButton(buttonText);
+  await waitFor(`document.body.innerText.includes(${JSON.stringify(failureText)})`, `${route} invalid token rejection`);
+}
 function message(purpose) {
   const found = messages.findLast((item) => item.purpose === purpose);
   assert.ok(found, `${purpose} mock delivery`);
@@ -230,7 +238,17 @@ try {
   await clickButton('비밀번호 변경');
   await waitFor("document.body.innerText.includes('비밀번호가 변경')", 'reset confirmation');
   await login('seller', customerEmail, nextPassword);
-  console.log('AUTH_BROWSER_QA_PASS signup admin setup seller review reset viewport keyboard fragment');
+  await invalidActionLink('/signup', '#signup-password', '#signup-repeat', '구매자 가입', '만료되었거나 이미 사용');
+  await invalidActionLink('/admin-setup', '#admin-setup-password', '#admin-setup-repeat',
+    '관리자 비밀번호 설정', '만료되었거나 이미 사용');
+  await invalidActionLink('/reset-password', '#reset-password', '#reset-repeat',
+    '비밀번호 변경', '만료되었거나 이미 사용');
+  setQaAuthSink(undefined);
+  await navigate('/signup');
+  await setInput('#signup-email', `browser-undelivered+${run}@example.invalid`);
+  await clickButton('확인 링크 요청');
+  await waitFor("document.body.innerText.includes('지금은 확인 링크를 보낼 수 없습니다')", 'delivery unavailable UI');
+  console.log('AUTH_BROWSER_QA_PASS signup admin setup seller review reset invalid links delivery failure viewport keyboard fragment');
 } finally {
   await closeCdpPage({ debugging, page, socket }).catch(() => {});
   if (chrome) chrome.kill();
