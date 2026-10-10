@@ -5204,3 +5204,11 @@
 - 기존 `qa-s5-customer-browser.mjs`는 가상 고객 주소만 확인하고 Web·Chrome 접속 대상과 상품 ID를 확인하지 않은 채 Chrome 연결을 시도했다. 외부 Web/Chrome 주소·잘못된 상품 ID 세 반례를 추가해 수정 전 **0 pass·3 fail(RED)**을 확인했다. 입력을 127.0.0.1 Web9091·로컬 Chrome·8자리 QA 고객·UUID 상품으로 제한한 뒤 표적 시험 **3 pass·0 fail(GREEN)**. 이 실행은 접속 전 거부만 시험했고 새 QA DB 행·서버·브라우저 프로필을 생성하지 않았다.
 - 최종 로컬 `pnpm test`: **644건/451 pass·193 DB 조건부 skip·0 fail**, PR 본문 시험 **8 pass·0 fail**. `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 exit 0(웹 31경로). 변경은 고객 브라우저 QA 스크립트·가드 시험·본 현황에만 한정하고 설계·작업계획·제품 API/DB는 불변이다.
 - 실제 고객 화면 조작, WSL 실행 18화면, Chrome·Edge 실제 200%, 30분 부하 및 결합 복원은 이 가드 시험으로 검증되지 않았다. 다음은 서버 자원 허용 시 승인된 전용 QA DB에서 같은 SHA의 식별 가능한 fixture와 실제 브라우저를 사용하고, 시험 ID 자료와 포트·프로필을 사후 대조한다.
+
+## 2026-10-11 Task 7 Windows 브라우저 확대 시험 자원 선언
+
+- 담당 어울. 시작 SHA `0308909caa3c7c55e553123c8ed20afdf4358afd`, WSL 지정 checkout 동일 SHA·clean. WSL load average 3.49/6.02/5.57로 WSL의 신규 Web/API/Chrome·30분 부하는 실행하지 않는다. 로컬 9091/9092/9229/15442 listener 사전 0이며 Chrome에는 사용자 소유 탭만 있고 Edge 연결은 확인되지 않았다.
+- 계획의 실제 200% 검증 가능성을 확인하기 위해 Windows 로컬 Web 개발 서버 127.0.0.1:9091 한 프로세스와 새 Chrome 시험 탭 하나만 잠시 사용한다. API·DB·결제·메일은 시작하지 않는다. 계정 없는 공개 `/login`·`/signup` 화면의 브라우저 자체 확대만 부분 관찰하며 18개 역할 화면 전체 PASS로 승격하지 않는다.
+- 시험 후 확대 배율을 원래 상태로 돌리고 시험 탭·서버 프로세스를 닫아 9091 listener와 소유 자원 잔류 0을 확인한다. 기존 사용자 탭·설정은 보존한다. Chrome UI 제어가 실제 배율을 변경하지 못하면 증거를 미검증으로 남기고 `docs/design_change.md`의 차단 판정을 유지한다.
+- Chrome 사용자 브라우저의 새 로컬 `/login` 탭에서 기본 `innerWidth=1892`, `devicePixelRatio=1`, `scrollWidth=1892`를 관찰했다. 브라우저 입력 `Ctrl++`와 `Ctrl+=` 뒤에도 세 값이 모두 그대로였다. 따라서 실제 200% 브라우저 확대라고 판정하지 않았고 기존 Task 7 차단을 유지한다. 로그인 양식과 가입하기·비밀번호 찾기 링크는 AX 트리에서 노출됐으나 확대·API·DB 검증은 아니다.
+- 새 Chrome 탭을 닫은 후 탭 목록에서 해당 ID 부재, 로컬 Next 개발 서버 종료 후 9091 listener 0을 확인했다. Next dev가 `apps/web/next-env.d.ts`를 `.next/dev` 경로로 자동 변경한 것은 실행 전 추적 내용으로 되돌려 제품 파일 diff 0으로 대조했다. 기존 사용자 탭·설정·DB는 변경하지 않았다. 오류 횟수 0(확대 단축키 무효는 시험 판정).
