@@ -124,6 +124,8 @@ test('admin correction records current Y category and preserves completed X tota
     const request = { originalEventId: originalId, requestId: randomUUID(),
       direction: 'decrease', amountWon: 2000, reason: '원수수료 정정' };
     const correction = await recordCorrection(client, adminId, request);
+    assert.ok(new Date(may.completedAt).getTime() < new Date(correction.occurredAt).getTime(),
+      '5월 정산 완료는 7월 정정보다 먼저 기록돼야 한다');
     assert.equal((await recordCorrection(client, adminId, request)).id, correction.id);
     await assert.rejects(recordCorrection(client, adminId,
       { ...request, amountWon: 3000 }), /Settlement correction request conflict/);

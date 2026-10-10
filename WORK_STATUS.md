@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 2026-10-10 Task 2 독립 리뷰 Important 보정 자원 계획
+
+- 담당 어울. 독립 읽기 리뷰 범위 `eab39ab..f00912b`에서 Critical 0·Important 2·Minor 1. Important 1은 5월 기간 완료의 실제 기록시각이 10월인데 이후 정정만 시험 clock으로 7월에 놓아 시간 선후가 뒤집힌 점이다. Important 2는 `settlement-followup-db.test.mjs`의 fixture `PGDATABASE` 연결과 HTTP 앱 `DATABASE_URL` 연결이 달라도 전자만 검증한 점이다. 두 시험 파일은 승인된 Task 2 목록 안이다. 자동 PDF 내용 검사는 Minor로 기록하며 OS 인쇄를 대체하지 않는다.
+- 기존 checkout은 변경하지 않고 지정 WSL 시험 checkout의 정확한 push SHA와 Node24 일회용 runner `shoppingmall-s6-reviewfix-1010-node`, PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-reviewfix-1010-pg`만 쓴다. 대상 DB `shoppingmall_s6_correction_1010`과 의도적으로 잘못된 URL 검증용 빈 DB `shoppingmall_s6_decoy_1010`는 같은 일회용 PG 안에만 만든다. host 공개 포트·영속 DB mount 0, network none, system ID gate를 사용한다. 단일 파일 RED→GREEN, URL 불일치의 사전쓰기 거부, 네 파일 0 skip·전체 로컬 검증 뒤 exact ID·mount 확인으로 PG/runner를 제거하고 WSL clean main으로 복귀한다. 공유 `local-postgres/shoppingmall`에는 연결·쓰기하지 않는다.
+
 ## 2026-10-10 Task 2 5월→7월 정정 격리 재현 결과
 
 - 담당 어울. 지정 시험 파일 한 곳에서 5월 X 원사건·5월 판매자별 기간 완료 뒤, 같은 시험 트랜잭션 안에만 `qa_clock.statement_timestamp()`를 두고 검색 경로를 바꿔 **2026-07-01**을 서버 기록 시각으로 재현했다. 함수 선택과 반환 정정일 7월 1일을 단언한다. 제품 코드·migration·공유 DB 시각은 변경하지 않는다. 이 시험은 실제 달력을 바꾼 운영 검증이 아니라 격리 실DB의 시간 경계 재현이다.
