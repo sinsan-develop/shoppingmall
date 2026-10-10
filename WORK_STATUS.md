@@ -1,14 +1,21 @@
 # 어울몰 작업현황
 
+## 2026-10-10 Task 2 5월→7월 정정 격리 재현 결과
+
+- 담당 어울. 지정 시험 파일 한 곳에서 5월 X 원사건·5월 판매자별 기간 완료 뒤, 같은 시험 트랜잭션 안에만 `qa_clock.statement_timestamp()`를 두고 검색 경로를 바꿔 **2026-07-01**을 서버 기록 시각으로 재현했다. 함수 선택과 반환 정정일 7월 1일을 단언한다. 제품 코드·migration·공유 DB 시각은 변경하지 않는다. 이 시험은 실제 달력을 바꾼 운영 검증이 아니라 격리 실DB의 시간 경계 재현이다.
+- 시험 SHA `5bb6102a3fc741d6318e841eddf6c126072ce8dc`, 일회용 PG15 ID `94fd936bae6801e8bf1bc0a16d875a5e155fef3cb5768bc320e2a74a103cb31e`, system ID `7694971549720014887`, DB `shoppingmall_s6_correction_1010`, network none·영속 mount 0/tmpfs 1을 확인했다. main의 migration 24건에서 표적 RED 0/1·SQLSTATE 23514(기존 X/Y 원사건 불일치), 같은 격리 DB에 0024 적용 후 25건에서 표적 GREEN 1/1·0 skip. 5월 X 고정 10,000원, 7월 Y 정정 −2,000원, 전체 8,000원과 원사건 링크를 실제 조회로 검사했다. Task 2 네 파일 통합 13/13 pass·0 skip·0 fail.
+- 시험 후 업무행 조회는 accounts 5/sellers 4/events 10/completions 0이었다. 표적 시험의 트랜잭션은 rollback됐으나 다른 통합 시험 fixture가 남아 있었으므로 **격리 DB 전체를 정확한 ID로 제거**했다. `qa_clock` 스키마 잔류는 0. 첫 사후 조회는 셸에서 `$$`가 PID로 치환되어 구문 오류 1회였고, 인용 없는 행 수·스키마 목록 조회로 다시 확인했다. Node runner는 매 호출 `--rm`, 지정 PG stop/rm 후 두 이름 잔류 0, WSL 지정 checkout clean main 복귀. 공유 `local-postgres/shoppingmall`에는 시험 거래를 만들지 않았다.
+- 로컬 전체 `pnpm test`는 본시험 606건/435 pass·171 조건부 DB skip·0 fail과 PR 본문 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0. 격리 실DB의 13/13과 로컬 조건부 skip을 분리한다. G2 OS 인쇄·200% 및 G5 공유 실제 역할 세션은 여전히 미검증, PR 병합·merged-main smoke는 미실행이다.
+
 ## 2026-10-10 Task 2 5월→7월 정정 격리 재현 자원 계획
 
 - 담당 어울. 승인된 `WORK_PLAN_20260-10-10.md` Task 2·Review Focus의 정확한 7월 Y 사건 월 재현만 계획에 지정된 `apps/api/test/settlement-correction-category-db.test.mjs`에서 보강한다. 제품 코드·migration·설계서·작업계획서는 수정하지 않는다. 시험 트랜잭션 안의 독립 clock schema로 서버 기록 시각을 7월 1일로 고정할 수 있는지 먼저 격리 DB에서 확인하며, 실제 함수 선택·분류·기간 결과가 일치하지 않으면 이 시험 방식은 폐기하고 미검증을 유지한다.
-- WSL 지정 checkout은 현재 clean main이다. 호스트 공개 포트 없는 일회용 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-july-1010-pg`에 격리 DB `shoppingmall_s6_correction_1010`을 만들고, 동일 network namespace의 일회용 Node 24 runner `shoppingmall-s6-july-1010-node`만 연결한다. 이름·기존 자원 충돌을 먼저 확인하고 system ID를 DB 시험 gate로 지정한다. 0000~0023에서 RED, 동일 DB의 0024 적용 뒤 GREEN과 Task 2 네 파일 통합을 확인한다. 모든 시험 자료는 롤백되고, 사용 후 정확한 ID·mount 확인으로 위 자원만 제거한다. 공유 `local-postgres/shoppingmall`·다른 자원은 변경하지 않는다.
+- WSL 지정 checkout은 시작 시 clean main이다. 호스트 공개 포트 없는 일회용 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-july-1010-pg`에 격리 DB `shoppingmall_s6_correction_1010`을 만들고, 동일 network namespace의 일회용 Node 24 runner `shoppingmall-s6-july-1010-node`만 연결한다. 이름·기존 자원 충돌을 먼저 확인하고 system ID를 DB 시험 gate로 지정한다. 0000~0023에서 RED, 동일 DB의 0024 적용 뒤 GREEN과 Task 2 네 파일 통합을 확인한다. 표적 시험 트랜잭션은 rollback하고 통합 시험 fixture는 일회용 DB 전체 제거로 정리한다. 사용 후 정확한 ID·mount 확인으로 위 자원만 제거한다. 공유 `local-postgres/shoppingmall`·다른 자원은 변경하지 않는다.
 
 ## 2026-10-10 지정 계획 Task 4 판정표 대조
 
 - 담당 어울. 대조 시점 작업 브랜치 `codex/next-work-20261010-2@e4ddabafc8b205e7ecf89707d9bfd7e9699f2bd5`와 SSH 원격 head 일치. PR #18은 같은 head/main `eab39abc6caf8155edfd20d96de7f014fd06a8c3`의 open·미병합이다. 해당 head의 push CI `38041564203`·PR CI `38041566632` completed/success, PR 본문 자동 갱신 success. 지정 WSL checkout은 clean main이고, 공유 DB는 migration 25·accounts/sellers/events/completions 각 0. 사용자 소유 미추적 세 경로는 그대로 보존했다.
-- G4 기능: **격리 시험 PASS**. 0024·X→Y 감소/증가, 고정 완료, 원사건 링크·멱등·권한·경합을 동일 격리 PostgreSQL 15에서 Task 2 네 파일 13/13·0 skip으로 검사했다. 원사건과 정정일의 경계 시험은 별도 RED→GREEN. 정확한 ‘7월 Y’ 월의 실DB 발생은 별도 재현하지 않았고, 5월 고정 뒤 실제 정정일의 Y 조회로 기간 분리 계약을 검사했다.
+- G4 기능: **격리 시험 PASS**. 0024·X→Y 감소/증가, 고정 완료, 원사건 링크·멱등·권한·경합을 동일 격리 PostgreSQL 15에서 Task 2 네 파일 13/13·0 skip으로 검사했다. 원사건과 정정일의 경계 시험은 별도 RED→GREEN. 정확한 ‘7월 Y’ 월은 시험 트랜잭션 전용 clock schema를 사용해 격리 실DB에서 재현했다. 실제 운영 달력·공유 DB의 거래로 검증한 것은 아니다.
 - 격리 거래 E2E/화면: **해당 범위 PASS**. 기존 동일 SHA API/Chrome 관리자·판매자 조회 및 자동 PDF·1440/430px 근거가 있다. 이 근거를 공유 DB의 실제 역할 세션이나 OS 저장·실제 줌으로 승격하지 않는다.
 - 공유 DB schema/읽기 smoke: **부분 PASS/부분 미검증**. 승인된 0024 적용 후 migration 25·업무행 0, health/ready 200과 익명/가짜 역할·잘못된 Origin 차단은 확인했다. 실제 관리자/판매자 계정·세션의 교차 역할 조회는 계정 0건과 공유 가상 거래 금지 경계로 미검증(G5).
 - OS 인쇄 창 PDF 저장·파일 열람: **미검증(G2)**. 실제 브라우저 200% 확대·Tab/가로 넘침: **미검증(G2)**. 기존 입력 시간 초과 및 URL 안전 판별 제한 이후 같은 제어 방법을 재시도하거나 CDP 자동 PDF/430px를 대체 합격으로 처리하지 않는다.
