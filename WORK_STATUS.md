@@ -5197,3 +5197,10 @@
 - 순서는 DB identity 확인→해당 ID seed→루프백 Web/API/Chrome의 장바구니 수량·견적·제거 조작→동일 ID reset이다. 실패해도 자기 ID만 reset하고 테스트가 남긴 DB 참조를 확인한다. 소유 프로세스와 터널을 종료하고 프로필/포트·전용/보호 DB 대상 행의 잔류를 읽기 전용으로 확인한다. 이 실행은 로컬 API/Web+WSL QA DB의 한 화면 부분 증거이며 정식 WSL API/Next 18화면·Chrome/Edge 실제 200%의 대체 증거가 아니다.
 - 같은 SHA에서 Windows Web를 `NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:9092`로 재빌드(exit 0), 승인 QA DB(system ID 위 값)에 seed한 뒤 로컬 API/Web와 격리 Chrome의 `qa-cart-browser.mjs`가 **구매자 로그인→상품 2개 담기 46,000원+배송 3,000원=49,000원→3개로 변경 69,000원 무료배송→390px/Tab→제거·빈 장바구니**를 모두 통과했다. 이 시험은 결제·주문·WSL 실행 Next/API·실제 200%를 검증하지 않았다.
 - fixture `reset`은 exit 0, 전용 QA DB의 해당 ID 계정·판매자 분류·상품 버전·장바구니 4범주 0행, 보호 `shoppingmall`의 해당 ID 계정·판매자 분류·상품 버전 3범주 0행을 읽기 전용으로 확인했다. 로컬 정리 코드의 `Select-Object -Reverse` 미지원으로 fixture reset **후** 프로세스/프로필 정리에서 오류 1회가 발생했다. 대상 PID와 명령행을 확인해 QA 전용 SSH/API/Web/Chrome 트리만 종료하고 절대경로 `D:\tmp\shoppingmall-cart-profile-c7511011`만 삭제했다. 후조회 9091/9092/9229/15442 listener 0, 프로필 없음; 이름 문자열로 찾은 `pwsh` 1개는 검사 명령 자신으로 판정했다. 제품 기능 오류나 미정리 자원으로 표시하지 않는다.
+
+## 2026-10-11 Task 6 고객 브라우저 시험 입력 경계
+
+- 담당 어울. 시작 로컬·WSL SHA `29ef3dab2034617a48ea6e462c2becb41197e9c8`, 기존 작업 브랜치. 사용자 소유 비추적 세 경로는 건드리지 않았다. WSL 2 vCPU load average 3.14/3.74/4.35로 공유 서버의 Next/API/Chrome·30분 부하 실행은 하지 않았다.
+- 기존 `qa-s5-customer-browser.mjs`는 가상 고객 주소만 확인하고 Web·Chrome 접속 대상과 상품 ID를 확인하지 않은 채 Chrome 연결을 시도했다. 외부 Web/Chrome 주소·잘못된 상품 ID 세 반례를 추가해 수정 전 **0 pass·3 fail(RED)**을 확인했다. 입력을 127.0.0.1 Web9091·로컬 Chrome·8자리 QA 고객·UUID 상품으로 제한한 뒤 표적 시험 **3 pass·0 fail(GREEN)**. 이 실행은 접속 전 거부만 시험했고 새 QA DB 행·서버·브라우저 프로필을 생성하지 않았다.
+- 최종 로컬 `pnpm test`: **644건/451 pass·193 DB 조건부 skip·0 fail**, PR 본문 시험 **8 pass·0 fail**. `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 exit 0(웹 31경로). 변경은 고객 브라우저 QA 스크립트·가드 시험·본 현황에만 한정하고 설계·작업계획·제품 API/DB는 불변이다.
+- 실제 고객 화면 조작, WSL 실행 18화면, Chrome·Edge 실제 200%, 30분 부하 및 결합 복원은 이 가드 시험으로 검증되지 않았다. 다음은 서버 자원 허용 시 승인된 전용 QA DB에서 같은 SHA의 식별 가능한 fixture와 실제 브라우저를 사용하고, 시험 ID 자료와 포트·프로필을 사후 대조한다.
