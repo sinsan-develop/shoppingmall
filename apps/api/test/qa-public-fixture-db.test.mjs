@@ -5,6 +5,24 @@ import { Pool } from 'pg';
 import { PublicProducts } from '../src/catalog/public-products.ts';
 import { ProductSaleStops } from '../src/catalog/product-sale-stops.ts';
 
+test('dedicated role QA database repeats one public product seed without duplicating it', {
+  skip: !process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID || !process.env.DATABASE_URL,
+}, async () => {
+  const runId = randomBytes(4).toString('hex');
+  const { runQaPublicFixture } = await import('../scripts/qa-public-fixture.ts');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    const first = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
+    const second = await runQaPublicFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
+    assert.equal(second.productId, first.productId);
+    const products = await pool.query('SELECT count(*)::int AS total FROM products WHERE id=$1', [first.productId]);
+    assert.equal(products.rows[0].total, 1);
+  } finally {
+    try { await runQaPublicFixture('reset', runId, process.env.DATABASE_URL); }
+    finally { await pool.end(); }
+  }
+});
+
 test('public browser fixture exposes one sellable QA product and resets only its run', {
   skip: !process.env.DATABASE_URL,
 }, async () => {

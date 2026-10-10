@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { Pool, type PoolClient } from 'pg';
-import { qaNames, runQaFixture, validateQaRunId } from './qa-fixture.js';
+import { assertQaFixtureDatabase, qaNames, runQaFixture, validateQaRunId } from './qa-fixture.js';
 
 function productNames(runId: string) {
   return {
@@ -22,6 +22,32 @@ async function seedPublicProduct(client: PoolClient, runId: string, count: numbe
   );
   if (seller.rows.length !== 1 || sellerAccount.rows.length !== 1 || adminAccount.rows.length !== 1) {
     throw new Error('QA account fixture missing');
+  }
+  const existingMajor = await client.query<{ id: string }>(
+    'SELECT id FROM product_categories WHERE name=$1 AND parent_id IS NULL', [product.major]);
+  if (existingMajor.rows.length) {
+    if (existingMajor.rows.length !== 1) throw new Error('QA public fixture has partial data');
+    const rows = await client.query<{
+      product_id: string; revision_id: string | null; title: string | null;
+      minor_id: string; seller_name: string;
+    }>(
+      `SELECT p.id AS product_id, r.id AS revision_id, r.title, minor.id AS minor_id,
+              s.display_name AS seller_name
+       FROM product_categories minor JOIN products p ON p.category_id=minor.id
+       JOIN sellers s ON s.id=p.seller_id
+       LEFT JOIN product_publications pub ON pub.product_id=p.id
+       LEFT JOIN product_revisions r ON r.id=pub.revision_id
+       WHERE minor.parent_id=$1 AND minor.name=$2`, [existingMajor.rows[0].id, product.minor]);
+    const expectedTitles = new Set(Array.from({ length: count }, (_, index) => index === 0
+      ? product.title : `${product.title}-extra-${String(index).padStart(2, '0')}`));
+    const primary = rows.rows.find((row) => row.title === product.title);
+    if (rows.rows.length === count && primary?.revision_id && rows.rows.every((row) =>
+      row.revision_id && row.seller_name === names.sellerA && expectedTitles.delete(row.title ?? ''))
+      && expectedTitles.size === 0) {
+      return { productId: primary.product_id, revisionId: primary.revision_id,
+        majorId: existingMajor.rows[0].id, title: product.title, count };
+    }
+    throw new Error('QA public fixture has partial data');
   }
   const majorId = (await client.query<{ id: string }>(
     'INSERT INTO product_categories(name) VALUES ($1) RETURNING id', [product.major],
@@ -126,7 +152,9 @@ async function resetPublicProduct(client: PoolClient, runId: string) {
 export async function runQaPublicFixture(action: 'seed' | 'reset', runId: string, databaseUrl: string,
   password?: string, productCount = 1) {
   const id = validateQaRunId(runId);
-  if (new URL(databaseUrl).pathname !== '/shoppingmall') throw new Error('QA fixture is limited to shoppingmall database');
+  if (!['/shoppingmall', '/shoppingmall_qa_20261010_2'].includes(new URL(databaseUrl).pathname)) {
+    throw new Error('QA fixture is limited to shoppingmall database or approved role QA database');
+  }
   if (action !== 'seed' && action !== 'reset') throw new Error('Invalid QA action');
   if (!Number.isInteger(productCount) || productCount < 1 || productCount > 25) {
     throw new Error('QA product count must be 1..25');
@@ -136,6 +164,7 @@ export async function runQaPublicFixture(action: 'seed' | 'reset', runId: string
   try {
     const client = await pool.connect();
     try {
+      await assertQaFixtureDatabase(client, databaseUrl);
       await client.query('BEGIN');
       const result = action === 'seed' ? await seedPublicProduct(client, id, productCount) : await resetPublicProduct(client, id);
       await client.query('COMMIT');

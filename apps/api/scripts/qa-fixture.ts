@@ -19,6 +19,24 @@ export function qaNames(runId: string) {
   };
 }
 
+export async function assertQaFixtureDatabase(client: PoolClient, databaseUrl: string) {
+  const pathname = new URL(databaseUrl).pathname;
+  if (pathname !== '/shoppingmall' && pathname !== '/shoppingmall_qa_20261010_2') {
+    throw new Error('QA fixture is limited to shoppingmall database or approved role QA database');
+  }
+  if (pathname === '/shoppingmall_qa_20261010_2') {
+    if (!/^\d+$/.test(process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID ?? '')) {
+      throw new Error('QA role database system ID must be specified');
+    }
+    const identity = await client.query<{ database: string; system_id: string }>(
+      'SELECT current_database() AS database, system_identifier::text AS system_id FROM pg_control_system()');
+    if (identity.rows[0]?.database !== 'shoppingmall_qa_20261010_2'
+      || identity.rows[0]?.system_id !== process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID) {
+      throw new Error('QA role database identity mismatch');
+    }
+  }
+}
+
 async function seed(client: PoolClient, runId: string, password: string) {
   const names = qaNames(runId);
   const existing = await client.query<{ categories: number; sellers: number; identities: number; roles: number }>(
@@ -122,24 +140,15 @@ export async function resetQaAccounts(client: PoolClient, runId: string) {
 
 export async function runQaFixture(action: 'seed' | 'reset', runId: string, databaseUrl: string, password?: string) {
   const dbUrl = new URL(databaseUrl);
-  const isRoleQa = dbUrl.pathname === '/shoppingmall_qa_20261010_2';
-  if (dbUrl.pathname !== '/shoppingmall' && !isRoleQa) throw new Error('QA fixture is limited to an approved database');
-  if (isRoleQa && !/^\d+$/.test(process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID ?? '')) {
-    throw new Error('QA role database system ID must be specified');
+  if (dbUrl.pathname !== '/shoppingmall' && dbUrl.pathname !== '/shoppingmall_qa_20261010_2') {
+    throw new Error('QA fixture is limited to shoppingmall database or approved role QA database');
   }
   if (action === 'seed' && (!password || password.length < 12)) throw new Error('QA_FIXTURE_PASSWORD must be set');
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     const client = await pool.connect();
     try {
-      if (isRoleQa) {
-        const identity = await client.query<{ database: string; system_id: string }>(
-          'SELECT current_database() AS database, system_identifier::text AS system_id FROM pg_control_system()');
-        if (identity.rows[0]?.database !== 'shoppingmall_qa_20261010_2'
-          || identity.rows[0]?.system_id !== process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID) {
-          throw new Error('QA role database identity mismatch');
-        }
-      }
+      await assertQaFixtureDatabase(client, databaseUrl);
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`qa-fixture:${validateQaRunId(runId)}`]);
       const result = action === 'seed'

@@ -5042,3 +5042,9 @@
 - RED: 전용 DB seed는 기존 경로 제한으로 실패했고, 역할 변조 후 재시드는 기존 행 수 검사만으로 거부되지 않아 실패했다. GREEN: 전용 DB 표적 4 pass·1 기존 공유 DB 전용 skip·0 fail. 해당 시험의 생성 계정/판매자/분류/역할은 reset 후 각각 0행이다. 비밀값은 출력·파일화하지 않았다.
 - 전체 로컬 `pnpm test`: 632건·441 pass·191 조건부 skip·0 fail, PR 본문 검사 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 31경로), `git diff --check` 모두 exit 0. DB 의존 skip·18화면 실제 브라우저·WSL 정식 E2E·복구·30분 부하는 아직 통과로 세지 않는다.
 - 오류: QA 잔류 확인 SQL의 인용 오류 1회(읽기 실패, 자료 변경 없음); 인용이 필요 없는 계수 질의로 재확인했다. 다음 작업은 exact SHA를 WSL 지정 checkout에 맞추고 전용 QA DB의 역할·상품 자료를 멱등 준비한 뒤 18화면 정상/오류/권한/재시도 검증이다. 보호 `shoppingmall`에는 시험 거래를 만들지 않는다.
+
+## 2026-10-11 Task 6 공개 상품 QA 자료 반복성
+
+- 담당 어울. 이전 계정 fixture 커밋 `55a47a151bb860ac3fde0c2a8920c31b5e4c0ba4`는 승인 SSH 원격과 지정 WSL checkout에서 exact SHA가 일치했다. WSL Node 24 컨테이너·전용 `shoppingmall_qa_20261010_2`로 표적 계정 시험 4 pass·1 공유 DB 전용 skip·0 fail, 시험 후 계정/판매자/분류/역할 0행을 확인했다. 보호 DB 쓰기는 수행하지 않았다.
+- 변경 대상 `apps/api/scripts/qa-fixture.ts`, `apps/api/scripts/qa-public-fixture.ts`, `apps/api/test/qa-public-fixture-db.test.mjs`, 본 기록이다. 전용 DB 공개 상품 자료는 DB명·PG system ID 검증 후 같은 run ID의 두 번째 seed에서 기존 상품 ID를 돌려주고 중복을 만들지 않는다. 중간 상태나 상품 수 불일치는 거부한다. reset 역시 DB 식별 확인 뒤 소유 run ID 자료만 정리한다.
+- RED: 기존 상품 fixture는 전용 DB 경로를 거부했다. GREEN: 전용 DB 계정·상품 표적 12건 중 11 pass·1 공유 DB 전용 skip·0 fail; 시험 후 계정/판매자/상품분류/상품/역할 각 0행. 전체 로컬 `pnpm test` 633건·441 pass·192 조건부 skip·0 fail, PR 본문 검사 8/8, typecheck·lint·build exit 0. 실제 18화면과 주문·결제·복구·30분 부하는 여전히 미검증이다. 다음 단계는 변경 SHA push→WSL exact SHA에서 계정·상품 표적 회귀 및 실제 18화면 경로 시험이다.
