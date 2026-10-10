@@ -4918,3 +4918,9 @@
 - 신산님이 PC 관리자 화면에서 실제 인쇄 창의 PDF 저장 파일 열람·화면과 금액 대조, 브라우저 200% 확대·Tab 접근이 모두 정상이라고 직접 응답했다. 첨부 인쇄 미리보기에는 판매자 A·전체 합계의 수수료 10,000원이 보인다. PDF 파일 원본·확대 화면의 픽셀 증거는 agent가 수집하지 않았으므로 사용자 직접 확인과 첨부 미리보기 근거를 분리한다. 판매자 동일 항목은 아직 사용자 직접 확인 전이다.
 - 신산님이 PC 판매자 화면의 실제 OS 인쇄 창 PDF 저장 파일 열람·10,000원 및 분류 대조, 실제 200% 확대·Tab 접근도 모두 정상이라고 직접 응답했다. 관리자와 판매자 각각 사용자 확인 PASS로 기록하되 PDF 원본과 200% 화면 캡처는 agent 보유 증거가 아닌 사용자 진술이다. 격리 DB에서 판매자 세션→관리자 정산 GET 403, 관리자 세션→판매자 정산 GET 403을 추가 확인했다. 공유 DB 실제 역할 세션 G5와 혼동하지 않는다.
 - 사용자 확인 뒤 ID를 대조한 이번 Web/API/PG 세 컨테이너와 전용 `.next` volume을 중지·제거했다. tmpfs DB의 가상 계정·사건도 폐기했다. 지정 WSL checkout은 clean `main@eab39abc6caf8155edfd20d96de7f014fd06a8c3`로 복귀했다. 기존 Windows `wslrelay.exe` PID 23348과 사용자 브라우저 탭·저장 PDF는 이번 자원이 아니므로 조작·삭제하지 않았다. 신산님의 추가 요구인 관리자 첫 비밀번호 설정 및 가입/찾기는 현 승인 정산 계획 밖으로 `docs/design_change.md`에 분리 기록하고 인증 코드를 변경하지 않았다.
+
+## 2026-10-10 Task 4 PR 설명 재대조
+
+- 정확한 작업 head `20edba7dafbf321f6e4480e720825d0db1827b40`의 push CI `38047992480`와 PR CI `38047995292`는 공개 읽기 API상 둘 다 `completed/success`; PR #18은 같은 head와 base `eab39abc6caf8155edfd20d96de7f014fd06a8c3`의 open 상태다. 이 head의 PR 본문은 사용자 직접 인쇄·200% 확인 전 상태로 남아 있었다.
+- 공유 `local-postgres/shoppingmall`의 읽기 전용 재조회: DB `shoppingmall`, system ID `7622490131194466339`, migration 25, accounts/sellers/settlement_events/seller_settlement_periods 각 0. 실제 역할 세션 G5는 여전히 미검증이다. 첫 조회에서 기간 테이블명을 잘못 지정해 relation 오류 1회가 있었고 SQL 원본의 `seller_settlement_periods`를 확인해 읽기 조회를 재실행했다. 공유 DB 쓰기는 0.
+- 계획 Task 4의 `.github/PR_REQUEST.md`에 사용자 직접 OS PDF·200% 확인과 증거 한계, G5 잔여 미검증을 분리해 갱신했다. PR 본문 검사 8/8·`git diff --check` 통과. PR #17의 예외를 재사용하지 않고 G5 처리 기준이 정해지기 전 병합·merged-main smoke는 수행하지 않는다. 설계서·작업계획서·인증 코드는 변경하지 않았다.
