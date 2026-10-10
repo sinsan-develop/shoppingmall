@@ -176,6 +176,13 @@
       "when": 1791792000000,
       "tag": "0024_s6_correction_category",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791878400000,
+      "tag": "0025_account_onboarding",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,13 @@
 # 어울몰 개발·시험 환경 (초안)
 
+## 2026-10-10 계정 온보딩 개발·시험 경계
+
+- 신규 가입·관리자 첫 설정·비밀번호 재설정 링크는 `AUTH_DELIVERY_MODE=disabled`가 기본이며 정식 발송 어댑터가 없으면 발급을 거부한다. `mock`은 `APP_ENV=development`, `API_HOST=127.0.0.1`, 루프백 `AUTH_LINK_ORIGIN`, 같은 프로세스의 비공개 QA 수신함을 모두 만족한 격리 시험에서만 사용한다. 이 결과는 실제 이메일·문자 수신 증거가 아니다.
+- 비밀 없는 설정 이름: API의 `DATABASE_URL`, `WEB_ORIGIN`, `AUTH_DELIVERY_MODE`, `AUTH_LINK_ORIGIN`, `AUTH_AUDIT_HMAC_KEY`; Web 빌드의 `NEXT_PUBLIC_API_ORIGIN`; 관리자 명시 CLI의 `INITIAL_ADMIN_EMAIL`(루트 로컬 환경의 `EMAIL_TO`와 불일치하면 거부), `INITIAL_ADMIN_OPERATOR`. 실제 비밀값·이메일 주소·원문 수단·재설정 링크는 Git, 일반 로그, PR 본문에 기록하지 않는다. `NEXT_PUBLIC_` 변수에는 비밀을 넣지 않는다.
+- 초기 관리자 CLI는 공개 HTTP/서버 시작에서 자동 실행하지 않는다. 정확한 공유 DB 식별과 소유자·전달 채널을 확정하고 별도 승인을 받은 뒤에만 지속 계정을 만든다. 현재 CLI의 모의 전달 모드는 격리 DB 시스템 ID 가드가 있는 개발 QA만 지원한다. 정식 발송 미구현을 관리자 계정 준비 성공으로 취급하지 않는다. 절차와 복구 경계는 [초기 관리자 안내](INITIAL_ADMIN_RUNBOOK.md)를 따른다.
+- `auth_security_events`의 목적·이메일·접속원 식별자는 운영 HMAC 비밀키로 해시된다. 목적별 발급은 1시간 5회, 확인 실패는 15분 5회로 제한한다. `apps/api/scripts/purge-auth-security-events.ts`는 30일 초과 보안 이력과 만료/사용 후 24시간이 지난 수단만 정리한다. 운영 스케줄러 연결과 실제 보관 정책 검토는 별도 환경 단계이며, 삭제 전 DB 식별·백업/복구 경계를 확인한다.
+- 루프백 전용 재현: 승인된 작업 SHA의 API와 QA Web를 127.0.0.1:9092/9091에 띄우고, 격리 PG15의 정확한 DB/system ID·빈 주요 테이블을 확인한 뒤 `scripts/qa-auth-browser.mjs`로 Chrome 격리 프로필에서 가입→신청/승인→복구를 검증한다. 스크립트는 고유 가상 계정·판매자와 프로필을 종료 시 정리한다. 430/1440·Tab 확인은 자동 증거이며 실제 브라우저 200% 확대와 공급자 수신은 별도로 판정한다.
+
 ## 2026-10-09 S6 공유 DB 최신 상태
 
 - `WSL-server`의 `local-postgres/shoppingmall`(PostgreSQL 15.18, system ID `7622490131194466339`)에 특정 승인·백업 검증 후 정산 migration 0020·0021을 적용했다. Drizzle 이력은 **22건/대기 0**이며 기존 계정·판매자·주문·결제·환불 행 수는 모두 0으로 유지됐다. 정산 사건·완료 기간·연결 행도 0건이다.

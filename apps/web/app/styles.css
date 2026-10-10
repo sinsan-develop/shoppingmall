@@ -173,3 +173,14 @@ p{line-height:1.7}
 @media print{.settlement-late{break-inside:avoid;page-break-inside:avoid}}
 @page settlement-report{size:A4;margin:8mm}
 @media print{html:has(.settlement-page){background:#fff!important}.settlement-page{page:settlement-report}.settlement-history,.settlement-history li{break-inside:avoid;page-break-inside:avoid}}
+.account-entry-links{display:flex;flex-wrap:wrap;gap:12px 20px;margin-top:20px;font-size:14px}
+.account-feedback{margin-top:18px;color:#624a24;overflow-wrap:anywhere}
+.account-wide{max-width:900px}
+.seller-review-list{list-style:none;display:grid;gap:16px;margin:24px 0 0;padding:0}
+.seller-review-item{min-width:0;padding:20px;border:1px solid #e9d2bb;border-radius:10px;background:#fffaf1;overflow-wrap:anywhere}
+.seller-review-item h2{font-size:22px;margin:0 0 8px}
+.seller-review-item p{margin:4px 0;font-size:14px}
+.seller-review-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:16px}
+.seller-review-actions .account-form{margin:0;align-content:start}
+.seller-review-actions .secondary-button{width:100%}
+@media(max-width:600px){.seller-review-actions{grid-template-columns:1fr}.seller-review-item{padding:16px}}

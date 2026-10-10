@@ -18,7 +18,7 @@ function normalizeEmail(value: string): string {
 export class AuthRepository {
   private readonly db: NodePgDatabase<typeof schema>;
 
-  constructor(pool: Pool) {
+  constructor(private readonly pool: Pool) {
     this.db = drizzle(pool, { schema });
   }
 
@@ -107,9 +107,43 @@ export class AuthRepository {
         !(await verifyPassword(password, identity.passwordHash))) {
       throw new Error('Invalid credentials');
     }
-    const scope = role === 'seller' && !sellerId ? await this.onlySellerGrant(identity.accountId) : sellerId;
-    if (!(await this.isGranted(identity.accountId, role, scope))) throw new Error('Invalid credentials');
-    return this.issueSession(identity.accountId, role, scope);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Reset updates this same identity row. Whichever transaction commits last
+      // either rejects the old hash or revokes the session just issued here.
+      const current = await client.query(`SELECT i.account_id,i.password_hash,a.disabled_at
+        FROM account_identities i JOIN accounts a ON a.id=i.account_id
+        WHERE i.kind='email' AND i.identifier=$1 FOR UPDATE OF i,a`, [email]);
+      if (current.rowCount !== 1 || current.rows[0].account_id !== identity.accountId ||
+          current.rows[0].disabled_at || current.rows[0].password_hash !== identity.passwordHash) {
+        throw new Error('Invalid credentials');
+      }
+      let scope = sellerId;
+      if (role === 'seller' && !scope) {
+        const grants = await client.query(`SELECT seller_id FROM account_roles
+          WHERE account_id=$1 AND role='seller' LIMIT 2`, [identity.accountId]);
+        if (grants.rowCount !== 1 || !grants.rows[0].seller_id) throw new Error('Invalid credentials');
+        scope = grants.rows[0].seller_id;
+      }
+      if ((role === 'seller' && !scope) || (role !== 'seller' && scope)) throw new Error('Invalid credentials');
+      const grant = await client.query(`SELECT id FROM account_roles WHERE account_id=$1 AND role=$2
+        AND seller_id::text IS NOT DISTINCT FROM $3::text LIMIT 1`, [identity.accountId, role, scope ?? null]);
+      if (grant.rowCount !== 1) throw new Error('Invalid credentials');
+      const token = createSessionToken();
+      const expiresAt = new Date(Date.now() + sessionHours * 60 * 60 * 1000);
+      await client.query(`INSERT INTO auth_sessions (token_hash,account_id,role,seller_id,expires_at)
+        VALUES ($1,$2,$3,$4,$5)`, [hashSessionToken(token), identity.accountId, role, scope ?? null, expiresAt]);
+      await client.query(`INSERT INTO audit_events (actor_account_id,active_role,seller_id,action,target_type,target_id)
+        VALUES ($1,$2,$3,'auth.login','account',$4)`, [identity.accountId, role, scope ?? null, identity.accountId]);
+      await client.query('COMMIT');
+      return { token, expiresAt };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getSession(token: string): Promise<AccessContext | undefined> {

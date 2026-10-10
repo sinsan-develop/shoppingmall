@@ -62,6 +62,10 @@ export default function LoginPage() {
             {busy ? '확인 중' : '로그인'}
           </button>
         </form>
+        <nav className="account-entry-links" aria-label="계정 도움말">
+          <a className="text-link" href="/signup">가입하기</a>
+          <a className="text-link" href="/forgot-password">비밀번호 찾기</a>
+        </nav>
         <p className="account-note">시험 계정은 개발 환경에서만 사용합니다</p>
       </section>
     </main>
