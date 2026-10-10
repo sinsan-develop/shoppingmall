@@ -252,3 +252,76 @@ test('customer signup HTTP keeps existing and unknown email responses equal and 
     }
   }
 });
+
+test('password reset HTTP hides account existence and invalidates the old session cookie', {
+  skip: !systemId,
+}, async () => {
+  assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_admin_1010');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const repository = new AuthRepository(pool);
+  const email = `reset-http+${randomUUID()}@example.invalid`;
+  const unknown = `unknown-http+${randomUUID()}@example.invalid`;
+  const oldPassword = 'isolated-http-reset-old-123';
+  const newPassword = 'isolated-http-reset-new-123';
+  const saved = [process.env.AUTH_DELIVERY_MODE, process.env.APP_ENV,
+    process.env.API_HOST, process.env.AUTH_LINK_ORIGIN];
+  process.env.AUTH_DELIVERY_MODE = 'mock';
+  process.env.APP_ENV = 'development';
+  process.env.API_HOST = '127.0.0.1';
+  process.env.AUTH_LINK_ORIGIN = 'http://127.0.0.1:9091';
+  const messages = [];
+  const resetSources = ['127.0.0.1', '::ffff:127.0.0.1', '::1'].map((address) =>
+    createHmac('sha256', process.env.AUTH_AUDIT_HMAC_KEY).update(`source:${address}`).digest('hex'));
+  let accountId;
+  let app;
+  try {
+    await pool.query("DELETE FROM auth_security_events WHERE purpose='password_reset' AND source_hash=ANY($1::text[])",
+      [resetSources]);
+    accountId = await repository.createCustomerAccount(email, oldPassword);
+    await pool.query('UPDATE account_identities SET verified_at=now() WHERE account_id=$1', [accountId]);
+    setQaAuthSink(async (message) => messages.push(message));
+    app = await createApp();
+    await app.listen(0, '127.0.0.1');
+    const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+    const post = (path, body, origin = 'http://127.0.0.1:9091') => fetch(`${base}${path}`, {
+      method: 'POST', headers: { 'content-type': 'application/json', origin }, body: JSON.stringify(body),
+    });
+    const oldLogin = await post('/auth/login', { email, password: oldPassword });
+    const oldCookie = oldLogin.headers.get('set-cookie')?.split(';')[0];
+    assert.equal((await fetch(`${base}/auth/me`, { headers: { cookie: oldCookie } })).status, 200);
+    assert.equal((await post('/auth/password-reset/start', { email }, 'https://untrusted.invalid')).status, 403);
+    const unknownStart = await post('/auth/password-reset/start', { email: unknown });
+    const knownStart = await post('/auth/password-reset/start', { email });
+    assert.equal(knownStart.status, 201);
+    assert.deepEqual(await unknownStart.json(), await knownStart.json());
+    assert.equal(messages.length, 1);
+    const token = new URL(messages[0].url).hash.slice('#token='.length);
+    assert.equal((await post('/auth/password-reset/complete', { token: 'bad', password: newPassword })).status, 401);
+    const changed = await post('/auth/password-reset/complete', { token, password: newPassword });
+    assert.equal(changed.status, 201);
+    assert.equal(changed.headers.get('set-cookie'), null);
+    assert.deepEqual(await changed.json(), { status: 'ok' });
+    assert.equal((await fetch(`${base}/auth/me`, { headers: { cookie: oldCookie } })).status, 401);
+    assert.equal((await post('/auth/login', { email, password: oldPassword })).status, 401);
+    assert.equal((await post('/auth/login', { email, password: newPassword })).status, 201);
+    assert.equal((await post('/auth/password-reset/complete', { token, password: newPassword })).status, 401);
+  } finally {
+    setQaAuthSink(undefined);
+    if (app) await app.close();
+    await pool.query('DELETE FROM auth_action_tokens WHERE email=ANY($1::text[])', [[email, unknown]]);
+    if (accountId) {
+      await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);
+      await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [accountId]);
+      await pool.query('DELETE FROM account_roles WHERE account_id=$1', [accountId]);
+      await pool.query('DELETE FROM account_identities WHERE account_id=$1', [accountId]);
+      await pool.query('DELETE FROM accounts WHERE id=$1', [accountId]);
+    }
+    await pool.query("DELETE FROM auth_security_events WHERE purpose='password_reset' AND source_hash=ANY($1::text[])",
+      [resetSources]);
+    await pool.end();
+    for (const [key, value] of Object.entries({ AUTH_DELIVERY_MODE: saved[0], APP_ENV: saved[1],
+      API_HOST: saved[2], AUTH_LINK_ORIGIN: saved[3] })) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});

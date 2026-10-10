@@ -9,6 +9,7 @@ import { completeAdminSetup, completeCustomerSignup, startCustomerSignup } from 
 import { getQaAuthSink } from './delivery.js';
 import { submitSellerApplication, listSellerApplications,
   approveSellerApplication, rejectSellerApplication } from './seller-applications.js';
+import { startPasswordReset, completePasswordReset } from './password-recovery.js';
 import type { ActiveRole } from '../access.js';
 
 type RequestHeaders = {
@@ -257,6 +258,45 @@ export class AuthController {
     if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
     try {
       return await completeCustomerSignup(pool, input.token, input.password,
+        new Date(), request.socket?.remoteAddress ?? 'unknown');
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid action token') {
+        throw new UnauthorizedException({ status: 'invalid_or_expired_link' });
+      }
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    }
+  }
+
+  @Post('password-reset/start')
+  async beginPasswordReset(@Req() request: RequestHeaders, @Body() body: unknown) {
+    requireOrigin(request);
+    if (!body || typeof body !== 'object' || typeof (body as Record<string, unknown>).email !== 'string') {
+      throw new BadRequestException();
+    }
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    try {
+      return await startPasswordReset(pool, (body as { email: string }).email,
+        request.socket?.remoteAddress ?? 'unknown', new Date(), getQaAuthSink());
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid email') throw new BadRequestException();
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'auth_delivery' });
+    }
+  }
+
+  @Post('password-reset/complete')
+  async finishPasswordReset(@Req() request: RequestHeaders, @Body() body: unknown) {
+    requireOrigin(request);
+    if (!body || typeof body !== 'object') throw new BadRequestException();
+    const input = body as Record<string, unknown>;
+    if (typeof input.token !== 'string' || typeof input.password !== 'string' ||
+        input.token.length > 256 || input.password.length < 12 || input.password.length > 1024) {
+      throw new BadRequestException();
+    }
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    try {
+      return await completePasswordReset(pool, input.token, input.password,
         new Date(), request.socket?.remoteAddress ?? 'unknown');
     } catch (error) {
       if (error instanceof Error && error.message === 'Invalid action token') {
