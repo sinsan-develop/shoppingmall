@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 2026-10-10 0024 공유 DB 적용 자원·복구 계획
+
+- 담당 어울. 신산님은 이번 작업에서 계획 밖 `apps/api/test/migration-preview.test.mjs` 한 곳 수정과 **공유 개발 DB 0024 한 건 적용**을 각각 승인했다. 계획 C의 OS 인쇄·200% 직접 검증 기준 및 계획 D의 병합 조건은 변경 승인하지 않았다.
+- 적용 전 백업: 기존 소유자 전용 0700 디렉터리 `/home/daon/deploy/shopping-s6-db-backups`의 **새 파일** `pre-0024-20261010.dump`만 사용한다. 현재 파일 부재를 확인했다. 공유 `local-postgres/shoppingmall` 전체를 PostgreSQL custom format으로 백업하고 파일 0600·크기·SHA-256·TOC를 확인한다. 비밀값은 파일/로그에 기록하지 않는다.
+- 격리 복원: 신규 일회용 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-0024-restore-1010-pg`, DB `shoppingmall`을 `--network none`·영속 mount/호스트 공개 포트 없이 사용한다. 사전 백업을 실제 복원해 system ID가 공유 DB와 다름, migration 24건 및 주요 행 수 일치를 확인한다. 시험 직후 정확한 container ID·mount를 대조하고 이 자원만 stop/rm해 이름 잔류 0을 확인한다.
+- 적용 실행기: WSL 지정 checkout에 SSH 별칭으로 push한 **정확한 동일 SHA**를 Git으로 받아 clean 상태에서, 기존 Node24 일회용 컨테이너 `shoppingmall-s6-0024-migrate-1010-node`를 `--rm --network container:local-postgres`·checkout read-only bind로 실행한다. 읽기 전용 dry-run은 대기 0024 한 건만 허용한다. SQL SHA-256·DB system ID·기존 행을 직전 재확인한 뒤 표준 migrator로 한 건만 적용한다. 추가 SQL이나 시험 거래는 만들지 않는다.
+- 사후: migration 25/대기 0, 기존 행 수·불변 기록, `/health`·`/ready`와 익명·교차 역할/Origin 차단의 읽기 smoke를 분리 기록한다. 적용 오류 시 공유 DB를 자동 복원/되돌리지 않고 백업과 실제 상태를 보존해 `docs/design_change.md`에 기록한다. 일회용 runner와 복원 DB는 정리하고, 백업은 복구 판단이 끝날 때까지 보존한 뒤 정확한 대상만 정리한다.
+
 ## 2026-10-10 후속 작업 시작 전 대조
 
 - 담당 어울. 기존 작업 브랜치 `codex/next-work-20261010-2@077e5b5`와 `origin/main@eab39ab`을 확인했다. PR #18은 정확한 head `077e5b5`로 open·미병합이다. 사용자 소유 미추적 세 경로는 그대로 보존했다.
