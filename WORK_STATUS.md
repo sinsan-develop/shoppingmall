@@ -5023,3 +5023,8 @@
 - 담당 어울, 브랜치 `codex/work-plan-20261010-2`. 변경 파일 `apps/api/test/payment-adapter.test.mjs`, `apps/api/src/payments/adapter.ts`. QA 부하 모드에서 고유 8자리 run ID가 없거나 실제 결제사 Secret 계열 환경키가 함께 있으면 HTTP listener 시작 전 거부하도록 기존 부팅 경계에 연결했다. 개발·mock·loopback 조건도 `assertQaLoadMode`로 재확인한다. 기존 일반 mock 모드의 동작은 유지한다.
 - RED: 신규 2개 시험은 기존 코드에서 예상한 거부가 없어 각각 실패했다. GREEN: 목표 7/7 pass·0 skip; 전체 `pnpm test` 630건/441 pass·189 DB/환경 조건부 skip·0 fail, PR 본문 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `git diff --check`는 exit 0. 이 결과는 부하 도구 실행이나 주문/재고/정산 실DB 정합성, 30분 계측의 증거가 아니다.
 - 루트 `.env`는 7개 설정행이며 SMTP 연결·발신·수신 키 이름이 있다. 값은 출력·문서화하지 않았다. 실제 이메일 수신/관리자 지속 행은 아직 실행하지 않았다. 다음 작업은 Task 4의 격리 1사용자 smoke 및 다른 계획 Task의 독립 RED/격리 검증이다.
+
+## 2026-10-11 복구·부하 사전 환경 대조
+
+- 담당 어울. Task 1 현행 이미지 격리·정제·스캐너 표적 시험 8/8 pass·0 skip. 이는 버전 있는 객체 저장소 복원 시험이 아니다. WSL Docker에는 SeaweedFS/k6 이미지가 없고 k6 실행 파일도 확인되지 않았다. 로컬 Windows 셸에는 `docker` 명령이 없다.
+- 공유 WSL은 2 vCPU, 조사 당시 load average 4.95/7.06/6.41, swap 5.0/8.0 GiB 사용, 프로젝트 디스크 여유 384 GiB였다. 여러 타 서비스 컨테이너가 살아 있어 100 VU·30분 공유 부하를 지금 실행하지 않았다. 정확한 미실행 영향과 재개 조건은 `docs/design_change.md`에 기록했다. 공유 `shoppingmall` DB/서비스 쓰기 0, 임시 컨테이너 생성 0. 다음은 로컬·격리 작은 시험과 승인 범위의 복구 계약 구현이다.
