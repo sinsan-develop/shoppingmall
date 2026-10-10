@@ -1,12 +1,23 @@
 # 어울몰 작업현황
 
+## 2026-10-10 0024 승인 범위 실행·검증 결과
+
+- 담당 어울. 신산님이 추가 승인한 `migration-preview.test.mjs`의 24건 고정 단언을 25건으로만 보정했다. 기존 0000~0015 해시 단언은 유지. 변경 전 표적 2 pass·1 fail(25≠24) → 변경 후 3/3 pass, 전체 `pnpm test` **605건/435 pass·170 조건부 skip·0 fail**와 PR 본문 시험 8/8 pass. `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(Web 25경로), `git diff --check` 이상 0. 코드·시험 SHA `5c5341aa9899133d1515ec85e2c7a6d157fe5092`를 SSH 별칭으로 push하고 WSL 지정 checkout에서 같은 SHA·clean·0024 SQL SHA-256 `e1333d47f76965a486e4b74bea091df0014adb601f0dbca842c6e8eb9729f796`을 확인했다.
+- 적용 전 공유 DB: `local-postgres/shoppingmall`, PostgreSQL 15.18/system ID `7622490131194466339`, migration 24건, accounts/sellers/checkout_orders/settlement_events/seller_settlement_periods 각 0. 표준 읽기 전용 preview **24 적용/0024 한 건 대기**, SQL 해시 일치. 다른 공유 DB에는 쓰지 않았다.
+- 사전 백업: `/home/daon/deploy/shopping-s6-db-backups/pre-0024-20261010.dump` custom format, `0600 daon:daon`, 273,142바이트, SHA-256 `d925ba08ea47b9301e1349965088cebfb616e781c4161dc4ca7b071c2e7cf29b`; `pg_restore -l` TOC 열람. network none·tmpfs 격리 PG15(ID `8af38a4e...`, system ID `7694942749772009511`)에 실제 복원 exit 0, migration 24·주요 행 각0 대조. mount는 기존 백업 디렉터리 read-only 하나/영속 DB mount0. 복원 컨테이너는 정확 ID stop/rm·이름 잔류0.
+- 적용 직전 공유 ID·이력·행·SQL·백업 해시/권한을 다시 대조하고 표준 migrator로 **0024 한 건만** 적용(exit0). 사후 migration 25/대기0, 마지막 적용 해시가 0024와 동일, 위 다섯 관계의 행 수 각0 유지. 백업/적용용 일회용 도구와 격리 복원 DB 이름 잔류0. 기존 공유 DB 컨테이너 및 다른 서비스는 그대로 유지한다.
+- 동일 SHA의 일회용 API(ID `e4fd7b98...`, DB network namespace, source read-only, 공개 포트0)의 HTTP smoke: `/health` 200·`/ready` 200, 익명 관리자/판매자 정산 GET 각각401, 가짜 `x-role: admin` GET401, 허용되지 않은 Origin의 정정 POST403. 모두 인증 전에 거부돼 정산 기록 쓰기0. 임시 API는 정확 ID stop/rm·잔류0. 공유 실제 관리자/판매자 세션 간 교차 역할은 계정0·시험 행 생성 금지로 **미검증**이며 격리 권한 시험과 구분한다.
+- 정확한 코드 head `5c5341a`의 push CI run `38035496612`와 PR CI run `38035499157`은 completed/success. PR #18은 open·미병합. 독립 최신 리뷰는 진행 중이다. OS 인쇄 창 PDF 저장·파일 열람과 실제 브라우저 200%는 미검증이므로 일반 병합하지 않는다. 공유 적용 전 백업은 복구 판단이 끝날 때까지 보존한다. 동일 근본 원인 연속 오류0(호스트 psql 암호 요구 1회, 안전한 다중 인용 명령 실패 1회 후 보정).
+
 ## 2026-10-10 0024 공유 DB 적용 자원·복구 계획
 
 - 담당 어울. 신산님은 이번 작업에서 계획 밖 `apps/api/test/migration-preview.test.mjs` 한 곳 수정과 **공유 개발 DB 0024 한 건 적용**을 각각 승인했다. 계획 C의 OS 인쇄·200% 직접 검증 기준 및 계획 D의 병합 조건은 변경 승인하지 않았다.
 - 적용 전 백업: 기존 소유자 전용 0700 디렉터리 `/home/daon/deploy/shopping-s6-db-backups`의 **새 파일** `pre-0024-20261010.dump`만 사용한다. 현재 파일 부재를 확인했다. 공유 `local-postgres/shoppingmall` 전체를 PostgreSQL custom format으로 백업하고 파일 0600·크기·SHA-256·TOC를 확인한다. 비밀값은 파일/로그에 기록하지 않는다.
+- 백업 도구 보정: WSL 호스트 PostgreSQL 16 `psql -h 127.0.0.1`은 암호를 요구해 즉시 취소했다(읽기 실패 1회, Secret 입력·자료 변경 0). 기존 DB 컨테이너의 로컬 trust 접속을 공유하는 `pgvector/pgvector:0.8.2-pg15` 이미지의 일회용 `shoppingmall-s6-0024-backup-1010-pg`를 `--rm --user 1000:1000 --network container:local-postgres`로 쓰고 기존 0700 디렉터리 하나만 bind한다. `umask 077`의 `pg_dump -Fc -f` 성공·권한을 확인한 직후 도구 이름 잔류 0을 확인한다.
 - 격리 복원: 신규 일회용 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-0024-restore-1010-pg`, DB `shoppingmall`을 `--network none`·영속 mount/호스트 공개 포트 없이 사용한다. 사전 백업을 실제 복원해 system ID가 공유 DB와 다름, migration 24건 및 주요 행 수 일치를 확인한다. 시험 직후 정확한 container ID·mount를 대조하고 이 자원만 stop/rm해 이름 잔류 0을 확인한다.
 - 적용 실행기: WSL 지정 checkout에 SSH 별칭으로 push한 **정확한 동일 SHA**를 Git으로 받아 clean 상태에서, 기존 Node24 일회용 컨테이너 `shoppingmall-s6-0024-migrate-1010-node`를 `--rm --network container:local-postgres`·checkout read-only bind로 실행한다. 읽기 전용 dry-run은 대기 0024 한 건만 허용한다. SQL SHA-256·DB system ID·기존 행을 직전 재확인한 뒤 표준 migrator로 한 건만 적용한다. 추가 SQL이나 시험 거래는 만들지 않는다.
 - 사후: migration 25/대기 0, 기존 행 수·불변 기록, `/health`·`/ready`와 익명·교차 역할/Origin 차단의 읽기 smoke를 분리 기록한다. 적용 오류 시 공유 DB를 자동 복원/되돌리지 않고 백업과 실제 상태를 보존해 `docs/design_change.md`에 기록한다. 일회용 runner와 복원 DB는 정리하고, 백업은 복구 판단이 끝날 때까지 보존한 뒤 정확한 대상만 정리한다.
+- 읽기/차단 smoke 자원: 외부 공개 포트 없이 `local-postgres`의 기존 네트워크 namespace만 공유하는 일회용 Node24 API `shoppingmall-s6-0024-smoke-1010-api`를 정확한 WSL SHA에서 source read-only bind로 실행한다. 개발 전용 mock 기능은 끄고 `127.0.0.1:9092`에서 health/ready와 익명 GET·Origin 없는 POST 차단만 요청한다. 비인증·잘못된 Origin 요청으로 실제 정산 쓰기는 하지 않는다. 같은 namespace의 별도 Node fetch로 응답을 확인한 뒤 정확한 ID·mount를 보고 이 API 컨테이너만 stop/rm한다. 공유 DB에 인증 계정이 0이면 교차 역할 실제 세션 시험은 만들지 않고 미검증으로 남긴다.
 
 ## 2026-10-10 후속 작업 시작 전 대조
 
