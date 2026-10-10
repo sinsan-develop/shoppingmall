@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 2026-10-10 지정 계획 Task 4 판정표 대조
+
+- 담당 어울. 대조 시점 작업 브랜치 `codex/next-work-20261010-2@e4ddabafc8b205e7ecf89707d9bfd7e9699f2bd5`와 SSH 원격 head 일치. PR #18은 같은 head/main `eab39abc6caf8155edfd20d96de7f014fd06a8c3`의 open·미병합이다. 해당 head의 push CI `38041564203`·PR CI `38041566632` completed/success, PR 본문 자동 갱신 success. 지정 WSL checkout은 clean main이고, 공유 DB는 migration 25·accounts/sellers/events/completions 각 0. 사용자 소유 미추적 세 경로는 그대로 보존했다.
+- G4 기능: **격리 시험 PASS**. 0024·X→Y 감소/증가, 고정 완료, 원사건 링크·멱등·권한·경합을 동일 격리 PostgreSQL 15에서 Task 2 네 파일 13/13·0 skip으로 검사했다. 원사건과 정정일의 경계 시험은 별도 RED→GREEN. 정확한 ‘7월 Y’ 월의 실DB 발생은 별도 재현하지 않았고, 5월 고정 뒤 실제 정정일의 Y 조회로 기간 분리 계약을 검사했다.
+- 격리 거래 E2E/화면: **해당 범위 PASS**. 기존 동일 SHA API/Chrome 관리자·판매자 조회 및 자동 PDF·1440/430px 근거가 있다. 이 근거를 공유 DB의 실제 역할 세션이나 OS 저장·실제 줌으로 승격하지 않는다.
+- 공유 DB schema/읽기 smoke: **부분 PASS/부분 미검증**. 승인된 0024 적용 후 migration 25·업무행 0, health/ready 200과 익명/가짜 역할·잘못된 Origin 차단은 확인했다. 실제 관리자/판매자 계정·세션의 교차 역할 조회는 계정 0건과 공유 가상 거래 금지 경계로 미검증(G5).
+- OS 인쇄 창 PDF 저장·파일 열람: **미검증(G2)**. 실제 브라우저 200% 확대·Tab/가로 넘침: **미검증(G2)**. 기존 입력 시간 초과 및 URL 안전 판별 제한 이후 같은 제어 방법을 재시도하거나 CDP 자동 PDF/430px를 대체 합격으로 처리하지 않는다.
+- 독립 리뷰/CI: 이전 코드 범위 리뷰 Critical 0·Important 0, 날짜 경계 시험 오류는 RED→GREEN으로 보강했으나 그 보강 뒤 독립 재리뷰는 없다. 대조 시점 head push/PR CI는 위 두 실행에서 success. PR 병합·merged-main smoke: **미실행**. 계획 C/D의 직접 검증·병합 조건은 변경되지 않았고 PR #17의 과거 예외를 이번 PR에 적용하지 않는다. 남은 재개 조건은 `docs/design_change.md` G2·G5에 기록한다.
+
 ## 2026-10-10 Task 2 증가 정정 시험의 날짜 경계 재현 계획
 
 - 담당 어울. 독립 리뷰에서 발견된 증가 정정 실DB 시험의 간헐 날짜 경계 오류를 승인된 Task 2 시험 파일 `apps/api/test/settlement-correction-category-db.test.mjs` 안에서만 보정한다. 원인은 원사건 시각과 정정 시각을 각각 DB가 기록하는데 조회 기간은 정정일 하루로 고정한 점이다. 원사건을 정정일보다 2일 앞서 발생시키는 단일 시험 변경으로 RED를 재현하고, 조회 기간을 두 사건 날짜를 모두 포함하도록 바꾸어 GREEN을 확인한다. 제품 코드·설계서·작업계획서는 수정하지 않는다.
