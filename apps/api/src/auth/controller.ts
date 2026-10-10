@@ -1,11 +1,14 @@
 import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Inject,
-  NotFoundException, Post, Req, Res, ServiceUnavailableException, UnauthorizedException,
+  NotFoundException, Param, Post, Req, Res, ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
 import { DatabaseService } from '../db/service.js';
 import { AuthRepository } from './repository.js';
 import { MockPhoneOtp, normalizePhone } from './mock-phone-otp.js';
-import { completeAdminSetup } from './onboarding.js';
+import { completeAdminSetup, completeCustomerSignup, startCustomerSignup } from './onboarding.js';
+import { getQaAuthSink } from './delivery.js';
+import { submitSellerApplication, listSellerApplications,
+  approveSellerApplication, rejectSellerApplication } from './seller-applications.js';
 import type { ActiveRole } from '../access.js';
 
 type RequestHeaders = {
@@ -60,6 +63,15 @@ export class AuthController {
     const actor = await this.repository().getSession(token);
     if (!actor) throw new UnauthorizedException();
     if (actor.role !== 'customer') throw new ForbiddenException();
+    return actor;
+  }
+
+  private async adminSession(request: RequestHeaders) {
+    const token = readToken(request.headers.cookie);
+    if (!token) throw new UnauthorizedException();
+    const actor = await this.repository().getSession(token);
+    if (!actor) throw new UnauthorizedException();
+    if (actor.role !== 'admin') throw new ForbiddenException();
     return actor;
   }
 
@@ -210,6 +222,113 @@ export class AuthController {
     } catch (error) {
       if (error instanceof Error && error.message === 'Invalid action token') {
         throw new UnauthorizedException({ status: 'invalid_or_expired_link' });
+      }
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    }
+  }
+
+  @Post('customer-signup/start')
+  async beginCustomerSignup(@Req() request: RequestHeaders, @Body() body: unknown) {
+    requireOrigin(request);
+    if (!body || typeof body !== 'object' || typeof (body as Record<string, unknown>).email !== 'string') {
+      throw new BadRequestException();
+    }
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    try {
+      return await startCustomerSignup(pool, (body as { email: string }).email,
+        request.socket?.remoteAddress ?? 'unknown', new Date(), getQaAuthSink());
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid email') throw new BadRequestException();
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'auth_delivery' });
+    }
+  }
+
+  @Post('customer-signup/complete')
+  async finishCustomerSignup(@Req() request: RequestHeaders, @Body() body: unknown) {
+    requireOrigin(request);
+    if (!body || typeof body !== 'object') throw new BadRequestException();
+    const input = body as Record<string, unknown>;
+    if (typeof input.token !== 'string' || typeof input.password !== 'string' ||
+        input.token.length > 256 || input.password.length < 12 || input.password.length > 1024) {
+      throw new BadRequestException();
+    }
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    try {
+      return await completeCustomerSignup(pool, input.token, input.password,
+        new Date(), request.socket?.remoteAddress ?? 'unknown');
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid action token') {
+        throw new UnauthorizedException({ status: 'invalid_or_expired_link' });
+      }
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    }
+  }
+
+  @Post('seller-applications')
+  async applyAsSeller(@Req() request: RequestHeaders, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.customerSession(request);
+    if (!body || typeof body !== 'object' || typeof (body as Record<string, unknown>).displayName !== 'string') {
+      throw new BadRequestException();
+    }
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    try {
+      return await submitSellerApplication(pool, actor, (body as { displayName: string }).displayName);
+    } catch (error) {
+      if (error instanceof Error && ['Pending application exists', 'Seller role already granted'].includes(error.message)) {
+        throw new ConflictException();
+      }
+      if (error instanceof Error && error.message === 'Invalid seller display name') throw new BadRequestException();
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    }
+  }
+
+  @Get('admin/seller-applications')
+  async viewSellerApplications(@Req() request: RequestHeaders) {
+    const actor = await this.adminSession(request);
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    return listSellerApplications(pool, actor);
+  }
+
+  @Post('admin/seller-applications/:id/approve')
+  async approveSeller(@Req() request: RequestHeaders, @Param('id') id: string, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.adminSession(request);
+    if (!body || typeof body !== 'object' || typeof (body as Record<string, unknown>).sellerId !== 'string') {
+      throw new BadRequestException();
+    }
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    try {
+      return await approveSellerApplication(pool, actor, id, (body as { sellerId: string }).sellerId);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Pending application unavailable') throw new ConflictException();
+      if (error instanceof Error && error.message === 'Seller role already granted') throw new ConflictException();
+      if (error instanceof Error && error.message === 'Seller unavailable') throw new NotFoundException();
+      if (error instanceof Error && error.message === 'Invalid seller ID') throw new BadRequestException();
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    }
+  }
+
+  @Post('admin/seller-applications/:id/reject')
+  async rejectSeller(@Req() request: RequestHeaders, @Param('id') id: string, @Body() body: unknown) {
+    requireOrigin(request);
+    const actor = await this.adminSession(request);
+    if (!body || typeof body !== 'object' || typeof (body as Record<string, unknown>).reason !== 'string') {
+      throw new BadRequestException();
+    }
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    try {
+      return await rejectSellerApplication(pool, actor, id, (body as { reason: string }).reason);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Pending application unavailable') throw new ConflictException();
+      if (error instanceof Error && ['Invalid application ID', 'Invalid rejection reason'].includes(error.message)) {
+        throw new BadRequestException();
       }
       throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
     }

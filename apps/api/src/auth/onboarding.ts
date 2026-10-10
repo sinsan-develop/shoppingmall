@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
 import { issueActionToken, consumeActionToken } from './action-tokens.js';
-import { deliverAuthLink, type MockAuthSink } from './delivery.js';
+import { deliverAuthLink, requireAuthDelivery, type MockAuthSink } from './delivery.js';
 import { hashPassword } from './credentials.js';
 
 type InitialAdminInput = {
@@ -101,6 +101,55 @@ export async function completeAdminSetup(pool: Pool, rawToken: string, password:
     if (updated.rowCount !== 1) throw new Error('Invalid action token');
     await client.query(`INSERT INTO audit_events (actor_account_id,active_role,action,target_type,target_id)
       VALUES ($1,'admin','auth.admin_setup','account',$2)`, [action.accountId, action.accountId]);
+    return { status: 'ok' as const };
+  }, source);
+}
+
+export async function startCustomerSignup(pool: Pool, emailInput: string, source: string,
+  now: Date, mockSink?: MockAuthSink): Promise<{ status: 'accepted' }> {
+  const email = normalizedEmail(emailInput);
+  requireAuthDelivery('customer_signup', mockSink);
+  if (!source || Number.isNaN(now.getTime())) throw new Error('Invalid signup request');
+  const existing = await pool.query("SELECT id FROM account_identities WHERE kind='email' AND identifier=$1", [email]);
+  if (existing.rowCount) return { status: 'accepted' };
+  let rawToken: string;
+  try {
+    rawToken = await issueActionToken(pool, { purpose: 'customer_signup', email,
+      accountId: null, source, now });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Action token rate limited') return { status: 'accepted' };
+    throw error;
+  }
+  const origin = process.env.AUTH_LINK_ORIGIN;
+  if (!origin) throw new Error('Auth delivery unavailable');
+  const url = new URL('/signup', origin);
+  url.hash = `token=${encodeURIComponent(rawToken)}`;
+  try {
+    await deliverAuthLink('customer_signup', email, url.toString(), mockSink);
+  } catch {
+    await pool.query(`UPDATE auth_action_tokens SET revoked_at=$2
+      WHERE token_hash=$1 AND consumed_at IS NULL AND revoked_at IS NULL`,
+    [createHash('sha256').update(rawToken).digest('hex'), now]);
+  }
+  return { status: 'accepted' };
+}
+
+export async function completeCustomerSignup(pool: Pool, rawToken: string, password: string,
+  now: Date, source: string): Promise<{ status: 'ok' }> {
+  if (!source) throw new Error('Invalid action token');
+  const passwordHash = await hashPassword(password);
+  return consumeActionToken(pool, 'customer_signup', rawToken, now, async (client, action) => {
+    if (action.accountId) throw new Error('Invalid action token');
+    const existing = await client.query("SELECT id FROM account_identities WHERE kind='email' AND identifier=$1", [action.email]);
+    if (existing.rowCount) throw new Error('Invalid action token');
+    const account = await client.query('INSERT INTO accounts DEFAULT VALUES RETURNING id');
+    const accountId = account.rows[0].id as string;
+    await client.query(`INSERT INTO account_identities
+      (account_id,kind,identifier,password_hash,verified_at)
+      VALUES ($1,'email',$2,$3,$4)`, [accountId, action.email, passwordHash, now]);
+    await client.query("INSERT INTO account_roles (account_id,role) VALUES ($1,'customer')", [accountId]);
+    await client.query(`INSERT INTO audit_events (actor_account_id,active_role,action,target_type,target_id)
+      VALUES ($1,'customer','auth.email_signup','account',$2)`, [accountId, accountId]);
     return { status: 'ok' as const };
   }, source);
 }
