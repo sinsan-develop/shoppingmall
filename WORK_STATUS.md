@@ -4727,3 +4727,13 @@
 - 같은 SHA의 Web를 새 격리 volume에서 Node 24로 빌드해 25개 route 생성 PASS, API `/health`·`/ready` 200, Web 정산 경로 200. 실제 Chrome에서 가상 운영자 로그인과 관리자 정산 자료를 조회했다. 현재 날짜 자료에 Y 정정 -2,000원과 원사건 ID 링크가 보이고, 2026-05-01~20 자료에는 X 원사건 10,000원, 당시 분류 X 및 완료 당시 항목별 수수료 10,000원이 표시됐다. 화면의 `조회 결과 인쇄 · PDF로 저장` 버튼 노출도 확인했다.
 - OS 인쇄 버튼 직접 조작은 입력 명령 시간 초과 후 페이지 포커스만 확인됐다. Windows OS 창 제어는 대상 Chrome의 URL 식별을 안전하게 보장하지 못해 도구가 이번 턴 조작을 중단했다. 인쇄 대화상자 선택·PDF 파일 저장/열람과 실제 200% 줌 관리자·판매자 실측은 **미검증**이며 `docs/design_change.md` G2에 기록했다. 자동 PDF·viewport와 동일 취급하지 않는다.
 - 시험 자원은 정확한 ID/이름 대조 후 API `b669399c...`, Web `2dda5b9c...`, PG tmpfs `631c569e...`와 전용 `.next` volume만 제거했고 Docker 이름/volume 잔류 0을 확인했다. Windows SSH 터널 PID 54096은 명령행의 15439 전용 전달·WSL 별칭을 확인하고 종료했다. 지정 WSL checkout은 clean `main`으로 복귀했다. 이 격리 가상 자료는 폐기됐고 공유 자료나 사용자 브라우저 기존 탭은 삭제하지 않았다.
+
+## 2026-10-10 Task 4 독립 리뷰 보강 자원 계획
+
+- 읽기 전용 독립 리뷰 결과 Critical 0, Important 1(계획 밖 `migration-preview.test.mjs`의 24건 고정으로 전체 시험 실패), Minor 2(분류 선변경 경합과 DELETE 거부의 직접 단언 부족). Important는 `docs/design_change.md` G1의 승인 경계로 유지한다. Minor 두 항목은 계획에 명시된 `settlement-correction-category-db.test.mjs`만 보강했다.
+- 새 시험을 위해 앞서 사용한 정확한 이름 `shoppingmall-s6-correction-1010-pg`와 WSL 루프백 포트 15439를 재사용하는 새 일회용 tmpfs PG15 컨테이너를 만들고 0000~0024 적용 뒤 로컬/WSL 동일 SHA 시험을 실행한다. 완료 후 생성된 새 ID를 확인해 그 컨테이너만 제거하고 이름/포트 잔류 0을 확인한다. 공유 DB와 기존 자료는 변경하지 않는다.
+
+## 2026-10-10 Task 4 독립 리뷰 시험 보강 결과
+
+- 독립 리뷰 Critical 0, Important 1, Minor 2. 범위 안의 신규 DB 시험에서 원사건 DELETE 거부를 직접 단언하고 분류 변경이 먼저 잠금을 잡는 역순 경합을 추가했다. 새 격리 PG 컨테이너 ID `2d0a470febd828963cbcae7eec1505af0651e92bcb1b0b1680fd75a1675a4811`, system ID `7694825914492616743`.
+- 첫 재시험은 WSL checkout이 main 상태라 격리 DB에 24건까지만 적용된 준비 오류로 3/3 실패했다. checkout을 계획 브랜치 `9810e0b...`로 전환하고 0024까지 25건을 적용한 뒤 2/3 통과, 역순 경합에서 서버가 `seller category missing`으로 전체 요청을 거부하는 실제 동작을 확인했다. 계획은 혼합 저장 없이 전체 실패·재시도를 허용하므로 시험은 이 경우 기록 0을 확인하고 새 트랜잭션으로 재시도하도록 바로잡았다. 최종 새 격리 DB 시험 3/3 통과·0 skip. 준비 오류 1회와 시험 기대치 오류 1회는 각각 원인 확인 후 해결했으며 동일 원인 3회 연속은 없었다.

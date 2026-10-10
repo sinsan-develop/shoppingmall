@@ -75,6 +75,10 @@ test('a correction uses the seller category at correction time, not the original
     await assert.rejects(client.query('UPDATE settlement_events SET amount_won=1 WHERE id=$1',
       [originalId]), /Settlement history is append-only/);
     await client.query('ROLLBACK TO SAVEPOINT immutable_original');
+    await client.query('SAVEPOINT delete_original');
+    await assert.rejects(client.query('DELETE FROM settlement_events WHERE id=$1',
+      [originalId]), /Settlement history is append-only/);
+    await client.query('ROLLBACK TO SAVEPOINT delete_original');
   } finally {
     if (began) await client.query('ROLLBACK');
     client.release();
@@ -217,6 +221,53 @@ test('concurrent seller or category changes wait until the correction snapshot c
     [correction.id])).rows[0];
     assert.equal(stored.categoryId, yId);
     assert.equal(stored.categoryName, yName);
+
+    const secondSource = randomUUID();
+    const secondOriginalId = (await setup.query(`INSERT INTO settlement_events
+      (dedupe_key,kind,amount_won,occurred_at,seller_id,seller_name,
+       seller_category_id,seller_category_name,source_event_kind,source_event_id,
+       recorded_by,reason)
+      VALUES ($1,'commission',10000,clock_timestamp(),$2,$3,
+        $4,$5,'manual_commission',$6,$7,'분류 선변경 경합 원사건') RETURNING id`,
+    [`qa:${secondSource}`, sellerId, `QA 경합 판매자 ${suffix}`,
+      xId, `QA 경합 X ${suffix}`, secondSource, adminId])).rows[0].id;
+    await updater.query('BEGIN');
+    await updater.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [yId, sellerId]);
+    await writer.query('BEGIN'); writing = true;
+    const writerPid = (await writer.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+    const secondRequestId = randomUUID();
+    const secondInput = {
+      originalEventId: secondOriginalId, requestId: secondRequestId,
+      direction: 'decrease', amountWon: 1000, reason: '분류 선변경 경합 확인',
+    };
+    const secondCorrection = recordCorrection(writer, adminId, secondInput);
+    let waiting = false;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const activity = (await setup.query(`SELECT wait_event_type AS "waitType"
+        FROM pg_stat_activity WHERE pid=$1`, [writerPid])).rows[0];
+      if (activity?.waitType === 'Lock') { waiting = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(waiting, true, 'correction must wait for the prior category update');
+    await updater.query('COMMIT');
+    let afterUpdate;
+    try {
+      afterUpdate = await secondCorrection;
+      await writer.query('COMMIT'); writing = false;
+    } catch (error) {
+      assert.match(String(error), /Settlement correction seller category missing|Settlement correction seller category mismatch/);
+      await writer.query('ROLLBACK'); writing = false;
+      assert.equal((await setup.query(`SELECT count(*)::int AS n FROM settlement_events
+        WHERE dedupe_key=$1`, [`correction:${secondRequestId}`])).rows[0].n, 0);
+      await writer.query('BEGIN'); writing = true;
+      afterUpdate = await recordCorrection(writer, adminId, secondInput);
+      await writer.query('COMMIT'); writing = false;
+    }
+    const secondStored = (await setup.query(`SELECT seller_category_id AS "categoryId",
+      seller_category_name AS "categoryName" FROM settlement_events WHERE id=$1`,
+    [afterUpdate.id])).rows[0];
+    assert.equal(secondStored.categoryId, yId);
+    assert.equal(secondStored.categoryName, yName);
   } finally {
     if (writing) await writer.query('ROLLBACK');
     await updater.query('ROLLBACK');
