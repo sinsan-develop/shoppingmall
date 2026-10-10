@@ -240,6 +240,65 @@ export const authSessions = pgTable('auth_sessions', {
   check('auth_sessions_scope_ck', sql`(${table.role} = 'seller') = (${table.sellerId} IS NOT NULL)`),
 ]);
 
+export const authActionTokens = pgTable('auth_action_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  purpose: text('purpose').notNull(),
+  email: text('email').notNull(),
+  accountId: uuid('account_id').references(() => accounts.id),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('auth_action_tokens_lookup_idx').on(table.purpose, table.email, table.createdAt.desc()),
+  index('auth_action_tokens_expiry_idx').on(table.expiresAt),
+  check('auth_action_tokens_purpose_ck', sql`${table.purpose} IN ('admin_setup','customer_signup','password_reset')`),
+  check('auth_action_tokens_email_ck', sql`${table.email} = lower(trim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 254`),
+  check('auth_action_tokens_hash_ck', sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`),
+  check('auth_action_tokens_expiry_ck', sql`${table.expiresAt} > ${table.createdAt}`),
+  check('auth_action_tokens_account_ck', sql`(${table.purpose} = 'customer_signup') = (${table.accountId} IS NULL)`),
+]);
+
+export const sellerApplications = pgTable('seller_applications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id),
+  displayName: text('display_name').notNull(),
+  status: text('status').notNull().default('pending'),
+  sellerId: uuid('seller_id').references(() => sellers.id),
+  reviewedByAccountId: uuid('reviewed_by_account_id').references(() => accounts.id),
+  reviewReason: text('review_reason'),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('seller_applications_one_pending_uq').on(table.accountId).where(sql`${table.status} = 'pending'`),
+  index('seller_applications_status_created_idx').on(table.status, table.createdAt.desc()),
+  check('seller_applications_status_ck', sql`${table.status} IN ('pending','approved','rejected')`),
+  check('seller_applications_name_ck', sql`length(trim(${table.displayName})) BETWEEN 1 AND 120`),
+  check('seller_applications_review_ck', sql`(
+    (${table.status} = 'pending' AND ${table.sellerId} IS NULL AND ${table.reviewedByAccountId} IS NULL AND ${table.reviewedAt} IS NULL)
+    OR (${table.status} = 'approved' AND ${table.sellerId} IS NOT NULL AND ${table.reviewedByAccountId} IS NOT NULL AND ${table.reviewedAt} IS NOT NULL)
+    OR (${table.status} = 'rejected' AND ${table.sellerId} IS NULL AND ${table.reviewedByAccountId} IS NOT NULL AND ${table.reviewedAt} IS NOT NULL AND length(trim(coalesce(${table.reviewReason}, ''))) > 0)
+  )`),
+]);
+
+export const authSecurityEvents = pgTable('auth_security_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  purpose: text('purpose').notNull(),
+  resultCode: text('result_code').notNull(),
+  subjectHash: text('subject_hash').notNull(),
+  sourceHash: text('source_hash'),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('auth_security_events_subject_idx').on(table.purpose, table.subjectHash, table.occurredAt.desc()),
+  index('auth_security_events_source_idx').on(table.purpose, table.sourceHash, table.occurredAt.desc()).where(sql`${table.sourceHash} IS NOT NULL`),
+  index('auth_security_events_retention_idx').on(table.occurredAt),
+  check('auth_security_events_purpose_ck', sql`${table.purpose} IN ('admin_setup','customer_signup','password_reset','seller_application')`),
+  check('auth_security_events_subject_hash_ck', sql`${table.subjectHash} ~ '^[0-9a-f]{64}$'`),
+  check('auth_security_events_source_hash_ck', sql`${table.sourceHash} IS NULL OR ${table.sourceHash} ~ '^[0-9a-f]{64}$'`),
+  check('auth_security_events_result_ck', sql`length(trim(${table.resultCode})) BETWEEN 1 AND 80`),
+]);
+
 export const auditEvents = pgTable('audit_events', {
   id: uuid('id').primaryKey().defaultRandom(),
   actorAccountId: uuid('actor_account_id').notNull().references(() => accounts.id),
