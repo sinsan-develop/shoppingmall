@@ -4957,3 +4957,7 @@
 ## 2026-10-10 병합 SHA API 읽기 smoke 자원 계획
 
 - 담당 어울. `main@ce4972d9832f9bfe4cd1660c65cc9981cd09ebb3`의 WSL 지정 checkout은 clean, 공유 DB는 migration 25·정산 사건/기간 각 0이며 고유 컨테이너 이름 `shoppingmall-s6-merged-smoke-1010-api`의 기존 점유가 없음을 확인했다. 이 계획은 정확한 병합 소스에서 `/health`·`/ready`와 익명 정산 접근 차단을 다시 확인하려는 것이다. 기존 `node:24` image와 checkout 읽기 전용 mount, `local-postgres` 네트워크 namespace의 루프백 9092만 사용하고 외부 공개 포트·새 DB·영속 volume·시험 계정/거래는 만들지 않는다. 수명은 이번 smoke 동안이며, 종료 시 반환된 정확한 컨테이너 ID만 중지·제거하고 이름·DB 행·WSL checkout 잔류를 확인한다. 실패 시 이 문단의 범위 밖 쓰기나 우회는 하지 않는다.
+
+## 2026-10-10 최종 기록 PR 자동화 상태
+
+- 문서 전용 작업 head `f3d0d7a8266fb3735c8786141bc592dc74e1d9a5`를 승인 SSH 별칭으로 push하고 저장소의 `pr-create/**` 자동화 `38051337878` success로 [PR #19](https://github.com/sinsan-develop/shoppingmall/pull/19)를 `main@ce4972d9832f9bfe4cd1660c65cc9981cd09ebb3` 기준 생성했다. 정확한 head의 push CI `38051321034`는 `completed/success`다. GitHub Actions가 만든 PR의 최초 `pull_request` run `38051350801`은 `action_required`·job 0으로, 실행된 필수 시험의 실패가 아니라 실행되지 않은 상태다. 이 기록 갱신을 새 커밋으로 push한 뒤 발생할 synchronize run과 정확한 새 head CI를 별도로 확인한다. 그전에는 이 문서 PR의 병합 게이트를 통과로 표시하지 않는다.
