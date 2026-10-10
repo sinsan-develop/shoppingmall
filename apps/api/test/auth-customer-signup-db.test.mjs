@@ -10,10 +10,10 @@ const systemId = process.env.AUTH_ADMIN_TEST_DB_SYSTEM_ID;
 test('email ownership creates exactly one customer only after confirmation; existing email response matches', {
   skip: !systemId,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_admin_1010');
+  const databaseName = process.env.PGDATABASE;
+  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2'].includes(databaseName));
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${databaseName}`);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const identity = await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()');
-  assert.equal(identity.rows[0].id, systemId);
   const email = `customer+${randomUUID()}@example.invalid`;
   const existingEmail = `existing+${randomUUID()}@example.invalid`;
   const password = 'isolated-customer-password-123';
@@ -27,6 +27,9 @@ test('email ownership creates exactly one customer only after confirmation; exis
   process.env.AUTH_LINK_ORIGIN = 'http://127.0.0.1:9091';
   const messages = [];
   try {
+    const identity = await pool.query('SELECT current_database() AS name, system_identifier::text AS id FROM pg_control_system()');
+    assert.equal(identity.rows[0].name, databaseName);
+    assert.equal(identity.rows[0].id, systemId);
     const repository = new AuthRepository(pool);
     await repository.createCustomerAccount(existingEmail, password);
     const accepted = await startCustomerSignup(pool, email, source, now,
