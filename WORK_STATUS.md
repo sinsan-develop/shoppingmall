@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-10 Task 2 증가 정정 실DB 증거 보강 자원 계획
+
+- 담당 어울. 승인된 `WORK_PLAN_20260-10-10.md` Task 2·Review Focus의 X→Y 증가 정정 직접 DB 증거 공백만 보강한다. 변경 후보는 계획에 적힌 `apps/api/test/settlement-correction-category-db.test.mjs` 한 파일이며 제품 코드·설계서·작업계획서는 수정하지 않는다. 기존 감소·경합 시험은 유지한다.
+- 지정 WSL checkout `/home/daon/deploy/shopping`은 시작 시 clean `main@eab39abc...`다. 일회용 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-increase-1010-pg`와 격리 DB `shoppingmall_s6_correction_1010`을 호스트 공개 포트 없는 network namespace에 만든다. 동일 namespace의 일회용 Node 24 시험 컨테이너 `shoppingmall-s6-increase-1010-node`만 접속한다. 공유 `local-postgres/shoppingmall`에는 접속·쓰기하지 않는다.
+- 먼저 기존 main의 0000~0023 schema로 신규 증가 시험의 기대 실패(RED)를 관찰하고, 동일 격리 DB에 정확한 작업 SHA의 0024 한 건만 적용한 뒤 성공(GREEN)을 확인한다. 시험 거래는 각 시험의 rollback으로 제거한다. 컨테이너·tmpfs·Node runner의 정확한 ID와 mount를 확인한 뒤 이 작업의 자원만 제거하고 잔류 0, WSL checkout clean main 복귀를 확인한다.
+
 ## 2026-10-10 후속 화면 검증 접근·정확한 PR head 재확인
 
 - 담당 어울. 작업 경로 `D:/Project/shoppingmall2`, 브랜치 `codex/next-work-20261010-2@477ccfacbbf737ce304c837b12ca73521304f6a8`; 원격 추적과 일치한다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 건드리지 않았다. root `AGENTS.md`는 현재 파일이 없어 사용자 제공 공통 지침과 PMO 지침·정본 계획을 적용한다.

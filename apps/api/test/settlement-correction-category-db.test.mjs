@@ -171,6 +171,63 @@ test('admin correction records current Y category and preserves completed X tota
   }
 });
 
+test('an increased correction belongs to current Y while the original stays in X', {
+  skip: !expectedSystemId,
+}, async () => {
+  assert.equal(process.env.PGDATABASE, 'shoppingmall_s6_correction_1010');
+  const pool = new Pool();
+  const client = await pool.connect();
+  let began = false;
+  try {
+    const identity = (await client.query(
+      'SELECT system_identifier::text AS id FROM pg_control_system()',
+    )).rows[0].id;
+    assert.equal(identity, expectedSystemId);
+    await client.query('BEGIN'); began = true;
+    const adminId = (await client.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    await client.query("INSERT INTO account_roles(account_id,role) VALUES ($1,'admin')", [adminId]);
+    const xId = (await client.query("INSERT INTO seller_categories(name) VALUES ('QA 증가 X') RETURNING id")).rows[0].id;
+    const yId = (await client.query("INSERT INTO seller_categories(name) VALUES ('QA 증가 Y') RETURNING id")).rows[0].id;
+    const sellerId = (await client.query(`INSERT INTO sellers(category_id,display_name)
+      VALUES ($1,'QA 증가 판매자') RETURNING id`, [xId])).rows[0].id;
+    const originalId = (await client.query(`INSERT INTO settlement_events
+      (dedupe_key,kind,amount_won,occurred_at,seller_id,seller_name,
+       seller_category_id,seller_category_name,source_event_kind,source_event_id,
+       recorded_by,reason)
+      VALUES ($1,'commission',10000,clock_timestamp(),$2,'QA 증가 판매자',
+        $3,'QA 증가 X','manual_commission',$4,$5,'증가 원사건') RETURNING id`,
+    [`qa:${randomUUID()}`, sellerId, xId, randomUUID(), adminId])).rows[0].id;
+    await client.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [yId, sellerId]);
+    const correction = await recordCorrection(client, adminId, {
+      originalEventId: originalId, requestId: randomUUID(),
+      direction: 'increase', amountWon: 2000, reason: '원수수료 증가 정정',
+    });
+    const stored = (await client.query(`SELECT seller_category_id AS "categoryId",
+      seller_category_name AS "categoryName",original_event_id AS "originalId"
+      FROM settlement_events WHERE id=$1`, [correction.id])).rows[0];
+    assert.deepEqual(stored, { categoryId: yId, categoryName: 'QA 증가 Y', originalId });
+    const original = (await client.query(`SELECT amount_won::int AS amount,
+      seller_category_id AS "categoryId" FROM settlement_events WHERE id=$1`,
+    [originalId])).rows[0];
+    assert.deepEqual(original, { amount: 10000, categoryId: xId });
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul',
+      year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(correction.occurredAt));
+    const filter = { from: today, to: today, sellerId };
+    const xReport = await readSettlement(client, parseSettlementQuery({ ...filter, categoryId: xId }));
+    const yReport = await readSettlement(client, parseSettlementQuery({ ...filter, categoryId: yId }));
+    const allReport = await readSettlement(client, parseSettlementQuery(filter));
+    assert.equal(xReport.totals.commission, 10000);
+    assert.equal(yReport.totals.commission, 2000);
+    assert.equal(allReport.totals.commission, 12000);
+    assert.equal(yReport.groups.flatMap((group) => group.items)
+      .find((item) => item.id === correction.id)?.originalEventId, originalId);
+  } finally {
+    if (began) await client.query('ROLLBACK');
+    client.release();
+    await pool.end();
+  }
+});
+
 test('concurrent seller or category changes wait until the correction snapshot commits', {
   skip: !expectedSystemId,
 }, async () => {
