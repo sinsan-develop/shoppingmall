@@ -11,12 +11,12 @@ const systemId = process.env.AUTH_ADMIN_TEST_DB_SYSTEM_ID;
 test('only a buyer applies; an admin links an existing seller and records a single review', {
   skip: !systemId,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_admin_1010');
+  const databaseName = process.env.PGDATABASE;
+  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2'].includes(databaseName));
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${databaseName}`);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const fixtureLock = await pool.connect();
   await fixtureLock.query("SELECT pg_advisory_lock(hashtext('auth-admin-qa-fixture'))");
-  const system = await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()');
-  assert.equal(system.rows[0].id, systemId);
   const repository = new AuthRepository(pool);
   const password = 'isolated-seller-application-123';
   const customerEmail = `seller-customer+${randomUUID()}@example.invalid`;
@@ -27,6 +27,9 @@ test('only a buyer applies; an admin links an existing seller and records a sing
   let sellerId;
   let otherSellerId;
   try {
+    const system = await pool.query('SELECT current_database() AS name, system_identifier::text AS id FROM pg_control_system()');
+    assert.equal(system.rows[0].name, databaseName);
+    assert.equal(system.rows[0].id, systemId);
     const customerId = await repository.createCustomerAccount(customerEmail, password);
     const rejectedId = await repository.createCustomerAccount(rejectedEmail, password);
     const adminId = await repository.createCustomerAccount(adminEmail, password);
