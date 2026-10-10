@@ -8,7 +8,13 @@ const email = process.env.QA_EMAIL;
 const password = process.env.QA_PASSWORD;
 const retryReservation = process.env.QA_RESERVATION_RETRY === '1';
 const debugging = process.env.QA_CHROME_DEBUGGING ?? 'http://127.0.0.1:9229';
-if (![web, productId, email, password].every(Boolean)) throw new Error('QA browser inputs missing');
+if (![web, productId, email, password].every(Boolean)
+  || !/^http:\/\/127\.0\.0\.1:9091$/.test(web)
+  || !/^http:\/\/127\.0\.0\.1:\d+$/.test(debugging)
+  || !/^qa\+[0-9a-f]{8}-customer@example\.invalid$/.test(email)
+  || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(productId)) {
+  throw new Error('QA browser inputs missing or outside the synthetic loopback fixture');
+}
 
 const page = await fetch(`${debugging}/json/new?about:blank`, { method: 'PUT' }).then((response) => response.json());
 const socket = new WebSocket(page.webSocketDebuggerUrl);
