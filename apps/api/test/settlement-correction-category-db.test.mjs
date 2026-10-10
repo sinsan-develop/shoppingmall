@@ -115,6 +115,12 @@ test('admin correction records current Y category and preserves completed X tota
     const may = await completeSellerPeriod(client, adminId, { sellerId,
       from: '2026-05-01', to: '2026-05-20', reason: '5월 정산' });
     await client.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [yId, sellerId]);
+    await client.query('CREATE SCHEMA qa_clock');
+    await client.query(`CREATE FUNCTION qa_clock.statement_timestamp() RETURNS timestamptz
+      LANGUAGE sql STABLE AS $$ SELECT TIMESTAMPTZ '2026-07-01 00:00:00+00' $$`);
+    await client.query('SET LOCAL search_path = qa_clock, pg_catalog, public');
+    assert.equal((await client.query('SELECT statement_timestamp() AS at')).rows[0].at.toISOString(),
+      '2026-07-01T00:00:00.000Z');
     const request = { originalEventId: originalId, requestId: randomUUID(),
       direction: 'decrease', amountWon: 2000, reason: '원수수료 정정' };
     const correction = await recordCorrection(client, adminId, request);
@@ -150,6 +156,7 @@ test('admin correction records current Y category and preserves completed X tota
       10000);
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul',
       year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(correction.occurredAt));
+    assert.equal(today, '2026-07-01');
     const yReport = await readSettlement(client, parseSettlementQuery({
       from: today, to: today, categoryId: yId,
     }));

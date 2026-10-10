@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 2026-10-10 Task 2 5월→7월 정정 격리 재현 자원 계획
+
+- 담당 어울. 승인된 `WORK_PLAN_20260-10-10.md` Task 2·Review Focus의 정확한 7월 Y 사건 월 재현만 계획에 지정된 `apps/api/test/settlement-correction-category-db.test.mjs`에서 보강한다. 제품 코드·migration·설계서·작업계획서는 수정하지 않는다. 시험 트랜잭션 안의 독립 clock schema로 서버 기록 시각을 7월 1일로 고정할 수 있는지 먼저 격리 DB에서 확인하며, 실제 함수 선택·분류·기간 결과가 일치하지 않으면 이 시험 방식은 폐기하고 미검증을 유지한다.
+- WSL 지정 checkout은 현재 clean main이다. 호스트 공개 포트 없는 일회용 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-july-1010-pg`에 격리 DB `shoppingmall_s6_correction_1010`을 만들고, 동일 network namespace의 일회용 Node 24 runner `shoppingmall-s6-july-1010-node`만 연결한다. 이름·기존 자원 충돌을 먼저 확인하고 system ID를 DB 시험 gate로 지정한다. 0000~0023에서 RED, 동일 DB의 0024 적용 뒤 GREEN과 Task 2 네 파일 통합을 확인한다. 모든 시험 자료는 롤백되고, 사용 후 정확한 ID·mount 확인으로 위 자원만 제거한다. 공유 `local-postgres/shoppingmall`·다른 자원은 변경하지 않는다.
+
 ## 2026-10-10 지정 계획 Task 4 판정표 대조
 
 - 담당 어울. 대조 시점 작업 브랜치 `codex/next-work-20261010-2@e4ddabafc8b205e7ecf89707d9bfd7e9699f2bd5`와 SSH 원격 head 일치. PR #18은 같은 head/main `eab39abc6caf8155edfd20d96de7f014fd06a8c3`의 open·미병합이다. 해당 head의 push CI `38041564203`·PR CI `38041566632` completed/success, PR 본문 자동 갱신 success. 지정 WSL checkout은 clean main이고, 공유 DB는 migration 25·accounts/sellers/events/completions 각 0. 사용자 소유 미추적 세 경로는 그대로 보존했다.
