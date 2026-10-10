@@ -6,7 +6,8 @@ export type CorrectionInput = { originalEventId: string; requestId: string;
   direction: 'increase' | 'decrease'; amountWon: number; reason: string };
 
 type OriginalRow = { id: string; kind: string; amountWon: string;
-  sellerId: string; sellerName: string; sellerCategoryId: string; sellerCategoryName: string };
+  sellerId: string; sellerName: string };
+type CurrentCategoryRow = { sellerCategoryId: string; sellerCategoryName: string };
 type CorrectionRow = { id: string; originalEventId: string; requestId: string;
   direction: string; amountWon: string; reason: string; recordedBy: string;
   occurredAt: Date };
@@ -54,8 +55,7 @@ export async function recordCorrection(client: PoolClient, adminId: string,
   }
   const original = (await client.query<OriginalRow>(`SELECT event.id,event.kind,
     event.amount_won::text AS "amountWon",event.seller_id AS "sellerId",
-    event.seller_name AS "sellerName",event.seller_category_id AS "sellerCategoryId",
-    event.seller_category_name AS "sellerCategoryName"
+    event.seller_name AS "sellerName"
     FROM settlement_events event WHERE event.id=$1 AND event.kind<>'correction'
       AND EXISTS (SELECT 1 FROM account_roles role
         WHERE role.account_id=$2 AND role.role='admin')
@@ -85,6 +85,13 @@ export async function recordCorrection(client: PoolClient, adminId: string,
   if (!Number.isSafeInteger(remaining) || !Number.isSafeInteger(next) || next < 0)
     throw new Error('Settlement correction exceeds original amount');
 
+  const currentCategory = (await client.query<CurrentCategoryRow>(`SELECT
+    category.id AS "sellerCategoryId",category.name AS "sellerCategoryName"
+    FROM sellers seller
+    JOIN seller_categories category ON category.id=seller.category_id
+    WHERE seller.id=$1 FOR SHARE OF seller,category`, [original.sellerId])).rows[0];
+  if (!currentCategory) throw new Error('Settlement correction seller category missing');
+
   const inserted = (await client.query<CorrectionRow>(`INSERT INTO settlement_events
     (dedupe_key,kind,amount_won,occurred_at,recorded_at,seller_id,seller_name,
      seller_category_id,seller_category_name,source_event_kind,source_event_id,
@@ -96,7 +103,8 @@ export async function recordCorrection(client: PoolClient, adminId: string,
       source_event_id AS "requestId",correction_direction AS direction,
       amount_won::text AS "amountWon",reason,recorded_by AS "recordedBy",
       occurred_at AS "occurredAt"`, [key, input.amountWon, original.sellerId,
-    original.sellerName, original.sellerCategoryId, original.sellerCategoryName,
+    original.sellerName, currentCategory.sellerCategoryId,
+    currentCategory.sellerCategoryName,
     input.requestId, original.id, input.direction, normalizedAdminId, input.reason])).rows[0];
   if (inserted) return response(inserted);
   const collided = (await client.query<CorrectionRow>(`SELECT id,

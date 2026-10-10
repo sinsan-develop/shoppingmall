@@ -9,11 +9,19 @@ const run = process.env.S6_C2_BROWSER_RUN;
 const output = process.env.S6_C2_PDF_DIR;
 const x = process.env.S6_C2_X_ID;
 const y = process.env.S6_C2_Y_ID;
+const correctionOriginalId = process.env.S6_CORRECTION_ORIGINAL_ID;
+const correctionDate = process.env.S6_CORRECTION_DATE;
 if (!/^[a-f0-9]{8}$/.test(run ?? '') ||
-  output !== 'D:/tmp/shoppingmall-s6-c2-pdf-1010' ||
+  !['D:/tmp/shoppingmall-s6-c2-pdf-1010',
+    'D:/tmp/shoppingmall-s6-correction-1010b-pdf'].includes(output) ||
   ![x, y].every((id) => /^[0-9a-f-]{36}$/.test(id ?? '')) ||
   process.env.QA_BROWSER_CONSENT !== `S6_C2_ISOLATED_${run}`) {
   throw new Error('C2 browser QA requires exact isolated inputs');
+}
+if ((correctionOriginalId || correctionDate) &&
+  (!/^[0-9a-f-]{36}$/.test(correctionOriginalId ?? '') ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(correctionDate ?? ''))) {
+  throw new Error('Correction browser QA requires original event ID and occurrence date');
 }
 
 let page;
@@ -64,15 +72,16 @@ async function login(role) {
   await evaluate(`document.querySelector('form').requestSubmit(); true`);
   await waitFor(`location.pathname==='/account'`, `${role} login`);
 }
-async function report(categoryId, expected, absent) {
+async function report(categoryId, expected, absent, from = '2026-05-01', to = '2026-05-20') {
   await waitFor(`document.querySelector('form[aria-label="정산 조회 조건"]')`, 'filter');
-  await setValue('input[name=from]', '2026-05-01');
-  await setValue('input[name=to]', '2026-05-20');
+  await setValue('input[name=from]', from);
+  await setValue('input[name=to]', to);
   if (categoryId) {
     await waitFor(`document.querySelector('select[name=categoryId] option[value=${JSON.stringify(categoryId)}]')`,
       'category choice');
-    await setValue('select[name=categoryId]', categoryId);
   }
+  if (await evaluate(`Boolean(document.querySelector('select[name=categoryId]'))`))
+    await setValue('select[name=categoryId]', categoryId ?? '');
   await evaluate(`document.querySelector('form[aria-label="정산 조회 조건"]')
     .requestSubmit(); true`);
   await waitFor(`(() => { const text=document.querySelector('.settlement-print')?.textContent ?? '';
@@ -128,13 +137,30 @@ try {
   const yReport = await report(y, ['4,000원', '선택 분류 합계',
     '조회 판매자 분류: C2 현재 Y'], ['14,000원', '10,000원', 'C2 0건 완료']);
   const yPdf = await print('admin-y.pdf');
+  let correctionPdfBytes = [];
+  if (correctionOriginalId) {
+    const xCurrent = await report(x, ['조회 판매자 분류: C2 과거 X'],
+      ['-2,000원', `원사건 ${correctionOriginalId}`], correctionDate, correctionDate);
+    assert.ok(!xCurrent.includes(`원사건 ${correctionOriginalId}`));
+    const current = await report(y, ['조회 판매자 분류: C2 현재 Y', 'C2 현재 Y',
+      '-2,000원', `원사건 ${correctionOriginalId}`],
+    ['10,000원', '14,000원'], correctionDate, correctionDate);
+    assert.ok(current.includes('정정'));
+    correctionPdfBytes = [await print('admin-correction-y.pdf')];
+  }
   await login('seller');
   await navigate('/account/seller/settlement');
   const own = await report(null, ['14,000원', '10,000원', '4,000원'], []);
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="정정 사건 기록"]').length`), 0);
   const sellerPdf = await print('seller.pdf');
+  if (correctionOriginalId) {
+    await report(null, ['C2 현재 Y', '-2,000원', `원사건 ${correctionOriginalId}`],
+      ['10,000원', '14,000원'], correctionDate, correctionDate);
+    correctionPdfBytes.push(await print('seller-correction-y.pdf'));
+  }
   console.info(JSON.stringify({ status: 'PASS', run, viewports: [1440, 430],
     all: all.includes('14,000원'), x: xReport.includes('10,000원'),
     y: yReport.includes('4,000원'), own: own.includes('14,000원'),
-    pdfBytes: [allPdf, xPdf, yPdf, sellerPdf] }));
+    pdfBytes: [allPdf, xPdf, yPdf, sellerPdf, ...correctionPdfBytes],
+    correction: Boolean(correctionOriginalId) }));
 } finally { await closeCdpPage({ debugging, page, socket }); }
