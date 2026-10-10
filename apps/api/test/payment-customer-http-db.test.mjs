@@ -16,8 +16,24 @@ test('customer mock payment HTTP is owned, same-origin, idempotent and verifies 
   const runId = randomBytes(4).toString('hex');
   const previous = { APP_ENV: process.env.APP_ENV, PAYMENT_MODE: process.env.PAYMENT_MODE,
     API_HOST: process.env.API_HOST };
+  const isolatedSystemId = process.env.QA_PAYMENT_ISOLATED_DB_SYSTEM_ID;
+  const isolatedHost = process.env.QA_PAYMENT_ISOLATED_DB_HOST;
+  const preserveImmutableHistory = Boolean(isolatedSystemId && isolatedHost);
   let seeded = false; let app; let buyerId; let otherBuyerId; let addressId; let reservationId; let orderId;
   try {
+    const settlementSchema = await pool.query("SELECT to_regclass('public.settlement_events') IS NOT NULL AS ready");
+    if (settlementSchema.rows[0].ready && !preserveImmutableHistory) {
+      throw new Error('Payment test with immutable settlement requires an isolated disposable DB');
+    }
+    if (preserveImmutableHistory) {
+      const url = new URL(process.env.DATABASE_URL);
+      const identity = await pool.query('SELECT current_database() AS db, system_identifier::text AS id FROM pg_control_system()');
+      assert.match(isolatedHost, /^shoppingmall-qa-[a-z0-9-]+-pg$/);
+      assert.equal(url.hostname, isolatedHost);
+      assert.equal(url.pathname, '/shoppingmall');
+      assert.equal(identity.rows[0].db, 'shoppingmall');
+      assert.equal(identity.rows[0].id, isolatedSystemId);
+    }
     const ready = await pool.query(`SELECT to_regclass('public.payment_events') IS NOT NULL AS ready`);
     if (!ready.rows[0].ready) {
       if (process.env.S4_PAYMENT_SCHEMA_REQUIRED === '1') throw new Error('S4 payment migration 0013 required');
@@ -105,6 +121,14 @@ test('customer mock payment HTTP is owned, same-origin, idempotent and verifies 
     assert.equal(paid.status, 'PAID');
     assert.ok(paid.paidAt);
     assert.ok(paid.shipments.every((part) => part.status === 'PAID'));
+    if (preserveImmutableHistory) {
+      const occurrences = await pool.query(`SELECT kind,sum(amount_won)::int AS amount
+        FROM settlement_events WHERE checkout_order_id=$1 GROUP BY kind`, [orderId]);
+      const amounts = Object.fromEntries(occurrences.rows.map((row) => [row.kind, row.amount]));
+      assert.ok((amounts.sale ?? 0) > 0);
+      assert.equal((amounts.sale ?? 0) - (amounts.goods_discount ?? 0)
+        + (amounts.shipping_fee ?? 0) - (amounts.shipping_support ?? 0), paid.payableWon);
+    }
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM order_status_events
       WHERE checkout_order_id=$1 AND status='PAID'`, [orderId])).rows[0].n, 1);
     process.env.API_HOST = '0.0.0.0';
@@ -115,7 +139,7 @@ test('customer mock payment HTTP is owned, same-origin, idempotent and verifies 
     for (const key of Object.keys(previous)) {
       if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
     }
-    if (orderId) {
+    if (!preserveImmutableHistory && orderId) {
       if (buyerId && (await pool.query(`SELECT
         to_regclass('public.notification_jobs') IS NOT NULL AS ready`)).rows[0].ready) {
         const owned = `account_id=$1 AND
@@ -144,19 +168,19 @@ test('customer mock payment HTTP is owned, same-origin, idempotent and verifies 
       await pool.query('DELETE FROM shipment_orders WHERE checkout_order_id=$1', [orderId]);
       await pool.query('DELETE FROM checkout_orders WHERE id=$1', [orderId]);
     }
-    if (reservationId) {
+    if (!preserveImmutableHistory && reservationId) {
       await pool.query('DELETE FROM checkout_reservation_lines WHERE reservation_id=$1', [reservationId]);
       await pool.query('DELETE FROM checkout_reservations WHERE id=$1', [reservationId]);
     }
-    if (addressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [addressId]);
-    if (otherBuyerId) {
+    if (!preserveImmutableHistory && addressId) await pool.query('DELETE FROM customer_addresses WHERE id=$1', [addressId]);
+    if (!preserveImmutableHistory && otherBuyerId) {
       await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [otherBuyerId]);
       await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [otherBuyerId]);
       await pool.query('DELETE FROM account_roles WHERE account_id=$1', [otherBuyerId]);
       await pool.query('DELETE FROM account_identities WHERE account_id=$1', [otherBuyerId]);
       await pool.query('DELETE FROM accounts WHERE id=$1', [otherBuyerId]);
     }
-    if (seeded) await runQaCatalogFixture('reset', runId, process.env.DATABASE_URL);
+    if (!preserveImmutableHistory && seeded) await runQaCatalogFixture('reset', runId, process.env.DATABASE_URL);
     await pool.end();
   }
 });
