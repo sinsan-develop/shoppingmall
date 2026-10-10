@@ -12,11 +12,16 @@ export default function AdminSetupPage() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const fragment = window.location.hash;
-    const received = new URLSearchParams(fragment.slice(1)).get('token') ?? '';
-    if (fragment) window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    if (received) { setToken(received); setState('ready'); }
-    else setState('missing');
+    function readLink() {
+      const fragment = window.location.hash;
+      const received = new URLSearchParams(fragment.slice(1)).get('token') ?? '';
+      if (fragment) window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      if (received) { setToken(received); setState('ready'); }
+      else setState('missing');
+    }
+    readLink();
+    window.addEventListener('hashchange', readLink);
+    return () => window.removeEventListener('hashchange', readLink);
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
