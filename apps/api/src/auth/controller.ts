@@ -5,9 +5,13 @@ import {
 import { DatabaseService } from '../db/service.js';
 import { AuthRepository } from './repository.js';
 import { MockPhoneOtp, normalizePhone } from './mock-phone-otp.js';
+import { completeAdminSetup } from './onboarding.js';
 import type { ActiveRole } from '../access.js';
 
-type RequestHeaders = { headers: { cookie?: string; origin?: string } };
+type RequestHeaders = {
+  headers: { cookie?: string; origin?: string };
+  socket?: { localAddress?: string; remoteAddress?: string };
+};
 type CookieResponse = { setHeader: (name: string, value: string) => void };
 const cookieName = 'sm_session';
 
@@ -184,6 +188,28 @@ export class AuthController {
       if (error instanceof ServiceUnavailableException) throw error;
       if (error instanceof Error && ['Invalid credentials', 'Invalid email'].includes(error.message)) {
         throw new UnauthorizedException({ status: 'invalid_credentials' });
+      }
+      throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    }
+  }
+
+  @Post('admin-setup/complete')
+  async finishAdminSetup(@Req() request: RequestHeaders, @Body() body: unknown) {
+    requireOrigin(request);
+    if (!body || typeof body !== 'object') throw new BadRequestException();
+    const input = body as Record<string, unknown>;
+    if (typeof input.token !== 'string' || typeof input.password !== 'string' ||
+        input.token.length > 256 || input.password.length < 12 || input.password.length > 1024) {
+      throw new BadRequestException();
+    }
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    try {
+      return await completeAdminSetup(pool, input.token, input.password,
+        new Date(), request.socket?.remoteAddress ?? 'unknown');
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid action token') {
+        throw new UnauthorizedException({ status: 'invalid_or_expired_link' });
       }
       throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
     }
