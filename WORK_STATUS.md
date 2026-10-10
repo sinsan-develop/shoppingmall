@@ -4772,3 +4772,9 @@
 - 자동 PDF 중 관리자 Y 파일 SHA-256 `C0BF49C6A9468BC4770B0B9C360481D3672CDC738AEED43453BDFD4296CF1F88`, 판매자 Y 파일 `51BD7411CB5994054095FA9B1E0494CE223DADBB0A985E2A40180EE4750A98A7`. 일회용 PDF 원본과 렌더 PNG는 임시 시험 종료 때 삭제했다. 필요하면 같은 스크립트·격리 fixture로 재생성한다.
 - WSL 전용 API/Web/PG 컨테이너 3개와 `.next` volume의 ID·mount를 확인해 제거했고 이름·volume 잔류 0, 지정 checkout clean `main` 복귀를 확인했다. Windows의 15439/9091/9092 터널 세션, CDP/가시 전용 Chrome 프로필 프로세스와 해당 `D:/tmp` 세 디렉터리를 정확한 대상 대조 뒤 제거했다. QA 포트 9229/9091/9092/15439 listener 0, 전용 Chrome 프로세스 0, 전용 디렉터리 0. 격리 가상 계정·정산 사건·기간 기록도 tmpfs PG 폐기와 함께 사라졌다. 공유 DB·기존 사용자 브라우저 창/자료는 건드리지 않았다.
 - 새 브라우저 스크립트와 PR 설명은 `node --check`·PR 본문 검사·PR 자동화 시험 8/8·`git diff --check`를 통과했다. 현재 로컬 전체 `pnpm test`는 605건 중 434 pass·170 조건부 skip·1 fail로 이전 G1과 동일하다. 실패 위치 `apps/api/test/migration-preview.test.mjs:48`의 역사적 24건 고정 단언이며 신규 25건을 거부한다. 이 파일은 승인 계획의 변경 목록 밖이므로 수정하지 않았다. 현재 로컬 `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 25경로) exit 0. 전체 test·CI·일반 PR 병합 gate는 여전히 미충족이다.
+
+## 2026-10-10 후속 계획 Task 4 PR 생성·CI 확인
+
+- 담당 어울. 원격 `main@eab39abc6caf8155edfd20d96de7f014fd06a8c3`, 작업 브랜치 `codex/next-work-20261010-2@c4e7004fd4fa3b1d3502aa945ffdbb2f4c21e636`, 사용자 소유 미추적 3경로를 재확인했다. 승인 SSH 별칭의 `pr-create/**` 요청 태그만 전송했고 자동화가 태그를 제거했다. `pr-request/**` 자동 병합 태그는 전송하지 않았다.
+- [PR #18](https://github.com/sinsan-develop/shoppingmall/pull/18)이 정확한 head `c4e7004...`와 base `eab39ab...`로 OPEN임을 익명 읽기 API에서 확인했다. push CI run `38022904378`은 `pnpm test` 단계 FAILURE; PR 이벤트 run `38024599649`는 `action_required`이고 실행 job 0건으로 표시된다. 원인은 공개 API 근거만으로 단정하지 않는다. CI 통과·병합·merged-main smoke를 수행한 것으로 표시하지 않는다.
+- 다음: 계획 밖 고정 migration 수 시험의 범위 승인 여부, G3 OS PDF/200% 직접 실측 가능성, 공유 DB 0024 별도 적용 승인 및 PR 이벤트 CI 조치 상태를 각각 대조한다. 승인 전 공유 DB 쓰기나 후속 PR 예외 병합은 하지 않는다.
