@@ -5156,3 +5156,9 @@
 - 같은 SHA에서 로컬 `pnpm test` 635건/442 pass·193 DB 조건부 skip·0 fail, PR 본문 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로)을 확인했다. 193 skip은 실제 DB 시험 합격에 포함하지 않는다. 이번 실행은 새 DB 행·컨테이너·브라우저 프로필·포트를 만들지 않았다.
 - WSL 읽기 전용 자원 확인 시 2 vCPU 공유 호스트의 load average 3.73/3.72/3.98, swap 사용 5110/8192 MiB였다. 이 상태로 Task 4의 공유 30분 부하를 시작할 안전 근거가 없어 기존 `docs/design_change.md` 경계를 유지한다. 실제 18개 화면의 Next/API/DB 조작 행렬 및 PC 200% 증거는 계속 `UNVERIFIED`다.
 - 기존 `scripts/qa-auth-browser.mjs`는 구 전용 DB `shoppingmall_auth_admin_1010`, 구 system ID 및 15442 포트로 고정돼 있고 현재 승인된 QA DB를 그대로 사용할 수 없다. 다른 고객/판매자 브라우저 스크립트는 합성 계정 입력을 받지만 자체적으로 DB 식별·자료 생성을 하지 않으므로 먼저 승인된 전용 QA DB와 정확한 fixture·서비스·정리 경계를 연결해야 한다. 코드 변경이나 보호 DB 접속 없이 이 위험을 확인했다. 다음은 Task 6의 한 화면부터 실제 QA DB/Next 브라우저 경로를 제한적으로 연결하고 행별 증거를 쌓는 것이다.
+
+## 2026-10-11 Task 5·7 계정 브라우저 시험의 QA DB 가드 보정
+
+- 담당 어울. 시작 SHA `a223562758a482bbaad8d7ed7a12d523d24981f8`, 대상은 기존 시험 스크립트 `scripts/qa-auth-browser.mjs`와 신규 안전 가드 시험 한 파일뿐이다. 구 `shoppingmall_auth_admin_1010` 고정 때문에 승인된 `shoppingmall_qa_20261010_2`를 거부하는 사례를 먼저 재현했다. 첫 시험 실행은 Windows 파일 URL을 경로로 변환하지 않아 자식 프로세스 `ENOENT`가 났고, 시험 경로만 교정한 재실행에서 기대한 `PGDATABASE QA guard` 실패 **1건(RED)**을 확인했다.
+- 스크립트의 허용 DB를 승인된 전용 QA DB 한 곳으로 좁히고, 시작 전에 `PGDATABASE`·QA system ID 두 환경변수·루프백 URL/15442를 대조하며 연결 후에도 실제 `current_database()`와 PG system ID를 확인한다. 보호 `shoppingmall` URL은 연결 전에 거부한다. 표적 시험 **2 pass·0 fail(GREEN)**; 전체 로컬 `pnpm test` **637건/444 pass·193 DB 조건부 skip·0 fail**, PR 본문 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0이다. 빌드에서 Web 31경로가 생성됐다.
+- 이 검증은 가짜 루프백 DB 포트를 사용한 **접속 전 설정 가드**에 한정한다. 실제 QA DB 연결·계정 브라우저 여정·18개 화면·실제 200% 확대를 수행했다고 표시하지 않는다. 새 DB 행·컨테이너·포트·브라우저 프로필은 만들지 않았고 설계·계획·제품 API/DB schema는 불변이다. 실행 오류는 시험 경로 ENOENT 1회(자료 변경 전)이며 원인을 경로 변환으로 해결했다. 다음은 정확한 SHA를 WSL에 동기화한 뒤 안전한 QA DB/서비스 자원을 선언하고 한 화면의 실제 브라우저 흐름을 검증한다.

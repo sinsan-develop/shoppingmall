@@ -16,10 +16,11 @@ const { Pool } = createRequire(new URL('../apps/api/package.json', import.meta.u
 
 const web = 'http://127.0.0.1:9091';
 const debugging = 'http://127.0.0.1:9229';
-const expectedDb = 'shoppingmall_auth_admin_1010';
-const expectedSystem = '7695033535935234087';
+const expectedDb = 'shoppingmall_qa_20261010_2';
+const expectedSystem = '7622490131194466339';
 const required = {
   PGDATABASE: expectedDb,
+  QA_ROLE_MATRIX_DB_SYSTEM_ID: expectedSystem,
   AUTH_ADMIN_TEST_DB_SYSTEM_ID: expectedSystem,
   APP_ENV: 'development', API_HOST: '127.0.0.1', AUTH_DELIVERY_MODE: 'mock',
   AUTH_LINK_ORIGIN: web, WEB_ORIGIN: web,
@@ -153,7 +154,8 @@ async function assertPortFree(port) {
   await new Promise((resolve) => probe.close(resolve));
 }
 try {
-  const id = await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()');
+  const id = await pool.query('SELECT current_database() AS db, system_identifier::text AS id FROM pg_control_system()');
+  assert.equal(id.rows[0].db, expectedDb);
   assert.equal(id.rows[0].id, expectedSystem);
   for (const table of ['accounts','account_roles','auth_sessions','auth_action_tokens','seller_applications']) {
     const count = await pool.query(`SELECT count(*)::int AS n FROM ${table}`);
