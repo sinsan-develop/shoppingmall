@@ -5035,3 +5035,10 @@
 - 수명은 `WORK_PLAN_20260-10-10-2` Task 8의 증거 정리까지다. QA 자료는 `qa-1010-2-<runId>`로 소유 식별하고 생성 manifest와 불변 사건 보존 범위를 기록한다. 해당 DB만 사용 후 자료/외부 연결/소유를 확인해 정리한다. 보호 `shoppingmall`과 다른 프로젝트 DB·컨테이너·계정은 삭제하거나 변경하지 않는다. 생성 직후 빈 DB·기존 보호 DB 불변을 후조회한다. 새 DB 역할·비밀값은 이번 생성에 포함하지 않는다.
 - 생성·적용 증거: `shoppingmall_qa_20261010_2`를 정확한 이름으로 생성했고, 생성 직후 public 관계 0개였다. 로컬 Node 24에서 기존 `apps/api/scripts/migrate.ts`에 `PGDATABASE`를 명시하고 기존 PostgreSQL 비밀번호를 출력/파일화하지 않고 WSL 컨테이너에서 일시 참조하여 0000~0025 migration 26건을 적용했다. 후조회 DB 이름·system ID `7622490131194466339`·이력 26, QA 계정/판매자/상품/주문/정산 각 0행. 보호 `shoppingmall`의 같은 다섯 범주는 전후 0행. WSL 지정 checkout은 작업 SHA `8532d4b724e27f48f35bf07e36c680ec58c1b341`의 clean detached 상태다. 새 DB 역할이나 Secret 파일은 생성하지 않았다.
 - 연결 사전 점검 1회는 비밀번호 없이 WSL 호스트에서 시도해 `fe_sendauth: no password supplied`로 실패했다. 비밀값을 셸 출력하지 않는 방식으로 정확한 QA DB 연결을 확인한 뒤 migration을 수행했다. 실패가 제품/QA DB 변경을 일으키지 않았다. 현재 QA DB의 역할별 seed·API·브라우저 검증은 아직 미실행이며 migration 적용만으로 합격으로 표시하지 않는다.
+
+## 2026-10-11 Task 6 전용 QA 계정 fixture 반복성 검증
+
+- 담당 어울, `codex/work-plan-20261010-2`. 변경 대상은 `apps/api/scripts/qa-fixture.ts`, `apps/api/test/qa-fixture.test.mjs`, 본 상태 기록이다. 5개 역할 계정·3개 판매자의 동일 run ID 재시드는 중복 생성 없이 기존 역할/판매자 연결을 재확인하고, 부분·변조 상태는 거부한다. 전용 `shoppingmall_qa_20261010_2`만 정확한 DB명·PG system ID 일치 시 허용하며 기존 `/shoppingmall` 사용 계약은 유지한다. 8자리 run ID별 트랜잭션 잠금으로 동시 재시드를 직렬화한다.
+- RED: 전용 DB seed는 기존 경로 제한으로 실패했고, 역할 변조 후 재시드는 기존 행 수 검사만으로 거부되지 않아 실패했다. GREEN: 전용 DB 표적 4 pass·1 기존 공유 DB 전용 skip·0 fail. 해당 시험의 생성 계정/판매자/분류/역할은 reset 후 각각 0행이다. 비밀값은 출력·파일화하지 않았다.
+- 전체 로컬 `pnpm test`: 632건·441 pass·191 조건부 skip·0 fail, PR 본문 검사 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 31경로), `git diff --check` 모두 exit 0. DB 의존 skip·18화면 실제 브라우저·WSL 정식 E2E·복구·30분 부하는 아직 통과로 세지 않는다.
+- 오류: QA 잔류 확인 SQL의 인용 오류 1회(읽기 실패, 자료 변경 없음); 인용이 필요 없는 계수 질의로 재확인했다. 다음 작업은 exact SHA를 WSL 지정 checkout에 맞추고 전용 QA DB의 역할·상품 자료를 멱등 준비한 뒤 18화면 정상/오류/권한/재시도 검증이다. 보호 `shoppingmall`에는 시험 거래를 만들지 않는다.
