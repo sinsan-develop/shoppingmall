@@ -5110,3 +5110,9 @@
 - 담당 어울. 실행 전 로컬/WSL exact SHA `87dcd524377f2d134ea70d0e811a4070de839927`, 지정 작업 브랜치·WSL checkout clean(사용자 비추적 자료 제외)을 대조했다. 프로젝트 루트 `AGENTS.md`는 현재 없고 신산님이 이 대화에 제공한 전역 지침과 PMO 지침·승인 설계/계획을 적용했다. 보호 DB·QA DB에 이 점검으로 쓰지 않았다.
 - 18개 대표 Web route는 앞선 빌드에서 존재하지만 실제 행렬은 모두 `UNVERIFIED`다. 기존 `qa-public-fixture.ts`/`qa-fixture.ts`는 전용 `shoppingmall_qa_20261010_2`와 실제 PG system ID 대조를 지원한다. 반면 `qa-browser-fixture.ts`는 보호 `shoppingmall`만 허용하고, `scripts/qa-auth-browser.mjs`는 이전 `shoppingmall_auth_admin_1010`/구 system ID/포트 15442로 고정되어 있다. 따라서 이 둘을 승인된 전용 QA DB에 맞춘 가드·정리 검증 없이 실행하지 않는다. 다음 독립 작업은 변경 대상 시험 도구를 RED→GREEN으로 좁혀 전용 DB의 실제 화면 경로에 재사용하는 것이다.
 - 가입 시작은 기존 이메일에서 `account_identities` 조회 후 즉시 수락, 신규 이메일은 추가 token 발급·mock 전달을 수행한다. 복구 시작도 미등록 이메일에서 즉시 수락, 등록 이메일에서 token 발급·mock 전달을 수행한다. 동일 JSON 응답만으로 처리시간 차이 방어가 입증되지 않는 코드 경로다. 이 실행에서는 반복 시간 분포를 측정하지 않았으므로 Task 5 A8의 기준 RED·방어는 아직 미검증이다. 새 비동기 계약이나 고정 sleep을 임의 구현하지 않는다.
+
+## 2026-10-11 Task 6 전용 QA DB 브라우저 fixture 가드
+
+- 담당 어울. 시작 SHA `3e32c29a071bfbc22ba0198fdb0539f18b829e65`. `apps/api/test/qa-browser-fixture.test.mjs`에 승인된 전용 QA DB를 선택했으나 system ID가 없을 때 DB 연결 전에 거부해야 한다는 시험을 먼저 추가했다. 수정 전 표적 실행은 기대한 식별자 오류 대신 기존 `shoppingmall` 고정 거부로 **1 pass·1 fail(RED)**이었다.
+- `apps/api/scripts/qa-browser-fixture.ts`의 reset 진입점은 기존 보호 DB 경로와 이번에 승인된 전용 QA DB 경로만 허용하고, 후자의 system ID 설정을 연결 전 검사하며, 연결 후에는 실제 `current_database()`·PG system ID를 공통 가드로 대조한 뒤에만 변경 트랜잭션을 시작하도록 좁혀 수정했다. 표적 시험 **2 pass·0 fail(GREEN)**. 전체 로컬 `pnpm test` **635건/442 pass·193 DB 조건부 skip·0 fail**, PR 본문 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0(웹 31경로). 설계서·작업계획서와 제품 API/DB schema는 불변이다.
+- 이 가드의 실제 WSL QA DB 연결·상품 화면/정리 성공은 아직 미검증이고 보호 `shoppingmall`에 시험 행을 쓰지 않았다. 변경 파일은 이 시험·fixture·현황만이다. 다음은 exact SHA로 WSL 전용 DB 실연결·분리 자료의 생성/정리, 이어서 Task 6 화면 조작 행렬이다. 오류 횟수: 표적 RED 1회(의도한 실패), 구현 후 실패 0회.
