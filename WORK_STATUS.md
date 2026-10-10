@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 2026-10-10 지정 계획의 다음 작업 이관 판정
+
+- 담당 어울. 신산님 최신 지시: 작업 중 추가 승인 요청을 하지 않고, 진행 불가 사항은 `docs/design_change.md`에 기록해 다음 작업에서 처리한다. 설계서·작업계획서는 수정하지 않는다.
+- 현재 브랜치 `codex/next-work-20261010-2@79a171e`, 기준 `origin/main@eab39ab`; PR #18은 병합하지 않았다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 보존한다.
+- 구현·격리 검증: 0024와 정정 분류 기록, 동일 코드의 WSL 격리 DB/HTTP 12/12 pass·0 skip. 전체 로컬 시험은 605건 중 1 fail(기존 migration 수 24 고정), 434 pass·170 조건부 skip. typecheck/lint/build exit 0. 독립 리뷰 Critical 0·Important 1은 이 시험 실패다.
+- 미실행·미검증: 공유 DB 0024 적용/읽기 smoke, OS 인쇄 창 PDF 저장·파일 확인, 실제 200% 확대, 정확한 head CI 통과, PR 병합·merged-main smoke. 자동 PDF·430px 시험은 직접 OS 검증으로 대체하지 않는다.
+- 판정: 승인된 계획의 일반 병합 게이트를 충족하지 못한다. 막힌 G1~G4와 다음 작업 조치를 `docs/design_change.md`에 남겼다. 별도 승인 없이 공유 DB 쓰기나 예외 병합은 하지 않는다. 이번 기록 자체를 시험 통과·계획 전체 달성으로 표시하지 않는다.
+
 ## 2026-10-10 G3 직접 인쇄·확대 재시험 자원 계획
 
 - 담당/범위: 어울, 지정 계획 Task 4 Step 6. 현재 제품 SHA `4c251a5ed3c7e27810bea83c33d7e7545168032f`의 WSL 지정 checkout만 사용한다. 공유 `local-postgres/shoppingmall`에는 연결·쓰기하지 않는다.
