@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-10 Task 2 증가 정정 시험의 날짜 경계 재현 계획
+
+- 담당 어울. 독립 리뷰에서 발견된 증가 정정 실DB 시험의 간헐 날짜 경계 오류를 승인된 Task 2 시험 파일 `apps/api/test/settlement-correction-category-db.test.mjs` 안에서만 보정한다. 원인은 원사건 시각과 정정 시각을 각각 DB가 기록하는데 조회 기간은 정정일 하루로 고정한 점이다. 원사건을 정정일보다 2일 앞서 발생시키는 단일 시험 변경으로 RED를 재현하고, 조회 기간을 두 사건 날짜를 모두 포함하도록 바꾸어 GREEN을 확인한다. 제품 코드·설계서·작업계획서는 수정하지 않는다.
+- WSL 지정 checkout `/home/daon/deploy/shopping`은 시작 시 clean `main@eab39abc...`다. 호스트 공개 포트 없는 일회용 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-increase-date-1010-pg`에 DB `shoppingmall_s6_correction_1010`을 만들고, 동일 network namespace의 `shoppingmall-s6-increase-date-1010-node`만 접속한다. 정확한 DB system ID를 시험 gate로 지정한다. 공유 `local-postgres/shoppingmall` 접속·쓰기와 가상 거래 생성은 하지 않는다.
+- RED/GREEN 두 시험 버전은 승인 SSH 원격의 안전한 commit으로 지정 WSL checkout에서 정확 SHA로 받아 실행한다. 0000~0024는 이 격리 DB에만 적용한다. 모든 시험 뒤 runner는 `--rm`, PG는 정확 ID·mount 확인 후 한 개만 stop/rm, 이름 잔류 0과 지정 checkout clean main 복귀를 확인한다.
+
 ## 2026-10-10 Task 2 증가 정정 실DB 증거 보강 자원 계획
 
 - 담당 어울. 승인된 `WORK_PLAN_20260-10-10.md` Task 2·Review Focus의 X→Y 증가 정정 직접 DB 증거 공백만 보강한다. 변경 후보는 계획에 적힌 `apps/api/test/settlement-correction-category-db.test.mjs` 한 파일이며 제품 코드·설계서·작업계획서는 수정하지 않는다. 기존 감소·경합 시험은 유지한다.

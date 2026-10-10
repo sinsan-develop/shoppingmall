@@ -194,7 +194,7 @@ test('an increased correction belongs to current Y while the original stays in X
       (dedupe_key,kind,amount_won,occurred_at,seller_id,seller_name,
        seller_category_id,seller_category_name,source_event_kind,source_event_id,
        recorded_by,reason)
-      VALUES ($1,'commission',10000,clock_timestamp(),$2,'QA 증가 판매자',
+      VALUES ($1,'commission',10000,clock_timestamp() - interval '2 days',$2,'QA 증가 판매자',
         $3,'QA 증가 X','manual_commission',$4,$5,'증가 원사건') RETURNING id`,
     [`qa:${randomUUID()}`, sellerId, xId, randomUUID(), adminId])).rows[0].id;
     await client.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [yId, sellerId]);
