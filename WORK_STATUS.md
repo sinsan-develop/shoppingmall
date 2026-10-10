@@ -6,6 +6,13 @@
 - WSL 지정 checkout `/home/daon/deploy/shopping`은 시작 시 clean `main@eab39abc...`다. 호스트 공개 포트 없는 일회용 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-increase-date-1010-pg`에 DB `shoppingmall_s6_correction_1010`을 만들고, 동일 network namespace의 `shoppingmall-s6-increase-date-1010-node`만 접속한다. 정확한 DB system ID를 시험 gate로 지정한다. 공유 `local-postgres/shoppingmall` 접속·쓰기와 가상 거래 생성은 하지 않는다.
 - RED/GREEN 두 시험 버전은 승인 SSH 원격의 안전한 commit으로 지정 WSL checkout에서 정확 SHA로 받아 실행한다. 0000~0024는 이 격리 DB에만 적용한다. 모든 시험 뒤 runner는 `--rm`, PG는 정확 ID·mount 확인 후 한 개만 stop/rm, 이름 잔류 0과 지정 checkout clean main 복귀를 확인한다.
 
+## 2026-10-10 Task 2 증가 정정 날짜 경계 재현 결과
+
+- 원인 확인: 기존 증가 시험은 원사건·정정을 별도 DB 시각으로 기록하면서 조회 기간을 정정일 하루로 잡았다. 원사건을 `clock_timestamp() - interval '2 days'`로 고정한 RED 커밋 `cc75da47338accd2e8f9b6b1868c9e34d9bc7d40`에서 X 조회 실제 0, 기대 10,000원으로 실패했다. SQLSTATE/권한 문제가 아닌 조회 기간의 누락이다. GREEN 커밋 `4cd10069f37752e22d8f5d14f23eabfd821655ba`는 원사건·정정의 서울 날짜를 각각 사용해 같은 조회 기간에 포함한다. 첫 patch가 다른 시험의 동명 변수 선언에 잘못 매칭되어 `node --check` 구문 오류 1회가 났으나 diff를 확인해 그 선언을 원복하고 증가 시험만 수정한 뒤 push했다. 제품 코드 수정 0.
+- 일회용 PostgreSQL 15 컨테이너 `shoppingmall-s6-increase-date-1010-pg` 정확 ID `f5df0399b26ae575d87116c75a22782ad395fae857d163262573510ab3e65def`, system ID `7694966580247498791`, DB `shoppingmall_s6_correction_1010`, network none·영속 mount 0/tmpfs 1 확인. 0000~0024 25건 적용. 동일 격리 DB에서 새 시험 GREEN 1/1·0 skip, 계획 Task 2 네 파일 **13/13 pass·0 skip·0 fail**. 공유 DB의 migration 25건은 불변, 시험 거래를 만들지 않았다.
+- 로컬 전체 `pnpm test`: 606건/435 pass·171 DB 조건부 skip·0 fail, PR 본문 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0(Web 25경로), `git diff --check` 이상 0. 격리 실DB와 로컬 skip을 별도로 판정한다.
+- 시험 전 ID·mount 확인 후 위 tmpfs PG 한 개만 stop/rm, Node runner는 매 호출 `--rm`으로 잔류 0. WSL 지정 checkout clean `main@eab39abc...` 복귀, 해당 이름의 컨테이너 잔류 0. G2 OS 인쇄/200% 직접 확인과 G5 공유 실제 역할 세션은 이 시험으로 해소되지 않았다. PR 병합·merged-main smoke는 계속 미실행이다.
+
 ## 2026-10-10 Task 2 증가 정정 실DB 증거 보강 자원 계획
 
 - 담당 어울. 승인된 `WORK_PLAN_20260-10-10.md` Task 2·Review Focus의 X→Y 증가 정정 직접 DB 증거 공백만 보강한다. 변경 후보는 계획에 적힌 `apps/api/test/settlement-correction-category-db.test.mjs` 한 파일이며 제품 코드·설계서·작업계획서는 수정하지 않는다. 기존 감소·경합 시험은 유지한다.

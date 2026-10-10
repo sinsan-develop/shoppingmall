@@ -18,15 +18,16 @@
 
 ## 검증
 
-- 새 증가 실DB 시험 추가 후 로컬 `pnpm test`는 606건/435 pass·171 조건부 skip·0 fail, PR 본문 시험 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`는 exit 0(Web 25경로). 직전 head `515cc54`의 push CI `38038482547`과 PR CI `38038485724`는 completed/success다. 새 시험 head의 CI는 해당 정확 SHA에서 다시 확인한다.
+- 날짜 경계 시험 보강 후 로컬 `pnpm test`는 606건/435 pass·171 조건부 skip·0 fail, PR 본문 시험 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`는 exit 0(Web 25경로). 최종 head의 push/PR CI는 해당 정확 SHA에서 별도로 확인한다.
 - 공유 DB 사전 custom-format 백업은 0600·273,142바이트·SHA-256 `d925ba08ea47b9301e1349965088cebfb616e781c4161dc4ca7b071c2e7cf29b`이고 TOC 목록과 별도 PG15 tmpfs DB 실제 복원(시스템 ID `7694942749772009511`)을 확인했다. 적용 전 공유 시스템 ID `7622490131194466339`, migration 24·주요 업무행 0, 읽기 전용 preview 대기 0024 한 건·SQL 해시 `e1333d47f76965a486e4b74bea091df0014adb601f0dbca842c6e8eb9729f796`이었다.
 - 공유 DB 적용 후 migration 25·대기 0, 마지막 SQL 해시 일치, accounts/sellers/orders/settlement events/completions 각 0 유지. 동일 SHA 임시 API의 `/health`·`/ready` 200, 익명 관리자·판매자 정산 GET 401, 가짜 역할 헤더 401, 잘못된 Origin의 정정 POST 403을 확인했다. 공유 DB에는 가상 거래를 만들지 않았고 일회용 API·복원/백업 도구는 제거했다.
 - 지정 WSL checkout의 동일 코드 SHA에서 격리 PostgreSQL 15에 migration 25건을 적용하고 DB 시험 8/8·HTTP/경합 시험 4/4를 0 skip으로 확인했다. 원사건 X 10,000원과 Y 정정 -2,000원, 전체 순액 8,000원, 5월 고정 금액 10,000원, 중복 요청·권한 거부를 검증했다.
 - 독립 리뷰에서 분류 ID가 다시 바뀐 뒤 동일 요청 UUID의 사건 1건 유지 단언을 계획 내 DB 시험에 보강했다. 해당 최신 시험을 동일 작업 SHA의 격리 PostgreSQL 15에서 4파일 **12/12 pass·0 skip**으로 재실행했다. 첫 실행의 HTTP 503은 시험 앱 `DATABASE_URL` 누락에 따른 설정 오류였고, 격리 DB 주소를 명시한 재실행에서 12/12가 통과했다.
 - X→Y **증가** 정정의 새 실DB 시험은 0024 이전 24건 schema에서 SQLSTATE 23514로 RED, 같은 격리 DB에 0024를 적용한 뒤 GREEN 1/1이었다. X 원사건 10,000원·Y 증가 2,000원·전체 12,000원과 원사건 연결을 검사했다. 현재 작업 SHA의 Task 2 네 파일 통합은 **13/13 pass·0 skip**이며 최초 게이트 변수 누락으로 생긴 4 skip은 근거에서 제외했다. tmpfs DB/Node runner는 정확 ID로 정리했고 공유 DB에는 시험 거래를 만들지 않았다.
+- 증가 정정 시험의 날짜 경계 결함을 별도 RED→GREEN으로 재현·보강했다. 원사건을 정정 이틀 전으로 둔 RED에서 X 조회가 0≠10,000원으로 실패했고, 원사건일과 정정일을 모두 조회 기간에 포함한 GREEN에서 단일 시험 1/1과 Task 2 네 파일 13/13이 격리 실DB에서 통과했다. 제품 코드와 공유 DB 거래 행은 변경하지 않았다.
 - 실제 Chrome 관리자 화면에서 현재 Y 정정 -2,000원과 원사건 링크, 5월 X 원사건 10,000원 및 고정 완료 항목을 확인했다. 이 화면 확인은 OS 인쇄 저장·200% 확대 확인을 대신하지 않는다.
 - 같은 코드 SHA의 격리 API/Web와 Chrome 자동 검증에서 관리자·판매자 현재 Y 정정, 과거 X/Y 분류·0건 완료, 1440/430px 가로 넘침 없음과 Tab 초점을 확인했다. 자동 PDF 6개를 생성하고 관리자·판매자 Y 보고서를 렌더링해 분류·원사건 링크·수수료 합계 -2,000원과 레이아웃을 대조했다. 임시 PDF와 가상 DB·컨테이너는 시험 후 정확한 대상만 폐기했다.
-- 기존 0022 원본은 변경하지 않았다. 전체 diff 독립 리뷰(`eab39ab..5c5341a`)는 Critical 0·Important 0·당시 Minor 2였다. 이전 Important 1(고정 migration 수)은 승인된 시험 파일 보정과 전체 시험/정확한 head CI 재실행으로 해소했다. 증가 정정 직접 DB 사례 부족도 후속 RED→GREEN·13/13 실DB 시험으로 보강했다. 추가 시험 범위 독립 리뷰(`515cc54..bea448e`)는 Critical 0·Important 0·Minor 1이다. 남은 Minor는 정확한 ‘7월 Y’ 실DB 재현 부재와, 신규 증가 시험이 자정 경계에 걸릴 때 조회 날짜가 원사건을 놓칠 수 있는 간헐 실패 가능성이다. 해당 시험의 실제 이번 실행은 자정 경계 밖에서 통과했다.
+- 기존 0022 원본은 변경하지 않았다. 전체 diff 독립 리뷰(`eab39ab..5c5341a`)는 Critical 0·Important 0·당시 Minor 2였다. 이전 Important 1(고정 migration 수)은 승인된 시험 파일 보정과 전체 시험/정확한 head CI 재실행으로 해소했다. 증가 정정 직접 DB 사례 부족도 후속 RED→GREEN·13/13 실DB 시험으로 보강했다. 추가 시험 범위 독립 리뷰(`515cc54..bea448e`)는 Critical 0·Important 0·당시 Minor 1이었다. 그중 자정 경계 간헐 실패 가능성은 원사건을 정정 이틀 전으로 둔 별도 RED→GREEN 실DB 시험으로 보강했다. 정확한 ‘7월 Y’ 실DB 재현은 여전히 없다. 이 보강 이후 독립 재리뷰는 하지 않았다.
 
 ## 미검증
 
