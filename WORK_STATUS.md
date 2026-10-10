@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 2026-10-10 후속 작업 시작 전 대조
+
+- 담당 어울. 기존 작업 브랜치 `codex/next-work-20261010-2@077e5b5`와 `origin/main@eab39ab`을 확인했다. PR #18은 정확한 head `077e5b5`로 open·미병합이다. 사용자 소유 미추적 세 경로는 그대로 보존했다.
+- 공유 `WSL-server/local-postgres/shoppingmall`은 **읽기 전용**으로 PostgreSQL 15.18, system ID `7622490131194466339`, migration 24건, 정산 사건/완료 각 0건을 재확인했다. 0024 SQL의 로컬 SHA-256은 기존 기록 `e1333d47f76965a486e4b74bea091df0014adb601f0dbca842c6e8eb9729f796`과 일치한다. 공유 DB 쓰기 0.
+- 로컬 표적 시험은 3건 중 2 pass·1 fail(25건 실제 이력에 대한 24건 고정 단언), 전체 `pnpm test`는 605건/434 pass·170 조건부 skip·1 fail. 현재 PR head의 push·PR CI도 각각 failure. `pnpm typecheck`, `pnpm lint`, `pnpm build`는 각각 exit 0(Web 25경로).
+- 신산님 지시에 따라 필요한 결정은 작업 시작 시 함께 질의했다: 계획 변경 목록 밖 `migration-preview.test.mjs` 한 곳 수정 범위와 공유 개발 DB 0024 적용. 답변 전 해당 파일·DB는 변경하지 않는다. OS 직접 PDF 저장/200% 확대는 기존 미검증이고, 기준을 임의 완화하거나 PR 예외 병합하지 않는다.
+
 ## 2026-10-10 지정 계획의 다음 작업 이관 판정
 
 - 담당 어울. 신산님 최신 지시: 작업 중 추가 승인 요청을 하지 않고, 진행 불가 사항은 `docs/design_change.md`에 기록해 다음 작업에서 처리한다. 설계서·작업계획서는 수정하지 않는다.
