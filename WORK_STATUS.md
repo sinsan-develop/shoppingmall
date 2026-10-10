@@ -4924,3 +4924,20 @@
 - 정확한 작업 head `20edba7dafbf321f6e4480e720825d0db1827b40`의 push CI `38047992480`와 PR CI `38047995292`는 공개 읽기 API상 둘 다 `completed/success`; PR #18은 같은 head와 base `eab39abc6caf8155edfd20d96de7f014fd06a8c3`의 open 상태다. 이 head의 PR 본문은 사용자 직접 인쇄·200% 확인 전 상태로 남아 있었다.
 - 공유 `local-postgres/shoppingmall`의 읽기 전용 재조회: DB `shoppingmall`, system ID `7622490131194466339`, migration 25, accounts/sellers/settlement_events/seller_settlement_periods 각 0. 실제 역할 세션 G5는 여전히 미검증이다. 첫 조회에서 기간 테이블명을 잘못 지정해 relation 오류 1회가 있었고 SQL 원본의 `seller_settlement_periods`를 확인해 읽기 조회를 재실행했다. 공유 DB 쓰기는 0.
 - 계획 Task 4의 `.github/PR_REQUEST.md`에 사용자 직접 OS PDF·200% 확인과 증거 한계, G5 잔여 미검증을 분리해 갱신했다. PR 본문 검사 8/8·`git diff --check` 통과. PR #17의 예외를 재사용하지 않고 G5 처리 기준이 정해지기 전 병합·merged-main smoke는 수행하지 않는다. 설계서·작업계획서·인증 코드는 변경하지 않았다.
+
+## 2026-10-10 Task 4 G5 공유 DB 역할 검증 자원 계획
+
+- 신산님이 후속 직접 답변으로 공유 개발 DB의 **임시 관리자·판매자 계정 생성→역할 차단 검증→전량 정리**를 승인했다. 불변 정산 사건·기간 완료 기록은 만들지 않는다. 이는 과거 ‘공유 DB에 시험 기록을 남기지 않는다’는 선택과 달리, 시험 계정만 한시적으로 만들고 잔류 0을 확인하는 한정 승인이다.
+- 시작 전 로컬 브랜치 `codex/next-work-20261010-2@c851ee79253b39b0dcbb3b343578b12d4fbf977a`, WSL 지정 checkout clean `main@eab39abc6caf8155edfd20d96de7f014fd06a8c3` 확인. 공유 DB `local-postgres/shoppingmall` system ID `7622490131194466339`, migration 25; accounts/sellers/seller_categories/auth_sessions/audit_events/settlement_events/seller_settlement_periods 각 0행. 새 시험 자원 동명 컨테이너 0.
+- 소유자 어울. 고유 QA ID `c10a1010`의 기존 5개 가상 계정·판매자 3곳 fixture만 생성하고, 일회용 Node 24 API `shoppingmall-s6-g5-1010-api`와 HTTP runner `shoppingmall-s6-g5-1010-runner`를 `local-postgres` 네트워크 namespace의 loopback에만 둔다. WSL 지정 checkout은 승인 SSH 별칭에서 정확한 작업 SHA를 Git fetch해 읽기 전용 mount로 사용한다. 목적은 관리자/판매자 본인 조회 및 교차 역할 403, 익명 401, 잘못된 Origin 403 확인이다. 수명은 이번 G5 시험 동안이며 종료·실패 시 고유 ID의 fixture reset, DB 행·컨테이너·port 잔류 대조 후 이 작업이 만든 자원만 제거한다. 사용자 소유 미추적 파일과 공유 DB schema·기존 사건은 변경하지 않는다.
+
+## 2026-10-10 Task 4 G5 공유 DB 실제 역할 검증 결과
+
+- 지정 WSL checkout을 승인 SSH 별칭의 정확한 `c851ee79253b39b0dcbb3b343578b12d4fbf977a`로 읽기 전용 사용했다. 공유 DB system ID `7622490131194466339`·migration 25·시작 주요 행 0을 확인한 뒤 고유 QA ID `c10a1010`의 계정 5·판매자 3·분류 1만 생성했다. 정산 사건·기간 기록은 전 과정 0.
+- 일회용 API `3f8b6c9f5f6a75c7d4f9c3bdf8a0d09884894c778126f8377a272fab8fb6f6ad`를 `local-postgres` 내부 네트워크 loopback 9092에만 두고 실제 세션으로 HTTP 시험을 수행했다. `/health`·`/ready` 200, 익명 관리자/판매자 GET 각 401, 관리자·판매자 A·판매자 B 자기 조회 각 200(빈 수수료 0), 판매자→관리자 및 관리자→판매자 각 403, 판매자의 임의 sellerId 필터 400, 관리자 세션의 잘못된 Origin 정정 POST 403. 실제 정정 쓰기는 시도하지 않았다.
+- 첫 HTTP runner 호출은 Docker `-i` 누락으로 표준입력 JS가 실행되지 않아 출력 0·auth_sessions 0이었다. 이를 성공으로 세지 않고 무해한 stdin 확인 후 재실행해 위 11개 응답을 모두 단언했다. 동일 원인 연속 오류 1회. API 중지·제거 뒤 기존 QA fixture reset이 정확히 5개 계정을 정리했다. 최종 system ID·migration은 불변, accounts/account_identities/account_roles/sellers/seller_categories/auth_sessions/audit_events/settlement_events/seller_settlement_periods 각 **0행**. 전용 API/runner 컨테이너·볼륨 0, 지정 WSL checkout clean `main@eab39abc6caf8155edfd20d96de7f014fd06a8c3` 복귀. 공유 DB 역할 교차 조회/차단 G5는 PASS로 전진하되 공유 DB 거래 행 기반 정정 E2E는 계획상 생성 금지로 미검증을 유지한다.
+
+## 2026-10-10 Task 4 병합 전 로컬 재검증
+
+- 작업 브랜치 `codex/next-work-20261010-2`에서 `pnpm test` exit 0: 606건 중 435 pass·171 조건부 DB skip·0 fail, PR 본문 시험 별도 8/8 pass. 로컬 조건부 skip을 격리 PostgreSQL 15의 정정/기간 통합 13/13·0 skip 증거로 대체해 표기하지 않는다.
+- `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 exit 0. 빌드는 API와 Web 25개 정적 페이지 생성을 포함했다. 이 검증은 이후 문서 기록 commit 전 코드와 현재 작업 브랜치에 대한 것이며, 정확한 최종 head의 원격 CI·PR 본문 갱신·병합 및 merged-main smoke는 별도로 확인한다.
