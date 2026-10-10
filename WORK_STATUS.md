@@ -5008,3 +5008,12 @@
 - 자원·복구: 전용 인증 QA DB는 모든 가상 핵심 행 0을 확인한 뒤 정확한 tmpfs 컨테이너·전용 네트워크를 제거했다. 격리 복원 PG와 루프백 API/Web/Chrome 자원도 정리했다. 임시 0025 사전 전체 백업 두 사본은 해시와 병합 main·공유 DB 상태를 확인한 뒤 정확한 파일만 삭제했으며 **이번 임시 백업은 복구 불가**다. 공유 0025 스키마는 유지하며 자동 역마이그레이션/전체 복원은 하지 않는다. 필요 시 새 백업·영향 분석·별도 복구 승인이 필요하다. 제품 작업 브랜치와 요청 태그는 PR 병합·트리 동일·원격 정리 확인 후 로컬에서 제거했다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 변경하지 않았다.
 - 남은 판정: 실제 이메일·문자 수신과 정식 관리자 지속 계정/첫 로그인, 공개 공급자·Oracle/사용자 인수는 **미검증**이다. 판매자 본인 대기·반려 상태 재방문과 신규 계정 화면 브라우저 자체 200% 확대도 **미검증**이다. 후속 재작업은 `docs/design_change.md`의 정확한 계약·환경 준비 조건을 따라 별도 범위로 진행한다.
 - 이 통합 기록은 [PR #21](https://github.com/sinsan-develop/shoppingmall/pull/21)로 분리했다. 자동 생성 직후 `pull_request` 검사 실행은 `action_required`/실행 작업 0건이므로 성공으로 세지 않고, 같은 문서 범위의 후속 push로 PR synchronize 검사를 다시 확인한다.
+
+## 2026-10-11 `WORK_PLAN_20260-10-10-2` 실행 기준선
+
+- 담당 어울. 현재 `D:/Project/shoppingmall2`의 `codex/work-plan-20261010-2@2132b73942340f2c1db480e7ffc8bac7476430b4`와 승인 SSH 원격 작업 브랜치가 일치한다. `origin/main`과 지정 WSL checkout은 `a2a2a3dd612df5125fd68bd92e1d87fb955251ae`; WSL checkout은 clean `main`이다. 로컬 사용자 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 변경·삭제하지 않는다.
+- 계획 Task 0 로컬 기준: `pnpm test` 628건/439 pass·189 조건부 skip·0 fail, PR 본문 시험 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0이며 Web 빌드 31경로다. 조건부 skip은 실 DB·WSL·브라우저 PASS가 아니다.
+- 신산님은 루트 `.env`의 메일 설정 사용, WSL의 한가한 시간대 부하, 보호 `shoppingmall`과 분리된 전용 QA DB 생성을 허용했다. `.env`의 값은 출력·기록하지 않는다. 부하의 정확한 창·자원/중단 기준 및 실제 메일 발송 경계는 실행 전 따로 특정한다.
+- Task 6의 실제 18경로를 코드와 대조해 `docs/evidence/three-role-menu-matrix.md`를 작성했다. 전 행은 아직 `UNVERIFIED`이며 QA 계정·상품·주문은 `qa-1010-2-<runId>` 소유 식별 후 생성한다. 전용 DB는 정확한 식별·수명·정리 절차를 먼저 기록한다. 보호 DB에 시험 거래를 만들지 않는다.
+- 이번 실행에서 변경한 추적 파일은 `docs/design_change.md` 초기화, 본 `WORK_STATUS.md`, 18경로 행렬이다. 설계서와 작업계획서 본문은 수정하지 않았다. 오류: `apply_patch`의 동일 파일 Delete/Add 동시 시도 1회(패치 거부, 파일 영향 없음); 별도 Delete·Add로 초기화. 미검증: 공유 DB 최신 행/이력 읽기, 격리 DB 필수 시험, SeaweedFS 결합 복원, 30분 부하, 18화면 WSL, PC 자체 200%, 실제 메일 수신. 다음 조치: 허용된 독립 검증과 정확한 환경 식별 후 계획 Task 1~7 순차 진행.
+- 공유 DB 읽기 전용 대조: WSL `local-postgres`는 PostgreSQL 15 컨테이너, DB `shoppingmall`, system ID `7622490131194466339`, Drizzle migration 26건이다. 계정·판매자·상품·주문·정산 사건·인증 수단은 각 0행. 쓰기 0. 테이블 목록 질의의 첫 인용 시도는 SQL 문자열 `public` 인용 누락으로 오류 1회였고 `\dt public.*` 메타 명령으로 목록을 확인했다. 이 읽기만으로 백업·복원 가능성을 주장하지 않는다.
