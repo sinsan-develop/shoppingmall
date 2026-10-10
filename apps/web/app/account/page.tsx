@@ -18,6 +18,7 @@ export function AccountRoleLinks({ role }: { role: Session['role'] }) {
     <a className="secondary-button" href="/account/admin/monitoring">관리자 관제</a>
     <a className="secondary-button" href="/account/admin/settlement">정산 자료·완료</a>
     <a className="secondary-button" href="/account/admin/catalog">분류·판매자 등록</a>
+    <a className="secondary-button" href="/account/admin/seller-applications">판매자 신청 심사</a>
     <a className="secondary-button" href="/account/admin/proposals">상품 요청 검토</a>
     <a className="secondary-button" href="/account/admin/shipping">배송 정책 관리</a>
     <a className="secondary-button" href="/account/admin/home">홈 전시 관리</a>
@@ -30,6 +31,7 @@ export function AccountRoleLinks({ role }: { role: Session['role'] }) {
   </nav>;
   return <nav className="account-role-links" aria-label="구매자 메뉴">
     <a className="primary-button" href="/account/customer">찜·재입고·배송지·주문·알림 설정</a>
+    <a className="secondary-button" href="/account/seller/apply">판매자 신청</a>
   </nav>;
 }
 
