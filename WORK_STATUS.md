@@ -6,6 +6,15 @@
 - 지정 WSL checkout `/home/daon/deploy/shopping`은 시작 시 clean `main@eab39abc...`다. 일회용 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-increase-1010-pg`와 격리 DB `shoppingmall_s6_correction_1010`을 호스트 공개 포트 없는 network namespace에 만든다. 동일 namespace의 일회용 Node 24 시험 컨테이너 `shoppingmall-s6-increase-1010-node`만 접속한다. 공유 `local-postgres/shoppingmall`에는 접속·쓰기하지 않는다.
 - 먼저 기존 main의 0000~0023 schema로 신규 증가 시험의 기대 실패(RED)를 관찰하고, 동일 격리 DB에 정확한 작업 SHA의 0024 한 건만 적용한 뒤 성공(GREEN)을 확인한다. 시험 거래는 각 시험의 rollback으로 제거한다. 컨테이너·tmpfs·Node runner의 정확한 ID와 mount를 확인한 뒤 이 작업의 자원만 제거하고 잔류 0, WSL checkout clean main 복귀를 확인한다.
 
+## 2026-10-10 Task 2 증가 정정 실DB 증거 보강 결과
+
+- 계획 파일 한 곳에 X 원사건 수수료 10,000원→판매자 현재 Y→2,000원 **증가** 정정의 실제 DB 단언을 추가했다. 사건 스냅샷 X/Y, 연결 원사건, X 10,000원·Y +2,000원·전체 12,000원을 서로 독립된 조회 결과로 검사한다. 신규 시험/자원 계획 커밋 `bea448ee83b2d782876a494b2612ac962d3a326d`를 지정 SSH 원격에 push했고 WSL 지정 checkout에서 동일 SHA를 확인했다. 제품 코드·설계서·작업계획서는 변경하지 않았다.
+- 일회용 PostgreSQL 15 `shoppingmall-s6-increase-1010-pg`의 정확 ID `86b3ac496095f16188ea1181a0d44fa5da6003aa61dea67fa008c4b5b66dc687`, system ID `7694963192570454055`, DB `shoppingmall_s6_correction_1010`, network none, 영속 mount 0/tmpfs 1을 확인했다. 공유 DB system ID `7622490131194466339`와 분리된다. 기존 main으로 24개 migration을 적용한 RED 실행은 새 증가 시험 0/1, SQLSTATE 23514 `Settlement correction original event mismatch`로 **예상한 원래 X/Y 동일성 제한에서 실패**했다. DRY-RUN 스크립트는 DB 이름을 `shoppingmall`로 제한해 이 격리 DB에서 실패했으며 migration 적용은 없었다.
+- 작업 SHA의 0024 SQL SHA-256 `e1333d47f76965a486e4b74bea091df0014adb601f0dbca842c6e8eb9729f796`과 DB 식별자를 대조한 뒤 같은 격리 DB에 표준 migrator로 0024만 추가했다(24→25건). 새 시험 GREEN 1/1·0 skip. Task 2 네 파일 첫 통합 실행은 followup 게이트 변수 누락으로 9 pass·4 skip이었다. 정확한 격리 DB 이름/system ID/migration 25·`DATABASE_URL`을 명시한 재실행은 **13/13 pass·0 skip·0 fail**이었다. 첫 skip은 통과 근거로 사용하지 않는다.
+- 로컬 전체 `pnpm test`: 606건/435 pass·171 DB 조건부 skip·0 fail, PR 본문 시험 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0(Web 25경로), `git diff --check` 이상 0. 격리 실DB 13/13과 로컬 조건부 skip을 구분한다. 이 보강의 독립 읽기 리뷰 결과는 별도로 기록한다.
+- 정확 ID·mount 확인 후 이번 tmpfs PG 한 개만 stop/rm했다. 일회용 Node runner는 매 호출 `--rm`으로 잔류 0, WSL checkout은 clean `main@eab39abc...`로 복귀, `shoppingmall-s6-increase-1010` 이름 잔류 0. 공유 DB Drizzle migration 25건은 불변이며 공유 DB에 시험 거래를 만들지 않았다. G2 직접 OS 인쇄·200%와 G5 공유 실제 교차 역할 세션은 여전히 미검증이어서 후속 PR 병합으로 간주하지 않는다.
+- 새 시험 커밋 `bea448e`의 push CI `38040241538`과 PR CI `38040244960`은 정확한 head에서 completed/success. 독립 읽기 리뷰(`515cc54..bea448e`)는 Critical 0·Important 0·Minor 1. Minor는 원사건과 정정 사이에 서울 날짜가 넘어가면 조회 날짜를 정정일 하나로 잡은 신규 시험이 원사건을 놓쳐 간헐 실패할 수 있다는 시험 안정성 문제다. 이번 실제 실DB 실행은 날짜 경계 밖에서 13/13 통과했다. 과거 ‘7월 Y’ 정확 월 실DB 재현 공백도 유지한다. 두 사항을 제품 기능 PASS 범위로 넓히지 않고 후속 시험 보강 후보로 남긴다. 리뷰어는 컨테이너 실재·제거와 미커밋 결과 절을 직접 실행 검증하지 않았으며 이 작업현황의 실행 로그와 구분한다.
+
 ## 2026-10-10 후속 화면 검증 접근·정확한 PR head 재확인
 
 - 담당 어울. 작업 경로 `D:/Project/shoppingmall2`, 브랜치 `codex/next-work-20261010-2@477ccfacbbf737ce304c837b12ca73521304f6a8`; 원격 추적과 일치한다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 건드리지 않았다. root `AGENTS.md`는 현재 파일이 없어 사용자 제공 공통 지침과 PMO 지침·정본 계획을 적용한다.
