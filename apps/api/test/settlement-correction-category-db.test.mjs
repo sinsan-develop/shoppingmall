@@ -139,6 +139,10 @@ test('admin correction records current Y category and preserves completed X tota
     assert.equal((await client.query(`SELECT seller_category_name AS name
       FROM settlement_events WHERE id=$1`, [correction.id])).rows[0].name,
     'QA 현재분류 Y');
+    await client.query('UPDATE sellers SET category_id=$1 WHERE id=$2', [xId, sellerId]);
+    assert.equal((await recordCorrection(client, adminId, request)).id, correction.id);
+    assert.equal((await client.query(`SELECT count(*)::int AS n FROM settlement_events
+      WHERE original_event_id=$1`, [originalId])).rows[0].n, 1);
     const mayReport = await readSettlement(client, parseSettlementQuery({
       from: '2026-05-01', to: '2026-05-20', categoryId: xId,
     }));
