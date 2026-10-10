@@ -4709,3 +4709,21 @@
 
 - 로컬 `pnpm test` 605건 중 434 pass·170 조건부 skip·1 fail. 유일 실패는 `apps/api/test/migration-preview.test.mjs`의 기존 migration 총수 24 고정 단언이 신규 0024로 총 25건이 된 것을 거부한다. 역사적 SQL 해시 비교 자체는 통과했다. 이 시험 파일은 승인 계획 변경 목록에 없어 임의 수정하지 않고 `docs/design_change.md` G1에 영향·재개 조건을 기록했으며 신산님께 범위 추가 여부를 비동기 요청했다.
 - 독립 로컬 `pnpm typecheck`(API/Web/Mobile/contracts), `pnpm lint`, `pnpm build`(Web 25 routes 포함)는 모두 exit 0. 필수 전체 회귀가 아직 실패이므로 PR 일반 병합 조건 충족으로 표시하지 않는다. 0024 격리 실DB/HTTP 표적 3+4 및 migration/단위 7 시험은 별도 통과 근거다.
+
+## 2026-10-10 후속 계획 Task 3 WSL 동일 SHA 시험 자원 계획
+
+- 로컬 작업 브랜치 체크포인트 `9810e0b730866ba69107622ca6b49d2367fa63c5`를 승인 SSH 별칭 원격에 push했다. 지정 WSL checkout의 기본 fetch refspec은 옛 두 브랜치로 제한되어 새 브랜치를 명시 refspec으로 fetch했다. `git switch --track`은 추적 설정 오류를 내며 index/작업 파일을 목표 SHA 내용으로 바꿨지만, 두 트리가 목표 SHA와 정확히 일치하고 사용자 변경이 없음을 확인한 뒤 일반 `git switch -c`로 동일 SHA의 clean 작업 브랜치에 전환했다. 원인: 원격 추적 refspec 제한; 연속 오류 2회 뒤 경로 수정.
+- WSL host Node v18은 프로젝트 요구 Node >=22보다 낮다. 기존 `node:24` 이미지로 컨테이너 `shoppingmall-s6-correction-1010-node`를 **일회성 `--rm`**으로 실행하고 지정 checkout을 read-only bind, `/tmp`만 tmpfs로 둔다. host-loopback 15439의 전용 `shoppingmall_s6_correction_1010` DB만 연결하여 동일 SHA의 정정 표적 실DB/HTTP 시험을 수행한다. 종료 후 이름·컨테이너·포트 잔류 0, checkout clean을 확인한다. 공유 DB에는 쓰지 않는다.
+
+## 2026-10-10 후속 계획 Task 3 브라우저 격리 자원 계획
+
+- 소유자 어울. 기존 일회용 PostgreSQL 컨테이너 안에 브라우저 전용 빈 `shoppingmall` DB를 추가하고 0000~0024를 적용한다. 공유 `local-postgres/shoppingmall`과 이름만 같고 system ID·컨테이너가 다르다. 이 DB의 가상 계정·거래는 컨테이너 제거 시 함께 폐기한다.
+- 같은 SHA의 WSL checkout을 사용해 API/Web를 일회용 Node 24 컨테이너에서 실행한다. 이름은 `shoppingmall-s6-correction-1010-api`와 `shoppingmall-s6-correction-1010-web`, 포트는 WSL 루프백 9092/9091이다. Windows 브라우저 접근용 SSH 터널은 정확한 PID·포트·명령행을 확인해 시험 후 종료한다. OS PDF 시험 산출물은 `D:/tmp/shoppingmall-s6-correction-1010-pdf`에 두고 파일 대조 후 제거한다. 사용자 기존 브라우저 탭·프로필은 변경하지 않는다.
+- Web의 `.next`를 동일 SHA에서 새로 빌드하기 위한 일회용 Docker volume `shoppingmall-s6-correction-1010-next`를 사용한다. 빌드와 화면 검증 이후 정확한 volume 이름·mount를 확인하고 제거한다. WSL checkout 자체는 변경하지 않는다.
+
+## 2026-10-10 후속 계획 Task 3 WSL·실제 화면 검증과 임시자원 정리
+
+- WSL 지정 checkout `9810e0b730866ba69107622ca6b49d2367fa63c5` clean에서 Node 24 일회용 컨테이너로 정정·권한·경합 격리 DB/HTTP 시험 12/12 PASS, 0 skip. 별도 브라우저 전용 격리 `shoppingmall` DB에 0000~0024를 적용하고 가상 관리자·판매자 계정과 5월 원수수료 X 10,000원, 5월 완료 고정, 현재 분류 Y의 후속 정정 -2,000원을 생성했다. 공유 DB에 가상 거래는 0이다.
+- 같은 SHA의 Web를 새 격리 volume에서 Node 24로 빌드해 25개 route 생성 PASS, API `/health`·`/ready` 200, Web 정산 경로 200. 실제 Chrome에서 가상 운영자 로그인과 관리자 정산 자료를 조회했다. 현재 날짜 자료에 Y 정정 -2,000원과 원사건 ID 링크가 보이고, 2026-05-01~20 자료에는 X 원사건 10,000원, 당시 분류 X 및 완료 당시 항목별 수수료 10,000원이 표시됐다. 화면의 `조회 결과 인쇄 · PDF로 저장` 버튼 노출도 확인했다.
+- OS 인쇄 버튼 직접 조작은 입력 명령 시간 초과 후 페이지 포커스만 확인됐다. Windows OS 창 제어는 대상 Chrome의 URL 식별을 안전하게 보장하지 못해 도구가 이번 턴 조작을 중단했다. 인쇄 대화상자 선택·PDF 파일 저장/열람과 실제 200% 줌 관리자·판매자 실측은 **미검증**이며 `docs/design_change.md` G2에 기록했다. 자동 PDF·viewport와 동일 취급하지 않는다.
+- 시험 자원은 정확한 ID/이름 대조 후 API `b669399c...`, Web `2dda5b9c...`, PG tmpfs `631c569e...`와 전용 `.next` volume만 제거했고 Docker 이름/volume 잔류 0을 확인했다. Windows SSH 터널 PID 54096은 명령행의 15439 전용 전달·WSL 별칭을 확인하고 종료했다. 지정 WSL checkout은 clean `main`으로 복귀했다. 이 격리 가상 자료는 폐기됐고 공유 자료나 사용자 브라우저 기존 탭은 삭제하지 않았다.
