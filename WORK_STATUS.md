@@ -4785,3 +4785,15 @@
 - 실제 Chrome의 운영자 시험계정으로 로그인해 관리자 정산 화면에 현재 Y 정정 -2,000원, 원사건 ID, 판매자·전체 수수료 -2,000원 표시를 확인했다. 인쇄 버튼을 직접 누르자 브라우저 입력 명령이 약 3초 후 시간 초과됐고 페이지 포커스만 버튼에 남았다. OS 인쇄 창의 PDF 저장 파일·열람은 확인하지 못했다. 별도 탭에서 브라우저 `Ctrl++`/`Ctrl+=` 입력 뒤에도 `devicePixelRatio=1`, `innerWidth=1563`이 그대로여서 실제 200% 확대 근거가 아니다. 판매자 시험 로그인은 `확인 중` 상태 이후 결과를 확인하지 못했으며 이 재시도의 판매자 직접 실측으로 표시하지 않는다. G2 미검증 유지.
 - agent가 만든 Chrome 시험 탭 두 개와 빈 탭 한 개만 닫았다. QA 컨테이너 3개는 ID·mount 확인 후 제거, 전용 `.next` volume도 제거해 이름 잔류 0. WSL 지정 checkout은 clean `main`으로 복귀했다. Windows 9091/9092의 기존 `wslrelay.exe` PID 23348은 이 작업에서 생성한 프로세스가 아니므로 종료하지 않았다.
 - PR #18은 이 문서 전 커밋 `94604a2...`로 OPEN이고, 그 정확한 head의 push CI `38024789954`와 PR CI `38024793018`은 모두 `pnpm test` 단계 FAILURE다. 이전 bot-triggered `action_required`는 최신 head의 현재 판정이 아니며, G1의 계획 밖 고정 migration 수 시험이 남아 일반 병합 불가다.
+
+## 2026-10-10 Task 4 독립 리뷰 후 시험 보강 자원 계획
+
+- 담당 어울. 독립 읽기 리뷰는 Critical 0, Important 1(계획 밖 고정 migration 수 시험), Minor 2(분류 ID 재변경 뒤 같은 UUID 재시도 직접 단언 부족, 예시 7월의 정확 월 통제 부재)였다. 첫 Minor는 계획에 명시된 `settlement-correction-category-db.test.mjs` 안에서 분류 ID를 다시 변경하고도 기존 정정 사건 1건만 반환하는 단언을 추가해 작업 브랜치 `1c00c9a...`로 push했다. 두 번째는 서버 현재 발생 시각을 기록한다는 제품 계약상 실제 실행일이 7월이 아니므로, 5월 고정 뒤 현 실행일의 후속 사건이라는 본질을 시험하는 현재 증거와 구분해 기록한다.
+- 이 보강 검증에만 WSL 지정 checkout을 승인 SSH 별칭의 정확한 `1c00c9a...`로 fast-forward한다. 격리 PostgreSQL 15 tmpfs 컨테이너 `shoppingmall-s6-correction-1010c-pg`, 루프백 15439, DB `shoppingmall_s6_correction_1010`, 같은 서버 Node 24 일회용 `shoppingmall-s6-correction-1010c-node`를 사용한다. 공유 DB·실제 주문 자료와 분리하고 새 시험은 트랜잭션 rollback이다. 수명은 이 표적 시험 동안이며 종료 즉시 정확한 Docker ID·mount·포트를 확인해 생성한 자원만 제거하고 지정 checkout을 clean main으로 돌린다.
+
+## 2026-10-10 Task 4 리뷰 보강 재검증
+
+- WSL 지정 checkout에서 원격 정확 SHA `1c00c9a4f04fba46bb49cb353a5f3258fefd5d03`로 갱신했다. 격리 PG15 컨테이너 ID `96943de422992243ceb4cc734bb2b553ae1a7bab93bb2287a9db8624566dd19c`, system ID `7694897729584177191`, 전용 DB `shoppingmall_s6_correction_1010`에 migration 25건을 적용했다. 보강된 분류 DB 시험 3/3 pass·0 skip.
+- 계획 Task2 4파일 첫 통합 실행은 12건 중 11 pass·1 fail·0 skip. HTTP 사례가 예상 403 대신 503으로 나온 이유는 시험 프로세스에 `PG*` 값은 있었으나 Nest 앱용 `DATABASE_URL`이 누락된 설정 오류였다. 같은 격리 DB URL을 추가한 재실행은 **12/12 pass·0 fail·0 skip**. 제품 코드 수정 없이 설정 원인만 해결했다. 동일 원인 연속 3회 없음.
+- 시험 Node 컨테이너는 `--rm` 종료, PG는 정확한 ID·mount 없음 확인 후 stop/rm해 이름·15439 포트 잔류 0. 지정 WSL checkout은 clean `main`으로 복귀했다. 공유 DB·기존 불변 사건/완료 기록에는 쓰기 0. 독립 리뷰의 Important 1(G1)은 여전히 미해결이고 7월 예시는 현재 시각 사건을 7월로 조작하지 않아 정확 월 재현 증거로 주장하지 않는다.
+- 현재 코드의 로컬 전체 `pnpm test`는 605건/434 pass·170 조건부 skip·1 fail, 실패는 기존 `migration-preview.test.mjs:48`의 총수 24 단언과 실제 25건 불일치다. `pnpm typecheck`, `pnpm lint`, `pnpm build`는 각각 exit 0(Web 25경로), `git diff --check` 이상 0. 직접 7월 발생·5월 불변의 순수 조회 계약은 기존 `settlement-correction-read.test.mjs`가 별도로 검사하며, 실제 DB·HTTP에서는 현재 서버 발생일의 후속 사건/5월 고정을 검사한다. 두 증거를 혼동하지 않는다.
