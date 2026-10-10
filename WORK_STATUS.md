@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 2026-10-10 Task 2 독립 리뷰 Important 보정 결과
+
+- 담당 어울. 읽기 전용 독립 리뷰(`eab39ab..f00912b`)는 Critical 0·Important 2·Minor 1이었다. Important 1: 기존 5월 기간 완료의 DB 기록 시각은 10월인데 후속 정정만 7월로 고정해 실제 선후가 뒤집혔다. `e5883af`에서 `may.completedAt < correction.occurredAt` 단언을 추가해 격리 PG15에서 RED 0/1을 재현했다. `a60fc8d`에서 시험 트랜잭션 전용 `qa_clock.statement_timestamp()`를 완료 전 2026-05-20, 정정 전 2026-07-01로 각각 고정하고 5월 완료 시각·7월 정정 시각·순서를 단언해 GREEN 1/1을 확인했다. 운영시계·제품 코드·공유 DB는 변경하지 않았다.
+- Important 2: HTTP 시험 fixture가 `PGDATABASE`에 쓰고 API는 별도 `DATABASE_URL`에 연결돼, 잘못된 URL일 때도 대상 DB에 먼저 시험 행을 만들 수 있었다. 격리 목표 DB와 빈 decoy DB를 분리한 RED에서 HTTP 500(기대 403)과 목표 DB의 업무행 0→accounts 2/sellers 1/events 1 사전 쓰기를 확인했다. `0d46890`에서 `settlement-followup-db.test.mjs`의 Pool도 `DATABASE_URL`로 연결하고 서버 ID·DB 이름 gate를 fixture INSERT 전에 단언했다. 같은 URL 불일치 재실행은 90ms 안에 DB 이름 단언에서 실패하며 목표 DB 행 수 추가 변동 0이었다. 올바른 URL로 Task 2 네 파일은 **13/13 pass·0 skip·0 fail**이었다.
+- 격리 PostgreSQL 15 tmpfs ID `b68b6764155772716bfed469471765a833ad1186fea0cd8c0f7a3924805eabb0`, system ID `7694977160295518247`, DB `shoppingmall_s6_correction_1010`/`shoppingmall_s6_decoy_1010`, network none·영속 mount 0. 정확한 ID·mount를 확인해 PG 한 개를 stop/rm했고 Node runner는 매 호출 `--rm`, 이름 잔류 0. 지정 WSL checkout은 clean main으로 복귀했다. 공유 `local-postgres/shoppingmall`에 연결하거나 시험 행을 만들지 않았다.
+- 로컬 전체 `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` 모두 exit 0. 로컬 DB 조건부 skip과 WSL 격리 실DB 13/13을 구분한다. 리뷰의 Minor 1은 자동 PDF 스크립트가 헤더·크기만 검사하고 내용을 확인하지 않는 증거 범위 문제이며, 별도 수동 렌더링 근거와 혼동하지 않는다. 보정 후 독립 재리뷰는 하지 않았으므로 리뷰 결과를 새 코드 독립 승인으로 표시하지 않는다.
+- 판정: G4 격리 기능·정정 시간 순서 **PASS**, 공유 schema/차단 smoke **부분 PASS**. G2 OS 직접 인쇄/PDF 파일 열람·실제 200% 및 G5 공유 DB 실제 역할 세션 **미검증**. PR #18 병합·merged-main smoke **미실행**. 기존 `docs/design_change.md` G2/G5 재개 조건을 유지한다.
+
 ## 2026-10-10 Task 2 독립 리뷰 Important 보정 자원 계획
 
 - 담당 어울. 독립 읽기 리뷰 범위 `eab39ab..f00912b`에서 Critical 0·Important 2·Minor 1. Important 1은 5월 기간 완료의 실제 기록시각이 10월인데 이후 정정만 시험 clock으로 7월에 놓아 시간 선후가 뒤집힌 점이다. Important 2는 `settlement-followup-db.test.mjs`의 fixture `PGDATABASE` 연결과 HTTP 앱 `DATABASE_URL` 연결이 달라도 전자만 검증한 점이다. 두 시험 파일은 승인된 Task 2 목록 안이다. 자동 PDF 내용 검사는 Minor로 기록하며 OS 인쇄를 대체하지 않는다.
