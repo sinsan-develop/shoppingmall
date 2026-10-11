@@ -8,6 +8,8 @@ import { validateQaRunId } from './qa-fixture.js';
 const fingerprint = '5'.repeat(64);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const fulfillmentUiExpectedShipDate = '2026-10-07';
+const approvedQaDatabase = 'shoppingmall_qa_20261010_2';
+const approvedQaSystemId = '7622490131194466339';
 
 type PreviousSetting = {
   owoolSellerId: string | null;
@@ -49,10 +51,13 @@ export function fulfillmentUiEmails(value: string) {
     .map((role) => `qa+${runId}-fulfillment-${role}@example.invalid`);
 }
 
-export function validateFulfillmentUiTarget(databaseUrl: string, value: string) {
+export function validateFulfillmentUiTarget(databaseUrl: string, value: string, mode?: string) {
   const url = new URL(databaseUrl);
   const database = decodeURIComponent(url.pathname.slice(1));
-  if (database !== fulfillmentUiDatabaseName(value))
+  const target = mode === 'approved-qa' ? approvedQaDatabase : fulfillmentUiDatabaseName(value);
+  if ((mode !== undefined && mode !== 'approved-qa') || database !== target ||
+      (mode === 'approved-qa' && (!['postgresql:', 'postgres:'].includes(url.protocol) ||
+        !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || url.search || url.hash)))
     throw new Error('Fulfillment UI fixture requires its exact isolated database');
   return { url, database };
 }
@@ -78,9 +83,11 @@ export function signFulfillmentUiManifest(manifest: UnsignedFulfillmentUiManifes
 }
 
 export function validateFulfillmentUiSystemTarget(value: string, expectedSystemId: string | undefined,
-  actual: { databaseName?: string; systemId?: string }) {
+  actual: { databaseName?: string; systemId?: string }, mode?: string) {
+  const target = mode === 'approved-qa' ? approvedQaDatabase : fulfillmentUiDatabaseName(value);
   if (!/^\d{10,}$/.test(expectedSystemId ?? '') || actual.systemId !== expectedSystemId ||
-      actual.databaseName !== fulfillmentUiDatabaseName(value))
+      actual.databaseName !== target ||
+      (mode === 'approved-qa' && expectedSystemId !== approvedQaSystemId))
     throw new Error('Fulfillment UI fixture requires its exact database system identifier and name');
   return { databaseName: actual.databaseName, systemId: actual.systemId };
 }
@@ -322,6 +329,20 @@ async function seedFixture(client: PoolClient, value: string, password: string):
   return { ...unsigned, signature: signFulfillmentUiManifest(unsigned, password) };
 }
 
+export async function rejectImmutableFulfillmentHistory(client: Pick<PoolClient, 'query'>,
+  scope: Pick<FulfillmentUiManifest, 'orderIds' | 'shipmentIds' | 'sellerIds' |
+    'productIds' | 'optionIds' | 'accountIds'>) {
+  const history = await client.query(`SELECT 1 FROM settlement_events
+      WHERE checkout_order_id=ANY($1::uuid[]) OR shipment_order_id=ANY($2::uuid[])
+        OR seller_id=ANY($3::uuid[]) OR product_id=ANY($4::uuid[])
+        OR option_id=ANY($5::uuid[]) OR recorded_by=ANY($6::uuid[])
+    UNION ALL SELECT 1 FROM seller_settlement_periods WHERE seller_id=ANY($3::uuid[])
+    UNION ALL SELECT 1 FROM refund_events WHERE verified_order_id=ANY($1::uuid[])
+    LIMIT 1`, [scope.orderIds, scope.shipmentIds, scope.sellerIds,
+    scope.productIds, scope.optionIds, scope.accountIds]);
+  if (history.rowCount) throw new Error('Fulfillment UI fixture has immutable settlement or refund history');
+}
+
 async function assertResetOwnership(client: PoolClient, manifest: FulfillmentUiManifest) {
   await client.query("SET LOCAL lock_timeout = '1s'");
   await client.query("SET LOCAL statement_timeout = '5s'");
@@ -349,6 +370,7 @@ async function assertResetOwnership(client: PoolClient, manifest: FulfillmentUiM
     (SELECT id FROM payment_attempts WHERE checkout_order_id=ANY($1::uuid[])) ORDER BY id FOR UPDATE`,
   [manifest.orderIds]);
   await client.query('LOCK TABLE audit_events IN SHARE ROW EXCLUSIVE MODE');
+  await rejectImmutableFulfillmentHistory(client, manifest);
 
   const identities = await client.query<{ account_id: string; kind: string; identifier: string }>(
     'SELECT account_id,kind,identifier FROM account_identities WHERE account_id=ANY($1::uuid[]) ORDER BY account_id',
@@ -504,9 +526,10 @@ async function resetFixture(client: PoolClient, manifest: FulfillmentUiManifest)
 }
 
 export async function runFulfillmentUiFixture(action: 'seed' | 'reset', value: string,
-  databaseUrl: string, password?: string, manifestJson?: string, expectedSystemId?: string) {
+  databaseUrl: string, password?: string, manifestJson?: string, expectedSystemId?: string,
+  mode?: string) {
   const runId = id(value);
-  validateFulfillmentUiTarget(databaseUrl, runId);
+  validateFulfillmentUiTarget(databaseUrl, runId, mode);
   if (action !== 'seed' && action !== 'reset') throw new Error('Invalid QA action');
   if (!password || password.length < 12) throw new Error('QA_FIXTURE_PASSWORD must be set');
   const manifest = action === 'reset'
@@ -520,7 +543,12 @@ export async function runFulfillmentUiFixture(action: 'seed' | 'reset', value: s
       const actualTarget = (await client.query<{ databaseName: string; systemId: string }>(
         `SELECT current_database() AS "databaseName",system_identifier::text AS "systemId"
           FROM pg_control_system()`)).rows[0];
-      validateFulfillmentUiSystemTarget(runId, expectedSystemId, actualTarget);
+      validateFulfillmentUiSystemTarget(runId, expectedSystemId, actualTarget, mode);
+      if (mode === 'approved-qa') {
+        const migrations = (await client.query<{ count: number }>(
+          'SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations')).rows[0]?.count;
+        if (migrations !== 26) throw new Error('Fulfillment UI fixture requires 26 QA migrations');
+      }
       const result = action === 'seed'
         ? await seedFixture(client, runId, password!) : await resetFixture(client, manifest!);
       await client.query('COMMIT');
@@ -538,7 +566,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
     throw new Error('usage: qa-fulfillment-ui-fixture.ts seed|reset');
   runFulfillmentUiFixture(action, process.env.QA_RUN_ID ?? '', process.env.DATABASE_URL ?? '',
     process.env.QA_FIXTURE_PASSWORD, process.env.QA_FIXTURE_JSON,
-    process.env.S5_FULFILLMENT_UI_DB_SYSTEM_ID)
+    process.env.S5_FULFILLMENT_UI_DB_SYSTEM_ID, process.env.S5_FULFILLMENT_UI_QA_MODE)
     .then((result) => { process.stdout.write(`${JSON.stringify(result)}\n`); })
     .catch((error) => {
       process.stderr.write(`${error instanceof Error ? error.message : 'Fulfillment UI fixture failed'}\n`);

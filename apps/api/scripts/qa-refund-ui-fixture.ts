@@ -4,6 +4,8 @@ import { Pool, type PoolClient } from 'pg';
 import { hashPassword } from '../src/auth/credentials.js';
 
 const fingerprint = 'c'.repeat(64);
+const approvedQaDatabase = 'shoppingmall_qa_20261010_2';
+const approvedQaSystemId = '7622490131194466339';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type SharedRefundManifest = {
@@ -44,6 +46,37 @@ export function validateSharedRefundUiTarget(databaseUrl: string, value: string,
   return { url, database };
 }
 
+export function validateApprovedRefundUiTarget(databaseUrl: string, value: string, mode?: string) {
+  runId(value);
+  const url = new URL(databaseUrl);
+  const database = decodeURIComponent(url.pathname.slice(1));
+  if (mode !== 'approved-qa' || database !== approvedQaDatabase ||
+      !['postgres:', 'postgresql:'].includes(url.protocol) ||
+      !['127.0.0.1', 'localhost', '[::1]', '::1'].includes(url.hostname) ||
+      url.search || url.hash)
+    throw new Error('Approved refund UI fixture requires explicit mode and exact QA database');
+  return { url, database };
+}
+
+export async function assertApprovedRefundUiDatabase(client: PoolClient) {
+  const identity = await client.query<{ database: string; system_id: string }>(
+    'SELECT current_database() AS database, system_identifier::text AS system_id FROM pg_control_system()');
+  if (identity.rows.length !== 1 || identity.rows[0].database !== approvedQaDatabase ||
+      identity.rows[0].system_id !== approvedQaSystemId)
+    throw new Error('Approved refund UI database identity mismatch');
+}
+
+export async function assertNoImmutableRefundUiEvents(client: PoolClient, orderIds: string[]) {
+  if (!orderIds.length) return;
+  const events = await client.query(`SELECT id FROM settlement_events
+    WHERE checkout_order_id=ANY($1::uuid[])
+    UNION ALL SELECT e.id FROM refund_events e
+      JOIN refund_attempts a ON a.id=e.refund_attempt_id
+      JOIN refund_cases c ON c.id=a.refund_case_id
+      WHERE c.checkout_order_id=ANY($1::uuid[]) LIMIT 1`, [orderIds]);
+  if (events.rowCount) throw new Error('Refund UI immutable events must be preserved');
+}
+
 export function validateSharedRefundManifest(value: string, candidate: unknown): SharedRefundManifest {
   const manifest = candidate as Partial<SharedRefundManifest> | null;
   const ids = manifest && [manifest.sellerId, manifest.sellerCategoryId, manifest.productId,
@@ -75,7 +108,7 @@ async function findFixture(client: PoolClient, value: string) {
 }
 
 export async function resetRefundUiFixture(client: PoolClient, value: string, maxOrders = 1,
-  sharedManifest?: SharedRefundManifest) {
+  sharedManifest?: SharedRefundManifest, approvedQa = false) {
   if (sharedManifest) {
     // The late-reference rechecks below require a fresh statement snapshot.
     // Pin the contract instead of inheriting a database/session default.
@@ -327,6 +360,7 @@ export async function resetRefundUiFixture(client: PoolClient, value: string, ma
       ['restock_subscription', new Set(restockIds)],
     ]);
   }
+  if (approvedQa) await assertNoImmutableRefundUiEvents(client, orderIds);
   if (orderIds.length) {
     await client.query(`DELETE FROM refund_event_conflicts WHERE original_event_id IN
       (SELECT e.id FROM refund_events e JOIN refund_attempts a ON a.id=e.refund_attempt_id
@@ -553,10 +587,16 @@ async function seed(client: PoolClient, value: string, password: string) {
 }
 
 export async function runRefundUiFixture(action: 'seed' | 'reset', value: string,
-  databaseUrl: string, password?: string, sharedConsent?: string, manifestInput?: unknown) {
-  if (sharedConsent) validateSharedRefundUiTarget(databaseUrl, value, sharedConsent);
+  databaseUrl: string, password?: string, sharedConsent?: string, manifestInput?: unknown,
+  mode?: string) {
+  if (mode && mode !== 'approved-qa') throw new Error('Unknown refund UI fixture mode');
+  const approvedQa = mode === 'approved-qa';
+  if (approvedQa) {
+    if (sharedConsent) throw new Error('Approved refund UI mode cannot use shared opt-in');
+    validateApprovedRefundUiTarget(databaseUrl, value, mode);
+  } else if (sharedConsent) validateSharedRefundUiTarget(databaseUrl, value, sharedConsent);
   else validateRefundUiTarget(databaseUrl, value);
-  const manifest = sharedConsent && action === 'reset' ?
+  const manifest = (sharedConsent || approvedQa) && action === 'reset' ?
     validateSharedRefundManifest(value, manifestInput) : undefined;
   if (action === 'seed' && (!password || password.length < 12))
     throw new Error('QA_FIXTURE_PASSWORD must be set');
@@ -564,9 +604,12 @@ export async function runRefundUiFixture(action: 'seed' | 'reset', value: string
   try {
     const client = await pool.connect();
     try {
-      await client.query(sharedConsent && action === 'seed' ? 'BEGIN ISOLATION LEVEL SERIALIZABLE' : 'BEGIN');
+      await client.query((sharedConsent || approvedQa) && action === 'seed' ?
+        'BEGIN ISOLATION LEVEL SERIALIZABLE' : 'BEGIN');
+      if (approvedQa) await assertApprovedRefundUiDatabase(client);
       const result = action === 'seed' ? await seed(client, value, password!) :
-        await resetRefundUiFixture(client, value, sharedConsent ? 4 : 1, manifest);
+        await resetRefundUiFixture(client, value, sharedConsent || approvedQa ? 4 : 1,
+          manifest, approvedQa);
       await client.query('COMMIT');
       return result;
     } catch (error) {
@@ -581,7 +624,9 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   if (action !== 'seed' && action !== 'reset') throw new Error('usage: qa-refund-ui-fixture.ts seed|reset');
   runRefundUiFixture(action, process.env.QA_RUN_ID ?? '', process.env.DATABASE_URL ?? '',
     process.env.QA_FIXTURE_PASSWORD, process.env.QA_SHARED_REFUND_UI,
-    process.env.QA_SHARED_REFUND_UI_MANIFEST ? JSON.parse(process.env.QA_SHARED_REFUND_UI_MANIFEST) : undefined)
+    process.env.QA_REFUND_UI_MANIFEST ? JSON.parse(process.env.QA_REFUND_UI_MANIFEST) :
+      process.env.QA_SHARED_REFUND_UI_MANIFEST ? JSON.parse(process.env.QA_SHARED_REFUND_UI_MANIFEST) : undefined,
+    process.env.QA_REFUND_UI_MODE)
     .then((result) => process.stdout.write(`${JSON.stringify(result)}\n`))
     .catch((error) => { process.stderr.write(`${error instanceof Error ? error.message : 'QA fixture failed'}\n`);
       process.exitCode = 1; });

@@ -11,6 +11,8 @@ import { openPaymentFulfillments } from '../src/fulfillment/repository.js';
 import { validateQaRunId } from './qa-fixture.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const approvedQaDatabase = 'shoppingmall_qa_20261010_2';
+const approvedQaSystemId = '7622490131194466339';
 type PreviousSetting = { owoolSellerId: string | null; updatedBy: string | null;
   version: number; updatedAt: string };
 export type SupportUiManifest = {
@@ -170,6 +172,20 @@ export function validateSharedSupportUiTarget(databaseUrl: string,value: string,
   return { url,database };
 }
 
+export function validateApprovedSupportUiTarget(databaseUrl: string,value: string,
+  consent?: string) {
+  const runId = validateQaRunId(value);
+  const url = new URL(databaseUrl);
+  const database = decodeURIComponent(url.pathname.slice(1));
+  if (consent !== `APPROVED_QA_S52_SUPPORT_UI_${runId}` ||
+      !['postgres:','postgresql:'].includes(url.protocol) ||
+      !['127.0.0.1','localhost','[::1]','::1'].includes(url.hostname) ||
+      url.port !== '5432' || url.pathname !== `/${approvedQaDatabase}` ||
+      database !== approvedQaDatabase || url.search || url.hash)
+    throw new Error('Support UI approved QA mode requires exact local URL, database and run consent');
+  return { url,database };
+}
+
 export function validateSharedSupportUiBaseline(counts: Record<string,number>) {
   const defaults = new Set(['fulfillment_settings','home_content_current',
     'home_content_draft','shipping_policy_global','support_policy_versions']);
@@ -199,11 +215,26 @@ export function validateSupportUiSystemTarget(value: string,expectedSystemId: st
   actual: { databaseName?: string; systemId?: string },
   expectedDatabase = supportUiDatabaseName(value)) {
   if (!/^\d{10,}$/.test(expectedSystemId ?? '') ||
-      ![supportUiDatabaseName(value),'shoppingmall'].includes(expectedDatabase) ||
+      ![supportUiDatabaseName(value),'shoppingmall',approvedQaDatabase].includes(expectedDatabase) ||
+      (expectedDatabase === approvedQaDatabase && expectedSystemId !== approvedQaSystemId) ||
       actual.systemId !== expectedSystemId ||
       actual.databaseName !== expectedDatabase)
     throw new Error('Support UI fixture requires its exact database system identifier and name');
   return { databaseName: actual.databaseName,systemId: actual.systemId };
+}
+
+export async function assertNoImmutableSupportUiEvents(client: Pick<PoolClient,'query'>,
+  manifest: SupportUiManifest) {
+  await client.query('LOCK TABLE settlement_events,seller_settlement_periods,refund_events IN SHARE ROW EXCLUSIVE MODE');
+  const events = await client.query(`SELECT id FROM settlement_events
+    WHERE checkout_order_id=$1 OR shipment_order_id=$2 OR product_id=$3
+      OR option_id=$4 OR seller_id=ANY($5::uuid[]) OR recorded_by=ANY($6::uuid[])
+    UNION ALL SELECT id FROM seller_settlement_periods WHERE seller_id=ANY($5::uuid[])
+    UNION ALL SELECT id FROM refund_events WHERE verified_order_id=$1 LIMIT 1`,
+  [manifest.orderId,manifest.shipmentId,manifest.productId,manifest.optionId,
+    manifest.sellerIds,manifest.accountIds]);
+  if (events.rowCount)
+    throw new Error('Support UI approved QA immutable settlement/refund events must be preserved');
 }
 
 function exactUuids(value: unknown,length: number) {
@@ -733,11 +764,14 @@ async function deleteOwnedRows(client: PoolClient,m: SupportUiManifest) {
 
 export async function runSupportUiFixture(action: 'seed' | 'reset',value: string,
   databaseUrl: string,password?: string,manifestJson?: string,expectedSystemId?: string,
-  sharedConsent?: string) {
+  sharedConsent?: string,approvedQaConsent?: string) {
   const runId = validateQaRunId(value);
-  const databaseName = sharedConsent === undefined
-    ? validateSupportUiTarget(databaseUrl,runId).database
-    : validateSharedSupportUiTarget(databaseUrl,runId,sharedConsent).database;
+  if (sharedConsent !== undefined && approvedQaConsent !== undefined)
+    throw new Error('Support UI fixture modes cannot be combined');
+  const databaseName = approvedQaConsent !== undefined
+    ? validateApprovedSupportUiTarget(databaseUrl,runId,approvedQaConsent).database
+    : sharedConsent === undefined ? validateSupportUiTarget(databaseUrl,runId).database
+      : validateSharedSupportUiTarget(databaseUrl,runId,sharedConsent).database;
   await assertSupportUiTempRoot();
   if (action !== 'seed' && action !== 'reset') throw new Error('Invalid QA action');
   if (!password || password.length < 12) throw new Error('QA_FIXTURE_PASSWORD must be set');
@@ -760,7 +794,8 @@ export async function runSupportUiFixture(action: 'seed' | 'reset',value: string
         FROM pg_control_system()`)).rows[0];
       validateSupportUiSystemTarget(runId,expectedSystemId,actual,databaseName);
       if (action === 'seed') {
-        if (sharedConsent !== undefined) await assertSharedSupportUiBaseline(client);
+        if (sharedConsent !== undefined || approvedQaConsent !== undefined)
+          await assertSharedSupportUiBaseline(client);
         result = await seedFixture(client,runId,password);
         await createRecoveryFile(recoveryPath,password,result,
           () => { recoveryCreated = true; });
@@ -773,11 +808,14 @@ export async function runSupportUiFixture(action: 'seed' | 'reset',value: string
             JSON.stringify(saved.manifest) !== JSON.stringify(manifest))
           throw new Error('Support UI fixture recovery file mismatch');
         const files = await assertResetOwnership(client,manifest!);
+        if (approvedQaConsent !== undefined)
+          await assertNoImmutableSupportUiEvents(client,manifest!);
         await assertOwnedFiles(runId,files);
         const store = new ImageQuarantine(supportUiUploadRoot(runId));
         for (const file of files) staged.push(await store.stageRemoval(file.object_key));
         result = await deleteOwnedRows(client,manifest!);
-        if (sharedConsent !== undefined) await assertSharedSupportUiBaseline(client);
+        if (sharedConsent !== undefined || approvedQaConsent !== undefined)
+          await assertSharedSupportUiBaseline(client);
       }
       await client.query('COMMIT');
       committed = true;
@@ -821,7 +859,8 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
     throw new Error('usage: qa-support-ui-fixture.ts seed|reset');
   runSupportUiFixture(action,process.env.QA_RUN_ID ?? '',process.env.DATABASE_URL ?? '',
     process.env.QA_FIXTURE_PASSWORD,process.env.QA_FIXTURE_JSON,
-    process.env.S52_SUPPORT_UI_DB_SYSTEM_ID,process.env.QA_SHARED_SUPPORT_UI)
+    process.env.S52_SUPPORT_UI_DB_SYSTEM_ID,process.env.QA_SHARED_SUPPORT_UI,
+    process.env.QA_APPROVED_SUPPORT_UI)
     .then((value) => { process.stdout.write(`${JSON.stringify(value)}\n`); })
     .catch((error) => {
       process.stderr.write(`${error instanceof Error ? error.message : 'Support UI fixture failed'}\n`);

@@ -1,8 +1,60 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { refundUiDatabaseName, refundUiEmails, validateRefundUiTarget, validateSharedRefundUiTarget,
-  validateSharedRefundManifest, resetRefundUiFixture, runRefundUiFixture } from
+  validateSharedRefundManifest, validateApprovedRefundUiTarget, assertApprovedRefundUiDatabase,
+  assertNoImmutableRefundUiEvents, resetRefundUiFixture, runRefundUiFixture } from
   '../scripts/qa-refund-ui-fixture.ts';
+
+test('approved QA mode rejects protected and wrong URL targets before connecting', () => {
+  const qa = 'postgresql://postgres:test@127.0.0.1:5432/shoppingmall_qa_20261010_2';
+  assert.equal(validateApprovedRefundUiTarget(qa, 'a1b2c3d4', 'approved-qa').database,
+    'shoppingmall_qa_20261010_2');
+  for (const target of [
+    'postgresql://postgres:test@127.0.0.1:5432/shoppingmall',
+    'postgresql://postgres:test@127.0.0.1:5432/shoppingmall_other',
+    'postgresql://postgres:test@remote.invalid:5432/shoppingmall_qa_20261010_2',
+  ]) assert.throws(() => validateApprovedRefundUiTarget(target, 'a1b2c3d4', 'approved-qa'));
+  assert.throws(() => validateApprovedRefundUiTarget(qa, 'a1b2c3d4', undefined));
+});
+
+test('approved QA mode checks actual database name and system ID before writes', async () => {
+  const seen = [];
+  for (const identity of [
+    { database: 'shoppingmall', system_id: '7622490131194466339' },
+    { database: 'shoppingmall_qa_20261010_2', system_id: '1' },
+  ]) {
+    const client = { async query(sql) { seen.push(sql); return { rows: [identity] }; } };
+    await assert.rejects(assertApprovedRefundUiDatabase(client), /identity/);
+  }
+  assert.equal(seen.length, 2);
+  const client = { async query(sql) {
+    seen.push(sql);
+    return { rows: [{ database: 'shoppingmall_qa_20261010_2', system_id: '7622490131194466339' }] };
+  } };
+  await assert.doesNotReject(assertApprovedRefundUiDatabase(client));
+  assert.equal(seen.length, 3);
+});
+
+test('approved QA reset requires a creation manifest before opening a database', async () => {
+  const qa = 'postgresql://postgres:test@127.0.0.1:5432/shoppingmall_qa_20261010_2';
+  await assert.rejects(runRefundUiFixture('reset', 'a1b2c3d4', qa,
+    undefined, undefined, undefined, 'approved-qa'), /manifest/);
+  await assert.rejects(runRefundUiFixture('reset', 'a1b2c3d4', qa,
+    undefined, 'SHARED_S4_REFUND_UI_a1b2c3d4', undefined, 'approved-qa'));
+});
+
+test('approved QA reset preserves immutable settlement events', async () => {
+  const orderId = '00000000-0000-4000-8000-00000000000b';
+  const seen = [];
+  const client = { async query(sql, args) {
+    seen.push({ sql, args });
+    return { rowCount: 1, rows: [{ id: '00000000-0000-4000-8000-00000000000e' }] };
+  } };
+  await assert.rejects(assertNoImmutableRefundUiEvents(client, [orderId]), /immutable/);
+  assert.equal(seen.length, 1);
+  assert.match(seen[0].sql, /settlement_events/);
+  assert.deepEqual(seen[0].args, [[orderId]]);
+});
 
 test('refund browser fixture is bound to one exact run-scoped isolated database', () => {
   assert.equal(refundUiDatabaseName('A1B2C3D4'), 'shoppingmall_s4_refund_ui_a1b2c3d4');

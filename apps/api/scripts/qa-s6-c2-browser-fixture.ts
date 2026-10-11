@@ -1,24 +1,57 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import { Pool } from 'pg';
 import { completeSellerPeriod } from '../src/settlement/complete.js';
 import { qaNames, runQaFixture, validateQaRunId } from './qa-fixture.js';
 
-const run = validateQaRunId(process.env.S6_C2_BROWSER_RUN ?? '');
-const databaseUrl = process.env.DATABASE_URL ?? '';
-const systemId = process.env.S6_C2_BROWSER_DB_SYSTEM_ID ?? '';
-const password = process.env.QA_FIXTURE_PASSWORD ?? '';
-assert.equal(new URL(databaseUrl).pathname, '/shoppingmall');
-assert.ok(systemId && password.length >= 12);
+type FixtureTarget = { database: string; migrations: number };
+type FixtureBaseline = FixtureTarget & { systemId: string; accounts: number; events: number };
+
+export function validateS6C2BrowserTarget(databaseUrl: string, runId: string,
+  systemId: string, mode?: string): FixtureTarget {
+  validateQaRunId(runId);
+  const url = new URL(databaseUrl);
+  const database = decodeURIComponent(url.pathname.slice(1));
+  assert.ok(['postgres:', 'postgresql:'].includes(url.protocol));
+  assert.ok(['127.0.0.1', 'localhost', '[::1]', '::1'].includes(url.hostname));
+  assert.equal(url.search, '');
+  assert.equal(url.hash, '');
+  assert.match(systemId, /^\d{10,}$/);
+  if (mode === 'approved-qa') {
+    assert.equal(database, 'shoppingmall_qa_20261010_2');
+    assert.equal(systemId, '7622490131194466339');
+    return { database, migrations: 26 };
+  }
+  assert.equal(mode, undefined);
+  assert.equal(database, 'shoppingmall');
+  return { database, migrations: 24 };
+}
+
+export function assertS6C2BrowserBaseline(target: FixtureTarget, expectedSystemId: string,
+  actual: FixtureBaseline): void {
+  assert.deepEqual({ database: actual.database, migrations: actual.migrations }, target);
+  assert.equal(actual.systemId, expectedSystemId);
+  assert.equal(actual.accounts, 0);
+  assert.equal(actual.events, 0);
+}
+
+export async function runS6C2BrowserFixture(runInput: string, databaseUrl: string,
+  systemId: string, password: string, mode?: string) {
+const run = validateQaRunId(runInput);
+const target = validateS6C2BrowserTarget(databaseUrl, run, systemId, mode);
+assert.ok(password.length >= 12);
+if (mode === 'approved-qa') assert.equal(process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID, systemId);
 
 const pool = new Pool({ connectionString: databaseUrl });
 try {
-  const identity = (await pool.query(`SELECT system_identifier::text AS id
-    FROM pg_control_system()`)).rows[0].id;
-  assert.equal(identity, systemId);
-  assert.equal((await pool.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n, 0);
-  assert.equal((await pool.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations'))
-    .rows[0].n, 24);
+  const baseline = (await pool.query(`SELECT current_database() AS database,
+    system_identifier::text AS "systemId",
+    (SELECT count(*)::int FROM drizzle.__drizzle_migrations) AS migrations,
+    (SELECT count(*)::int FROM accounts) AS accounts,
+    (SELECT count(*)::int FROM settlement_events) AS events
+    FROM pg_control_system()`)).rows[0] as FixtureBaseline;
+  assertS6C2BrowserBaseline(target, systemId, baseline);
   await runQaFixture('seed', run, databaseUrl, password);
   const names = qaNames(run);
   const client = await pool.connect();
@@ -56,10 +89,22 @@ try {
     await completeSellerPeriod(client, admin, { sellerId: sellerB,
       from: '2026-05-01', to: '2026-05-20', reason: 'C2 0건 완료' });
     await client.query('COMMIT');
-    console.info(JSON.stringify({ run, sellerA, sellerB, x, y,
-      expected: { all: 14000, x: 10000, y: 4000, empty: 0 } }));
+    return { run, sellerA, sellerB, x, y, immutableEventsPreserved: true,
+      expected: { all: 14000, x: 10000, y: 4000, empty: 0 } };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
   } finally { client.release(); }
 } finally { await pool.end(); }
+}
+
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  runS6C2BrowserFixture(process.env.S6_C2_BROWSER_RUN ?? '', process.env.DATABASE_URL ?? '',
+    process.env.S6_C2_BROWSER_DB_SYSTEM_ID ?? '', process.env.QA_FIXTURE_PASSWORD ?? '',
+    process.env.S6_C2_BROWSER_QA_MODE)
+    .then((result) => process.stdout.write(`${JSON.stringify(result)}\n`))
+    .catch((error) => {
+      process.stderr.write(`${error instanceof Error ? error.message : 'C2 QA fixture failed'}\n`);
+      process.exitCode = 1;
+    });
+}

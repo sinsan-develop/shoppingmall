@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   fulfillmentUiDatabaseName,
   fulfillmentUiEmails,
+  rejectImmutableFulfillmentHistory,
   signFulfillmentUiManifest,
   validateFulfillmentUiManifest,
   validateFulfillmentUiSystemTarget,
@@ -32,6 +33,19 @@ test('fulfillment browser fixture is bound to one exact isolated database and fi
     'postgresql://postgres:test@127.0.0.1:5432/shoppingmall',
     'postgresql://postgres:test@127.0.0.1:5432/shoppingmall_s5_fulfillment_ui_deadbeef',
   ]) assert.throws(() => validateFulfillmentUiTarget(unsafeUrl, 'a1b2c3d4'));
+});
+
+test('fulfillment reset refuses any immutable settlement or refund history before deletion', async () => {
+  const fakeClient = { query: async (sql) => {
+    assert.match(sql, /settlement_events/);
+    assert.match(sql, /seller_settlement_periods/);
+    assert.match(sql, /refund_events/);
+    return { rowCount: 1 };
+  } };
+  await assert.rejects(rejectImmutableFulfillmentHistory(fakeClient,
+    { orderIds: [uuid('1')], shipmentIds: [uuid('2')], sellerIds: [uuid('3')],
+      productIds: [uuid('4')], optionIds: [uuid('5')], accountIds: [uuid('6')] }),
+  /immutable/i);
 });
 
 test('fulfillment reset manifest must identify every created role, seller, order and shipment', () => {
@@ -81,6 +95,26 @@ test('fulfillment fixture runtime target requires the exact private database and
   assert.throws(() => validateFulfillmentUiSystemTarget('a1b2c3d4', '999999999999', {
     databaseName: 'shoppingmall_s5_fulfillment_ui_a1b2c3d4', systemId: '123456789012',
   }));
+});
+
+test('approved QA fulfillment mode accepts only the named loopback database and its system identifier', () => {
+  const runId = 'a1b2c3d4';
+  const qaDatabase = 'shoppingmall_qa_20261010_2';
+  const systemId = '7622490131194466339';
+  assert.equal(validateFulfillmentUiTarget(`postgresql://postgres:test@127.0.0.1:5432/${qaDatabase}`,
+    runId, 'approved-qa').database, qaDatabase);
+  assert.deepEqual(validateFulfillmentUiSystemTarget(runId, systemId,
+    { databaseName: qaDatabase, systemId }, 'approved-qa'),
+  { databaseName: qaDatabase, systemId });
+  for (const unsafeUrl of [
+    `postgresql://postgres:test@remote.invalid:5432/${qaDatabase}`,
+    `postgresql://postgres:test@127.0.0.1:5432/${qaDatabase}?sslmode=disable`,
+    'postgresql://postgres:test@127.0.0.1:5432/shoppingmall',
+  ]) assert.throws(() => validateFulfillmentUiTarget(unsafeUrl, runId, 'approved-qa'));
+  assert.throws(() => validateFulfillmentUiSystemTarget(runId, '123456789012',
+    { databaseName: qaDatabase, systemId }, 'approved-qa'));
+  assert.throws(() => validateFulfillmentUiSystemTarget(runId, systemId,
+    { databaseName: 'shoppingmall', systemId }, 'approved-qa'));
 });
 
 test('fulfillment reset preflight locks payment events and rejects unowned payment conflicts', async () => {

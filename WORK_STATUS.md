@@ -1,5 +1,19 @@
 # 어울몰 작업현황
 
+## 2026-10-11 `WORK_PLAN_20260-10-11.md` Stage 3 정리 및 Stage 4 QA fixture 보호 진행
+
+- 담당 어울, 작업 브랜치 `codex/next-work-20261011`, 마지막 push HEAD `4ad3cce990b079deedf3c172f9c727ceb9ca7d2c`. Stage 3 시간 관찰은 각 분류 4회·최대 p95 차이 100ms·격리 mock 환경을 시험에 명시했고 전용 DB에서 재시험 1/1 통과했다. 실제 관찰 p95는 가입 기존/미등록 15.876/15.244ms, 복구 기존/미등록 15.021/12.949ms였다. 이 표본을 운영 시간차 방어로 판정하지 않는다.
+- Stage 3 임시 DB `shoppingmall_auth_intake_1011`의 식별·시험 계정/큐/토큰/정산 사건 0을 확인한 뒤 그 DB 한 개와 임시 시험 체크아웃만 제거했고 DB 잔류 0을 확인했다. 지정 WSL 체크아웃과 보호 `shoppingmall`, 고정 QA DB는 변경하지 않았다. 아래 과거 `ACTIVE` 기록은 시험 당시 상태다.
+- Stage 4는 승인 QA DB `shoppingmall_qa_20261010_2`(system ID `7622490131194466339`, migration 26, 선조회 계정·정산 사건 0)만 대상으로 4개 화면 자료 도구의 명시 모드를 작업 중이다. 환불·클레임·출고·정산 C2의 로컬 대상 시험 29건 중 28 pass·1 DB 조건부 skip·0 fail을 확인했다. 잘못된 URL, 실제 DB명/system ID, 서명 manifest, 불변 환불·정산/정산완료 이력 보호를 검사한다. 정산 C2는 불변 기록을 만드는 도구이므로 다른 자료 시험보다 마지막에 실행·보존 판정을 한다.
+- Stage 4 변경은 아직 승인 QA DB seed→화면→reset/보존 실검증과 전체 회귀 전이다. Stage 5 `pnpm test/typecheck/lint/build`와 최종 diff 검토도 미실행이며 통과로 표시하지 않는다. 다음은 안전 시험 보강·정확한 작업 commit/push 후 QA DB의 한 도구씩 검증한다. 사용자 소유 비추적 파일은 보존한다.
+
+## 2026-10-11 `WORK_PLAN_20260-10-11.md` Stage 3 격리 실DB 시험 진행
+
+- 담당 어울, 작업 브랜치 `codex/next-work-20261011`, 실DB 시험 SHA `9a29a37`를 SSH 원격과 WSL 임시 체크아웃 `/tmp/shoppingmall-auth-intake-1011`에서 일치시켰다. 기존 지정 WSL checkout은 변경하지 않았다. 승인된 기존 `local-postgres`에 사전 기록한 전용 DB `shoppingmall_auth_intake_1011`을 생성하고 0000~0026 SQL 27개를 순서대로 적용했다. 보호 `shoppingmall`·고정 QA DB에는 연결/쓰기하지 않았다. 이 임시 DB와 체크아웃은 Stage 3 후속 시험 중 ACTIVE이며 시험 종료 후 정확한 대상을 확인해 제거한다.
+- 실DB 등록 1/1, 비밀번호 복구 2/2, 인증 HTTP 4/4, 등록/미등록 접수 시간 관찰 1/1, 신규 작업자 리스·경합·재시도·만료 1/1을 각각 0 skip으로 확인했다. 시간 관찰은 각 분류 4회이며 모의/격리 경계다. 신규 작업자 시험 후 전용 DB의 큐·계정·토큰 잔류 0도 별도 조회했다. 이 결과를 외부 발송·운영 시간차 방어의 증명으로 올리지 않는다.
+- 실DB 첫 재시도 시험은 PostgreSQL `42P08`로 실패 1회, 원인은 `completed_at`의 CASE 분기에서 매개변수 시각 타입 추론이 불명확한 점이었다. 명시적 `timestamptz` 캐스트로 보정한 뒤 2/2 통과했다. 인증 HTTP는 WSL 호스트 Node18이 Sharp의 최신 JSON import 구문을 읽지 못해 런타임 오류 1회가 있었고, 기존 Node24 쇼핑몰 이미지를 일회성·DB 네트워크 공유·소스 읽기 전용으로 사용해 4/4 통과했다. 시간 시험의 기존 DB명 고정 단언 오류 1회는 정확한 이름+system ID gate를 유지하면서 현재 선택 DB 비교로 보정했다.
+- 로컬 검증용 단위 3/3, 전용 DB 가드 파일 8건은 DB 설정 부재로 8 skip을 확인했다. 아직 Stage 4 fixture 가드/QA DB 화면 부분 시험과 Stage 5 전체 순차 회귀·lint/build·정리·최종 diff 검토는 미실행이다. 다음은 Stage 3 시간 표본/허용 차이를 명시하고 Stage 4 도구별 안전 가드를 점검한다.
+
 ## 2026-10-11 `WORK_PLAN_20260-10-11.md` 실행 — Stage 1/2
 
 - Stage 3 임시 자원 계획: `WSL-server` 기존 `local-postgres` 클러스터에 **새 전용 DB `shoppingmall_auth_intake_1011` 하나**를 만든다. 목적은 0000~0026 migration과 가입/복구 비동기 큐의 격리 시험이다. 보호 `shoppingmall`·승인 고정 QA DB는 변경하지 않는다. 사용 수명은 이번 Stage 3 시험 동안이며, 시험 자료·migration 결과를 확인한 뒤 정확한 DB 이름과 세션 0을 재확인해 해당 전용 DB만 제거하고 잔류를 검증한다. 비밀값은 기록하지 않는다.

@@ -13,6 +13,7 @@ import { createPurchaseConfirmation } from '../src/support/confirmations.ts';
 import { createReview, approveReview, reportReview } from '../src/support/reviews.ts';
 import { createClaim, addClaimEvidence, replyToClaim, approveClaim } from '../src/support/claims.ts';
 import { executeMockRefundCase } from '../src/refunds/mock-execution.ts';
+import * as supportFixture from '../scripts/qa-support-ui-fixture.ts';
 import {
   supportUiDatabaseName, supportUiEmails, supportUiUploadRoot,supportUiRecoveryPath,
   isSupportUiImageKey,
@@ -94,6 +95,43 @@ test('S5.2 formal shared DB target requires exact run consent and system identit
   assert.throws(() => validateSupportUiSystemTarget(runId,'7622490131194466339',{
     databaseName:supportUiDatabaseName(runId),systemId:'7622490131194466339',
   },'shoppingmall'));
+});
+
+test('approved support mode requires exact local QA URL, run consent and system identity', async () => {
+  const url = 'postgresql://qa@127.0.0.1:5432/shoppingmall_qa_20261010_2';
+  const consent = `APPROVED_QA_S52_SUPPORT_UI_${runId}`;
+  assert.equal(supportFixture.validateApprovedSupportUiTarget?.(url,runId,consent)?.database,
+    'shoppingmall_qa_20261010_2');
+  for (const [target,approval] of [
+    [url,undefined], [url,'APPROVED_QA_S52_SUPPORT_UI_other'],
+    ['postgresql://qa@127.0.0.1:5432/shoppingmall',consent],
+    ['postgresql://qa@127.0.0.1:15440/shoppingmall_qa_20261010_2',consent],
+    ['postgresql://qa@remote.example:5432/shoppingmall_qa_20261010_2',consent],
+    [`${url}?sslmode=disable`,consent],
+  ]) assert.throws(() => supportFixture.validateApprovedSupportUiTarget(target,runId,approval));
+  assert.deepEqual(validateSupportUiSystemTarget(runId,'7622490131194466339',{
+    databaseName:'shoppingmall_qa_20261010_2',systemId:'7622490131194466339',
+  },'shoppingmall_qa_20261010_2'),{
+    databaseName:'shoppingmall_qa_20261010_2',systemId:'7622490131194466339',
+  });
+  assert.throws(() => validateSupportUiSystemTarget(runId,'9999999999999999999',{
+    databaseName:'shoppingmall_qa_20261010_2',systemId:'9999999999999999999',
+  },'shoppingmall_qa_20261010_2'));
+  await assert.rejects(runSupportUiFixture('seed',runId,url,password,undefined,
+    '7622490131194466339',`SHARED_S52_SUPPORT_UI_${runId}`,consent));
+});
+
+test('approved support reset refuses immutable settlement and refund events', async () => {
+  const client = { query: async (sql) => {
+    if (sql.startsWith('SELECT id FROM settlement_events')) {
+      assert.match(sql,/seller_settlement_periods/);
+      return { rows:[{ id:uuid('a') }],rowCount:1 };
+    }
+    return { rows:[],rowCount:0 };
+  } };
+  await assert.rejects(Promise.resolve().then(() =>
+    supportFixture.assertNoImmutableSupportUiEvents?.(client,sampleManifest())),
+    /immutable/);
 });
 
 test('S5.2 formal shared seed refuses non-baseline business or policy rows', () => {
