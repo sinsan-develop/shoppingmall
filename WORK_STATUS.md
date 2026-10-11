@@ -2,6 +2,7 @@
 
 ## 2026-10-11 `WORK_PLAN_20260-10-11.md` Stage 3 정리 및 Stage 4 QA fixture 보호 진행
 
+- 전 범위 읽기 전용 코드 검토에서 R16 중요 지적 2건을 분리했다. (1) 일반 API 시작은 개발 mock sink를 등록하지 않아 가입/복구가 503으로 실패 폐쇄된다. 격리 시험의 sink 주입 결과를 실행 API 결과로 승격하지 않는다. (2) 링크 전달 뒤 job 완료 SQL 실패 시 재시도가 앞선 링크를 폐기할 수 있다. 원인 경계를 코드에서 확인했고 아직 RED 실DB 재현·보정 전이다. 결함과 재개 조건은 `docs/design_change.md`에 기록했다. 중요 지적이 남은 상태에서 PR 병합·최종 합격을 선언하지 않는다.
 - Stage 4 안전 변경 9개 파일을 `7a46c1c5614d60fe10cd9fe8fa98fede49ae9595`에 커밋·승인 SSH 원격 작업 브랜치에 push했고 WSL 지정 체크아웃을 같은 SHA에 맞췄다. 4개 대상 시험은 29건/28 pass/1 DB 조건부 skip/0 fail, API typecheck exit 0이다. 독립 QA DB 읽기 전용 재조회는 정확한 이름/system ID·migration 26·계정 0·정산 사건 0이었다. WSL load 12.56/9.43/8.19, swap 5.1GiB, 접속 11명으로 화면 자료 생성은 보류하고 `docs/design_change.md`에 재개 조건을 적었다.
 - Stage 5 로컬 순차 회귀: `pnpm test` 본시험 672건/476 pass/196 DB 조건부 skip/0 fail, PR 설명 검사 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 exit 0, Web 31경로 빌드. 이 결과는 QA DB seed/reset이나 실제 브라우저 증거가 아니다. 변경 diff와 자원 여유 재확인, 계획상 미검증 경계 판정이 다음 작업이다.
 - 담당 어울, 작업 브랜치 `codex/next-work-20261011`, Stage 3 시간 시험 근거 SHA `4ad3cce990b079deedf3c172f9c727ceb9ca7d2c`. 각 분류 4회·최대 p95 차이 100ms·격리 mock 환경을 시험에 명시했고 전용 DB에서 재시험 1/1 통과했다. 실제 관찰 p95는 가입 기존/미등록 15.876/15.244ms, 복구 기존/미등록 15.021/12.949ms였다. 이 표본을 운영 시간차 방어로 판정하지 않는다.
