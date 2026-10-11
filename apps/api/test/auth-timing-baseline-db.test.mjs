@@ -44,7 +44,7 @@ test('isolated QA records signup and reset latency for present and absent identi
   };
   try {
     const db = await pool.query('SELECT current_database() AS name, system_identifier::text AS id FROM pg_control_system()');
-    assert.deepEqual(db.rows[0], { name: 'shoppingmall_qa_20261010_2', id: expectedSystemId });
+    assert.deepEqual(db.rows[0], { name: process.env.PGDATABASE, id: expectedSystemId });
     const before = await pool.query(`SELECT
       (SELECT count(*)::int FROM account_identities WHERE identifier=ANY($1::text[])) AS identities,
       (SELECT count(*)::int FROM auth_action_tokens WHERE email=ANY($1::text[])) AS tokens`, [allEmails]);
