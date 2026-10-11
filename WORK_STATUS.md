@@ -2,6 +2,11 @@
 
 ## 2026-10-11 `WORK_PLAN_20260-10-11.md` Stage 3 정리 및 Stage 4 QA fixture 보호 진행
 
+- 정확 SHA 자체 격리 재시험: 작업 브랜치와 승인 SSH 원격, WSL 지정 checkout이 `e329f5c845a1b474d2f6d10a97289aea8076cd87`에서 일치·WSL clean을 확인했다. 해당 Git 파일만 read-only mount한 일회용 Node24 runner로 전용 DB에 0000~0027 적용 exit 0, 인증 접수·복구·HTTP 8/8 pass/0 skip/0 fail. 계정·큐·토큰·감사·세션·주문·정산 각 0행, 격리 보안사건 24행, 연결 세션 0 확인 후 정확 DB 한 개를 제거해 이름 잔류 0을 확인했다. 이는 정식 전체 WSL 화면 검증이 아니다.
+- Stage 4 재판정: WSL load 7.90/7.88/6.87(2 vCPU), swap 사용 5.1GiB, 사용자 9명. 고정 QA DB 계정·정산완료 0을 읽기 전용 확인했으나 자원 여유 조건이 여전히 충족되지 않아 seed/화면/reset은 실행하지 않았다. 이 항목은 `UNVERIFIED` 유지. 코드 추가 검토에서, 한 작업의 링크가 더 새로운 접수에 의해 폐기된 뒤 그 옛 작업의 지연 재시도가 새 링크를 다시 폐기할 가능성을 발견했다. 다음은 격리 실패 시험으로 재현하고 승인된 R16 재시도 범위에서 보정한다.
+
+- 정식 exact-SHA 재확인 자원 선언: 작업 commit `e329f5c845a1b474d2f6d10a97289aea8076cd87`을 승인 SSH 별칭으로 push했고 WSL 지정 checkout을 같은 SHA에 맞췄다. 다음 자체 격리 재시험은 현재 부재를 먼저 확인할 전용 DB `shoppingmall_auth_intake_1011` 한 개만 생성해 0000~0027을 적용, 지정 checkout의 Git 파일만 읽는 Node24 일회용 runner로 인증 8건을 검증한다. 보호 `shoppingmall`·고정 QA DB 쓰기 0. 종료 시 행·세션 확인 뒤 정확한 DB 한 개를 제거하고 잔류 0을 확인한다.
+
 - 0027 분리 후 로컬 최종 순차 회귀: `pnpm test` 본시험 673건/476 pass/197 DB 조건부 skip/0 fail, PR 본문 8/8; `pnpm typecheck`·`pnpm lint`·`pnpm build` 각각 exit 0, 웹 31경로. 격리 DB의 8/8은 별도이며 skip을 실DB 성공으로 환산하지 않는다. 현재 Stage 4 고정 QA DB 화면 자료 시험은 자원 조건으로 `UNVERIFIED`다.
 - PMO 환경 지침 재대조: 이번 임시 격리 시험은 WSL의 지정 Git checkout에 Windows 로컬 수정 파일을 read-only bind mount했다. 이는 PMO의 WSL 시험은 승인 SSH branch의 정확한 Git SHA만 사용한다는 경로 규칙에 맞지 않는다. 시험 결과는 자체 회귀 참고로만 남기고 정식 WSL 통합 증거로 승격하지 않는다. 다음은 안전 commit/push 후 WSL 지정 checkout의 exact SHA로 같은 목표 시험을 재확인한다. WSL 전체 화면/외부 발송/공유 DB 적용은 여전히 미검증이다.
 
