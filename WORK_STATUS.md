@@ -5233,3 +5233,11 @@
 
 - 담당 어울. 로컬·WSL exact SHA `e944dfb9e1b42a55c8905aeae0cacfca3cc00d22`, 작업 브랜치 `codex/work-plan-20261010-2`; 사용자 소유 비추적 자료는 보존한다. 앞선 고객 재입고 실제 브라우저 결과를 `docs/evidence/three-role-menu-matrix.md`의 #3 상품 상세·#5 고객 계정 **부분 증거**로만 연결했다. 행렬의 QA 명명 예시도 실제 `qa+<runId>-<role>@example.invalid`/`qa-<runId>-...` fixture와 대조해 바로잡았다. 해당 행의 주문/배송/클레임·권한·오류/재시도와 WSL 실행 Web/API·PC 200%는 여전히 `UNVERIFIED`다.
 - WSL 2 vCPU 재조회 시 load average 4.42/3.85/4.21, swap 사용 5126/8192 MiB라 신규 공유 서버 Web/API/Chrome 및 30분 부하는 시작하지 않았다. 이 기록은 문서 대조만 수행하며 DB·서버·브라우저 자원을 새로 생성하지 않았다. 변경 파일은 행렬과 본 현황뿐; 설계서·작업계획서·제품 코드는 불변이다.
+
+## 2026-10-11 Task 6 판매자 상품 화면 읽기 시험 자원 선언
+
+- 담당 어울. 시작 로컬·WSL exact SHA `63aa4fc2e203bdb0dd913ae7b6b541d2a1117cd7`, 작업 브랜치 `codex/work-plan-20261010-2`. WSL 2 vCPU load average 3.03/3.40/3.81, swap 사용 5120/8192 MiB이므로 신규 공유 서버 Web/API/Chrome은 실행하지 않고 Windows 로컬에서만 제한적으로 시험한다. 승인된 전용 DB `shoppingmall_qa_20261010_2`의 PG system ID `7622490131194466339`와 ID `f7411011`의 기존 계정·판매자·상품 각 0행을 대조했다.
+- `qa-public-fixture.ts`로 가상 계정 5개·판매자 A/B/어울몰 3곳·판매자 A 공개 상품 1개를 일시 생성한다. 소유 자원은 Windows SSH 루프백 터널 15442→WSL 5432, API9092/Web9091, 격리 headless Chrome9229/정확한 프로필 `D:\\tmp\\shoppingmall-seller-profile-f7411011`이다. 네 포트의 시작 전 listener는 0이다. 실제 비밀과 가상 암호는 프로세스 환경으로만 전달하고 보호 DB·외부 메일·결제·배송은 사용하지 않는다.
+- 실제 브라우저에서 판매자 A의 자기 상품/재고, 판매자 B의 빈 상품 목록, 구매자의 판매자 화면 차단을 각각 확인한다. 상품·재고는 변경하지 않는다. 종료 시 동일 ID fixture reset, QA/보호 DB 대상 행과 네 포트·정확한 프로필·소유 프로세스 잔류를 후조회한다. 이는 WSL 실행 18화면 전수나 실제 PC 200%의 대체 증거가 아니다.
+- 같은 SHA에서 Windows Web를 API9092 출처로 재빌드(exit 0, 31경로)하고, 전용 DB fixture의 판매자 A 공개 상품을 로컬 API/Web·격리 Chrome으로 조회했다. 판매자 A에게 자기 상품명·500g 재고 5개가 표시됐고 430px 가로 넘침 없음·Tab 초점 이동을 확인했다. 별도 로그인한 판매자 B에게는 상품 0개/빈 목록, 구매자에게는 판매자 화면 차단 메시지가 표시됐다. 브라우저 부분 시험은 세 단계 모두 PASS이며 상품·재고 변경은 하지 않았다. 오류/재시도, WSL 실행 Web/API, 실제 PC 200%는 미검증이다.
+- ID `f7411011` fixture reset exit 0; 전용 QA DB와 보호 DB의 대상 계정·판매자·상품 버전·상품 분류는 각각 `0|0|0|0`. Windows 9091/9092/9229/15442 listener 각 0, 정확한 Chrome 프로필 부재·이름 지정 소유 프로세스 0. 실행 오류 0회. 변경은 본 현황·18화면 증거 행렬만이며 제품 코드·설계서·작업계획서는 불변이다.
