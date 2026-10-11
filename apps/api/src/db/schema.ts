@@ -249,9 +249,11 @@ export const authActionTokens = pgTable('auth_action_tokens', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  intakeJobId: uuid('intake_job_id').references(() => authIntakeJobs.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index('auth_action_tokens_lookup_idx').on(table.purpose, table.email, table.createdAt.desc()),
+  index('auth_action_tokens_intake_job_idx').on(table.intakeJobId).where(sql`${table.intakeJobId} IS NOT NULL`),
   index('auth_action_tokens_expiry_idx').on(table.expiresAt),
   check('auth_action_tokens_purpose_ck', sql`${table.purpose} IN ('admin_setup','customer_signup','password_reset')`),
   check('auth_action_tokens_email_ck', sql`${table.email} = lower(trim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 254`),

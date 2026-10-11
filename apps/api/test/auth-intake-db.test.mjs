@@ -154,6 +154,14 @@ test('a delivered reset link survives a completion write failure and job retry',
     const active = await originalQuery(`SELECT count(*)::int AS n FROM auth_action_tokens
       WHERE purpose='password_reset' AND email=$1 AND token_hash=$2 AND revoked_at IS NULL`, [email, digest]);
     assert.equal(active.rows[0].n, 1, 'first delivered link must remain valid');
+    await enqueueAuthIntake(pool, 'password_reset', email, source, now, sink);
+    await processAuthIntakeOnce(pool, now, sink);
+    assert.equal(delivered.length, 2, 'a separate accepted request must receive a fresh link');
+    const tokens = await originalQuery(`SELECT token_hash,revoked_at FROM auth_action_tokens
+      WHERE purpose='password_reset' AND email=$1 ORDER BY id`, [email]);
+    assert.equal(tokens.rows.length, 2);
+    assert.ok(tokens.rows.find((row) => row.token_hash === digest)?.revoked_at,
+      'a fresh request must revoke its predecessor');
   } finally {
     try {
       await pool.query('DELETE FROM auth_intake_jobs WHERE email=$1', [email]);

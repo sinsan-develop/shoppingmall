@@ -114,7 +114,7 @@ export async function startCustomerSignup(pool: Pool, emailInput: string, source
 }
 
 export async function processCustomerSignupIntake(pool: Pool, emailInput: string, source: string,
-  now: Date, mockSink?: MockAuthSink): Promise<void> {
+  now: Date, mockSink?: MockAuthSink, intakeJobId?: string): Promise<void> {
   const email = normalizedEmail(emailInput);
   requireAuthDelivery('customer_signup', mockSink);
   if (!source || Number.isNaN(now.getTime())) throw new Error('Invalid signup request');
@@ -123,7 +123,7 @@ export async function processCustomerSignupIntake(pool: Pool, emailInput: string
   let rawToken: string;
   try {
     rawToken = await issueActionToken(pool, { purpose: 'customer_signup', email,
-      accountId: null, source, now });
+      accountId: null, source, now, intakeJobId });
   } catch (error) {
     if (error instanceof Error && error.message === 'Action token rate limited') return;
     throw error;

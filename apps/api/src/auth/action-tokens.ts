@@ -8,6 +8,7 @@ export type ActionTokenInput = {
   accountId: string | null;
   source: string;
   now: Date;
+  intakeJobId?: string;
 };
 export type ConsumedAction = { email: string; accountId: string | null };
 
@@ -62,10 +63,17 @@ export async function issueActionToken(pool: Pool, input: ActionTokenInput): Pro
       await client.query(`UPDATE auth_action_tokens SET revoked_at=$3
         WHERE purpose=$1 AND email=$2 AND consumed_at IS NULL AND revoked_at IS NULL`,
       [input.purpose, email, input.now]);
-      await client.query(`INSERT INTO auth_action_tokens
-        (purpose,email,account_id,token_hash,expires_at,created_at)
-        VALUES ($1,$2,$3,$4,$5,$6)`,
-      [input.purpose, email, input.accountId, tokenDigest(rawToken), expiresAt, input.now]);
+      if (input.intakeJobId) {
+        await client.query(`INSERT INTO auth_action_tokens
+          (purpose,email,account_id,token_hash,expires_at,created_at,intake_job_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [input.purpose, email, input.accountId, tokenDigest(rawToken), expiresAt, input.now, input.intakeJobId]);
+      } else {
+        await client.query(`INSERT INTO auth_action_tokens
+          (purpose,email,account_id,token_hash,expires_at,created_at)
+          VALUES ($1,$2,$3,$4,$5,$6)`,
+        [input.purpose, email, input.accountId, tokenDigest(rawToken), expiresAt, input.now]);
+      }
       await client.query(`INSERT INTO auth_security_events
         (purpose,result_code,subject_hash,source_hash,occurred_at) VALUES ($1,'issued',$2,$3,$4)`,
       [input.purpose, subjectHash, sourceHash, input.now]);

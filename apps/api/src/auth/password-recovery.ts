@@ -18,7 +18,7 @@ export async function startPasswordReset(pool: Pool, emailInput: string, source:
 }
 
 export async function processPasswordResetIntake(pool: Pool, emailInput: string, source: string,
-  now: Date, mockSink?: MockAuthSink): Promise<void> {
+  now: Date, mockSink?: MockAuthSink, intakeJobId?: string): Promise<void> {
   const email = normalizedEmail(emailInput);
   requireAuthDelivery('password_reset', mockSink);
   if (!source || Number.isNaN(now.getTime())) throw new Error('Invalid password reset request');
@@ -30,7 +30,7 @@ export async function processPasswordResetIntake(pool: Pool, emailInput: string,
   let rawToken: string;
   try {
     rawToken = await issueActionToken(pool, { purpose: 'password_reset', email,
-      accountId: identity.rows[0].account_id, source, now });
+      accountId: identity.rows[0].account_id, source, now, intakeJobId });
   } catch (error) {
     if (error instanceof Error && error.message === 'Action token rate limited') return;
     throw error;
