@@ -5314,3 +5314,9 @@
 - 담당 어울. 시작 로컬·WSL exact SHA `bec005dcbfee2ba86dc6746a1acf3ce4a2486d3e`. WSL 2 vCPU load average 7.34/7.28/7.14, swap 5109/8192 MiB와 다수 기존 서비스를 확인해 신규 WSL 서비스·30분 부하는 시작하지 않았다. 이전의 `qa-load-gate.mjs`가 개발/mock/loopback 모드는 검사하나 `DATABASE_URL`이 보호 `shoppingmall`을 가리켜도 통과하는 빈틈을 발견했다.
 - RED에서 보호 DB 또는 QA 명칭 불일치 시험 1 fail(앞선 두 시험 2 pass), 별도 IPv6 루프백 반례 1 fail을 확인했다. 최소 수정으로 `PGDATABASE`와 `DATABASE_URL`의 DB 이름을 승인된 `shoppingmall_qa_20261010_2`로 일치시키고 URL의 PostgreSQL 프로토콜·허용된 루프백/`local-postgres` 호스트를 확인한다. 오류에는 연결 문자열/비밀을 출력하지 않는다. GREEN 표적 결제/QA **10 pass·0 fail**, 전체 `pnpm test` 651건 중 **456 pass·195 DB 조건부 skip·0 fail**(PR 본문 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로).
 - 이 검사는 설정 문자열의 사전 차단이다. 실제 접속 DB의 system ID·앱 서버와 부하 클라이언트의 동일 대상·외부 PG HTTP 0·30분 정합성을 증명하지 않는다. QA/보호 DB 행, 서비스·포트·외부 계정을 생성하거나 변경하지 않았고 설계서·작업계획서는 불변이다. `docs/design_change.md` Task 4의 환경·자원 재개 조건은 유지한다.
+
+## 2026-10-11 Task 1 기존 이미지 격리·권한 회귀 확인
+
+- 담당 어울. 시작 로컬·WSL exact SHA `c52a2d305a1a627b3288f8988ba9d8974b23b606`. 기존 코드에서 판매자 이미지 등록·조회·삭제가 검증된 세션의 판매자 ID와 상품 소유자를 대조하는 경로 및 타 판매자 거부 DB 시험을 확인했다. 기존 격리 이미지 키·비공개 파일·MIME/손상 파일·위조 판매자 헤더의 DB 비의존 시험은 **4 pass·0 fail**이다.
+- 최초 `node --test` 직접 실행은 TypeScript의 `.js` import 해석 실패 2건, 이어 `pnpm` 샌드박스 realpath 거부 1건이었다. 지정된 `tsx` 실행기로 권한을 맞춰 재실행해 4/4 통과했다. 제품 결함이나 DB 시험 실패로 집계하지 않는다. 변경 파일은 이 현황 기록만이며 사용자 소유 비추적 파일·설계서·작업계획서는 불변이다.
+- WSL 2 vCPU load average 7.43/8.06/7.97, swap 사용 5747/8192 MiB라 신규 WSL 서비스·30분 부하는 시작하지 않았다. 현행 파일 격리 시험은 SeaweedFS 객체 버전·동일 시점 복구, WSL 18화면, 실제 200% 확대의 증거가 아니다. `docs/design_change.md`의 Task 1~3·4·6·7 재개 조건을 유지한다.
