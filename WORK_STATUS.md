@@ -5296,3 +5296,9 @@
 - `apps/api/test/auth-timing-baseline-db.test.mjs`는 고유 가상 이메일과 4회씩 교차 순서를 사용해 기존/미등록 두 경로의 동일 응답과 모의 전달 횟수를 실제 전용 QA DB에서 측정한다. `b8411011` 실행 **1 pass·0 skip·0 fail**: 가입 기존 p50 50.876ms/p95 61.912ms, 미등록 p50 297.194ms/p95 398.278ms; 복구 기존 p50 178.795ms/p95 190.255ms, 미등록 p50 0.960ms/p95 2.374ms. 작은 표본·로컬↔WSL 터널 조건의 기준값일 뿐 공격 가능성의 정량 판정이나 A8 방어 PASS는 아니다. 코드 흐름과 함께 응답시간 차이가 실측돼 `docs/design_change.md`의 A8 경계를 갱신한다.
 - 시험 `finally`가 정확한 이메일·source 해시·계정 ID의 수단/보안 이력/계정을 정리했고, 사후 읽기에서 전용 QA DB 전체 계정·수단 0/0·기존 보안 이력 29행 불변, 보호 `shoppingmall` 전체 계정·수단·보안 이력 0/0/0, Windows 15442 listener 0이다. 첫 사후 SQL은 PowerShell→SSH 중첩 인용 오류 1회로 조회만 실패했고, 문자열 조건 없는 전체 건수 재조회로 바로잡았다. 제품 API/DB·설계서·작업계획서는 변경하지 않았다.
 - 로컬 전체 `pnpm test` 646건 중 **451 pass·195 DB 조건부 skip·0 fail**(PR 본문 검사 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로). 신규 측정 시험의 기본 환경 skip을 실DB 통과로 합산하지 않는다. 실제 외부 수신·동일 비동기 접수 방어·WSL 18화면·PC 200%·30분 부하는 계속 미검증이다.
+
+## 2026-10-11 Task 4 QA 부하 시작 사전 차단 경계
+
+- 담당 어울. 시작 SHA `8db6af2bd26cd160d9dba99b149a748bd6353585`. 제품의 기존 `assertPaymentBootConfig`/`assertQaLoadMode`가 listener 이전에 개발·루프백·mock·8자리 run ID·외부 PG credential 부재를 검사한다는 사실을 확인했다. 이번에는 계획 파일 지도에 명시된 `scripts/qa-load-gate.mjs`와 `apps/api/test/qa-load-mode.test.mjs`만 추가했다. 새 스크립트는 네트워크·DB에 접속하지 않고 같은 시작 차단 함수를 선실행하며 비밀값을 출력하지 않는다.
+- RED에서 안전 설정 시험은 스크립트 부재로 1 fail, 위험 설정 거부 시험 1 pass였다. GREEN에서 표적 결제/QA 시험 **9 pass·0 fail**. 전체 `pnpm test` 648건 중 **453 pass·195 DB 조건부 skip·0 fail**(PR 본문 검사 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로). 사용자 소유 비추적 파일은 건드리지 않았다.
+- 이 명령은 향후 부하 클라이언트 시작 전 호출할 사전 차단만 검증한다. 실제 부하 실행기와 결합되지 않았고 외부 PG HTTP 0·주문/재고/정산 정합성·30분 계측 증거가 아니다. QA 행·서버·포트·외부 서비스·보호 DB를 생성/변경하지 않았다. 공유 WSL 자원·승인 경계는 `docs/design_change.md` Task 4 기록대로 유지한다.
