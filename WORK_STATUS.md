@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 2026-10-11 Task 2 PostgreSQL 복구 설정 읽기
+
+- 담당 어울. 작업 브랜치 `codex/work-plan-20261010-2`, 시작 SHA `d824f89f7c5edd239d543fbd7dd56c0e46fd8cac`. 기존 `local-postgres`의 승인 QA DB `shoppingmall_qa_20261010_2`에 읽기 전용으로 접속해 `SHOW archive_mode`와 `SHOW wal_level`을 실행했다. 결과는 각각 `off`, `replica`; 명령은 exit 0이었다. 자격정보·WAL 보관 명령의 원문은 출력하지 않았다.
+- 이 관찰은 현재 클러스터의 WAL 보관이 꺼져 있음을 뜻한다. 7일 PITR·14개 백업·RPO/RTO·SeaweedFS 이미지 동시 복원은 실행하거나 통과 판정하지 않았다. 공유 PostgreSQL 설정·보호 `shoppingmall` DB·QA DB 행·서비스/포트는 변경하지 않았다. 복구 계약과 환경별 적용 경계는 `docs/design_change.md` Task 1~3에 유지한다.
+
 ## 2026-10-10 Task 3·4 남은 검증 경계 재대조
 
 - 담당 어울. 작업 브랜치 `codex/next-work-20261010-2@e92cc35efd629bf00b4cc716984f9f17197da647`, 원격 추적과 일치. PR #18은 같은 head/base `eab39abc6caf8155edfd20d96de7f014fd06a8c3`의 open·미병합이다. 정확한 head의 push CI `38043974463`와 PR CI `38043978251` 모두 completed/success, PR 본문 갱신 자동화 `38043993564` success를 공개 읽기로 확인했다. 로컬 사용자 미추적 세 경로는 그대로 보존했다.
