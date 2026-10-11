@@ -2,7 +2,9 @@
 
 ## 2026-10-11 `WORK_PLAN_20260-10-11.md` Stage 3 정리 및 Stage 4 QA fixture 보호 진행
 
-- 담당 어울, 작업 브랜치 `codex/next-work-20261011`, 마지막 push HEAD `4ad3cce990b079deedf3c172f9c727ceb9ca7d2c`. Stage 3 시간 관찰은 각 분류 4회·최대 p95 차이 100ms·격리 mock 환경을 시험에 명시했고 전용 DB에서 재시험 1/1 통과했다. 실제 관찰 p95는 가입 기존/미등록 15.876/15.244ms, 복구 기존/미등록 15.021/12.949ms였다. 이 표본을 운영 시간차 방어로 판정하지 않는다.
+- Stage 4 안전 변경 9개 파일을 `7a46c1c5614d60fe10cd9fe8fa98fede49ae9595`에 커밋·승인 SSH 원격 작업 브랜치에 push했고 WSL 지정 체크아웃을 같은 SHA에 맞췄다. 4개 대상 시험은 29건/28 pass/1 DB 조건부 skip/0 fail, API typecheck exit 0이다. 독립 QA DB 읽기 전용 재조회는 정확한 이름/system ID·migration 26·계정 0·정산 사건 0이었다. WSL load 12.56/9.43/8.19, swap 5.1GiB, 접속 11명으로 화면 자료 생성은 보류하고 `docs/design_change.md`에 재개 조건을 적었다.
+- Stage 5 로컬 순차 회귀: `pnpm test` 본시험 672건/476 pass/196 DB 조건부 skip/0 fail, PR 설명 검사 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 exit 0, Web 31경로 빌드. 이 결과는 QA DB seed/reset이나 실제 브라우저 증거가 아니다. 변경 diff와 자원 여유 재확인, 계획상 미검증 경계 판정이 다음 작업이다.
+- 담당 어울, 작업 브랜치 `codex/next-work-20261011`, Stage 3 시간 시험 근거 SHA `4ad3cce990b079deedf3c172f9c727ceb9ca7d2c`. 각 분류 4회·최대 p95 차이 100ms·격리 mock 환경을 시험에 명시했고 전용 DB에서 재시험 1/1 통과했다. 실제 관찰 p95는 가입 기존/미등록 15.876/15.244ms, 복구 기존/미등록 15.021/12.949ms였다. 이 표본을 운영 시간차 방어로 판정하지 않는다.
 - Stage 3 임시 DB `shoppingmall_auth_intake_1011`의 식별·시험 계정/큐/토큰/정산 사건 0을 확인한 뒤 그 DB 한 개와 임시 시험 체크아웃만 제거했고 DB 잔류 0을 확인했다. 지정 WSL 체크아웃과 보호 `shoppingmall`, 고정 QA DB는 변경하지 않았다. 아래 과거 `ACTIVE` 기록은 시험 당시 상태다.
 - Stage 4는 승인 QA DB `shoppingmall_qa_20261010_2`(system ID `7622490131194466339`, migration 26, 선조회 계정·정산 사건 0)만 대상으로 4개 화면 자료 도구의 명시 모드를 작업 중이다. 환불·클레임·출고·정산 C2의 로컬 대상 시험 29건 중 28 pass·1 DB 조건부 skip·0 fail을 확인했다. 잘못된 URL, 실제 DB명/system ID, 서명 manifest, 불변 환불·정산/정산완료 이력 보호를 검사한다. 정산 C2는 불변 기록을 만드는 도구이므로 다른 자료 시험보다 마지막에 실행·보존 판정을 한다.
 - Stage 4 변경은 아직 승인 QA DB seed→화면→reset/보존 실검증과 전체 회귀 전이다. Stage 5 `pnpm test/typecheck/lint/build`와 최종 diff 검토도 미실행이며 통과로 표시하지 않는다. 다음은 안전 시험 보강·정확한 작업 commit/push 후 QA DB의 한 도구씩 검증한다. 사용자 소유 비추적 파일은 보존한다.
