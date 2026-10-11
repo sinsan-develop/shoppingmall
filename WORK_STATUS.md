@@ -5393,3 +5393,9 @@
 ## 2026-10-11 Task 6 관리자 배송·관제 차단 기록 연결
 
 - 담당 어울. 시작 SHA `72935b88d1a0526862b9e6c7a1c7b0d1209efe55`. 앞서 확인한 기존 관리자 배송·관제 스크립트의 과거 전용 DB fixture 제약을 `docs/design_change.md` Task 6에 판정·영향·재개 조건으로 기록했다. 이번에는 가상 자료·서버를 만들지 않았고 WSL load average 2.94/3.32/3.43(2 vCPU), swap 5286/8192 MiB라 공유 서버 18화면·30분 부하는 실행하지 않았다. 관리자 #14·#18은 계속 `UNVERIFIED`; 사용자 소유 비추적 파일·설계서·작업계획서는 불변이다.
+
+## 2026-10-11 병합 전 Task 4 부하 API 시작 안전 재검토
+
+- 담당 어울. 작업 브랜치 `codex/work-plan-20261010-2`, 검토 기준 main `a2a2a3dd612df5125fd68bd92e1d87fb955251ae`. 독립 코드 검토에서 Important 1건: 기존 `qa-load-db-attest.mjs` 사전검사를 생략하면 `QA_LOAD_MODE=1` API가 실제 DB 식별 없이 리스너를 열 수 있었다. 이는 승인 계획 Task 4의 listener 시작 전 거부 조건에 해당한다.
+- RED: 보호/불일치 DB 설정이 `assertPaymentBootConfig`에서 거부되지 않는 시험 1 fail, 실제 QA DB 연결 실패 상태에서 API가 종료하지 않아 제한시간을 넘긴 시험 1 fail. GREEN: `apps/api/src/payments/adapter.ts`에서 승인 QA DB URL·이름·system ID 설정을 선검사하고, `apps/api/src/main.ts`에서 실제 `current_database()`·`pg_control_system()` 식별을 확인한 뒤에만 listener를 연다. 연결/식별 오류는 앱을 닫고 비밀을 숨긴 일반 오류로 거부한다. 변경 시험은 `apps/api/test/payment-adapter.test.mjs`, `apps/api/test/qa-load-mode.test.mjs`에 한정했다.
+- 표적 시험 통과 후 전체 `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0, Web 31경로 생성. 첫 전체 재실행은 신규 API 자식 프로세스의 5초 제한에 걸려 시험 1 fail이었고, 병렬 전체 실행에서도 안정적인 20초 제한으로 재실행해 통과했다. DB 조건부 skip은 실DB PASS가 아니다. 사전검사는 이미 기록된 QA DB 실제 식별 읽기와 구분하고, 실제 30분 부하·WSL 18화면·PITR/이미지 결합 복원·PC 200%는 계속 `UNVERIFIED`다. 공유 DB·외부 공급자·설계서·승인 계획서는 변경하지 않았다. 사용자 소유 비추적 파일은 보존한다.

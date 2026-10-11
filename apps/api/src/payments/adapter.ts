@@ -33,6 +33,16 @@ export function assertPaymentBootConfig(env: { APP_ENV?: string; PAYMENT_MODE?: 
       /(SECRET|TOKEN|KEY|CREDENTIAL|PASSWORD)/i.test(name) && Boolean(value));
     assertQaLoadMode({ appEnv: env.APP_ENV, apiHost: env.API_HOST,
       runId: env.QA_LOAD_RUN_ID, paymentMode: mode, providerCredentials });
+    const qaDb = 'shoppingmall_qa_20261010_2';
+    let dbUrl: URL;
+    try { dbUrl = new URL(env.DATABASE_URL ?? ''); }
+    catch { throw new Error('QA load database unavailable'); }
+    if (env.PGDATABASE !== qaDb ||
+        !['postgres:', 'postgresql:'].includes(dbUrl.protocol) ||
+        !['127.0.0.1', 'localhost', '[::1]', 'local-postgres'].includes(dbUrl.hostname) ||
+        dbUrl.pathname !== `/${qaDb}` ||
+        !/^\d+$/.test(env.QA_LOAD_DB_SYSTEM_ID ?? ''))
+      throw new Error('QA load database unavailable');
   }
   return mode;
 }
