@@ -5356,3 +5356,8 @@
 
 - 담당 어울. 시작 SHA `9a7e857d2f3871b6713bd9db53390a3e9402a9bb`. 로컬 기존 Next 빌드를 `127.0.0.1:9091` 한 프로세스로 이 시험 동안만 열고, 기존 Chrome의 사용자 탭을 변경하지 않도록 새 시험 창을 만들어 `/signup`만 확인한다. 창 자체 입력으로 200% 확대 표시와 화면 가시성을 대조한 뒤 시험 창·Web 프로세스를 종료하고 9091 listener 0을 확인한다. DB/API/계정/외부 서비스는 사용하지 않으며 다른 창·사용자 자료는 보존한다. 이는 정식 18화면/Edge/계정 제출 검증이 아니다.
 - 기존 Chrome에는 사용자 소유 창 두 개만 보였다. 그중 한 창의 접근성 상태를 읽어 대상 여부를 확인하려는 첫 시도가 사적 화면 접근 위험으로 자동 거부됐다(입력/변경 0). 거부를 우회하지 않고 Web 프로세스를 즉시 종료해 9091 listener 0을 확인했다. 별도 시험 창은 생성하지 않았고 실제 200% 화면은 미검증이다. 동일 원인 오류 1회; 해당 UI 경계의 재개 조건은 `docs/design_change.md`에 남긴다.
+
+## 2026-10-11 Task 6 관리자 배송·관제 시험 도구 대상 확인
+
+- 담당 어울. 작업 브랜치 `codex/work-plan-20261010-2`의 시작 SHA `242d14a3cfa503ad832cdc528cea1110dcbb8df5`와 사용자 소유 비추적 파일을 확인했다. `scripts/qa-fulfillment-browser.mjs`·`scripts/qa-monitoring-browser.mjs`는 모두 `qa-fulfillment-ui-fixture.ts`의 서명된 manifest에 의존한다. 해당 fixture는 `shoppingmall_s5_fulfillment_ui_<runId>` DB명과 일치하는 system ID만 허용하므로 이번 계획의 승인된 전용 `shoppingmall_qa_20261010_2`에 그대로 사용할 수 없다. 다른 DB를 만들거나 이 가드를 느슨하게 하지 않았다.
+- WSL 읽기 전용 재조회에서 2 vCPU load average 4.46/4.99/5.53, swap 사용 5491/8192 MiB였다. 신규 WSL Web/API/Chrome 및 30분 부하는 실행하지 않았다. 관리자 #14·#18의 화면 조작은 `UNVERIFIED`이며, 다음은 승인 전용 QA DB에 한정된 가상 자료·정리 경계를 별도로 마련한 뒤 자원 여유 시 실행한다. 이번 확인의 시험 행·서버·포트·외부 서비스 변경은 0, 제품 코드·설계서·작업계획서 변경은 0이다.
