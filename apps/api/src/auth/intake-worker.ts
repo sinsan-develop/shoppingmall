@@ -12,7 +12,7 @@ export async function processAuthIntakeOnce(pool: Pool, now: Date,
   if (!job) return { processed: false };
   try {
     const issued = await pool.query(`SELECT 1 FROM auth_action_tokens
-      WHERE intake_job_id=$1 AND revoked_at IS NULL LIMIT 1`, [job.id]);
+      WHERE intake_job_id=$1 AND delivery_failed_at IS NULL LIMIT 1`, [job.id]);
     if (!issued.rowCount) {
       if (job.purpose === 'customer_signup') {
         await processCustomerSignupIntake(pool, job.email, job.source_hash, now, mockSink, job.id);

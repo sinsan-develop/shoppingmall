@@ -195,3 +195,60 @@ test('a delivered reset link survives a completion write failure and job retry',
     }
   }
 });
+
+test('a failed mock delivery revokes its token and retries only that job', {
+  skip: !expectedSystemId,
+}, async () => {
+  const dbName = 'shoppingmall_auth_intake_1011';
+  assert.equal(process.env.PGDATABASE, dbName);
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${dbName}`);
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+  const saved = [process.env.APP_ENV, process.env.AUTH_DELIVERY_MODE,
+    process.env.API_HOST, process.env.AUTH_LINK_ORIGIN];
+  process.env.APP_ENV = 'development';
+  process.env.AUTH_DELIVERY_MODE = 'mock';
+  process.env.API_HOST = '127.0.0.1';
+  process.env.AUTH_LINK_ORIGIN = 'http://127.0.0.1:9091';
+  const run = randomUUID();
+  const email = `intake-fail-${run}@example.invalid`;
+  const source = `intake-fail-${run}`;
+  const hash = (value) => createHmac('sha256', process.env.AUTH_AUDIT_HMAC_KEY)
+    .update(value).digest('hex');
+  const sourceHash = hash(`source:${source}`);
+  const auditSourceHashes = [sourceHash, hash(`source:${sourceHash}`)];
+  let attempts = 0;
+  const sink = async () => {
+    attempts++;
+    if (attempts === 1) throw new Error('mock receiver unavailable');
+  };
+  try {
+    const identity = await pool.query('SELECT current_database() AS name, system_identifier::text AS id FROM pg_control_system()');
+    assert.deepEqual(identity.rows[0], { name: dbName, id: expectedSystemId });
+    const now = new Date();
+    await enqueueAuthIntake(pool, 'customer_signup', email, source, now, sink);
+    await processAuthIntakeOnce(pool, now, sink);
+    assert.equal(attempts, 1);
+    const failed = await pool.query(`SELECT revoked_at,delivery_failed_at FROM auth_action_tokens
+      WHERE email=$1`, [email]);
+    assert.equal(failed.rows.length, 1);
+    assert.ok(failed.rows[0].revoked_at);
+    assert.ok(failed.rows[0].delivery_failed_at);
+    await processAuthIntakeOnce(pool, new Date(now.getTime() + 11_000), sink);
+    assert.equal(attempts, 2);
+    const issued = await pool.query(`SELECT count(*)::int AS n FROM auth_action_tokens
+      WHERE email=$1 AND revoked_at IS NULL`, [email]);
+    assert.equal(issued.rows[0].n, 1);
+    const job = await pool.query('SELECT status FROM auth_intake_jobs WHERE email=$1', [email]);
+    assert.equal(job.rows[0].status, 'done');
+  } finally {
+    try {
+      await pool.query('DELETE FROM auth_intake_jobs WHERE email=$1', [email]);
+      await pool.query('DELETE FROM auth_action_tokens WHERE email=$1', [email]);
+      await pool.query('DELETE FROM auth_security_events WHERE source_hash=ANY($1::text[])', [auditSourceHashes]);
+    } finally {
+      [process.env.APP_ENV, process.env.AUTH_DELIVERY_MODE,
+        process.env.API_HOST, process.env.AUTH_LINK_ORIGIN] = saved;
+      await pool.end();
+    }
+  }
+});

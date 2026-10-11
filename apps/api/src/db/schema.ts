@@ -250,6 +250,7 @@ export const authActionTokens = pgTable('auth_action_tokens', {
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   intakeJobId: uuid('intake_job_id').references(() => authIntakeJobs.id, { onDelete: 'set null' }),
+  deliveryFailedAt: timestamp('delivery_failed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index('auth_action_tokens_lookup_idx').on(table.purpose, table.email, table.createdAt.desc()),

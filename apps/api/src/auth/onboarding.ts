@@ -135,7 +135,7 @@ export async function processCustomerSignupIntake(pool: Pool, emailInput: string
   try {
     await deliverAuthLink('customer_signup', email, url.toString(), mockSink);
   } catch (error) {
-    await pool.query(`UPDATE auth_action_tokens SET revoked_at=$2
+    await pool.query(`UPDATE auth_action_tokens SET revoked_at=$2,delivery_failed_at=$2
       WHERE token_hash=$1 AND consumed_at IS NULL AND revoked_at IS NULL`,
     [createHash('sha256').update(rawToken).digest('hex'), now]);
     throw error;
