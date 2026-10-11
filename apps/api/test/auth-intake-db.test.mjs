@@ -162,6 +162,20 @@ test('a delivered reset link survives a completion write failure and job retry',
     assert.equal(tokens.rows.length, 2);
     assert.ok(tokens.rows.find((row) => row.token_hash === digest)?.revoked_at,
       'a fresh request must revoke its predecessor');
+
+    const thirdAt = new Date(now.getTime() + 20_000);
+    failCompletion = true;
+    await enqueueAuthIntake(pool, 'password_reset', email, source, thirdAt, sink);
+    await processAuthIntakeOnce(pool, thirdAt, sink);
+    assert.equal(delivered.length, 3);
+    assert.equal(failCompletion, false);
+    const fourthAt = new Date(now.getTime() + 21_000);
+    await enqueueAuthIntake(pool, 'password_reset', email, source, fourthAt, sink);
+    await processAuthIntakeOnce(pool, fourthAt, sink);
+    assert.equal(delivered.length, 4);
+    await processAuthIntakeOnce(pool, new Date(now.getTime() + 31_000), sink);
+    assert.equal(delivered.length, 4,
+      'an old job retry must not invalidate a newer delivered link');
   } finally {
     try {
       await pool.query('DELETE FROM auth_intake_jobs WHERE email=$1', [email]);
