@@ -5302,3 +5302,9 @@
 - 담당 어울. 시작 SHA `8db6af2bd26cd160d9dba99b149a748bd6353585`. 제품의 기존 `assertPaymentBootConfig`/`assertQaLoadMode`가 listener 이전에 개발·루프백·mock·8자리 run ID·외부 PG credential 부재를 검사한다는 사실을 확인했다. 이번에는 계획 파일 지도에 명시된 `scripts/qa-load-gate.mjs`와 `apps/api/test/qa-load-mode.test.mjs`만 추가했다. 새 스크립트는 네트워크·DB에 접속하지 않고 같은 시작 차단 함수를 선실행하며 비밀값을 출력하지 않는다.
 - RED에서 안전 설정 시험은 스크립트 부재로 1 fail, 위험 설정 거부 시험 1 pass였다. GREEN에서 표적 결제/QA 시험 **9 pass·0 fail**. 전체 `pnpm test` 648건 중 **453 pass·195 DB 조건부 skip·0 fail**(PR 본문 검사 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로). 사용자 소유 비추적 파일은 건드리지 않았다.
 - 이 명령은 향후 부하 클라이언트 시작 전 호출할 사전 차단만 검증한다. 실제 부하 실행기와 결합되지 않았고 외부 PG HTTP 0·주문/재고/정산 정합성·30분 계측 증거가 아니다. QA 행·서버·포트·외부 서비스·보호 DB를 생성/변경하지 않았다. 공유 WSL 자원·승인 경계는 `docs/design_change.md` Task 4 기록대로 유지한다.
+
+## 2026-10-11 Task 6 18화면 경로 행렬 자동 감사
+
+- 담당 어울. 시작 SHA `c6a5f9f74149d0982f9c346d45c8b70c7d018ffb`; 로컬·WSL checkout 일치, WSL 2 vCPU load average 4.99/7.00/6.93와 swap 5110/8192 MiB 사용을 확인했다. 보호 DB와 전용 QA DB가 각각 존재하나 신규 서버·계정·상품·주문·포트·프로필은 만들지 않았다. 사용자 소유 비추적 파일은 그대로 보존한다.
+- 계획에 명시된 `scripts/qa-role-matrix.mjs`와 시험을 추가했다. 행렬의 18개 번호·역할·고유 경로와 실제 Next 페이지 파일을 대조하고 누락/중복이면 실패한다. RED는 실행기 모듈 부재로 1 fail, GREEN은 실 행렬·누락/중복 반례 **2 pass** 및 CLI 경로 `18/18`이었다. 전체 `pnpm test` 650건 중 **455 pass·195 DB 조건부 skip·0 fail**(PR 본문 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로).
+- 이는 경로 재고 감사일 뿐 18개 화면의 정상·오류·권한·재시도 조작, WSL 실행 Web/API, Windows Chrome/Edge 실제 200%의 PASS가 아니다. 행렬의 `UNVERIFIED` 판정과 `docs/design_change.md` Task 6·7 재개 조건은 유지한다. 변경 전 경로 문서·화면 동작은 보존했고 복구는 이 커밋의 두 신규 스크립트/시험과 현황 기록만 되돌리면 된다.
