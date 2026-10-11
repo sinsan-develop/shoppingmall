@@ -5334,3 +5334,9 @@
 - A8: 인증 전달의 별도 비동기 접수/재시도/만료/감사 계약은 미확정. 기존 mock의 시간차 기준 측정만 수행했다.
 - 위 판정은 `docs/WORK_PLAN_20260-10-10-2.md`의 승인 해석과 `docs/design_change.md`의 재개 조건을 대조한 것이다. 설계서와 작업계획서 수정이나 새 승인으로 취급하지 않는다. WSL 재조회 load average 4.43/4.79/6.41, swap 사용 5723/8192 MiB라 실제 18화면 서버/30분 부하는 여전히 시작하지 않았다.
 - WSL 동기화의 첫 읽기 명령은 PowerShell이 원격 문자열의 명령 치환을 로컬에서 해석해 경로 조회 오류 1회(원격 자료 변경 0). 별도 읽기로 WSL checkout clean을 재확인한 뒤 승인 원격을 fetch하여 exact SHA `6ac26eb18280f3e28685b674f934f2f727a506c5`로 맞췄다.
+
+## 2026-10-11 Task 4 QA 부하 실제 DB 식별 사전검사
+
+- 담당 어울. 시작 로컬·WSL exact SHA `5929077c67015de8da5ca2d01b7f78bf51df857e`, 브랜치 `codex/work-plan-20261010-2`. 변경은 `scripts/qa-load-gate.mjs`, 신규 `scripts/qa-load-db-attest.mjs`, `apps/api/test/qa-load-mode.test.mjs`와 본 현황 기록에 한정한다. 기존 URL 문자열 가드를 재사용하면서 실제 접속 대상의 `current_database()`와 `pg_control_system()` ID를 승인 QA 이름·명시된 ID와 읽기 전용 대조한다. 불일치·연결 실패에서는 비밀/연결 문자열/드라이버 stack을 출력하지 않고 실패 닫힘으로 종료한다.
+- RED: 신규 식별 모듈 부재 1 fail, 연결 실패 세부정보 노출 1 fail을 각각 확인했다. GREEN: 표적 **6 pass·0 fail**; 로컬 전체 `pnpm test` **654건 중 459 pass·195 DB 조건부 skip·0 fail**, PR 본문 검사 별도 8/8 pass, `pnpm lint`·`pnpm typecheck`·`pnpm build` exit 0(웹 31경로), `git diff --check` exit 0. RED 두 건은 의도한 시험 선행 실패이며 반복 제품 오류가 아니다.
+- 이 실행은 함수에 주입한 식별 결과와 루프백 연결 거절을 시험했다. 실제 QA DB로 접속한 CLI attestation, 서버·클라이언트 동일 대상/모드, 외부 PG HTTP 0, 30분 부하와 거래 정합성은 **미검증**이다. WSL 2 vCPU load average 4.67/4.73/5.50, swap 5673/8192 MiB라 공유 부하를 시작하지 않았다. 새 DB 행·컨테이너·포트·계정·외부 비용은 없으며 보호 `shoppingmall` DB는 변경하지 않았다. 복구는 위 신규 스크립트와 기존 가드·시험의 이 변경만 되돌리면 된다. 다음 단계는 안전한 exact SHA 보존 후 허용 QA DB의 읽기 전용 실제 식별 확인과 별도 승인된 시간/자원 경계 재평가다.
