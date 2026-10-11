@@ -33,6 +33,9 @@ test('isolated QA records signup and reset latency for present and absent identi
   const samples = {
     signupPresent: [], signupAbsent: [], resetPresent: [], resetAbsent: [],
   };
+  // A bounded isolated-DB observation, not proof against timing enumeration on a live service.
+  const sampleIterations = 4;
+  const maxP95GapMs = 100;
   const deliveries = { customer_signup: 0, password_reset: 0 };
   const sink = async (message) => { deliveries[message.purpose] += 1; };
   let accountId;
@@ -55,7 +58,7 @@ test('isolated QA records signup and reset latency for present and absent identi
     await pool.query('UPDATE account_identities SET verified_at=clock_timestamp() WHERE account_id=$1', [accountId]);
 
     let unknownIndex = 0;
-    for (let iteration = 0; iteration < 4; iteration += 1) {
+    for (let iteration = 0; iteration < sampleIterations; iteration += 1) {
       const ordered = iteration % 2 === 0
         ? [['signupPresent', knownEmail, startCustomerSignup],
           ['signupAbsent', unknownEmails[unknownIndex++], startCustomerSignup],
@@ -77,9 +80,15 @@ test('isolated QA records signup and reset latency for present and absent identi
     assert.deepEqual(deliveries, { customer_signup: 0, password_reset: 0 });
     for (let i = 0; i < 16; i += 1) assert.equal((await processAuthIntakeOnce(pool, new Date(), sink)).processed, true);
     assert.deepEqual(deliveries, { customer_signup: 4, password_reset: 4 });
+    console.log(`QA_AUTH_TIMING_ENV isolated_loopback_mock n=${sampleIterations} max_p95_gap_ms=${maxP95GapMs}`);
     for (const [category, timings] of Object.entries(samples)) {
-      assert.equal(timings.length, 4);
-      console.log(`QA_AUTH_TIMING ${category} n=4 p50_ms=${quantile(timings, 0.5)} p95_ms=${quantile(timings, 0.95)}`);
+      assert.equal(timings.length, sampleIterations);
+      console.log(`QA_AUTH_TIMING ${category} n=${sampleIterations} p50_ms=${quantile(timings, 0.5)} p95_ms=${quantile(timings, 0.95)}`);
+    }
+    for (const purpose of ['signup', 'reset']) {
+      const gap = Math.abs(quantile(samples[`${purpose}Present`], 0.95) -
+        quantile(samples[`${purpose}Absent`], 0.95));
+      assert.ok(gap <= maxP95GapMs, `${purpose} p95 gap ${gap}ms exceeds isolated threshold`);
     }
   } finally {
     const sourceHashes = sources.map(hashSource);
