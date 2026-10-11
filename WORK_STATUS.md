@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 2026-10-11 Task 6 관리자 환불·클레임·정산 시험 대상 감사
+
+- 담당 어울. 시작 SHA `6cc8d7deff60fc22ba8eb9d07af68f4d6e4802d6`, 로컬·WSL 지정 checkout 일치·clean(사용자 소유 비추적 세 경로 제외). 기존 시험 자료 생성기를 읽기 전용으로 대조했다. #15 환불은 과거 전용 `shoppingmall_s4_refund_ui_<runId>` 또는 공유 `shoppingmall`, #16 클레임은 과거 전용 `shoppingmall_s52_support_ui_<runId>` 또는 공유 `shoppingmall`, #17 정산 C2 자료는 공유 `/shoppingmall`과 migration 24건을 요구한다. 승인 QA DB `shoppingmall_qa_20261010_2`와 일치하지 않아 그대로 실행하지 않았다.
+- 보호 DB에 시험 거래를 만들거나 다른 DB를 추가하지 않았다. #15~#17의 실제 화면·거래·재시도는 `UNVERIFIED`로 유지하며 재개 경계는 `docs/design_change.md` Task 6에 연결했다. 이번 실행은 코드·DB·서비스·포트·브라우저 프로필 변경 0, 설계서·작업계획서 불변이다. WSL 2 vCPU load average 2.93/2.83/3.13으로 신규 통합 서버·30분 부하 안전 조건도 확인되지 않았다.
+
 ## 2026-10-11 Task 2 PostgreSQL 복구 설정 읽기
 
 - 담당 어울. 작업 브랜치 `codex/work-plan-20261010-2`, 시작 SHA `d824f89f7c5edd239d543fbd7dd56c0e46fd8cac`. 기존 `local-postgres`의 승인 QA DB `shoppingmall_qa_20261010_2`에 읽기 전용으로 접속해 `SHOW archive_mode`와 `SHOW wal_level`을 실행했다. 결과는 각각 `off`, `replica`; 명령은 exit 0이었다. 자격정보·WAL 보관 명령의 원문은 출력하지 않았다.

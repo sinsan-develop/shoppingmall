@@ -33,6 +33,8 @@
 
 ## Task 6 — 공유 WSL 화면 실행의 현재 자원 경계
 
+- 2026-10-11 추가 확인: 관리자 #15 환불의 `qa-refund-ui-fixture.ts`는 과거 `shoppingmall_s4_refund_ui_<runId>` 또는 별도 공유 DB 동의 경계만, #16 클레임의 `qa-support-ui-fixture.ts`는 과거 `shoppingmall_s52_support_ui_<runId>` 또는 공유 `shoppingmall`만 허용한다. #17 정산의 `qa-s6-c2-browser-fixture.ts`는 `/shoppingmall`과 migration 24건을 요구한다. 이번 승인 QA DB `shoppingmall_qa_20261010_2`에 이 도구들을 그대로 실행할 수 없으며, 보호 DB 대상 동의나 과거 DB 추가 생성으로 우회하지 않는다. 해당 세 행의 거래·조작 증거는 `UNVERIFIED`다. 재개 조건은 Task 6 범위에서 승인 QA DB/system ID와 고유 자료·불변 사건 보존·정확한 정리를 검증하는 시험 자료 경계를 마련하는 것이다.
+
 - 2026-10-11 시험 자료 경계 추가: 관리자 배송·관제 기존 브라우저 스크립트는 `qa-fulfillment-ui-fixture.ts`의 서명된 자료에 의존한다. 이 자료 생성기는 `shoppingmall_s5_fulfillment_ui_<runId>`라는 과거 전용 DB 이름을 강제해 이번에 허용된 `shoppingmall_qa_20261010_2`에서 그대로 쓸 수 없다. 영향은 관리자 #14·#18의 기존 스크립트 재사용이며, 다른 DB 생성이나 가드 완화로 우회하지 않는다. 재개 조건은 계획 Task 6 안에서 승인 QA DB의 system ID·고유 자료·정확한 정리를 검증하는 별도 시험 자료 경계를 갖추고, WSL 자원 여유가 확인되는 것이다. 화면 전체 판정은 여전히 `UNVERIFIED`다.
 - 판정: 2026-10-11 읽기 시점 WSL 2 vCPU의 load average 4.04/5.55/5.67, swap 5131/8192 MiB 사용 중이고 다른 서비스 영향 기준이 확인되지 않았다. 이 상태에서 신규 Next/API/Chrome 서비스와 DB fixture를 동시에 올리는 정식 18화면 실행을 하지 않는다.
 - 영향: 로컬 회귀와 전용 QA DB의 앞선 부분 HTTP/계정 브라우저 증거는 유지되지만 WSL 실행 Web/API의 18개 화면 정상·오류·권한·재시도 행렬은 `UNVERIFIED`다.
