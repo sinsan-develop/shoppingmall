@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 2026-10-11 `WORK_PLAN_20260-10-11.md` 실행 결과 판정
+
+- 담당 어울. 작업 브랜치 `codex/next-work-20261011`, 제품 코드 SHA `e7c0ef4d84616ed644e6367b7bd0686b92f81b3c`, 이번 판정 기록 직전 HEAD `1a39d0cde99cc89a04ffebf05a5cbc7836487c60`은 로컬 추적 원격과 일치했다. 설계서·작업계획서는 수정하지 않았다.
+- Stage 1~3: 판매자 본인 신청 GET의 401·빈 목록·본인 상태·타인 차단은 격리 HTTP/DB로 확인했다. 가입·복구 비동기 접수와 교차 작업 재시도 보정은 정확 SHA의 격리 DB에서 9/9 pass·0 skip·0 fail로 확인했고 전용 DB는 정확한 대상만 제거해 이름 잔류 0이었다. 공유 `shoppingmall`·고정 QA DB에 시험 거래를 만들지 않았다.
+- Stage 4: 승인 QA DB 전용 가드·manifest·불변 사건 보호의 로컬 대상 시험은 29건/28 pass/1 DB 조건부 skip/0 fail이다. WSL 2 vCPU의 높은 부하(최근 4.85/5.16/5.02, swap 5.1GiB)로 고정 QA DB seed→부분 화면→reset/보존 및 판매자 화면 새로고침·재로그인 시험은 수행하지 않았으며 `UNVERIFIED`다. 격리 실DB에서 해당 fixture 전체 안전 시험도 skip을 통과로 계산하지 않는다. 영향·재개 조건은 `docs/design_change.md`에 남겼다.
+- Stage 5 최종 로컬 순차 재검증: `pnpm test` 본시험 674건/476 pass/198 조건부 skip/0 fail, PR 본문 검사 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 exit 0. `git diff --check` exit 0. 이 결과는 실제 브라우저·고정 QA DB·외부 발송 검증이 아니다.
+- 판정: 이번 계획에서 환경 조건을 충족해 실행할 수 있었던 구현·검증·정리 항목은 수행했고, 조건 미충족 항목은 시험 통과가 아닌 `UNVERIFIED`로 분리했다. 신규 0027의 공유/고정 QA DB 적용은 A3 별도 승인 경계이며 이번 실행에 포함하지 않았다. 실제 사용자 인수·외부 발송·Oracle 배포·PR 병합/merged-main smoke를 주장하지 않는다. 사용자 소유 비추적 파일 세 경로는 보존한다. 후속 재개 조건은 `docs/design_change.md`를 따른다.
+
 ## 2026-10-11 `WORK_PLAN_20260-10-11.md` Stage 3 정리 및 Stage 4 QA fixture 보호 진행
 
 - R16 교차 작업 보정 결과: exact SHA `e7c0ef4d84616ed644e6367b7bd0686b92f81b3c`를 SSH 원격·WSL 지정 checkout에서 일치시켜 전용 DB에 0000~0027 적용했다. 인증 접수·교차 작업 경합·모의 전달 실패 재시도·관리자/가입/복구 HTTP/DB 9/9 pass/0 skip/0 fail. 기존 0026은 불변, 신규 0027에 작업 ID와 전달 실패 표지만 추가했다. 계정·큐·토큰·감사·세션·주문·정산 각0, 격리 보안사건24, 연결 세션0 확인 후 전용 DB 한 개 제거·이름 잔류0. 보호 `shoppingmall`·고정 QA DB 쓰기0.
