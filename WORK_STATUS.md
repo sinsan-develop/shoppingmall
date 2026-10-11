@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 2026-10-11 `WORK_PLAN_20260-10-10-2.md` 실행 종료 보고 근거
+
+- 담당 어울. 신산님이 지정한 `docs/design_change.md` 기록을 이번 실행에서 진행할 수 없는 항목의 처리로 간주하는 기준에 따라, 승인 범위의 추가 안전 실행 가능 작업과 기록 경계를 대조했다. 정확한 작업 SHA `989af4456f2b9fc5833560c9cf1cbc45d0ad32bc`는 로컬·`origin/codex/work-plan-20261010-2`·WSL 지정 checkout에서 일치한다. `origin/main`에는 아직 병합하지 않았다(merge-base `a2a2a3dd612df5125fd68bd92e1d87fb955251ae`, 작업 브랜치 70 commit 앞섬). 설계서·작업계획서는 수정하지 않았다.
+- 현 SHA의 새 로컬 검증: `pnpm test` 본시험 **654건/459 pass/195 DB 조건부 skip/0 fail**, PR 본문 검사 **8/8 pass**; `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 exit 0, Web 31경로 빌드. 조건부 skip을 실DB 합격으로 계산하지 않는다. 승인 QA DB와 보호 `shoppingmall`의 계정·정산 사건은 각각 `0/0`; Windows 9091/9092/9229/15442 listener 0. 사용자 소유 비추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 보존했다.
+- 합격/부분 증거: 기존 파일 이미지 격리·권한 단위 시험, 모의 결제 단일 사용자 격리 smoke와 QA DB 식별 사전검사, 계정 모의 브라우저 흐름, 일부 역할 화면의 로컬 브라우저·DB/API 조각 검증 및 18경로 정적 감사. 전체 WSL 18화면 정상·오류·권한·재시도, 실제 Chrome·Edge 200%, 7일 PITR/14개 백업·이미지 결합 복원, 외부 PG 요청 0을 계측한 30분 부하, 판매자 신규 본인 조회 API, 실제 관리자 메일 수신·인증 시간차 방어는 **PASS가 아니며** `docs/design_change.md` Task 1~3·4·5·6·7에 판정·영향·재개 조건을 기록했다. 기존 PostgreSQL `archive_mode=off`도 읽기 전용으로 확인했다.
+- 이번 실행의 임시 DB/컨테이너·시험 포트·프로필은 각 시험 후 소유 대상별로 정리했고, 마지막 확인의 포트/계정/정산 사건 잔류는 위와 같다. 실제 공급자·Oracle 배포·사용자 인수는 범위 밖이다. 현재 브랜치는 미검증 필수 gate가 있으므로 병합하지 않으며, 복구 기준은 변경하지 않은 `origin/main`; 후속 설계변경/환경 승인 주기에서 미검증 항목을 다시 다룬다. 이 문서 기록을 실제 기능 검증 합격이나 실서비스 출시 승인으로 해석하지 않는다.
+
 ## 2026-10-11 Task 6 관리자 환불·클레임·정산 시험 대상 감사
 
 - 담당 어울. 시작 SHA `6cc8d7deff60fc22ba8eb9d07af68f4d6e4802d6`, 로컬·WSL 지정 checkout 일치·clean(사용자 소유 비추적 세 경로 제외). 기존 시험 자료 생성기를 읽기 전용으로 대조했다. #15 환불은 과거 전용 `shoppingmall_s4_refund_ui_<runId>` 또는 공유 `shoppingmall`, #16 클레임은 과거 전용 `shoppingmall_s52_support_ui_<runId>` 또는 공유 `shoppingmall`, #17 정산 C2 자료는 공유 `/shoppingmall`과 migration 24건을 요구한다. 승인 QA DB `shoppingmall_qa_20261010_2`와 일치하지 않아 그대로 실행하지 않았다.
