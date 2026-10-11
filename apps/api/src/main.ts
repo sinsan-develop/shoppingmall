@@ -3,6 +3,7 @@ import { assertPaymentBootConfig } from './payments/adapter.js';
 import { DatabaseService } from './db/service.js';
 import { resolveMockNotificationMode } from './notifications/mock.js';
 import { startMockNotificationLoop } from './notifications/runtime.js';
+import { startAuthIntakeLoop } from './auth/intake-worker.js';
 
 assertPaymentBootConfig(process.env);
 const notificationMode = resolveMockNotificationMode(process.env);
@@ -30,3 +31,7 @@ const port = Number(process.env.API_PORT ?? 9092);
 const host = process.env.API_HOST ?? '127.0.0.1';
 await app.listen(port, host);
 if (notificationPool) startMockNotificationLoop(notificationPool,process.env);
+if (process.env.AUTH_DELIVERY_MODE === 'mock') {
+  const authPool = app.get(DatabaseService).getPool();
+  if (authPool) startAuthIntakeLoop(authPool);
+}

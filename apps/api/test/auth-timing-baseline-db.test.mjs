@@ -6,6 +6,7 @@ import { Pool } from 'pg';
 import { AuthRepository } from '../src/auth/repository.ts';
 import { startCustomerSignup } from '../src/auth/onboarding.ts';
 import { startPasswordReset } from '../src/auth/password-recovery.ts';
+import { processAuthIntakeOnce } from '../src/auth/intake-worker.ts';
 
 const runId = process.env.QA_AUTH_TIMING_RUN_ID;
 const expectedSystemId = process.env.QA_AUTH_TIMING_DB_SYSTEM_ID;
@@ -72,6 +73,8 @@ test('isolated QA records signup and reset latency for present and absent identi
         assert.deepEqual(result, { status: 'accepted' });
       }
     }
+    assert.deepEqual(deliveries, { customer_signup: 0, password_reset: 0 });
+    for (let i = 0; i < 16; i += 1) assert.equal((await processAuthIntakeOnce(pool, new Date(), sink)).processed, true);
     assert.deepEqual(deliveries, { customer_signup: 4, password_reset: 4 });
     for (const [category, timings] of Object.entries(samples)) {
       assert.equal(timings.length, 4);
@@ -80,6 +83,7 @@ test('isolated QA records signup and reset latency for present and absent identi
   } finally {
     const sourceHashes = sources.map(hashSource);
     try {
+      await pool.query('DELETE FROM auth_intake_jobs WHERE email=ANY($1::text[])', [allEmails]);
       await pool.query('DELETE FROM auth_action_tokens WHERE email=ANY($1::text[])', [allEmails]);
       if (sourceHashes.length) {
         await pool.query('DELETE FROM auth_security_events WHERE source_hash=ANY($1::text[])', [sourceHashes]);

@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 2026-10-11 `WORK_PLAN_20260-10-11.md` 실행 — Stage 1/2
+
+- Stage 3 임시 자원 계획: `WSL-server` 기존 `local-postgres` 클러스터에 **새 전용 DB `shoppingmall_auth_intake_1011` 하나**를 만든다. 목적은 0000~0026 migration과 가입/복구 비동기 큐의 격리 시험이다. 보호 `shoppingmall`·승인 고정 QA DB는 변경하지 않는다. 사용 수명은 이번 Stage 3 시험 동안이며, 시험 자료·migration 결과를 확인한 뒤 정확한 DB 이름과 세션 0을 재확인해 해당 전용 DB만 제거하고 잔류를 검증한다. 비밀값은 기록하지 않는다.
+- 담당 어울, 작업 브랜치 `codex/next-work-20261011`, 시작 HEAD `ccdef9752d5da09ecbe53b6b3f33c72e15dd602c`. 신산님은 계획의 권고안대로 승인했다. A3 공유 개발 DB 실제 적용은 SQL·격리 근거 후 별도 판단 경계로 유지한다.
+- 기존 사용자 소유 변경 `docs/design/DESIGN.md`와 비추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`를 보존한다. 이번 실행에서 `docs/design_change.md`를 지시대로 초기화했다. 설계서·작업계획서는 수정하지 않는다.
+- 로컬 기준선 `pnpm test`: 본시험 656건/461 pass/195 DB 조건부 skip/0 fail, PR 본문 8/8 pass. DB skip을 실DB 검증으로 취급하지 않는다. 신규 본인 신청 조회 단위 시험은 RED(함수 부재)→GREEN 1/1, API typecheck exit 0.
+- 신규 공개 API `GET /auth/seller-applications`의 세션 계정 범위 조회와 신청 화면 상태 표시를 작업 중이다. 실제 QA DB HTTP·브라우저, 가입/복구 비동기 접수, fixture 보호, 전체 회귀는 아직 미검증이다. 다음: R15 HTTP·화면 검증 후 R16 실패 시험부터 작성한다.
+
 ## 2026-10-11 `WORK_PLAN_20260-10-10-2.md` 실행 종료 보고 근거
 
 - 담당 어울. 신산님이 지정한 `docs/design_change.md` 기록을 이번 실행에서 진행할 수 없는 항목의 처리로 간주하는 기준에 따라, 승인 범위의 추가 안전 실행 가능 작업과 기록 경계를 대조했다. 정확한 작업 SHA `989af4456f2b9fc5833560c9cf1cbc45d0ad32bc`는 로컬·`origin/codex/work-plan-20261010-2`·WSL 지정 checkout에서 일치한다. `origin/main`에는 아직 병합하지 않았다(merge-base `a2a2a3dd612df5125fd68bd92e1d87fb955251ae`, 작업 브랜치 70 commit 앞섬). 설계서·작업계획서는 수정하지 않았다.

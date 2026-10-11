@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { AuthRepository } from '../src/auth/repository.ts';
 import { issueActionToken } from '../src/auth/action-tokens.ts';
 import { startPasswordReset, completePasswordReset } from '../src/auth/password-recovery.ts';
+import { processAuthIntakeOnce } from '../src/auth/intake-worker.ts';
 
 const systemId = process.env.AUTH_ADMIN_TEST_DB_SYSTEM_ID;
 
@@ -56,15 +57,18 @@ test('verified owner reset revokes customer, seller and admin sessions atomicall
     await pool.query('UPDATE account_identities SET verified_at=NULL WHERE account_id=$1', [accountId]);
     assert.deepEqual(await startPasswordReset(pool, email, source, now,
       async (message) => messages.push(message)), { status: 'accepted' });
+    await processAuthIntakeOnce(pool, now, async (message) => messages.push(message));
     assert.equal(messages.length, 0);
     await pool.query('UPDATE account_identities SET verified_at=$2 WHERE account_id=$1', [accountId, now]);
     await pool.query('UPDATE accounts SET disabled_at=$2 WHERE id=$1', [accountId, now]);
     assert.deepEqual(await startPasswordReset(pool, email, source, now,
       async (message) => messages.push(message)), { status: 'accepted' });
+    await processAuthIntakeOnce(pool, now, async (message) => messages.push(message));
     assert.equal(messages.length, 0);
     await pool.query('UPDATE accounts SET disabled_at=NULL WHERE id=$1', [accountId]);
     assert.deepEqual(await startPasswordReset(pool, email, source, now,
       async () => { throw new Error('isolated mock delivery failure'); }), { status: 'accepted' });
+    await processAuthIntakeOnce(pool, now, async () => { throw new Error('isolated mock delivery failure'); });
     const failedDelivery = await pool.query(`SELECT count(*)::int AS n FROM auth_action_tokens
       WHERE email=$1 AND purpose='password_reset' AND revoked_at IS NOT NULL`, [email]);
     assert.equal(failedDelivery.rows[0].n, 1);
@@ -72,17 +76,21 @@ test('verified owner reset revokes customer, seller and admin sessions atomicall
       async (message) => messages.push(message));
     const acceptedKnown = await startPasswordReset(pool, email, source, now,
       async (message) => messages.push(message));
+    await processAuthIntakeOnce(pool, now, async (message) => messages.push(message));
+    await processAuthIntakeOnce(pool, now, async (message) => messages.push(message));
     assert.deepEqual(acceptedUnknown, acceptedKnown);
     assert.deepEqual(acceptedKnown, { status: 'accepted' });
     assert.equal(messages.length, 1);
     const obsolete = new URL(messages[0].url).hash.slice('#token='.length);
     await startPasswordReset(pool, email, source, now, async (message) => messages.push(message));
+    await processAuthIntakeOnce(pool, now, async (message) => messages.push(message));
     const expired = new URL(messages[1].url).hash.slice('#token='.length);
     await assert.rejects(completePasswordReset(pool, obsolete, replacement, now, source), /invalid/i);
     await assert.rejects(completePasswordReset(pool, expired, replacement,
       new Date('2026-10-10T12:31:00.000Z'), source), /invalid/i);
     const retryAt = new Date('2026-10-10T12:32:00.000Z');
     await startPasswordReset(pool, email, source, retryAt, async (message) => messages.push(message));
+    await processAuthIntakeOnce(pool, retryAt, async (message) => messages.push(message));
     const token = new URL(messages[2].url).hash.slice('#token='.length);
     const wrongPurpose = await issueActionToken(pool, { purpose: 'admin_setup', email,
       accountId, source, now });
@@ -104,6 +112,7 @@ test('verified owner reset revokes customer, seller and admin sessions atomicall
     assert.equal((await repository.getSession((await repository.loginEmail(email, replacement, 'seller', sellerId)).token)).role,
       'seller');
   } finally {
+    await pool.query('DELETE FROM auth_intake_jobs WHERE email=ANY($1::text[])', [[email, unknownEmail]]);
     await pool.query('DELETE FROM auth_action_tokens WHERE email=ANY($1::text[])', [[email, unknownEmail]]);
     if (accountId) {
       await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);

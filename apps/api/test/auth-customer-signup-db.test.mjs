@@ -4,6 +4,7 @@ import test from 'node:test';
 import { Pool } from 'pg';
 import { AuthRepository } from '../src/auth/repository.ts';
 import { startCustomerSignup, completeCustomerSignup } from '../src/auth/onboarding.ts';
+import { processAuthIntakeOnce } from '../src/auth/intake-worker.ts';
 
 const systemId = process.env.AUTH_ADMIN_TEST_DB_SYSTEM_ID;
 
@@ -36,6 +37,9 @@ test('email ownership creates exactly one customer only after confirmation; exis
       async (message) => messages.push(message));
     const acceptedExisting = await startCustomerSignup(pool, existingEmail, source, now,
       async (message) => messages.push(message));
+    assert.equal(messages.length, 0);
+    await processAuthIntakeOnce(pool, now, async (message) => messages.push(message));
+    await processAuthIntakeOnce(pool, now, async (message) => messages.push(message));
     assert.deepEqual(accepted, acceptedExisting);
     assert.deepEqual(accepted, { status: 'accepted' });
     assert.equal(messages.length, 1);
@@ -64,6 +68,7 @@ test('email ownership creates exactly one customer only after confirmation; exis
     assert.equal((await repository.getSession(login.token)).role, 'customer');
     await assert.rejects(repository.loginEmail(email, password, 'admin'), /Invalid credentials/);
   } finally {
+    await pool.query('DELETE FROM auth_intake_jobs WHERE email=ANY($1::text[])', [[email, existingEmail]]);
     for (const target of [email, existingEmail]) {
       const account = await pool.query("SELECT account_id FROM account_identities WHERE kind='email' AND identifier=$1", [target]);
       const accountId = account.rows[0]?.account_id;

@@ -7,6 +7,19 @@ function requireAdmin(actor: AccessContext | undefined): asserts actor is Access
   if (!actor || actor.role !== 'admin') throw new Error('Admin role required');
 }
 
+export async function listOwnSellerApplications(pool: Pool, actor: AccessContext | undefined): Promise<Array<{
+  id: string; displayName: string; status: 'pending' | 'approved' | 'rejected';
+  sellerId: string | null; reviewReason: string | null;
+  createdAt: Date; reviewedAt: Date | null;
+}>> {
+  if (!actor) throw new Error('Session required');
+  const result = await pool.query(`SELECT id,display_name AS "displayName",status,
+    seller_id AS "sellerId",review_reason AS "reviewReason",
+    created_at AS "createdAt",reviewed_at AS "reviewedAt"
+    FROM seller_applications WHERE account_id=$1 ORDER BY created_at DESC,id DESC`, [actor.accountId]);
+  return result.rows;
+}
+
 export async function submitSellerApplication(pool: Pool, actor: AccessContext | undefined,
   displayName: string): Promise<{ id: string; status: 'pending' }> {
   if (!actor || actor.role !== 'customer') throw new Error('Customer role required');

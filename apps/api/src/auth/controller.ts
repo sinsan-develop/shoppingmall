@@ -7,7 +7,7 @@ import { AuthRepository } from './repository.js';
 import { MockPhoneOtp, normalizePhone } from './mock-phone-otp.js';
 import { completeAdminSetup, completeCustomerSignup, startCustomerSignup } from './onboarding.js';
 import { getQaAuthSink } from './delivery.js';
-import { submitSellerApplication, listSellerApplications,
+import { submitSellerApplication, listSellerApplications, listOwnSellerApplications,
   approveSellerApplication, rejectSellerApplication } from './seller-applications.js';
 import { startPasswordReset, completePasswordReset } from './password-recovery.js';
 import type { ActiveRole } from '../access.js';
@@ -332,6 +332,17 @@ export class AuthController {
     const pool = this.database.getPool();
     if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
     return listSellerApplications(pool, actor);
+  }
+
+  @Get('seller-applications')
+  async viewOwnSellerApplications(@Req() request: RequestHeaders) {
+    const token = readToken(request.headers.cookie);
+    if (!token) throw new UnauthorizedException();
+    const actor = await this.repository().getSession(token);
+    if (!actor) throw new UnauthorizedException();
+    const pool = this.database.getPool();
+    if (!pool) throw new ServiceUnavailableException({ status: 'unavailable', dependency: 'database' });
+    return listOwnSellerApplications(pool, actor);
   }
 
   @Post('admin/seller-applications/:id/approve')

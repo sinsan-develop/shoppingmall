@@ -260,6 +260,32 @@ export const authActionTokens = pgTable('auth_action_tokens', {
   check('auth_action_tokens_account_ck', sql`(${table.purpose} = 'customer_signup') = (${table.accountId} IS NULL)`),
 ]);
 
+export const authIntakeJobs = pgTable('auth_intake_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  purpose: text('purpose').notNull(),
+  email: text('email').notNull(),
+  sourceHash: text('source_hash').notNull(),
+  status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+  leaseUntil: timestamp('lease_until', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  lastErrorCode: text('last_error_code'),
+}, (table) => [
+  index('auth_intake_jobs_ready_idx').on(table.status, table.availableAt, table.createdAt, table.id)
+    .where(sql`${table.status} IN ('pending','processing')`),
+  check('auth_intake_jobs_purpose_ck', sql`${table.purpose} IN ('customer_signup','password_reset')`),
+  check('auth_intake_jobs_email_ck', sql`${table.email} = lower(trim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 254`),
+  check('auth_intake_jobs_source_ck', sql`${table.sourceHash} ~ '^[0-9a-f]{64}$'`),
+  check('auth_intake_jobs_status_ck', sql`${table.status} IN ('pending','processing','done','dead')`),
+  check('auth_intake_jobs_attempts_ck', sql`${table.attempts} BETWEEN 0 AND 5`),
+  check('auth_intake_jobs_expiry_ck', sql`${table.expiresAt} > ${table.createdAt}`),
+  check('auth_intake_jobs_error_ck', sql`${table.lastErrorCode} IS NULL OR length(${table.lastErrorCode}) BETWEEN 1 AND 80`),
+]);
+
 export const sellerApplications = pgTable('seller_applications', {
   id: uuid('id').primaryKey().defaultRandom(),
   accountId: uuid('account_id').notNull().references(() => accounts.id),

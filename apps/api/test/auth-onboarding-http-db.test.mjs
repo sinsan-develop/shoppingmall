@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { createApp } from '../src/app.ts';
 import { provisionInitialAdmin } from '../src/auth/onboarding.ts';
 import { setQaAuthSink } from '../src/auth/delivery.ts';
+import { processAuthIntakeOnce } from '../src/auth/intake-worker.ts';
 import { AuthRepository } from '../src/auth/repository.ts';
 
 const systemId = process.env.AUTH_ADMIN_TEST_DB_SYSTEM_ID;
@@ -133,6 +134,9 @@ test('seller application HTTP requires buyer session and only admin can review a
     const adminLogin = await post('/auth/login', { email: adminEmail, password, role: 'admin' });
     const customerCookie = customerLogin.headers.get('set-cookie')?.split(';')[0];
     const adminCookie = adminLogin.headers.get('set-cookie')?.split(';')[0];
+    assert.equal((await fetch(`${base}/auth/seller-applications`)).status, 401);
+    const emptyOwn = await fetch(`${base}/auth/seller-applications`, { headers: { cookie: customerCookie } });
+    assert.deepEqual(await emptyOwn.json(), []);
     assert.equal((await post('/auth/seller-applications', { displayName: 'HTTP QA Seller' })).status, 401);
     assert.equal((await post('/auth/seller-applications', { displayName: 'HTTP QA Seller' },
       customerCookie, 'https://untrusted.invalid')).status, 403);
@@ -140,6 +144,10 @@ test('seller application HTTP requires buyer session and only admin can review a
     assert.equal(applied.status, 201);
     const application = await applied.json();
     assert.equal(application.status, 'pending');
+    const ownPending = await fetch(`${base}/auth/seller-applications`, { headers: { cookie: customerCookie } });
+    assert.equal((await ownPending.json())[0].id, application.id);
+    const otherOwn = await fetch(`${base}/auth/seller-applications`, { headers: { cookie: adminCookie } });
+    assert.equal((await otherOwn.json()).some((item) => item.id === application.id), false);
     assert.equal((await fetch(`${base}/catalog/seller/products`, { headers: { cookie: customerCookie } })).status, 403);
     assert.equal((await post('/auth/seller-applications', { displayName: 'Duplicate' }, customerCookie)).status, 409);
     assert.equal((await fetch(`${base}/auth/admin/seller-applications`, { headers: { cookie: customerCookie } })).status, 403);
@@ -153,6 +161,11 @@ test('seller application HTTP requires buyer session and only admin can review a
     const sellerLogin = await post('/auth/login', { email: customerEmail, password, role: 'seller', sellerId });
     assert.equal(sellerLogin.status, 201);
     const sellerCookie = sellerLogin.headers.get('set-cookie')?.split(';')[0];
+    const ownApproved = await fetch(`${base}/auth/seller-applications`, { headers: { cookie: sellerCookie } });
+    const approvedRow = (await ownApproved.json())[0];
+    assert.deepEqual([approvedRow.id, approvedRow.status, approvedRow.sellerId],
+      [application.id, 'approved', sellerId]);
+    assert.equal('reviewedByAccountId' in approvedRow, false);
     const me = await fetch(`${base}/auth/me`, { headers: { cookie: sellerCookie } });
     const sellerSession = await me.json();
     assert.deepEqual([sellerSession.role, sellerSession.sellerId], ['seller', sellerId]);
@@ -168,6 +181,9 @@ test('seller application HTTP requires buyer session and only admin can review a
       { reason: 'Review needed' }, rejectedCookie)).status, 403);
     assert.equal((await post(`/auth/admin/seller-applications/${rejectionId}/reject`,
       { reason: 'Ownership not verified' }, adminCookie)).status, 201);
+    const ownRejected = await fetch(`${base}/auth/seller-applications`, { headers: { cookie: rejectedCookie } });
+    const rejectedRow = (await ownRejected.json())[0];
+    assert.deepEqual([rejectedRow.status, rejectedRow.reviewReason], ['rejected', 'Ownership not verified']);
     assert.equal((await post(`/auth/admin/seller-applications/${rejectionId}/approve`,
       { sellerId }, adminCookie)).status, 409);
   } finally {
@@ -219,6 +235,8 @@ test('customer signup HTTP keeps existing and unknown email responses equal and 
     const start = await post('/auth/customer-signup/start', { email, role: 'admin' });
     assert.equal(start.status, 201);
     assert.deepEqual(await start.json(), { status: 'accepted' });
+    assert.equal(messages.length, 0);
+    await processAuthIntakeOnce(pool, new Date());
     assert.equal(messages.length, 1);
     const before = await pool.query("SELECT count(*)::int AS n FROM account_identities WHERE kind='email' AND identifier=$1", [email]);
     assert.equal(before.rows[0].n, 0);
@@ -235,6 +253,7 @@ test('customer signup HTTP keeps existing and unknown email responses equal and 
     const duplicate = await post('/auth/customer-signup/start', { email });
     assert.equal(duplicate.status, 201);
     assert.deepEqual(await duplicate.json(), { status: 'accepted' });
+    await processAuthIntakeOnce(pool, new Date());
     assert.equal(messages.length, 1);
     const customerLogin = await post('/auth/login', { email, password, role: 'customer' });
     assert.equal(customerLogin.status, 201);
@@ -245,6 +264,7 @@ test('customer signup HTTP keeps existing and unknown email responses equal and 
     setQaAuthSink(undefined);
     if (app) await app.close();
     const identity = await pool.query("SELECT account_id FROM account_identities WHERE kind='email' AND identifier=$1", [email]);
+    await pool.query('DELETE FROM auth_intake_jobs WHERE email=$1', [email]);
     const accountId = identity.rows[0]?.account_id;
     await pool.query('DELETE FROM auth_action_tokens WHERE email=$1', [email]);
     if (accountId) {
@@ -304,6 +324,9 @@ test('password reset HTTP hides account existence and invalidates the old sessio
     const knownStart = await post('/auth/password-reset/start', { email });
     assert.equal(knownStart.status, 201);
     assert.deepEqual(await unknownStart.json(), await knownStart.json());
+    assert.equal(messages.length, 0);
+    await processAuthIntakeOnce(pool, new Date());
+    await processAuthIntakeOnce(pool, new Date());
     assert.equal(messages.length, 1);
     const token = new URL(messages[0].url).hash.slice('#token='.length);
     assert.equal((await post('/auth/password-reset/complete', { token: 'bad', password: newPassword })).status, 401);
@@ -318,6 +341,7 @@ test('password reset HTTP hides account existence and invalidates the old sessio
   } finally {
     setQaAuthSink(undefined);
     if (app) await app.close();
+    await pool.query('DELETE FROM auth_intake_jobs WHERE email=ANY($1::text[])', [[email, unknown]]);
     await pool.query('DELETE FROM auth_action_tokens WHERE email=ANY($1::text[])', [[email, unknown]]);
     if (accountId) {
       await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [accountId]);

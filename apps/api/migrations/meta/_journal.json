@@ -183,6 +183,13 @@
       "when": 1791878400000,
       "tag": "0025_account_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791964800000,
+      "tag": "0026_auth_intake_jobs",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import { issueActionToken, consumeActionToken } from './action-tokens.js';
 import { deliverAuthLink, requireAuthDelivery, type MockAuthSink } from './delivery.js';
 import { hashPassword } from './credentials.js';
+import { enqueueAuthIntake } from './intake.js';
 
 function normalizedEmail(input: string): string {
   if (typeof input !== 'string') throw new Error('Invalid email');
@@ -13,6 +14,11 @@ function normalizedEmail(input: string): string {
 
 export async function startPasswordReset(pool: Pool, emailInput: string, source: string,
   now: Date, mockSink?: MockAuthSink): Promise<{ status: 'accepted' }> {
+  return enqueueAuthIntake(pool, 'password_reset', emailInput, source, now, mockSink);
+}
+
+export async function processPasswordResetIntake(pool: Pool, emailInput: string, source: string,
+  now: Date, mockSink?: MockAuthSink): Promise<void> {
   const email = normalizedEmail(emailInput);
   requireAuthDelivery('password_reset', mockSink);
   if (!source || Number.isNaN(now.getTime())) throw new Error('Invalid password reset request');
@@ -20,13 +26,13 @@ export async function startPasswordReset(pool: Pool, emailInput: string, source:
     JOIN accounts a ON a.id=i.account_id
     WHERE i.kind='email' AND i.identifier=$1 AND i.verified_at IS NOT NULL
       AND i.password_hash IS NOT NULL AND a.disabled_at IS NULL`, [email]);
-  if (identity.rowCount !== 1) return { status: 'accepted' };
+  if (identity.rowCount !== 1) return;
   let rawToken: string;
   try {
     rawToken = await issueActionToken(pool, { purpose: 'password_reset', email,
       accountId: identity.rows[0].account_id, source, now });
   } catch (error) {
-    if (error instanceof Error && error.message === 'Action token rate limited') return { status: 'accepted' };
+    if (error instanceof Error && error.message === 'Action token rate limited') return;
     throw error;
   }
   const origin = process.env.AUTH_LINK_ORIGIN;
@@ -35,12 +41,12 @@ export async function startPasswordReset(pool: Pool, emailInput: string, source:
   url.hash = `token=${encodeURIComponent(rawToken)}`;
   try {
     await deliverAuthLink('password_reset', email, url.toString(), mockSink);
-  } catch {
+  } catch (error) {
     await pool.query(`UPDATE auth_action_tokens SET revoked_at=$2
       WHERE token_hash=$1 AND consumed_at IS NULL AND revoked_at IS NULL`,
     [createHash('sha256').update(rawToken).digest('hex'), now]);
+    throw error;
   }
-  return { status: 'accepted' };
 }
 
 export async function completePasswordReset(pool: Pool, rawToken: string, password: string,

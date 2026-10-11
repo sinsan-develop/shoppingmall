@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import { issueActionToken, consumeActionToken } from './action-tokens.js';
 import { deliverAuthLink, requireAuthDelivery, type MockAuthSink } from './delivery.js';
 import { hashPassword } from './credentials.js';
+import { enqueueAuthIntake } from './intake.js';
 
 type InitialAdminInput = {
   email: string;
@@ -109,17 +110,22 @@ export async function completeAdminSetup(pool: Pool, rawToken: string, password:
 
 export async function startCustomerSignup(pool: Pool, emailInput: string, source: string,
   now: Date, mockSink?: MockAuthSink): Promise<{ status: 'accepted' }> {
+  return enqueueAuthIntake(pool, 'customer_signup', emailInput, source, now, mockSink);
+}
+
+export async function processCustomerSignupIntake(pool: Pool, emailInput: string, source: string,
+  now: Date, mockSink?: MockAuthSink): Promise<void> {
   const email = normalizedEmail(emailInput);
   requireAuthDelivery('customer_signup', mockSink);
   if (!source || Number.isNaN(now.getTime())) throw new Error('Invalid signup request');
   const existing = await pool.query("SELECT id FROM account_identities WHERE kind='email' AND identifier=$1", [email]);
-  if (existing.rowCount) return { status: 'accepted' };
+  if (existing.rowCount) return;
   let rawToken: string;
   try {
     rawToken = await issueActionToken(pool, { purpose: 'customer_signup', email,
       accountId: null, source, now });
   } catch (error) {
-    if (error instanceof Error && error.message === 'Action token rate limited') return { status: 'accepted' };
+    if (error instanceof Error && error.message === 'Action token rate limited') return;
     throw error;
   }
   const origin = process.env.AUTH_LINK_ORIGIN;
@@ -128,12 +134,12 @@ export async function startCustomerSignup(pool: Pool, emailInput: string, source
   url.hash = `token=${encodeURIComponent(rawToken)}`;
   try {
     await deliverAuthLink('customer_signup', email, url.toString(), mockSink);
-  } catch {
+  } catch (error) {
     await pool.query(`UPDATE auth_action_tokens SET revoked_at=$2
       WHERE token_hash=$1 AND consumed_at IS NULL AND revoked_at IS NULL`,
     [createHash('sha256').update(rawToken).digest('hex'), now]);
+    throw error;
   }
-  return { status: 'accepted' };
 }
 
 export async function completeCustomerSignup(pool: Pool, rawToken: string, password: string,
