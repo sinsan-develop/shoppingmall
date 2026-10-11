@@ -7,6 +7,8 @@ const script = fileURLToPath(new URL('../../../scripts/qa-load-gate.mjs', import
 const safe = {
   APP_ENV: 'development', NODE_ENV: 'test', PAYMENT_MODE: 'mock',
   API_HOST: '127.0.0.1', QA_LOAD_MODE: '1', QA_LOAD_RUN_ID: 'a1b2c3d4',
+  PGDATABASE: 'shoppingmall_qa_20261010_2',
+  DATABASE_URL: 'postgresql://qa@127.0.0.1:15442/shoppingmall_qa_20261010_2',
 };
 
 function gate(overrides = {}) {
@@ -22,6 +24,9 @@ test('QA load preflight accepts only a private mock process without external cre
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /QA load gate passed/);
   assert.doesNotMatch(result.stdout, /SECRET|KEY|TOKEN/i);
+  const ipv6 = gate({ API_HOST: '::1',
+    DATABASE_URL: 'postgresql://qa@[::1]:15442/shoppingmall_qa_20261010_2' });
+  assert.equal(ipv6.status, 0, ipv6.stderr);
 });
 
 test('QA load preflight refuses unsafe runtime combinations before requests', () => {
@@ -35,5 +40,18 @@ test('QA load preflight refuses unsafe runtime combinations before requests', ()
     const result = gate(unsafe);
     assert.notEqual(result.status, 0, JSON.stringify(unsafe));
     assert.doesNotMatch(result.stdout + result.stderr, /sentinel-secret/);
+  }
+});
+
+test('QA load preflight rejects the protected DB and mismatched QA target before requests', () => {
+  for (const unsafe of [
+    { PGDATABASE: 'shoppingmall', DATABASE_URL: 'postgresql://qa@127.0.0.1:15442/shoppingmall' },
+    { PGDATABASE: 'shoppingmall_qa_20261010_2', DATABASE_URL: 'postgresql://qa@127.0.0.1:15442/shoppingmall' },
+    { PGDATABASE: '' }, { DATABASE_URL: '' },
+    { DATABASE_URL: 'postgresql://qa@external.example/shoppingmall_qa_20261010_2' },
+  ]) {
+    const result = gate(unsafe);
+    assert.notEqual(result.status, 0, JSON.stringify(unsafe));
+    assert.doesNotMatch(result.stdout + result.stderr, /postgresql:\/\//);
   }
 });

@@ -5308,3 +5308,9 @@
 - 담당 어울. 시작 SHA `c6a5f9f74149d0982f9c346d45c8b70c7d018ffb`; 로컬·WSL checkout 일치, WSL 2 vCPU load average 4.99/7.00/6.93와 swap 5110/8192 MiB 사용을 확인했다. 보호 DB와 전용 QA DB가 각각 존재하나 신규 서버·계정·상품·주문·포트·프로필은 만들지 않았다. 사용자 소유 비추적 파일은 그대로 보존한다.
 - 계획에 명시된 `scripts/qa-role-matrix.mjs`와 시험을 추가했다. 행렬의 18개 번호·역할·고유 경로와 실제 Next 페이지 파일을 대조하고 누락/중복이면 실패한다. RED는 실행기 모듈 부재로 1 fail, GREEN은 실 행렬·누락/중복 반례 **2 pass** 및 CLI 경로 `18/18`이었다. 전체 `pnpm test` 650건 중 **455 pass·195 DB 조건부 skip·0 fail**(PR 본문 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로).
 - 이는 경로 재고 감사일 뿐 18개 화면의 정상·오류·권한·재시도 조작, WSL 실행 Web/API, Windows Chrome/Edge 실제 200%의 PASS가 아니다. 행렬의 `UNVERIFIED` 판정과 `docs/design_change.md` Task 6·7 재개 조건은 유지한다. 변경 전 경로 문서·화면 동작은 보존했고 복구는 이 커밋의 두 신규 스크립트/시험과 현황 기록만 되돌리면 된다.
+
+## 2026-10-11 Task 4 QA 부하의 보호 DB 오지정 차단
+
+- 담당 어울. 시작 로컬·WSL exact SHA `bec005dcbfee2ba86dc6746a1acf3ce4a2486d3e`. WSL 2 vCPU load average 7.34/7.28/7.14, swap 5109/8192 MiB와 다수 기존 서비스를 확인해 신규 WSL 서비스·30분 부하는 시작하지 않았다. 이전의 `qa-load-gate.mjs`가 개발/mock/loopback 모드는 검사하나 `DATABASE_URL`이 보호 `shoppingmall`을 가리켜도 통과하는 빈틈을 발견했다.
+- RED에서 보호 DB 또는 QA 명칭 불일치 시험 1 fail(앞선 두 시험 2 pass), 별도 IPv6 루프백 반례 1 fail을 확인했다. 최소 수정으로 `PGDATABASE`와 `DATABASE_URL`의 DB 이름을 승인된 `shoppingmall_qa_20261010_2`로 일치시키고 URL의 PostgreSQL 프로토콜·허용된 루프백/`local-postgres` 호스트를 확인한다. 오류에는 연결 문자열/비밀을 출력하지 않는다. GREEN 표적 결제/QA **10 pass·0 fail**, 전체 `pnpm test` 651건 중 **456 pass·195 DB 조건부 skip·0 fail**(PR 본문 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로).
+- 이 검사는 설정 문자열의 사전 차단이다. 실제 접속 DB의 system ID·앱 서버와 부하 클라이언트의 동일 대상·외부 PG HTTP 0·30분 정합성을 증명하지 않는다. QA/보호 DB 행, 서비스·포트·외부 계정을 생성하거나 변경하지 않았고 설계서·작업계획서는 불변이다. `docs/design_change.md` Task 4의 환경·자원 재개 조건은 유지한다.
