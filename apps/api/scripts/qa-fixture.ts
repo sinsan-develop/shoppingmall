@@ -19,8 +19,59 @@ export function qaNames(runId: string) {
   };
 }
 
+export async function assertQaFixtureDatabase(client: PoolClient, databaseUrl: string) {
+  const pathname = new URL(databaseUrl).pathname;
+  if (pathname !== '/shoppingmall' && pathname !== '/shoppingmall_qa_20261010_2') {
+    throw new Error('QA fixture is limited to shoppingmall database or approved role QA database');
+  }
+  if (pathname === '/shoppingmall_qa_20261010_2') {
+    if (!/^\d+$/.test(process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID ?? '')) {
+      throw new Error('QA role database system ID must be specified');
+    }
+    const identity = await client.query<{ database: string; system_id: string }>(
+      'SELECT current_database() AS database, system_identifier::text AS system_id FROM pg_control_system()');
+    if (identity.rows[0]?.database !== 'shoppingmall_qa_20261010_2'
+      || identity.rows[0]?.system_id !== process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID) {
+      throw new Error('QA role database identity mismatch');
+    }
+  }
+}
+
 async function seed(client: PoolClient, runId: string, password: string) {
   const names = qaNames(runId);
+  const existing = await client.query<{ categories: number; sellers: number; identities: number; roles: number }>(
+    `SELECT
+       (SELECT count(*)::int FROM seller_categories WHERE name=$1) AS categories,
+       (SELECT count(*)::int FROM sellers WHERE display_name = ANY($2::text[])
+          AND category_id IN (SELECT id FROM seller_categories WHERE name=$1)) AS sellers,
+       (SELECT count(*)::int FROM account_identities WHERE kind='email'
+          AND identifier = ANY($3::text[])) AS identities,
+       (SELECT count(*)::int FROM account_roles r JOIN account_identities i ON i.account_id=r.account_id
+          WHERE i.kind='email' AND i.identifier = ANY($3::text[])) AS roles`,
+    [names.category, [names.sellerA, names.sellerB, names.owool], names.emails],
+  );
+  const counts = existing.rows[0];
+  if (counts.categories || counts.sellers || counts.identities || counts.roles) {
+    if (counts.categories === 1 && counts.sellers === 3 && counts.identities === 5 && counts.roles === 5) {
+      const roleRows = await client.query<{ identifier: string; role: string; seller_name: string | null }>(
+        `SELECT i.identifier, r.role, s.display_name AS seller_name
+         FROM account_identities i JOIN account_roles r ON r.account_id=i.account_id
+         LEFT JOIN sellers s ON s.id=r.seller_id
+         WHERE i.kind='email' AND i.identifier = ANY($1::text[])`, [names.emails]);
+      const expected = new Map([
+        [names.emails[0], ['customer', null]],
+        [names.emails[1], ['seller', names.sellerA]],
+        [names.emails[2], ['seller', names.sellerB]],
+        [names.emails[3], ['seller', names.owool]],
+        [names.emails[4], ['admin', null]],
+      ]);
+      if (roleRows.rows.every((row) => {
+        const role = expected.get(row.identifier);
+        return role?.[0] === row.role && role[1] === row.seller_name;
+      })) return names;
+    }
+    throw new Error('QA fixture has partial data for this run ID');
+  }
   const digest = await hashPassword(password);
   const category = await client.query<{ id: string }>(
     'INSERT INTO seller_categories (name) VALUES ($1) RETURNING id', [names.category],
@@ -89,13 +140,17 @@ export async function resetQaAccounts(client: PoolClient, runId: string) {
 
 export async function runQaFixture(action: 'seed' | 'reset', runId: string, databaseUrl: string, password?: string) {
   const dbUrl = new URL(databaseUrl);
-  if (dbUrl.pathname !== '/shoppingmall') throw new Error('QA fixture is limited to shoppingmall database');
+  if (dbUrl.pathname !== '/shoppingmall' && dbUrl.pathname !== '/shoppingmall_qa_20261010_2') {
+    throw new Error('QA fixture is limited to shoppingmall database or approved role QA database');
+  }
   if (action === 'seed' && (!password || password.length < 12)) throw new Error('QA_FIXTURE_PASSWORD must be set');
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     const client = await pool.connect();
     try {
+      await assertQaFixtureDatabase(client, databaseUrl);
       await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`qa-fixture:${validateQaRunId(runId)}`]);
       const result = action === 'seed'
         ? await seed(client, runId, password!) : await resetQaAccounts(client, runId);
       await client.query('COMMIT');

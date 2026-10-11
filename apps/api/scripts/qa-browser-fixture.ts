@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { Pool } from 'pg';
 import { ImageQuarantine } from '../src/catalog/image-quarantine.js';
-import { qaNames, runQaFixture, validateQaRunId } from './qa-fixture.js';
+import { assertQaFixtureDatabase, qaNames, runQaFixture, validateQaRunId } from './qa-fixture.js';
 
 export function qaBrowserNames(runId: string) {
   const id = validateQaRunId(runId);
@@ -11,7 +11,14 @@ export function qaBrowserNames(runId: string) {
 /** Reset only the browser-run product, its private bytes and then the run-scoped accounts. */
 export async function resetQaBrowserFixture(runId: string, databaseUrl: string, uploadRoot: string) {
   const id = validateQaRunId(runId);
-  if (new URL(databaseUrl).pathname !== '/shoppingmall') throw new Error('QA fixture is limited to shoppingmall database');
+  const databaseName = new URL(databaseUrl).pathname;
+  if (!['/shoppingmall', '/shoppingmall_qa_20261010_2'].includes(databaseName)) {
+    throw new Error('QA fixture is limited to shoppingmall database or approved role QA database');
+  }
+  if (databaseName === '/shoppingmall_qa_20261010_2' &&
+      !/^\d+$/.test(process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID ?? '')) {
+    throw new Error('QA role database system ID must be specified');
+  }
   const names = qaBrowserNames(id);
   const seller = qaNames(id);
   const store = new ImageQuarantine(uploadRoot);
@@ -22,6 +29,7 @@ export async function resetQaBrowserFixture(runId: string, databaseUrl: string, 
     const staged: Awaited<ReturnType<ImageQuarantine['stageRemoval']>>[] = [];
     let committed = false;
     try {
+      await assertQaFixtureDatabase(client, databaseUrl);
       await client.query('BEGIN');
       const target = await client.query<{ product_id: string; revision_id: string; minor_id: string; major_id: string }>(
         `SELECT p.id AS product_id, r.id AS revision_id, c.id AS minor_id, major.id AS major_id

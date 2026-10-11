@@ -14,8 +14,49 @@ test('QA fixture names are deterministic and cannot target broad data', () => {
   }
 });
 
+test('dedicated role-matrix QA database accepts a guarded, repeatable five-account seed', {
+  skip: !process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID || !process.env.DATABASE_URL,
+}, async () => {
+  const runId = randomBytes(4).toString('hex');
+  const names = qaNames(runId);
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    await runQaFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
+    await runQaFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
+    const identities = await pool.query(
+      'SELECT identifier FROM account_identities WHERE identifier = ANY($1::text[])', [names.emails]);
+    const sellers = await pool.query(
+      'SELECT count(*)::int AS total FROM sellers WHERE display_name = ANY($1::text[])',
+      [[names.sellerA, names.sellerB, names.owool]]);
+    assert.equal(identities.rowCount, 5);
+    assert.equal(sellers.rows[0].total, 3);
+  } finally {
+    try { await runQaFixture('reset', runId, process.env.DATABASE_URL); }
+    finally { await pool.end(); }
+  }
+});
+
+test('repeat seed rejects a changed seller role instead of accepting its row count', {
+  skip: !process.env.QA_ROLE_MATRIX_DB_SYSTEM_ID || !process.env.DATABASE_URL,
+}, async () => {
+  const runId = randomBytes(4).toString('hex');
+  const names = qaNames(runId);
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    await runQaFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345');
+    await pool.query(`UPDATE account_roles SET role='customer', seller_id=NULL WHERE account_id=(
+      SELECT account_id FROM account_identities WHERE identifier=$1)`, [names.emails[1]]);
+    await assert.rejects(
+      runQaFixture('seed', runId, process.env.DATABASE_URL, 'test-only-password-12345'),
+      /partial|mismatch/i);
+  } finally {
+    try { await runQaFixture('reset', runId, process.env.DATABASE_URL); }
+    finally { await pool.end(); }
+  }
+});
+
 test('QA account reset removes only its engagement rows on another run product', {
-  skip: !process.env.DATABASE_URL,
+  skip: !process.env.DATABASE_URL || new URL(process.env.DATABASE_URL).pathname !== '/shoppingmall',
 }, async () => {
   const accountRun = randomBytes(4).toString('hex');
   const productRun = randomBytes(4).toString('hex');

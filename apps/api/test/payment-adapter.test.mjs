@@ -22,6 +22,43 @@ test('mock payment startup refuses production and public API bindings', () => {
     API_HOST: '127.0.0.1', NODE_ENV: 'production' }));
 });
 
+test('QA load startup requires a distinct run ID before the listener opens', () => {
+  const safe = { APP_ENV: 'development', PAYMENT_MODE: 'mock',
+    API_HOST: '127.0.0.1', NODE_ENV: 'development', QA_LOAD_MODE: '1',
+    PGDATABASE: 'shoppingmall_qa_20261010_2',
+    DATABASE_URL: 'postgresql://qa@127.0.0.1:15442/shoppingmall_qa_20261010_2',
+    QA_LOAD_DB_SYSTEM_ID: '7622490131194466339' };
+  assert.throws(() => assertPaymentBootConfig(safe), /QA load/);
+  assert.throws(() => assertPaymentBootConfig({ ...safe, QA_LOAD_RUN_ID: 'bad id' }), /QA load/);
+  assert.equal(assertPaymentBootConfig({ ...safe, QA_LOAD_RUN_ID: 'a1b2c3d4' }), 'mock');
+});
+
+test('QA load startup refuses an external payment credential even in development', () => {
+  const safe = { APP_ENV: 'development', PAYMENT_MODE: 'mock',
+    API_HOST: '127.0.0.1', NODE_ENV: 'development', QA_LOAD_MODE: '1',
+    QA_LOAD_RUN_ID: 'a1b2c3d4', PGDATABASE: 'shoppingmall_qa_20261010_2',
+    DATABASE_URL: 'postgresql://qa@127.0.0.1:15442/shoppingmall_qa_20261010_2',
+    QA_LOAD_DB_SYSTEM_ID: '7622490131194466339' };
+  assert.throws(() => assertPaymentBootConfig({ ...safe,
+    TOSS_PAYMENTS_SECRET_KEY: 'test-only' }), /QA load/);
+});
+
+test('QA load API startup rejects missing, protected and mismatched database configuration', () => {
+  const safe = { APP_ENV: 'development', PAYMENT_MODE: 'mock',
+    API_HOST: '127.0.0.1', QA_LOAD_MODE: '1', QA_LOAD_RUN_ID: 'a1b2c3d4',
+    PGDATABASE: 'shoppingmall_qa_20261010_2',
+    DATABASE_URL: 'postgresql://qa@127.0.0.1:15442/shoppingmall_qa_20261010_2',
+    QA_LOAD_DB_SYSTEM_ID: '7622490131194466339' };
+  assert.equal(assertPaymentBootConfig(safe), 'mock');
+  for (const override of [
+    { DATABASE_URL: undefined }, { PGDATABASE: undefined },
+    { QA_LOAD_DB_SYSTEM_ID: undefined },
+    { PGDATABASE: 'shoppingmall', DATABASE_URL: 'postgresql://qa@127.0.0.1:15442/shoppingmall' },
+    { DATABASE_URL: 'postgresql://qa@127.0.0.1:15442/shoppingmall' },
+    { DATABASE_URL: 'postgresql://qa@external.example/shoppingmall_qa_20261010_2' },
+  ]) assert.throws(() => assertPaymentBootConfig({ ...safe, ...override }), /QA load/);
+});
+
 test('mock verification derives one stable event from the server-started order and won amount', () => {
   const orderId = randomUUID();
   const adapter = new MockPaymentAdapter();

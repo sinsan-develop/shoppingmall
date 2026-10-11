@@ -1,5 +1,22 @@
 # 어울몰 작업현황
 
+## 2026-10-11 `WORK_PLAN_20260-10-10-2.md` 실행 종료 보고 근거
+
+- 담당 어울. 신산님이 지정한 `docs/design_change.md` 기록을 이번 실행에서 진행할 수 없는 항목의 처리로 간주하는 기준에 따라, 승인 범위의 추가 안전 실행 가능 작업과 기록 경계를 대조했다. 정확한 작업 SHA `989af4456f2b9fc5833560c9cf1cbc45d0ad32bc`는 로컬·`origin/codex/work-plan-20261010-2`·WSL 지정 checkout에서 일치한다. `origin/main`에는 아직 병합하지 않았다(merge-base `a2a2a3dd612df5125fd68bd92e1d87fb955251ae`, 작업 브랜치 70 commit 앞섬). 설계서·작업계획서는 수정하지 않았다.
+- 현 SHA의 새 로컬 검증: `pnpm test` 본시험 **654건/459 pass/195 DB 조건부 skip/0 fail**, PR 본문 검사 **8/8 pass**; `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 exit 0, Web 31경로 빌드. 조건부 skip을 실DB 합격으로 계산하지 않는다. 승인 QA DB와 보호 `shoppingmall`의 계정·정산 사건은 각각 `0/0`; Windows 9091/9092/9229/15442 listener 0. 사용자 소유 비추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 보존했다.
+- 합격/부분 증거: 기존 파일 이미지 격리·권한 단위 시험, 모의 결제 단일 사용자 격리 smoke와 QA DB 식별 사전검사, 계정 모의 브라우저 흐름, 일부 역할 화면의 로컬 브라우저·DB/API 조각 검증 및 18경로 정적 감사. 전체 WSL 18화면 정상·오류·권한·재시도, 실제 Chrome·Edge 200%, 7일 PITR/14개 백업·이미지 결합 복원, 외부 PG 요청 0을 계측한 30분 부하, 판매자 신규 본인 조회 API, 실제 관리자 메일 수신·인증 시간차 방어는 **PASS가 아니며** `docs/design_change.md` Task 1~3·4·5·6·7에 판정·영향·재개 조건을 기록했다. 기존 PostgreSQL `archive_mode=off`도 읽기 전용으로 확인했다.
+- 이번 실행의 임시 DB/컨테이너·시험 포트·프로필은 각 시험 후 소유 대상별로 정리했고, 마지막 확인의 포트/계정/정산 사건 잔류는 위와 같다. 실제 공급자·Oracle 배포·사용자 인수는 범위 밖이다. 현재 브랜치는 미검증 필수 gate가 있으므로 병합하지 않으며, 복구 기준은 변경하지 않은 `origin/main`; 후속 설계변경/환경 승인 주기에서 미검증 항목을 다시 다룬다. 이 문서 기록을 실제 기능 검증 합격이나 실서비스 출시 승인으로 해석하지 않는다.
+
+## 2026-10-11 Task 6 관리자 환불·클레임·정산 시험 대상 감사
+
+- 담당 어울. 시작 SHA `6cc8d7deff60fc22ba8eb9d07af68f4d6e4802d6`, 로컬·WSL 지정 checkout 일치·clean(사용자 소유 비추적 세 경로 제외). 기존 시험 자료 생성기를 읽기 전용으로 대조했다. #15 환불은 과거 전용 `shoppingmall_s4_refund_ui_<runId>` 또는 공유 `shoppingmall`, #16 클레임은 과거 전용 `shoppingmall_s52_support_ui_<runId>` 또는 공유 `shoppingmall`, #17 정산 C2 자료는 공유 `/shoppingmall`과 migration 24건을 요구한다. 승인 QA DB `shoppingmall_qa_20261010_2`와 일치하지 않아 그대로 실행하지 않았다.
+- 보호 DB에 시험 거래를 만들거나 다른 DB를 추가하지 않았다. #15~#17의 실제 화면·거래·재시도는 `UNVERIFIED`로 유지하며 재개 경계는 `docs/design_change.md` Task 6에 연결했다. 이번 실행은 코드·DB·서비스·포트·브라우저 프로필 변경 0, 설계서·작업계획서 불변이다. WSL 2 vCPU load average 2.93/2.83/3.13으로 신규 통합 서버·30분 부하 안전 조건도 확인되지 않았다.
+
+## 2026-10-11 Task 2 PostgreSQL 복구 설정 읽기
+
+- 담당 어울. 작업 브랜치 `codex/work-plan-20261010-2`, 시작 SHA `d824f89f7c5edd239d543fbd7dd56c0e46fd8cac`. 기존 `local-postgres`의 승인 QA DB `shoppingmall_qa_20261010_2`에 읽기 전용으로 접속해 `SHOW archive_mode`와 `SHOW wal_level`을 실행했다. 결과는 각각 `off`, `replica`; 명령은 exit 0이었다. 자격정보·WAL 보관 명령의 원문은 출력하지 않았다.
+- 이 관찰은 현재 클러스터의 WAL 보관이 꺼져 있음을 뜻한다. 7일 PITR·14개 백업·RPO/RTO·SeaweedFS 이미지 동시 복원은 실행하거나 통과 판정하지 않았다. 공유 PostgreSQL 설정·보호 `shoppingmall` DB·QA DB 행·서비스/포트는 변경하지 않았다. 복구 계약과 환경별 적용 경계는 `docs/design_change.md` Task 1~3에 유지한다.
+
 ## 2026-10-10 Task 3·4 남은 검증 경계 재대조
 
 - 담당 어울. 작업 브랜치 `codex/next-work-20261010-2@e92cc35efd629bf00b4cc716984f9f17197da647`, 원격 추적과 일치. PR #18은 같은 head/base `eab39abc6caf8155edfd20d96de7f014fd06a8c3`의 open·미병합이다. 정확한 head의 push CI `38043974463`와 PR CI `38043978251` 모두 completed/success, PR 본문 갱신 자동화 `38043993564` success를 공개 읽기로 확인했다. 로컬 사용자 미추적 세 경로는 그대로 보존했다.
@@ -5008,3 +5025,377 @@
 - 자원·복구: 전용 인증 QA DB는 모든 가상 핵심 행 0을 확인한 뒤 정확한 tmpfs 컨테이너·전용 네트워크를 제거했다. 격리 복원 PG와 루프백 API/Web/Chrome 자원도 정리했다. 임시 0025 사전 전체 백업 두 사본은 해시와 병합 main·공유 DB 상태를 확인한 뒤 정확한 파일만 삭제했으며 **이번 임시 백업은 복구 불가**다. 공유 0025 스키마는 유지하며 자동 역마이그레이션/전체 복원은 하지 않는다. 필요 시 새 백업·영향 분석·별도 복구 승인이 필요하다. 제품 작업 브랜치와 요청 태그는 PR 병합·트리 동일·원격 정리 확인 후 로컬에서 제거했다. 사용자 소유 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 변경하지 않았다.
 - 남은 판정: 실제 이메일·문자 수신과 정식 관리자 지속 계정/첫 로그인, 공개 공급자·Oracle/사용자 인수는 **미검증**이다. 판매자 본인 대기·반려 상태 재방문과 신규 계정 화면 브라우저 자체 200% 확대도 **미검증**이다. 후속 재작업은 `docs/design_change.md`의 정확한 계약·환경 준비 조건을 따라 별도 범위로 진행한다.
 - 이 통합 기록은 [PR #21](https://github.com/sinsan-develop/shoppingmall/pull/21)로 분리했다. 자동 생성 직후 `pull_request` 검사 실행은 `action_required`/실행 작업 0건이므로 성공으로 세지 않고, 같은 문서 범위의 후속 push로 PR synchronize 검사를 다시 확인한다.
+
+## 2026-10-11 `WORK_PLAN_20260-10-10-2` 실행 기준선
+
+- 담당 어울. 현재 `D:/Project/shoppingmall2`의 `codex/work-plan-20261010-2@2132b73942340f2c1db480e7ffc8bac7476430b4`와 승인 SSH 원격 작업 브랜치가 일치한다. `origin/main`과 지정 WSL checkout은 `a2a2a3dd612df5125fd68bd92e1d87fb955251ae`; WSL checkout은 clean `main`이다. 로컬 사용자 미추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 변경·삭제하지 않는다.
+- 계획 Task 0 로컬 기준: `pnpm test` 628건/439 pass·189 조건부 skip·0 fail, PR 본문 시험 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0이며 Web 빌드 31경로다. 조건부 skip은 실 DB·WSL·브라우저 PASS가 아니다.
+- 신산님은 루트 `.env`의 메일 설정 사용, WSL의 한가한 시간대 부하, 보호 `shoppingmall`과 분리된 전용 QA DB 생성을 허용했다. `.env`의 값은 출력·기록하지 않는다. 부하의 정확한 창·자원/중단 기준 및 실제 메일 발송 경계는 실행 전 따로 특정한다.
+- Task 6의 실제 18경로를 코드와 대조해 `docs/evidence/three-role-menu-matrix.md`를 작성했다. 전 행은 아직 `UNVERIFIED`이며 QA 계정·상품·주문은 `qa-1010-2-<runId>` 소유 식별 후 생성한다. 전용 DB는 정확한 식별·수명·정리 절차를 먼저 기록한다. 보호 DB에 시험 거래를 만들지 않는다.
+- 이번 실행에서 변경한 추적 파일은 `docs/design_change.md` 초기화, 본 `WORK_STATUS.md`, 18경로 행렬이다. 설계서와 작업계획서 본문은 수정하지 않았다. 오류: `apply_patch`의 동일 파일 Delete/Add 동시 시도 1회(패치 거부, 파일 영향 없음); 별도 Delete·Add로 초기화. 미검증: 공유 DB 최신 행/이력 읽기, 격리 DB 필수 시험, SeaweedFS 결합 복원, 30분 부하, 18화면 WSL, PC 자체 200%, 실제 메일 수신. 다음 조치: 허용된 독립 검증과 정확한 환경 식별 후 계획 Task 1~7 순차 진행.
+- 공유 DB 읽기 전용 대조: WSL `local-postgres`는 PostgreSQL 15 컨테이너, DB `shoppingmall`, system ID `7622490131194466339`, Drizzle migration 26건이다. 계정·판매자·상품·주문·정산 사건·인증 수단은 각 0행. 쓰기 0. 테이블 목록 질의의 첫 인용 시도는 SQL 문자열 `public` 인용 누락으로 오류 1회였고 `\dt public.*` 메타 명령으로 목록을 확인했다. 이 읽기만으로 백업·복원 가능성을 주장하지 않는다.
+
+## 2026-10-11 Task 4 모의 부하 시작 안전 경계
+
+- 담당 어울, 브랜치 `codex/work-plan-20261010-2`. 변경 파일 `apps/api/test/payment-adapter.test.mjs`, `apps/api/src/payments/adapter.ts`. QA 부하 모드에서 고유 8자리 run ID가 없거나 실제 결제사 Secret 계열 환경키가 함께 있으면 HTTP listener 시작 전 거부하도록 기존 부팅 경계에 연결했다. 개발·mock·loopback 조건도 `assertQaLoadMode`로 재확인한다. 기존 일반 mock 모드의 동작은 유지한다.
+- RED: 신규 2개 시험은 기존 코드에서 예상한 거부가 없어 각각 실패했다. GREEN: 목표 7/7 pass·0 skip; 전체 `pnpm test` 630건/441 pass·189 DB/환경 조건부 skip·0 fail, PR 본문 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`, `git diff --check`는 exit 0. 이 결과는 부하 도구 실행이나 주문/재고/정산 실DB 정합성, 30분 계측의 증거가 아니다.
+- 루트 `.env`는 7개 설정행이며 SMTP 연결·발신·수신 키 이름이 있다. 값은 출력·문서화하지 않았다. 실제 이메일 수신/관리자 지속 행은 아직 실행하지 않았다. 다음 작업은 Task 4의 격리 1사용자 smoke 및 다른 계획 Task의 독립 RED/격리 검증이다.
+
+## 2026-10-11 복구·부하 사전 환경 대조
+
+- 담당 어울. Task 1 현행 이미지 격리·정제·스캐너 표적 시험 8/8 pass·0 skip. 이는 버전 있는 객체 저장소 복원 시험이 아니다. WSL Docker에는 SeaweedFS/k6 이미지가 없고 k6 실행 파일도 확인되지 않았다. 로컬 Windows 셸에는 `docker` 명령이 없다.
+- 공유 WSL은 2 vCPU, 조사 당시 load average 4.95/7.06/6.41, swap 5.0/8.0 GiB 사용, 프로젝트 디스크 여유 384 GiB였다. 여러 타 서비스 컨테이너가 살아 있어 100 VU·30분 공유 부하를 지금 실행하지 않았다. 정확한 미실행 영향과 재개 조건은 `docs/design_change.md`에 기록했다. 공유 `shoppingmall` DB/서비스 쓰기 0, 임시 컨테이너 생성 0. 다음은 로컬·격리 작은 시험과 승인 범위의 복구 계약 구현이다.
+
+## 2026-10-11 Task 6 전용 WSL QA DB 생성 선언
+
+- 담당 어울. 생성 예정 자원은 `WSL-server`의 기존 `local-postgres` 인스턴스 안에 새 DB `shoppingmall_qa_20261010_2` 한 개다. `psql -lAt`로 이 정확한 이름이 없고 보호 `shoppingmall` DB가 따로 존재함을 확인했다. 새 DB는 세 역할 18경로 및 계획 Task 4·5 격리 시험 전용이다. 대상 실행 전마다 DB명과 system ID를 확인하고 보호 DB를 가리키는 연결 문자열이면 거부한다.
+- 수명은 `WORK_PLAN_20260-10-10-2` Task 8의 증거 정리까지다. QA 자료는 `qa-1010-2-<runId>`로 소유 식별하고 생성 manifest와 불변 사건 보존 범위를 기록한다. 해당 DB만 사용 후 자료/외부 연결/소유를 확인해 정리한다. 보호 `shoppingmall`과 다른 프로젝트 DB·컨테이너·계정은 삭제하거나 변경하지 않는다. 생성 직후 빈 DB·기존 보호 DB 불변을 후조회한다. 새 DB 역할·비밀값은 이번 생성에 포함하지 않는다.
+- 생성·적용 증거: `shoppingmall_qa_20261010_2`를 정확한 이름으로 생성했고, 생성 직후 public 관계 0개였다. 로컬 Node 24에서 기존 `apps/api/scripts/migrate.ts`에 `PGDATABASE`를 명시하고 기존 PostgreSQL 비밀번호를 출력/파일화하지 않고 WSL 컨테이너에서 일시 참조하여 0000~0025 migration 26건을 적용했다. 후조회 DB 이름·system ID `7622490131194466339`·이력 26, QA 계정/판매자/상품/주문/정산 각 0행. 보호 `shoppingmall`의 같은 다섯 범주는 전후 0행. WSL 지정 checkout은 작업 SHA `8532d4b724e27f48f35bf07e36c680ec58c1b341`의 clean detached 상태다. 새 DB 역할이나 Secret 파일은 생성하지 않았다.
+- 연결 사전 점검 1회는 비밀번호 없이 WSL 호스트에서 시도해 `fe_sendauth: no password supplied`로 실패했다. 비밀값을 셸 출력하지 않는 방식으로 정확한 QA DB 연결을 확인한 뒤 migration을 수행했다. 실패가 제품/QA DB 변경을 일으키지 않았다. 현재 QA DB의 역할별 seed·API·브라우저 검증은 아직 미실행이며 migration 적용만으로 합격으로 표시하지 않는다.
+
+## 2026-10-11 Task 6 전용 QA 계정 fixture 반복성 검증
+
+- 담당 어울, `codex/work-plan-20261010-2`. 변경 대상은 `apps/api/scripts/qa-fixture.ts`, `apps/api/test/qa-fixture.test.mjs`, 본 상태 기록이다. 5개 역할 계정·3개 판매자의 동일 run ID 재시드는 중복 생성 없이 기존 역할/판매자 연결을 재확인하고, 부분·변조 상태는 거부한다. 전용 `shoppingmall_qa_20261010_2`만 정확한 DB명·PG system ID 일치 시 허용하며 기존 `/shoppingmall` 사용 계약은 유지한다. 8자리 run ID별 트랜잭션 잠금으로 동시 재시드를 직렬화한다.
+- RED: 전용 DB seed는 기존 경로 제한으로 실패했고, 역할 변조 후 재시드는 기존 행 수 검사만으로 거부되지 않아 실패했다. GREEN: 전용 DB 표적 4 pass·1 기존 공유 DB 전용 skip·0 fail. 해당 시험의 생성 계정/판매자/분류/역할은 reset 후 각각 0행이다. 비밀값은 출력·파일화하지 않았다.
+- 전체 로컬 `pnpm test`: 632건·441 pass·191 조건부 skip·0 fail, PR 본문 검사 8/8 pass. `pnpm typecheck`, `pnpm lint`, `pnpm build`(웹 31경로), `git diff --check` 모두 exit 0. DB 의존 skip·18화면 실제 브라우저·WSL 정식 E2E·복구·30분 부하는 아직 통과로 세지 않는다.
+- 오류: QA 잔류 확인 SQL의 인용 오류 1회(읽기 실패, 자료 변경 없음); 인용이 필요 없는 계수 질의로 재확인했다. 다음 작업은 exact SHA를 WSL 지정 checkout에 맞추고 전용 QA DB의 역할·상품 자료를 멱등 준비한 뒤 18화면 정상/오류/권한/재시도 검증이다. 보호 `shoppingmall`에는 시험 거래를 만들지 않는다.
+
+## 2026-10-11 Task 6 공개 상품 QA 자료 반복성
+
+- 담당 어울. 이전 계정 fixture 커밋 `55a47a151bb860ac3fde0c2a8920c31b5e4c0ba4`는 승인 SSH 원격과 지정 WSL checkout에서 exact SHA가 일치했다. WSL Node 24 컨테이너·전용 `shoppingmall_qa_20261010_2`로 표적 계정 시험 4 pass·1 공유 DB 전용 skip·0 fail, 시험 후 계정/판매자/분류/역할 0행을 확인했다. 보호 DB 쓰기는 수행하지 않았다.
+- 변경 대상 `apps/api/scripts/qa-fixture.ts`, `apps/api/scripts/qa-public-fixture.ts`, `apps/api/test/qa-public-fixture-db.test.mjs`, 본 기록이다. 전용 DB 공개 상품 자료는 DB명·PG system ID 검증 후 같은 run ID의 두 번째 seed에서 기존 상품 ID를 돌려주고 중복을 만들지 않는다. 중간 상태나 상품 수 불일치는 거부한다. reset 역시 DB 식별 확인 뒤 소유 run ID 자료만 정리한다.
+- RED: 기존 상품 fixture는 전용 DB 경로를 거부했다. GREEN: 전용 DB 계정·상품 표적 12건 중 11 pass·1 공유 DB 전용 skip·0 fail; 시험 후 계정/판매자/상품분류/상품/역할 각 0행. 전체 로컬 `pnpm test` 633건·441 pass·192 조건부 skip·0 fail, PR 본문 검사 8/8, typecheck·lint·build exit 0. 실제 18화면과 주문·결제·복구·30분 부하는 여전히 미검증이다. 다음 단계는 변경 SHA push→WSL exact SHA에서 계정·상품 표적 회귀 및 실제 18화면 경로 시험이다.
+- WSL exact SHA `f32b8472f4cdf6763f5f6e16fa33199617047467`(clean)에서 Node 24·전용 QA DB 계정/상품 표적 12건 중 11 pass·1 공유 DB 전용 skip·0 fail. 후조회 계정/판매자/상품분류/상품/역할 각 0행. 잔류 조회의 첫 질의는 존재하지 않는 `orders` 관계를 참조해 실패 1회(읽기 전용, DB 변경 없음); 실제 존재하는 핵심 테이블로 다시 확인했다. 이는 아직 18개 메뉴/브라우저 정식 E2E가 아니다.
+
+## 2026-10-11 Task 6 다중 판매자 QA 상품 자료
+
+- 담당 어울. 변경 대상 `apps/api/scripts/qa-catalog-fixture.ts`, `apps/api/test/qa-catalog-fixture-db.test.mjs`, 본 기록이다. 전용 QA DB명·system ID를 검증하고 기존 계정·판매자 소속·상품 5건을 검사한 뒤 같은 run ID의 시드는 중복 없이 재사용한다. 부분 계정/상품 자료는 거부하며 reset은 QA 계정 소유를 검사한다.
+- RED: 기존 다섯 상품 fixture는 전용 DB 경로를 거부했다. GREEN: 전용 DB 표적 3/3 pass·0 skip·0 fail, 후조회 계정/판매자/상품분류/상품/역할 모두 0행. WSL exact SHA `f32b8472f4cdf6763f5f6e16fa33199617047467`에서 이전 코드의 실제 HTTP 판매자·관리자 권한 분리 시험 1/1 pass·0 skip이었다. 전체 로컬 `pnpm test` 634건·441 pass·193 조건부 skip·0 fail, PR 본문 8/8, typecheck·lint·build exit 0. 이번 다섯 상품 변경의 WSL exact SHA 시험은 push 뒤 수행한다.
+- Task 4 기존 결제 승인 HTTP 시험은 `payment_events`/주문을 삭제하는 정리 코드를 갖지만 현재 승인 경로는 불변 `settlement_events`를 생성한다. 따라서 지속 전용 QA DB에서 이 기존 시험을 그대로 실행해 잔류나 FK 실패를 만들지 않았다. 안전한 단회 DB 또는 불변 사건 보존형 시험으로 별도 검증할 예정이다. 결제·재고·정산 정합성은 아직 미검증이다.
+- WSL exact SHA `e967722c2797ed3a00ae6ab5d71e433951f7ecb4`(clean)의 Node 24에서 전용 QA DB 다섯 상품·역할 HTTP 표적 4/4 pass·0 skip·0 fail. 후조회 계정·판매자·상품분류·상품·역할·정산 사건 각 0행. 세 역할 18개 브라우저 행렬 전체를 수행한 결과는 아니다.
+
+## 2026-10-11 Task 4 격리 모의 결제 1사용자 자원 사전 선언
+
+- 담당 어울. WSL-server에서 새 전용 Docker network `shoppingmall-qa-1010-2-payment-net`과 PostgreSQL 15 tmpfs container `shoppingmall-qa-1010-2-payment-pg`를 **생성 전 선언**한다. 기존 Docker 이미지 `postgres:15`, `node:24-bookworm-slim`만 사용한다. 포트를 호스트에 공개하지 않고 해당 네트워크의 Node 시험 컨테이너 1개만 연결한다. 목적은 기존 결제 승인 시험이 생성할 수 있는 불변 정산 기록을 보호 `shoppingmall` 및 지속 `shoppingmall_qa_20261010_2`와 격리해 1사용자 모의 결제·정산 경로를 검증하는 것이다.
+- 수명은 이번 Task 4 smoke와 DB 잔류/정합성 증거 수집까지. 8자리 고유 run ID를 사용하고 Secret 값은 로그·문서·Git에 남기지 않는다. tmpfs 최대 512 MiB, 메모리 512 MiB, CPU 0.5개 한도로 시작하며, 다른 서비스 지표 악화 시 중단한다. 시험 후 정확히 이 container→network만 제거하고 이름 잔류 0을 확인한다. 다른 DB·container·volume은 변경·삭제하지 않는다. 생성 전 정확한 이름 부재와 기존 서비스 상태를 재확인한다.
+- 자원 생성: 선언한 network/container만 만들고 호스트 공개 포트 없이 `shoppingmall` 격리 DB에 기존 26개 migration을 적용했다. 시험 전 DB system ID `7695124086736863275`, 계정/정산 사건 각 0행이었다. WSL exact SHA `9c815d70b28b2f3bf0ce9113d791ff3e394c4155`에서 기존 모의 결제 HTTP 시험의 첫 실행은 실패했다. 원인은 결제 승인으로 생성한 불변 `settlement_events`가 shipment/order를 참조하는데 옛 시험 정리가 결제·주문 행 삭제를 시도해 FK 23503을 일으킨 것이다. 실패 후 격리 DB에 PAID 26,000원 주문 1개, 정산 sale 23,000원·shipping_fee 3,000원 사건 2개가 남았고 payment_events는 옛 정리에 의해 먼저 삭제됐다. 보호 DB·지속 QA DB는 영향받지 않았다.
+- 변경 대상 `apps/api/test/payment-customer-http-db.test.mjs`: 현재 정산 schema가 있으면 정확한 일회성 DB host·system ID를 요구하고, 그 DB에서는 불변 사건과 연결 행을 보존한 채 결제/정산 금액을 대조한다. 일반 DB에서 정산 schema를 발견하면 자료 생성 전 거부한다. 이는 실제 결제 검증이 아니라 시험 코드의 정리 경계 수정이다. 전체 로컬 `pnpm test` 634건·441 pass·193 DB 조건부 skip·0 fail, PR 본문 8/8, lint·build exit 0. `pnpm typecheck`를 build와 병렬 실행한 첫 시도는 Next 생성 `.next/types` 경합으로 TS6053 실패 1회; build 종료 후 단독 재실행 exit 0. 격리 DB 실제 GREEN과 자원 정리는 다음 조치다.
+- WSL 지정 checkout `6ad4890d85173338e53f0e1043e42e078943c2d3`에서 이 시험을 재실행했다. 일회성 DB host `shoppingmall-qa-1010-2-payment-pg`와 PG system ID `7695124086736863275`를 정확히 지정한 개발·mock·QA 모드의 HTTP 결제 시험은 **1 pass·0 skip·0 fail**이었다. 결제는 `PAID` 26,000원, 상품 매출 23,000원과 배송비 3,000원의 불변 정산 사건으로 대응하며 상품 재고는 음수가 아니었다. 앞선 실패 실행의 합성 자료까지 일회성 tmpfs DB에 남아 최종 조회는 PAID 주문 2건·정산 사건 4건이었다. 이는 1사용자 격리 smoke이며 30분 부하, 외부 PG 트래픽 계측, 보호 DB 정식 E2E의 합격 증거가 아니다.
+- 시험 전용 컨테이너·네트워크의 소유 label `owool.task=work-plan-20261010-2`, 정확한 이름, tmpfs 데이터 경로, 네트워크의 연결 컨테이너가 해당 PG 하나뿐인 것을 재확인했다. 위 합성 자료는 Git에 보존한 시험 결과 외에는 유지할 필요가 없으며 계획대로 정확한 컨테이너와 네트워크를 제거한다. tmpfs 제거 후 시험 거래 원본은 복구할 수 없다.
+- 자원 정리 후 `shoppingmall-qa-1010-2-payment-pg` 컨테이너와 `shoppingmall-qa-1010-2-payment-net` 네트워크가 모두 존재하지 않음을 확인했다. 해당 tmpfs의 합성 주문 2건·정산 사건 4건 원본은 제거되어 복구 불가하다. 보호 `shoppingmall`과 지속 QA `shoppingmall_qa_20261010_2`에서 읽기 전용으로 각각 계정 0·정산 사건 0을 재확인했다. 다음은 Task 4의 30분 부하 안전 조건 재평가 및 Task 1~3·6~7의 독립 계획 검증이다.
+
+## 2026-10-11 Task 1~3·5 설계 경계와 독립 회귀
+
+- 담당 어울, 브랜치 `codex/work-plan-20261010-2`. 지정 설계·계획을 변경하지 않고 `docs/design_change.md`에 A1~A3의 저장소/PITR/결합 복원 계약과 A6~A8의 공개 신청 조회/인증 전달/실제 수신 경계를 판정·영향·재개 조건으로 기록했다. 이는 기능 구현이나 실제 복구·수신 합격이 아니다.
+- 현행 이미지 격리·정제·스캐너 4개 표적 시험은 9건 중 8 pass·1 ClamAV 실환경 조건부 skip·0 fail이었다. SeaweedFS 객체 버전, 7일 PITR, 14개 보관, 동일 시점 결합 복원은 미검증이다. 남은 독립 작업은 Task 4 부하 사전 안전 검사, Task 5 기존 mock/disabled 회귀, Task 6·7 전용 QA DB와 실제 브라우저 경로 검증이다.
+- WSL 자원 재측정: 2 vCPU 서버의 load average 4.67/4.87/4.61, swap 5.0/8.0 GiB, 디스크 여유 385 GiB이며 k6·SeaweedFS 이미지가 없어 30분 공유 부하 안전 조건은 여전히 불충족이다. WSL Git checkout 갱신의 첫 시도는 수동으로 잘못 적은 SHA 때문에 실패 1회(자료 변경 없음); 실제 원격 `FETCH_HEAD` SHA `2f57ef5956cc448bf033094d2cbc3c4226e9bcd9`로 재실행해 clean detached checkout을 확인했다.
+
+## 2026-10-11 Task 5 전용 QA DB 인증 시험 준비
+
+- 담당 어울. 기존 판매자 신청 DB 시험은 `PGDATABASE=shoppingmall_auth_admin_1010`에만 고정되어 있어 이번에 승인된 `shoppingmall_qa_20261010_2`에서 실행되지 않는다. 실제 연결 DB명까지 비교하지 않아 환경 변수와 URL의 불일치가 보호 대상에 도달할 가능성도 있다. 설계/API를 변경하지 않고 시험 가드의 정확한 DB명·PG system ID 대조부터 RED→GREEN으로 보정한다.
+- 실행 전 일회성 자원 선언: WSL 지정 checkout의 읽기 전용 `/app` mount를 가진 `node:24-bookworm-slim` 컨테이너 한 개를 `--rm`·메모리 384MiB·CPU 0.5개·호스트 포트 공개 없음으로 실행한다. host 네트워크는 `127.0.0.1:5432`의 기존 PostgreSQL에만 연결하며 URL의 DB명은 `shoppingmall_qa_20261010_2`로 고정한다. 기존 DB 비밀번호는 컨테이너 환경으로만 일시 전달하고 로그/파일에 남기지 않는다. 시험 자료는 해당 QA DB 내 고유 식별자로 만들고 기존 시험의 소유 행 정리를 확인하며, 프로세스 종료 뒤 컨테이너 잔류 0을 검증한다. 보호 `shoppingmall`에는 쓰지 않는다.
+- RED: WSL `52ddab54d42c5a90c77b027dd9954bc6a59bea0e`에서 `PGDATABASE=shoppingmall_qa_20261010_2`로 실행한 판매자 신청 시험은 기존 고정 DB명 단언으로 1 fail·0 skip이었다. 자료 생성 전 실패했다. 시험용 파일 한 곳에서 허용 DB명을 두 전용 QA DB로 한정하고 연결 URL의 DB명과 실제 `current_database()`·PG system ID를 쓰기 전에 대조하도록 보정했다.
+- GREEN: WSL exact SHA `6a58e85163d8a553a9677603f1b74fe5eab0c2ca`의 동일 1회성 Node 24 실행에서 판매자 신청·심사·권한 분리·동시 승인 시험 **1 pass·0 skip·0 fail**. `--rm` 실행이 종료했고 전용 QA DB의 계정/신청/판매자는 각 0행, 보호 `shoppingmall`의 계정/신청은 각 0행으로 재조회했다. 비밀값·시험 자격정보는 남기지 않았다. 이 결과는 본인 신청 조회 신규 API나 브라우저 재방문 검증이 아니다.
+- 동일 로컬 SHA의 전체 `pnpm test` 634건/441 pass·193 조건부 skip·0 fail, PR 본문 검사 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` 모두 exit 0(웹 31경로). 다른 인증 DB 시험의 옛 고정 DB 가드는 여전히 전용 QA DB 실행을 막으므로 다음 독립 작업에서 하나씩 안전성을 검증한다.
+
+## 2026-10-11 Task 5 가입·재설정 전용 DB 실제 회귀
+
+- 담당 어울. WSL exact SHA `a530ddd80a60beb63f8b6f1a8af852198a7bf021`에서 승인된 `shoppingmall_qa_20261010_2`로 가입 1건·재설정 2건을 실행하자 세 시험이 기존 `shoppingmall_auth_admin_1010` 고정 이름 단언으로 자료 생성 전에 예상대로 실패했다(RED 0 pass·3 fail·0 skip). QA DB의 계정·수단은 0행이었다. 시험 파일 두 곳만 허용 전용 DB명, URL DB명, 실제 `current_database()`, PG system ID 대조로 보정했다.
+- WSL exact SHA `900e69f8d9be5ee2f89cdd284a4d7ca5c3b93b1c`에서 일회성 Node24·기존 개발 mock 전달로 재실행한 결과 가입 **1/1**, 재설정/세션 경합 **2/2** pass·0 skip·0 fail이었다. 실제 외부 메일은 보내지 않았다. 시험 후 전용 QA DB의 계정·수단·세션·판매자 신청 각 0행, 보호 `shoppingmall`의 계정·수단 각 0행을 확인했다. `--rm` Node24 컨테이너 잔류는 0이다.
+- 로컬 전체 `pnpm test` exit 0(일반 DB 조건부 skip 유지), PR 본문 검사 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로). 이 증거는 실제 수신, 가입/복구 존재 추측 방지의 시간 분포, 관리자 정식 소유 링크, 실제 브라우저 200% 검증을 대신하지 않는다. 다음은 Task 5의 기존 HTTP 흐름과 Task 6·7 브라우저 행렬이다.
+
+## 2026-10-11 Task 5 계정 HTTP 전용 QA DB 회귀
+
+- 담당 어울. WSL exact SHA `6181daf863e2010b02c8bd59b7f6135f32a6b937`에서 `shoppingmall_qa_20261010_2`로 기존 HTTP 계정 4개 시험을 실행하자 모두 옛 전용 DB명 고정 단언에서 자료 생성 전에 예상대로 실패했다(RED 0 pass·4 fail·0 skip). QA DB의 계정·수단은 0행이었다.
+- 시험 파일 `apps/api/test/auth-onboarding-http-db.test.mjs` 한 곳의 공통 가드를 두 허용 전용 DB명, 연결 URL 경로, 실제 `current_database()`와 PG system ID를 첫 쓰기 전에 대조하도록 보정했다. WSL exact SHA `13ac28930b4d4e358cb00efbe47c3c1e399d3a6f`에서 관리자 mock 첫 설정, 판매자 신청/심사, 구매자 가입, 비밀번호 재설정 HTTP 시험 **4 pass·0 skip·0 fail**. `WEB_ORIGIN`은 루프백, 전달은 개발 mock이며 실제 발송은 하지 않았다.
+- 후조회 전용 QA DB 계정·수단·세션·신청 각 0행, 보호 `shoppingmall` 계정·수단 각 0행; 일회성 `--rm` Node24 컨테이너 잔류 0. 로컬 `pnpm test` 634건/441 pass·193 DB 조건부 skip·0 fail, PR 본문 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0. 실제 브라우저 재방문·200%와 실제 이메일 수신, 시간차 방어, 정식 관리자 지속 행은 미검증이다.
+
+## 2026-10-11 Task 7 PC 브라우저 확대 사전 선언
+
+- 담당 어울. 실제 Chrome·Edge 확대의 독립 검증을 위해 현재 로컬 Web 빌드 `c0fe1de1fb490373b3115e359a79a1fca4cf81dc`를 `127.0.0.1:9091`에 일회성으로 띄운다. 시작 전 포트 9091·9092에 청취자가 없음을 확인했다. API/DB/외부 메일을 연결하지 않고 계정 공개 진입 화면의 200% 가로 넘침·Tab·오류 표시만 관찰한다. 이 화면 증거를 보호 WSL 18경로 정식 통합이나 가입 성공으로 바꾸지 않는다.
+- Web 프로세스는 정확한 PID와 명령줄·포트 소유를 기록한 뒤 종료하고 9091 잔류 0을 확인한다. Chrome·Edge는 격리 QA 탭에서 현재 로컬 URL만 열며 사용자 기존 탭·세션·비밀값을 변경하지 않는다. 브라우저가 실제 200%를 제공하지 못하면 미검증으로 기록한다.
+- 실행 결과: 로컬 Web `next start --hostname 127.0.0.1 --port 9091`의 PID 14112, 포트 소유도 14112, `/signup` HTTP 200. Chrome 신규 QA 탭에서 `/signup`, `/login`, `/forgot-password`, `/reset-password`, `/admin-setup`의 공개 상태를 확인했다. API 미연결을 명시하고 요청 버튼을 비활성화했으며, 유효 링크가 없는 두 비밀번호 화면은 입력·변경 버튼을 비활성화하고 재요청/운영 담당자 안내를 표시했다. `/login`의 Tab 초점은 본문 건너뛰기→홈→접속 역할 순서, `/signup` 첫 Tab 초점은 본문 건너뛰기였다. API/DB 연결이나 실제 가입·재설정·관리자 설정 성공은 검증하지 않았다.
+- Chrome에서 `Ctrl++`·`Ctrl+=` 입력 전후 `devicePixelRatio=1`, `innerWidth=1892` 불변이므로 **실제 200% 확대 미검증**. Edge 실행 파일은 설치되어 있지만 현재 브라우저 제어에 연결되지 않아 Edge 화면 시험은 미실행. 계획 Task 7의 18+6 화면 행을 합격으로 표시하지 않는다. 이유·영향·재개 조건을 `docs/design_change.md`에 기록했다. 생성한 Chrome QA 탭만 닫았고 Web PID 14112의 명령줄·포트 소유를 대조해 종료했다. 종료 후 9091 listener 0; 사용자 기존 탭·보호 DB·메일 변경 없음.
+
+## 2026-10-11 Task 8 현재 SHA 로컬 회귀·Task 6 경로 준비
+
+- 담당 어울. 실행 전 로컬 작업 브랜치와 WSL 지정 checkout의 SHA가 모두 `e425dba580e6fd1dccd9166beb5dc12a8ec2da0e`임을 확인했다. 로컬 `pnpm test` 634건 중 441 pass·193 DB 조건부 skip·0 fail, PR 본문 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` 모두 exit 0. Web 31경로 빌드 중 Task 6의 대표 18경로가 모두 생성됨을 대조했다. 이는 실제 WSL API/DB 조작이나 브라우저 200% 검증이 아니며 행렬 판정은 모두 `UNVERIFIED`다.
+- WSL 2 vCPU의 load average 2.50/3.62/4.07, swap 사용 5.0/8.0 GiB, 디스크 여유 385GiB를 읽기 전용으로 확인했다. 다른 서비스 영향 기준을 충족했다는 근거가 없으므로 Task 4의 공유 30분 부하는 시작하지 않았다. 코드·시험 DB·보호 `shoppingmall` 자료는 변경하지 않았다. 변경 파일은 본 현황과 18경로 행렬의 정적 준비 문구만이며 설계·계획은 불변이다. 다음은 Task 6의 전용 QA DB 정상·오류·권한·재시도 행별 실제 통합 검증과 Task 5에서 허용된 처리시간 기준 측정이다.
+
+## 2026-10-11 Task 5·6 시험 도구 경계 점검
+
+- 담당 어울. 실행 전 로컬/WSL exact SHA `87dcd524377f2d134ea70d0e811a4070de839927`, 지정 작업 브랜치·WSL checkout clean(사용자 비추적 자료 제외)을 대조했다. 프로젝트 루트 `AGENTS.md`는 현재 없고 신산님이 이 대화에 제공한 전역 지침과 PMO 지침·승인 설계/계획을 적용했다. 보호 DB·QA DB에 이 점검으로 쓰지 않았다.
+- 18개 대표 Web route는 앞선 빌드에서 존재하지만 실제 행렬은 모두 `UNVERIFIED`다. 기존 `qa-public-fixture.ts`/`qa-fixture.ts`는 전용 `shoppingmall_qa_20261010_2`와 실제 PG system ID 대조를 지원한다. 반면 `qa-browser-fixture.ts`는 보호 `shoppingmall`만 허용하고, `scripts/qa-auth-browser.mjs`는 이전 `shoppingmall_auth_admin_1010`/구 system ID/포트 15442로 고정되어 있다. 따라서 이 둘을 승인된 전용 QA DB에 맞춘 가드·정리 검증 없이 실행하지 않는다. 다음 독립 작업은 변경 대상 시험 도구를 RED→GREEN으로 좁혀 전용 DB의 실제 화면 경로에 재사용하는 것이다.
+- 가입 시작은 기존 이메일에서 `account_identities` 조회 후 즉시 수락, 신규 이메일은 추가 token 발급·mock 전달을 수행한다. 복구 시작도 미등록 이메일에서 즉시 수락, 등록 이메일에서 token 발급·mock 전달을 수행한다. 동일 JSON 응답만으로 처리시간 차이 방어가 입증되지 않는 코드 경로다. 이 실행에서는 반복 시간 분포를 측정하지 않았으므로 Task 5 A8의 기준 RED·방어는 아직 미검증이다. 새 비동기 계약이나 고정 sleep을 임의 구현하지 않는다.
+
+## 2026-10-11 Task 6 전용 QA DB 브라우저 fixture 가드
+
+- 담당 어울. 시작 SHA `3e32c29a071bfbc22ba0198fdb0539f18b829e65`. `apps/api/test/qa-browser-fixture.test.mjs`에 승인된 전용 QA DB를 선택했으나 system ID가 없을 때 DB 연결 전에 거부해야 한다는 시험을 먼저 추가했다. 수정 전 표적 실행은 기대한 식별자 오류 대신 기존 `shoppingmall` 고정 거부로 **1 pass·1 fail(RED)**이었다.
+- `apps/api/scripts/qa-browser-fixture.ts`의 reset 진입점은 기존 보호 DB 경로와 이번에 승인된 전용 QA DB 경로만 허용하고, 후자의 system ID 설정을 연결 전 검사하며, 연결 후에는 실제 `current_database()`·PG system ID를 공통 가드로 대조한 뒤에만 변경 트랜잭션을 시작하도록 좁혀 수정했다. 표적 시험 **2 pass·0 fail(GREEN)**. 전체 로컬 `pnpm test` **635건/442 pass·193 DB 조건부 skip·0 fail**, PR 본문 8/8 pass; `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0(웹 31경로). 설계서·작업계획서와 제품 API/DB schema는 불변이다.
+- 이 가드의 실제 WSL QA DB 연결·상품 화면/정리 성공은 아직 미검증이고 보호 `shoppingmall`에 시험 행을 쓰지 않았다. 변경 파일은 이 시험·fixture·현황만이다. 다음은 exact SHA로 WSL 전용 DB 실연결·분리 자료의 생성/정리, 이어서 Task 6 화면 조작 행렬이다. 오류 횟수: 표적 RED 1회(의도한 실패), 구현 후 실패 0회.
+
+## 2026-10-11 Task 6 전용 QA DB 실제 식별 확인
+
+- 담당 어울. 로컬 작업 브랜치와 WSL 지정 checkout의 시작 SHA는 모두 `0917afcb63f5b1d2c7e6186337856cca77222697`이며 WSL checkout은 clean이다. 승인된 전용 `shoppingmall_qa_20261010_2`를 읽기 전용으로 조회해 실제 PG system ID `7622490131194466339`를 재확인했다.
+- 같은 WSL SHA에서 기존 `qa-fixture.ts`의 공통 식별 가드를 실제 전용 QA DB 연결로 실행했다. 정확한 DB명·system ID는 통과했고, 의도적으로 잘못 설정한 system ID `0`은 거부됐다. 두 호출 모두 `SELECT`만 수행했고 시험 행·보호 `shoppingmall`의 자료를 변경하지 않았다. 처음 원격 셸 인용 오류 1회는 SQL 실행 전에 발생했으며, 표준입력 스크립트로 수정한 재실행은 성공했다.
+- 이 증거는 식별 가드의 실연결에 한정된다. `qa-public-fixture.ts`의 상품 이름과 `qa-browser-fixture.ts` reset의 대상 이름이 달라 두 스크립트를 한 쌍으로 실행하지 않는다. 전용 QA 상품 seed/reset과 실제 WSL 18개 화면 조작·200% 브라우저 결과는 여전히 미검증이며, 다음에는 소유 범위와 정확한 정리 영수증을 먼저 좁혀 확인한다. 설계서·작업계획서는 변경하지 않았다.
+
+## 2026-10-11 Task 6 전용 QA 상품 fixture 실연결 준비
+
+- 담당 어울. 시작 로컬/WSL SHA `14d31b22cc6c12e6064b6053960514a5599dfc2c`, 작업 브랜치 `codex/work-plan-20261010-2`. 시험 자원은 기존 전용 DB `shoppingmall_qa_20261010_2` 안의 식별자 `c7101011` 소유 QA 계정 5개·판매자 3곳·판매자 분류 1개·상품 분류 2개·상품 1개로 한정한다. 보호 `shoppingmall` DB와 전용 QA DB에서 이 식별자의 계정·판매자·상품 분류·상품 버전 각 0행을 선조회했다.
+- 수명은 이번 seed→멱등 재시도→정리 시험 동안만이다. `qa-public-fixture.ts`의 자체 `seed`/`reset` 한 쌍만 사용하고 이름이 다른 `qa-browser-fixture.ts` reset과 섞지 않는다. 계정 비밀번호는 임시 프로세스 환경에서만 생성·사용하고 로그·Git에 남기지 않는다. 시험 후 두 DB의 해당 식별자 행과 전용 DB의 관련 상품/카트 잔류를 읽기 전용으로 재조회한다. 시험이 중간에 실패하면 이 식별자에 한해서만 동일 reset을 실행하고 잔류가 없을 때까지 원인을 기록한다. 기존 사용자 자료·불변 정산 사건은 삭제하지 않는다.
+- WSL exact SHA `14d31b22cc6c12e6064b6053960514a5599dfc2c`에서 전용 DB의 `qa-public-fixture.ts` seed 2회·reset 2회가 모두 exit 0으로 멱등 동작했다. 임시 비밀번호는 프로세스 환경에만 두고 결과·로그에 기록하지 않았다. 후조회에서 식별자 `c7101011`의 계정·판매자·판매자 분류·상품 분류·상품 버전은 전용 QA DB와 보호 DB 각각 모두 0행이다. 이 검증은 fixture의 자료 생성·정리에 한정하며, 실제 API/Next 화면의 18개 조작 행렬·200% 확대 및 불변 거래 시험은 여전히 미검증이다. 오류 횟수: 사전 조회 셸 인용 오류 2회(자료 변경 전), 표준입력 Node 조회로 해결; fixture 실행 실패 0회.
+
+## 2026-10-11 Task 6 공개 상품 DB 회귀 실행 전 자원 선언
+
+- 담당 어울. 시작 로컬/WSL exact SHA `1461a31e2f87c6bdf47657341f92426669355439`. 승인된 기존 전용 DB `shoppingmall_qa_20261010_2`에서 `apps/api/test/qa-public-fixture-db.test.mjs` 7개 시험이 각각 생성하는 8자리 난수 식별자의 가상 계정·판매자·상품(최대 25개)·예약/재고 대상만 일시 사용한다. 각 시험의 `finally` 정리를 그대로 사용하며 새 컨테이너·포트·보호 DB 쓰기는 없다. 실패 시 대상 식별자와 행 소유를 확인하고 해당 fixture의 reset으로만 정리한다. 종료 후 식별 가능한 `qa-`/`qa+` 잔류와 보호 DB 불변을 읽기 전용으로 후조회한다. 실제 화면 조작·200% 브라우저 증거로 승격하지 않는다.
+- WSL exact SHA에서 위 7개 DB 시험은 **7 pass·0 fail·0 skip**: 멱등 seed, 공개 상품 목록·상세, 25개 페이지 분할, 추가 비공개 버전·판매중지 이력·예약·재고 대기 정리까지 통과했다. PowerShell→SSH 표준입력의 CRLF 때문에 시험 파일 경로가 잘못 전달된 실행 2회와 인수 변환 오류 1회가 있었으나 시험 자료를 만들기 전의 호출 오류였고, CR 제거 파이프로 교정한 재실행은 exit 0이었다. 양 DB의 `qa+%` 계정·`qa-%` 판매자/분류/상품 버전·QA 예약 후조회는 각각 모두 0행이다. 이는 실제 API/Next 브라우저 18개 경로 검증이 아니며 행렬 판정은 변경하지 않는다. 변경 파일은 본 현황뿐이고 설계·계획은 불변이다.
+
+## 2026-10-11 Task 6 관리자 분류 HTTP 시험 자원 선언
+
+- 담당 어울. 시작 로컬/WSL SHA `f475cb8b7c7214cd3fffa833e80091ef6f514edb`. 전용 `shoppingmall_qa_20261010_2`의 system ID를 HTTP 시험 시작 전에 대조하고, 기존 `apps/api/test/catalog-http-db.test.mjs`가 만든 난수 가상 계정 1개·판매자 1곳·판매자 분류 1개·상품 분류 2개·감사 행만 잠시 사용한다. API listener는 루프백 임의 포트에 시험 중에만 존재하고 `finally`에서 닫는다. 기존 시험의 정확한 ID 정리만 허용하고 보호 `shoppingmall` DB·외부 발송·결제는 사용하지 않는다. 종료 후 QA 접두 계정/판매자/분류와 보호 DB는 읽기 전용으로 후조회하며 이 API 시험을 Next 실제 브라우저 조작 PASS로 표시하지 않는다.
+- 첫 실행은 DB 식별 가드가 통과한 뒤 Node 18에서 `sharp`의 JSON import attributes 문법 파싱 오류로 시험 코드 로드 전에 실패했다(1 fail·0 DB 시험 실행). 제품 코드/DB 결함이라고 추정하지 않고 런타임 원인을 확인했다. 같은 WSL SHA에서 기존 `node:24-bookworm-slim` 이미지(`sha256:59c575db...`)를 사용한다. 추가 시험 자원은 `shoppingmall-task6-catalog-http-1011` 이름의 `--rm` 일회성 컨테이너 1개, CPU 0.5·메모리 384MiB·읽기 전용 checkout mount·host loopback만이며 공개 포트/영속 volume은 없다. 비밀은 프로세스 환경 전달만 하고 값은 출력하지 않는다. 종료 시 이름 기반 잔류 0과 QA/보호 DB 행을 확인한다.
+- Node 24 일회성 실행의 실제 관리자 분류 HTTP 시험 **1 pass·0 fail·0 skip**. 기존 시험은 구매자/익명 관리자 등록 차단(403/401), 관리자 등록·중복 거부·공개 조회 및 감사 이력을 검증했다. 동일 SHA `f475cb8b7c7214cd3fffa833e80091ef6f514edb`, 전용 QA DB만 사용했다. 후조회에서 전용/보호 DB의 `qa+%` 계정, 시험 판매자, 판매자·상품 분류는 각각 0행이고 이름 지정 컨테이너 잔류도 0이다. 행렬 #11의 API 권한 부분 증거일 뿐 Next 화면·오류 재시도·PC 200% 검증이 아니므로 전체 판정은 `UNVERIFIED`다. 오류 횟수는 런타임 부적합 1회, Node 24 재실행 실패 0회. 설계·계획·제품 코드는 불변이다.
+
+## 2026-10-11 Task 6 판매자 상품 HTTP 시험 자원 선언
+
+- 담당 어울. 시작 로컬/WSL SHA `d8908372ca76e7ae1dc617312c84b6bc5da0069f`. 승인된 전용 DB `shoppingmall_qa_20261010_2`와 실제 PG system ID를 먼저 대조한다. 기존 `apps/api/test/product-http-db.test.mjs`의 난수 가상 고객/판매자 역할 계정 1개·판매자 A/B 2곳·상품 초안 2개·상품/판매자 분류·감사/세션만 일시 사용하고, 시험 `finally`의 정확한 ID 정리로 회수한다. `node:24-bookworm-slim`의 이름 `shoppingmall-task6-product-http-1011`인 `--rm` 컨테이너 1개를 CPU 0.5·메모리 384MiB·소스 읽기 전용·host loopback으로만 실행한다. 보호 DB/외부 발송·결제에는 쓰지 않으며 비밀은 환경 전달만 한다. 종료 뒤 가상 자료와 컨테이너 잔류 0을 후조회하고 이 결과를 Next 브라우저 화면 PASS로 승격하지 않는다.
+- WSL exact SHA의 실제 상품 HTTP 시험 **1 pass·0 fail·0 skip**. 구매자/타 판매자/허용되지 않은 Origin의 작성·수정·삭제 차단, 자기 판매자 초안 수정·조회와 미공개 유지, A 목록에는 보이고 B 목록에는 안 보이는 소속 분리를 검증했다. 후조회에서 전용/보호 DB의 QA 접두 계정·판매자·분류와 시험 제목의 상품 버전은 모두 0행, 이름 지정 컨테이너도 잔류 0이다. 행렬 #6의 API 부분 증거일 뿐 Next 화면·재시도 및 PC 200%는 `UNVERIFIED`로 유지한다. 실행 오류 0회, 설계·계획·제품 코드 불변.
+
+## 2026-10-11 Task 6 홈 공개 HTTP 시험 자원 선언
+
+- 담당 어울. 시작 로컬/WSL SHA `7602c1c2fa21c8eb49a35f56518cf636330d0454`. 승인된 전용 `shoppingmall_qa_20261010_2`의 홈 초안 version 1·빈 menu/events/recommendations·current publication NULL·발행 0건을 읽기 전용 선조회했고 보호 `shoppingmall`도 같은 값이다. 기존 `apps/api/test/home-public-http-db.test.mjs`가 난수 식별자의 가상 계정·판매자·상품 2개·이미지 메타데이터와 전용 DB 홈 초안/현재 발행을 시험 중에만 사용한다. 시험 `finally`가 원래 단일 설정을 복원하고 자기 발행/상품을 ID로 정리하는지 후조회한다. 실행 자원은 `shoppingmall-task6-home-http-1011` 이름의 Node24 `--rm` 컨테이너 1개(CPU 0.5·메모리 384MiB·읽기 전용 소스·host loopback)로 한정하고 외부 발송/PG·보호 DB 쓰기는 없다. 실패 시 전용 DB의 소유 ID와 복원 상태를 먼저 확인하고 다른 자료의 포괄 삭제는 하지 않는다.
+- WSL exact SHA에서 공개 홈 실제 HTTP 시험 **1 pass·0 fail·0 skip**. 미발행 초안의 비노출, 활성 행사와 공개 상품만 노출, 상품 가격·이미지/품절 상태 변경 시 공개 자료 갱신, 행사 비활성·미존재 응답을 확인했다. 후조회 전용/보호 DB 모두 홈 초안 version 1·빈 payload·current NULL·발행 0건으로 원상 유지되며 QA 계정·상품 버전·이미지 메타데이터 각 0행이다. 이름 지정 컨테이너 잔류 0. 행렬 #1의 API 부분 증거이며 Next 화면 조작·재시도·PC 200%는 `UNVERIFIED`다. 실행 오류 0회; 설계·계획·제품 코드 불변.
+
+## 2026-10-11 Task 8 현재 SHA 회귀 및 Task 6 브라우저 실행 경계
+
+- 담당 어울. 로컬 작업 브랜치와 WSL 지정 checkout의 exact SHA는 모두 `8b27f15ce59cca0a54cc891c137c40b8de016166`이다. WSL checkout은 clean, 9091/9092 listener는 없고 Web `.next` 빌드는 존재한다. 사용자 소유 비추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 변경하지 않았다.
+- 같은 SHA에서 로컬 `pnpm test` 635건/442 pass·193 DB 조건부 skip·0 fail, PR 본문 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로)을 확인했다. 193 skip은 실제 DB 시험 합격에 포함하지 않는다. 이번 실행은 새 DB 행·컨테이너·브라우저 프로필·포트를 만들지 않았다.
+- WSL 읽기 전용 자원 확인 시 2 vCPU 공유 호스트의 load average 3.73/3.72/3.98, swap 사용 5110/8192 MiB였다. 이 상태로 Task 4의 공유 30분 부하를 시작할 안전 근거가 없어 기존 `docs/design_change.md` 경계를 유지한다. 실제 18개 화면의 Next/API/DB 조작 행렬 및 PC 200% 증거는 계속 `UNVERIFIED`다.
+- 기존 `scripts/qa-auth-browser.mjs`는 구 전용 DB `shoppingmall_auth_admin_1010`, 구 system ID 및 15442 포트로 고정돼 있고 현재 승인된 QA DB를 그대로 사용할 수 없다. 다른 고객/판매자 브라우저 스크립트는 합성 계정 입력을 받지만 자체적으로 DB 식별·자료 생성을 하지 않으므로 먼저 승인된 전용 QA DB와 정확한 fixture·서비스·정리 경계를 연결해야 한다. 코드 변경이나 보호 DB 접속 없이 이 위험을 확인했다. 다음은 Task 6의 한 화면부터 실제 QA DB/Next 브라우저 경로를 제한적으로 연결하고 행별 증거를 쌓는 것이다.
+
+## 2026-10-11 Task 5·7 계정 브라우저 시험의 QA DB 가드 보정
+
+- 담당 어울. 시작 SHA `a223562758a482bbaad8d7ed7a12d523d24981f8`, 대상은 기존 시험 스크립트 `scripts/qa-auth-browser.mjs`와 신규 안전 가드 시험 한 파일뿐이다. 구 `shoppingmall_auth_admin_1010` 고정 때문에 승인된 `shoppingmall_qa_20261010_2`를 거부하는 사례를 먼저 재현했다. 첫 시험 실행은 Windows 파일 URL을 경로로 변환하지 않아 자식 프로세스 `ENOENT`가 났고, 시험 경로만 교정한 재실행에서 기대한 `PGDATABASE QA guard` 실패 **1건(RED)**을 확인했다.
+- 스크립트의 허용 DB를 승인된 전용 QA DB 한 곳으로 좁히고, 시작 전에 `PGDATABASE`·QA system ID 두 환경변수·루프백 URL/15442를 대조하며 연결 후에도 실제 `current_database()`와 PG system ID를 확인한다. 보호 `shoppingmall` URL은 연결 전에 거부한다. 표적 시험 **2 pass·0 fail(GREEN)**; 전체 로컬 `pnpm test` **637건/444 pass·193 DB 조건부 skip·0 fail**, PR 본문 8/8 pass, `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0이다. 빌드에서 Web 31경로가 생성됐다.
+- 이 검증은 가짜 루프백 DB 포트를 사용한 **접속 전 설정 가드**에 한정한다. 실제 QA DB 연결·계정 브라우저 여정·18개 화면·실제 200% 확대를 수행했다고 표시하지 않는다. 새 DB 행·컨테이너·포트·브라우저 프로필은 만들지 않았고 설계·계획·제품 API/DB schema는 불변이다. 실행 오류는 시험 경로 ENOENT 1회(자료 변경 전)이며 원인을 경로 변환으로 해결했다. 다음은 정확한 SHA를 WSL에 동기화한 뒤 안전한 QA DB/서비스 자원을 선언하고 한 화면의 실제 브라우저 흐름을 검증한다.
+
+## 2026-10-11 Task 5·7 계정 브라우저 실제 QA 준비 자원 선언
+
+- 담당 어울, 시작 SHA `f622c1fef93a3f55e4d15f59e065b3fa0e1f7315`. 대상 DB는 이미 승인된 WSL `local-postgres/shoppingmall_qa_20261010_2`, 실제 system ID `7622490131194466339`; 읽기 전용 선조회에서 계정·역할·세션·수단·신청 각 0행. 보호 `shoppingmall`에는 쓰지 않는다.
+- 시험 자원은 Windows 로컬 루프백 SSH 터널 15442→WSL 5432, 기존 로컬 Web 빌드의 9092 API 출처 재빌드, 시험 스크립트가 소유하는 API9092/Web9091/headless Chrome9229와 고유 임시 Chrome 프로필로 한정한다. 포트 4개 모두 시작 전 listener가 없음을 확인했다. QA 이메일은 `browser-...@example.invalid` 가상 주소, 링크 전달은 동일 프로세스 mock sink만 사용하며 실제 메일·PG·운영 Secret은 사용하지 않는다. PG 비밀번호는 원문 출력 없이 프로세스 환경으로만 전달한다.
+- 수명은 이번 가입→판매자 신청/심사→관리자 모의 초기 설정→비밀번호 재설정 브라우저 시험 동안이다. 스크립트 `finally`가 자기 account/category/seller/토큰/세션을 정확한 ID로 정리하고 API·Web·Chrome을 종료한다. 터널은 소유 프로세스 식별 후 종료한다. 실패하면 더 넓은 SQL 삭제 없이 해당 가상 ID와 DB 참조를 조사하고 보호 DB 불변·포트/프로필/프로세스 잔류를 확인한다. 이 경로는 실제 200% 확대나 외부 발송, WSL 실행 Web/API 18개 화면 검증을 대신하지 않는다.
+- 같은 SHA의 Windows 로컬 Web를 `NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:9092`로 재빌드해 31경로 생성(exit 0)을 확인하고, 루프백 터널을 통한 Node `pg` 읽기 조회로 실제 QA DB 이름·system ID가 위 값과 일치함을 확인했다. 첫 WSL `psql` 인용 시도 1회는 셸 문법 오류로 SQL 실행 전에 실패했고, 단순 SELECT 호출로 교정했다.
+- `scripts/qa-auth-browser.mjs`의 실제 headless Chrome 154.0.8037.98 여정은 **PASS**: 구매자 가입, 관리자 mock 첫 설정, 판매자 신청·관리자 심사, 비밀번호 재설정, 무효 링크 거부, mock 전달 실패 표시, 430/1440px 가로 넘침 및 Tab 순회, URL fragment 제거를 확인했다. 이는 QA DB 연결을 포함한 로컬 API/Web·Windows Chrome 증거이며 WSL에서 실행한 API/Next 18개 메뉴 전체나 실제 메일 수신·브라우저 자체 200% 확대 증거는 아니다.
+- 종료 후 전용 QA DB의 계정·역할·이메일 수단·세션·동작 토큰·판매자 신청·판매자·판매자 분류 8범주 각 0행, 보호 `shoppingmall`의 계정·역할·이메일 수단·세션·동작 토큰·판매자 신청 6범주 각 0행. 스크립트가 소유한 9091/9092/9229와 SSH 터널 15442 listener 모두 0, 가상 Chrome 프로필 잔류 0. 실제 비밀과 가상 비밀번호·링크는 기록하지 않았다. 다음은 별도 WSL API/Next 18개 메뉴 행렬을 좁혀 검증하는 것이다.
+
+## 2026-10-11 Task 6 다음 화면 시험 적합성 점검
+
+- 담당 어울. 로컬/WSL exact SHA `b2c006ce0c408acd157a57f2108664e5318a5693`, 작업 브랜치 `codex/work-plan-20261010-2` 및 사용자 소유 비추적 파일 3개를 확인했다. WSL 전용 QA DB `shoppingmall_qa_20261010_2`의 system ID `7622490131194466339`를 읽기 전용으로 확인했고, 9091/9092 listener는 0이다. 보호 DB에는 접속하거나 쓰지 않았다.
+- WSL 호스트는 2 vCPU에서 load average 2.89/3.37/3.95, swap 5114/8192 MiB 사용 중이다. 다른 서비스 영향/중단 기준이 없으므로 100사용자·30분 부하는 시작하지 않았고 Task 4의 미검증 판정을 유지한다.
+- `qa-s5-customer-browser.mjs`는 품절 옵션과 재입고 신청 버튼을 필수로 기다리지만, 현재 `qa-public-fixture.ts`가 만드는 유일한 `500g` 옵션은 재고 5개다. 두 스크립트를 그대로 연결하면 품절 단계가 타임아웃하므로 실제 고객 화면 PASS로 사용할 수 없다. 별도 판매 가능 상품의 장바구니 조작 스크립트가 기존 fixture와 맞는지 먼저 점검하고, 화면 시험 전에 QA DB의 정확한 seed/reset·서비스·브라우저 수명과 잔류 확인을 선언한다. 코드·DB·설계서·작업계획서 변경은 없다.
+
+## 2026-10-11 Task 1 로컬 이미지 격리 회귀 자원 선언
+
+- 담당 어울. 계획 Task 1의 기존 이미지 격리·정제·스캐너 실패 닫힘 회귀를 로컬에서 실행한다. 시험이 소유하는 자원은 운영 자료와 분리된 OS 임시 폴더 `shoppingmall-upload-test-*`와 루프백 임의 포트의 가상 스캐너 listener뿐이다. 시험 종료 시 각 테스트의 `finally`가 정확히 자기 폴더·listener를 회수하고, 전후 해당 접두 임시 폴더 목록과 listener 종료를 대조한다. 보호/QA DB, 외부 이미지 저장소, 실제 발송은 사용하지 않는다. WSL 2 vCPU의 최신 load average 13.87/7.30/5.21 때문에 공유 서버의 부하·브라우저 서비스는 이 실행에서 시작하지 않는다. 이 검증은 SeaweedFS 버전·PITR·결합 복원 PASS를 의미하지 않는다.
+- 같은 SHA `35b929369b29dbfb42ba0622ea6e3847579b527c`에서 `image-quarantine`·`image-sanitizer`·`image-scanner`·`image-scanner-clamd` 표적 시험은 9건 중 **8 pass·1 조건부 skip·0 fail**이었다. 서버 생성 비공개 키·정제된 WebP·경로 탈출 거부·MIME/용량/손상 반례·가상 스캐너 실패 닫힘을 확인했다. 실제 ClamAV 접속 시험 1건은 skip이며 실제 저장소 버전/복원 증거가 아니다. 시험 전후 새 `shoppingmall-upload-test-*` 임시 폴더 0건이다. 가상 스캐너는 각 시험 `finally`에서 닫혔고 현재 별도 외부 listener는 만들지 않았다.
+- Task 4의 로컬 결제 어댑터 표적 회귀는 **7 pass·0 fail·0 skip**으로 개발 전용 mock 부팅/QA run ID/외부 결제 키 거부, 결정적 사건 ID·금액 비교를 확인했다. 실제 주문·재고 DB 경로/외부 PG 요청 0/30분 부하의 증거는 아니다. Task 6 장바구니 브라우저 스크립트는 현행 500g·23,000원·재고 5개 fixture와 예상 상품 금액(2개 46,000원, 배송 포함 49,000원, 3개 69,000원)이 맞는다. 다만 WSL load average가 재조회 시 14.48/8.39/5.68, swap 5118/8192 MiB라 공유 서버의 신규 Web/API/브라우저·부하 시험은 시작하지 않았다. 다음은 자원 여유 확인 후 전용 QA DB·정확한 seed/reset으로 장바구니 화면을 제한적으로 실행한다. 오류 횟수 0; 설계서·작업계획서·제품 코드는 불변이다.
+
+## 2026-10-11 Task 6 장바구니 브라우저 시험 입력 경계
+
+- 담당 어울. 시작 로컬/WSL SHA `4b7f9382b5a376f50779ef758a2d8a0a6ed6a472`; 사용자 소유 비추적 3경로는 건드리지 않았다. 기존 `qa-cart-browser.mjs`가 임의 이메일·외부 Web URL·잘못된 상품 ID를 받은 뒤에도 브라우저 연결을 시도하는 위험을 확인했다. 신규 `scripts/qa-cart-browser-gate.test.mjs`의 세 반례는 수정 전 **0 pass·3 fail(RED)**이며, 실패 원인은 세 입력 모두 접속 시도였고 DB·브라우저·서버 자원 생성 전이었다.
+- 브라우저 시험 스크립트의 입력을 루프백 Web/Chrome, 8자리 시험 식별자의 `example.invalid` 구매자, UUID 상품 ID로 제한했다. 이어 Web base에 끝 슬래시가 있으면 화면 이동 URL에 이중 슬래시가 생기는 입력을 추가 RED(3 pass·1 fail)로 확인해 거부했다. 최종 표적 시험 **4 pass·0 fail(GREEN)**, 최종 로컬 `pnpm test`는 **641건 중 448 pass·193 DB 조건부 skip·0 fail**, PR 본문 시험 **8 pass·0 fail**이다. 최종 `pnpm typecheck`, `pnpm lint`, `pnpm build`도 각각 exit 0(웹 31경로)이다. 첫 전체 시험 호출은 샌드박스의 D 경로 `realpath` EPERM으로 시험 실행 전 실패 1회, 동일 명령을 허용된 실행 권한에서 재실행해 exit 0이었다. 제품 API/DB schema, 설계서·작업계획서는 불변이다.
+- WSL 2 vCPU load average를 이번 실행에서 재조회한 값은 4.04/5.55/5.67, swap 사용 5131/8192 MiB다. 서버가 여전히 과부하이고 다른 서비스 영향 기준이 없어 전용 QA DB·Next/API·브라우저 시험을 시작하지 않았다. 따라서 18개 화면 행렬·실제 200%·30분 부하 판정은 그대로 `UNVERIFIED`다. 변경 파일은 시험 스크립트·입력 경계 시험·본 현황 3개뿐이며 다음은 WSL 여유가 확인될 때 동일 SHA의 정확한 fixture로 장바구니 실제 조작을 검증한다.
+
+## 2026-10-11 Task 6 장바구니 로컬 브라우저·전용 QA DB 자원 선언
+
+- 담당 어울. 시작 로컬/WSL exact SHA `7979f55dafe6a73990b1c474802e26b786e57a80`, 승인된 전용 `shoppingmall_qa_20261010_2`의 PG system ID `7622490131194466339`를 읽기 전용 대조했다. 시험 ID `c7511011`의 이메일·판매자 분류·상품 버전은 실행 전 각각 0행이며 보호 `shoppingmall` DB에는 쓰지 않는다. WSL 2 vCPU load average 3.04/3.85/4.82와 swap 5128/8192 MiB로 공유 서버에 새 API/Web/부하 실행은 피하고, Windows 로컬 프로세스와 WSL 기존 전용 DB에 한 구매자만 연결한다.
+- 소유 자원은 `qa-public-fixture.ts`의 ID `c7511011`에 한정된 가상 5계정·판매자 3곳·분류·상품 1개 및 장바구니 행, Windows SSH 루프백 터널 15442→WSL 5432, 로컬 API9092/Web9091, 격리 headless Chrome9229와 고유 임시 프로필이다. 네 포트는 사전 listener 0이다. 가상 비밀번호·DB 비밀은 프로세스 환경에서만 사용하며 stdout/Git에 쓰지 않는다. 결제·외부 메일·실 PG는 켜지 않는다.
+- 순서는 DB identity 확인→해당 ID seed→루프백 Web/API/Chrome의 장바구니 수량·견적·제거 조작→동일 ID reset이다. 실패해도 자기 ID만 reset하고 테스트가 남긴 DB 참조를 확인한다. 소유 프로세스와 터널을 종료하고 프로필/포트·전용/보호 DB 대상 행의 잔류를 읽기 전용으로 확인한다. 이 실행은 로컬 API/Web+WSL QA DB의 한 화면 부분 증거이며 정식 WSL API/Next 18화면·Chrome/Edge 실제 200%의 대체 증거가 아니다.
+- 같은 SHA에서 Windows Web를 `NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:9092`로 재빌드(exit 0), 승인 QA DB(system ID 위 값)에 seed한 뒤 로컬 API/Web와 격리 Chrome의 `qa-cart-browser.mjs`가 **구매자 로그인→상품 2개 담기 46,000원+배송 3,000원=49,000원→3개로 변경 69,000원 무료배송→390px/Tab→제거·빈 장바구니**를 모두 통과했다. 이 시험은 결제·주문·WSL 실행 Next/API·실제 200%를 검증하지 않았다.
+- fixture `reset`은 exit 0, 전용 QA DB의 해당 ID 계정·판매자 분류·상품 버전·장바구니 4범주 0행, 보호 `shoppingmall`의 해당 ID 계정·판매자 분류·상품 버전 3범주 0행을 읽기 전용으로 확인했다. 로컬 정리 코드의 `Select-Object -Reverse` 미지원으로 fixture reset **후** 프로세스/프로필 정리에서 오류 1회가 발생했다. 대상 PID와 명령행을 확인해 QA 전용 SSH/API/Web/Chrome 트리만 종료하고 절대경로 `D:\tmp\shoppingmall-cart-profile-c7511011`만 삭제했다. 후조회 9091/9092/9229/15442 listener 0, 프로필 없음; 이름 문자열로 찾은 `pwsh` 1개는 검사 명령 자신으로 판정했다. 제품 기능 오류나 미정리 자원으로 표시하지 않는다.
+
+## 2026-10-11 Task 6 고객 브라우저 시험 입력 경계
+
+- 담당 어울. 시작 로컬·WSL SHA `29ef3dab2034617a48ea6e462c2becb41197e9c8`, 기존 작업 브랜치. 사용자 소유 비추적 세 경로는 건드리지 않았다. WSL 2 vCPU load average 3.14/3.74/4.35로 공유 서버의 Next/API/Chrome·30분 부하 실행은 하지 않았다.
+- 기존 `qa-s5-customer-browser.mjs`는 가상 고객 주소만 확인하고 Web·Chrome 접속 대상과 상품 ID를 확인하지 않은 채 Chrome 연결을 시도했다. 외부 Web/Chrome 주소·잘못된 상품 ID 세 반례를 추가해 수정 전 **0 pass·3 fail(RED)**을 확인했다. 입력을 127.0.0.1 Web9091·로컬 Chrome·8자리 QA 고객·UUID 상품으로 제한한 뒤 표적 시험 **3 pass·0 fail(GREEN)**. 이 실행은 접속 전 거부만 시험했고 새 QA DB 행·서버·브라우저 프로필을 생성하지 않았다.
+- 최종 로컬 `pnpm test`: **644건/451 pass·193 DB 조건부 skip·0 fail**, PR 본문 시험 **8 pass·0 fail**. `pnpm typecheck`, `pnpm lint`, `pnpm build` 각각 exit 0(웹 31경로). 변경은 고객 브라우저 QA 스크립트·가드 시험·본 현황에만 한정하고 설계·작업계획·제품 API/DB는 불변이다.
+- 실제 고객 화면 조작, WSL 실행 18화면, Chrome·Edge 실제 200%, 30분 부하 및 결합 복원은 이 가드 시험으로 검증되지 않았다. 다음은 서버 자원 허용 시 승인된 전용 QA DB에서 같은 SHA의 식별 가능한 fixture와 실제 브라우저를 사용하고, 시험 ID 자료와 포트·프로필을 사후 대조한다.
+
+## 2026-10-11 Task 7 Windows 브라우저 확대 시험 자원 선언
+
+- 담당 어울. 시작 SHA `0308909caa3c7c55e553123c8ed20afdf4358afd`, WSL 지정 checkout 동일 SHA·clean. WSL load average 3.49/6.02/5.57로 WSL의 신규 Web/API/Chrome·30분 부하는 실행하지 않는다. 로컬 9091/9092/9229/15442 listener 사전 0이며 Chrome에는 사용자 소유 탭만 있고 Edge 연결은 확인되지 않았다.
+- 계획의 실제 200% 검증 가능성을 확인하기 위해 Windows 로컬 Web 개발 서버 127.0.0.1:9091 한 프로세스와 새 Chrome 시험 탭 하나만 잠시 사용한다. API·DB·결제·메일은 시작하지 않는다. 계정 없는 공개 `/login`·`/signup` 화면의 브라우저 자체 확대만 부분 관찰하며 18개 역할 화면 전체 PASS로 승격하지 않는다.
+- 시험 후 확대 배율을 원래 상태로 돌리고 시험 탭·서버 프로세스를 닫아 9091 listener와 소유 자원 잔류 0을 확인한다. 기존 사용자 탭·설정은 보존한다. Chrome UI 제어가 실제 배율을 변경하지 못하면 증거를 미검증으로 남기고 `docs/design_change.md`의 차단 판정을 유지한다.
+- Chrome 사용자 브라우저의 새 로컬 `/login` 탭에서 기본 `innerWidth=1892`, `devicePixelRatio=1`, `scrollWidth=1892`를 관찰했다. 브라우저 입력 `Ctrl++`와 `Ctrl+=` 뒤에도 세 값이 모두 그대로였다. 따라서 실제 200% 브라우저 확대라고 판정하지 않았고 기존 Task 7 차단을 유지한다. 로그인 양식과 가입하기·비밀번호 찾기 링크는 AX 트리에서 노출됐으나 확대·API·DB 검증은 아니다.
+- 새 Chrome 탭을 닫은 후 탭 목록에서 해당 ID 부재, 로컬 Next 개발 서버 종료 후 9091 listener 0을 확인했다. Next dev가 `apps/web/next-env.d.ts`를 `.next/dev` 경로로 자동 변경한 것은 실행 전 추적 내용으로 되돌려 제품 파일 diff 0으로 대조했다. 기존 사용자 탭·설정·DB는 변경하지 않았다. 오류 횟수 0(확대 단축키 무효는 시험 판정).
+
+## 2026-10-11 Task 6 재입고 브라우저 fixture 시험 자원 선언
+
+- 담당 어울. 시작 로컬·WSL exact SHA `2c51eca7ea86e60aa30c9e0be449bb63b43cb553`, 작업 브랜치 clean(사용자 소유 비추적 세 경로 제외). 승인된 전용 `shoppingmall_qa_20261010_2`의 실제 PG system ID `7622490131194466339`를 다시 확인했고 고유 ID `c8311011`의 계정·상품 버전·분류는 실행 전 각 0행이다. 보호 `shoppingmall` DB는 쓰지 않는다.
+- 현행 `qa-s5-customer-browser.mjs`가 품절 옵션의 `재입고 신청` 버튼을 요구하지만 `qa-public-fixture.ts`는 판매 가능 500g 옵션만 만든다. 이번 계획 Task 6의 가상 화면 자료에 한해 선택적 품절 옵션을 제공하되 기본 500g·가격·장바구니 시험 계약은 유지한다. 먼저 전용 QA DB 실제 상품 상세에서 실패 시험(RED)→최소 fixture 변경→동일 DB 시험(GREEN) 순으로 검증한다.
+- 시험 자원은 가상 5계정·판매자 3곳·상품 1개·추가 품절 옵션 1개와 Windows SSH 루프백 터널 15442→WSL 5432뿐이다. 비밀번호는 프로세스 환경에서만 생성·사용하고 로그에 쓰지 않는다. 시험 `finally`에서 같은 ID의 `qa-public-fixture.ts reset`만 사용하고, QA·보호 DB 해당 ID 행과 터널/포트 잔류를 후조회한다. 결제·주문·불변 정산 사건·외부 메일은 생성하지 않는다.
+- 전용 QA DB 실연결에서 수정 전 표적 시험 **0 pass·1 fail(RED)**: 공개 상품 상세에 `500g/23,000원/재고 5`만 있고 예상한 `1kg/46,000원/재고 0`이 없었다. 시험 `finally` reset 후 ID `c8311011`의 계정·상품·분류 각 0을 확인했다. fixture에 선택적 `QA_PUBLIC_RESTOCK_OPTION=1`을 추가하고 기본 옵션/장바구니 설정을 보존했다. 같은 ID 두 번 seed 뒤 상세의 두 옵션을 확인한 표적 시험 **1 pass·0 fail(GREEN)**. 이후 전용 DB 계정·상품·분류·옵션 0, 보호 DB 계정·상품·분류 0을 각각 읽기 전용으로 확인했다.
+- 로컬 전체 `pnpm test` exit 0(다수 DB 조건부 skip은 실DB 통과로 합치지 않음), `pnpm typecheck`·`pnpm lint`·`pnpm build` 각 exit 0(웹 31경로). 시험 SSH 터널 종료 후 15442 listener·소유 프로세스 0. 변경은 가상 fixture·그 DB 시험·본 기록만이며 제품 API/schema/설계/작업계획은 불변이다. 이 결과는 **품절 옵션 자료 준비**이지 실제 고객 재입고 브라우저 조작·WSL 18화면/200% PASS가 아니다. 다음은 동일 옵션 자료를 사용한 제한적 고객 화면 조작과 즉시 정리다.
+
+## 2026-10-11 Task 6 고객 재입고 화면 시험 자원 선언
+
+- 담당 어울. 시작 로컬·WSL exact SHA `56734f3f6550cf61682c1d9f30d76401d1cc8650`. 승인된 WSL `local-postgres/shoppingmall_qa_20261010_2`의 PG system ID `7622490131194466339`와 시험 ID `e7411011`의 기존 계정·판매자·상품 각 0행을 읽기 전용 확인했다. 보호 `shoppingmall` DB에는 시험 거래를 쓰지 않는다.
+- `qa-public-fixture.ts`의 선택적 품절 옵션을 사용해 5개 가상 계정·판매자 3곳·공개 상품 1개/옵션 2개를 전용 QA DB에 일시 생성한다. Windows 로컬의 SSH 루프백 터널 15442→WSL 5432, API 9092/Web 9091, 격리 headless Chrome 9229/고유 프로필만 시험 수명 동안 사용한다. 네 포트의 시작 전 listener는 0, Web 빌드는 존재한다. 비밀·시험 비밀번호는 프로세스 환경에만 두고 외부 메일·PG·결제는 사용하지 않는다.
+- 순서는 DB 식별 확인→고유 ID seed→로컬 고객 화면의 로그인·수신 동의·찜·재입고 신청/취소→동일 ID reset이다. 실패해도 정확한 ID만 정리한다. 종료 후 전용/보호 DB 대상 행 0, 소유 프로세스·네 포트·Chrome 프로필 잔류 0을 후조회한다. 이 결과는 WSL 실행 Web/API 18화면 또는 실제 200% 확대의 증거로 승격하지 않는다.
+- 같은 SHA에서 로컬 Web를 API `http://127.0.0.1:9092`로 재빌드(exit 0, 31경로)하고 QA DB system ID·시작 ID 자료 0을 확인했다. Web/API 200, Chrome CDP와 `qa-s5-customer-browser.mjs`가 구매자 로그인·메일 동의 저장/재방문·430px 가로 넘침 없음/Tab 초점·상품 찜·품절 1kg 재입고 신청/계정 목록/재방문 유지/신청 취소를 실제 브라우저 조작으로 통과했다. 이는 로컬 Web/API와 WSL 전용 QA DB 연결의 한 고객 흐름 증거이며 외부 발송·WSL 실행 18화면·실제 브라우저 200%는 미검증이다.
+- 같은 `e7411011` fixture reset exit 0. 전용 QA DB와 보호 DB 양쪽의 해당 ID 계정·판매자·상품 버전·상품 분류는 각각 `0|0|0|0`으로 후조회했다. 9091/9092/9229/15442 listener 각 0, 시험 Chrome 프로필 부재; 시험 소유 프로세스만 종료하고 사용자 브라우저는 건드리지 않았다. 시험 명령 오류 0회. 제품 코드·설계서·작업계획서 변경 없음; 다음은 서버 자원 여유와 정확한 실행 SHA가 맞을 때 WSL 실행 화면 행렬을 좁혀 검증한다.
+
+## 2026-10-11 Task 6 부분 증거 행렬 반영
+
+- 담당 어울. 로컬·WSL exact SHA `e944dfb9e1b42a55c8905aeae0cacfca3cc00d22`, 작업 브랜치 `codex/work-plan-20261010-2`; 사용자 소유 비추적 자료는 보존한다. 앞선 고객 재입고 실제 브라우저 결과를 `docs/evidence/three-role-menu-matrix.md`의 #3 상품 상세·#5 고객 계정 **부분 증거**로만 연결했다. 행렬의 QA 명명 예시도 실제 `qa+<runId>-<role>@example.invalid`/`qa-<runId>-...` fixture와 대조해 바로잡았다. 해당 행의 주문/배송/클레임·권한·오류/재시도와 WSL 실행 Web/API·PC 200%는 여전히 `UNVERIFIED`다.
+- WSL 2 vCPU 재조회 시 load average 4.42/3.85/4.21, swap 사용 5126/8192 MiB라 신규 공유 서버 Web/API/Chrome 및 30분 부하는 시작하지 않았다. 이 기록은 문서 대조만 수행하며 DB·서버·브라우저 자원을 새로 생성하지 않았다. 변경 파일은 행렬과 본 현황뿐; 설계서·작업계획서·제품 코드는 불변이다.
+
+## 2026-10-11 Task 6 판매자 상품 화면 읽기 시험 자원 선언
+
+- 담당 어울. 시작 로컬·WSL exact SHA `63aa4fc2e203bdb0dd913ae7b6b541d2a1117cd7`, 작업 브랜치 `codex/work-plan-20261010-2`. WSL 2 vCPU load average 3.03/3.40/3.81, swap 사용 5120/8192 MiB이므로 신규 공유 서버 Web/API/Chrome은 실행하지 않고 Windows 로컬에서만 제한적으로 시험한다. 승인된 전용 DB `shoppingmall_qa_20261010_2`의 PG system ID `7622490131194466339`와 ID `f7411011`의 기존 계정·판매자·상품 각 0행을 대조했다.
+- `qa-public-fixture.ts`로 가상 계정 5개·판매자 A/B/어울몰 3곳·판매자 A 공개 상품 1개를 일시 생성한다. 소유 자원은 Windows SSH 루프백 터널 15442→WSL 5432, API9092/Web9091, 격리 headless Chrome9229/정확한 프로필 `D:\\tmp\\shoppingmall-seller-profile-f7411011`이다. 네 포트의 시작 전 listener는 0이다. 실제 비밀과 가상 암호는 프로세스 환경으로만 전달하고 보호 DB·외부 메일·결제·배송은 사용하지 않는다.
+- 실제 브라우저에서 판매자 A의 자기 상품/재고, 판매자 B의 빈 상품 목록, 구매자의 판매자 화면 차단을 각각 확인한다. 상품·재고는 변경하지 않는다. 종료 시 동일 ID fixture reset, QA/보호 DB 대상 행과 네 포트·정확한 프로필·소유 프로세스 잔류를 후조회한다. 이는 WSL 실행 18화면 전수나 실제 PC 200%의 대체 증거가 아니다.
+- 같은 SHA에서 Windows Web를 API9092 출처로 재빌드(exit 0, 31경로)하고, 전용 DB fixture의 판매자 A 공개 상품을 로컬 API/Web·격리 Chrome으로 조회했다. 판매자 A에게 자기 상품명·500g 재고 5개가 표시됐고 430px 가로 넘침 없음·Tab 초점 이동을 확인했다. 별도 로그인한 판매자 B에게는 상품 0개/빈 목록, 구매자에게는 판매자 화면 차단 메시지가 표시됐다. 브라우저 부분 시험은 세 단계 모두 PASS이며 상품·재고 변경은 하지 않았다. 오류/재시도, WSL 실행 Web/API, 실제 PC 200%는 미검증이다.
+- ID `f7411011` fixture reset exit 0; 전용 QA DB와 보호 DB의 대상 계정·판매자·상품 버전·상품 분류는 각각 `0|0|0|0`. Windows 9091/9092/9229/15442 listener 각 0, 정확한 Chrome 프로필 부재·이름 지정 소유 프로세스 0. 실행 오류 0회. 변경은 본 현황·18화면 증거 행렬만이며 제품 코드·설계서·작업계획서는 불변이다.
+
+## 2026-10-11 Task 6 관리자 분류 화면 읽기 시험 자원 선언
+
+- 담당 어울. 시작 로컬·WSL exact SHA `2f3597a9199464c87f898ede279299f1d940f113`, 작업 브랜치 `codex/work-plan-20261010-2`. 승인 전용 DB `shoppingmall_qa_20261010_2`의 PG system ID `7622490131194466339`를 확인했다. 보호 `shoppingmall` DB에는 쓰지 않는다.
+- 고유 ID `b7411011`의 가상 5계정·판매자 3곳·상품 분류 2단계와 상품 1개만 시험 수명 동안 만든다. Windows 로컬 SSH 루프백 15442, API9092/Web9091, 격리 Chrome9229/프로필 `D:\tmp\shoppingmall-admin-profile-b7411011`만 사용한다. 관리자 분류의 가상 자료 표시와 타 역할 접근 차단을 읽기 전용 화면 조작으로 확인하고 상품·분류는 변경하지 않는다.
+- 종료 시 동일 ID fixture reset, 전용/보호 DB 대상 행과 네 포트·프로필·소유 프로세스 잔류를 확인한다. 이는 WSL 실행 Web/API의 18화면 전수나 실제 PC 200% 확대의 대체 증거가 아니다.
+- 같은 SHA에서 Web를 API9092 출처로 빌드(exit 0, 31경로)하고 고유 ID fixture를 전용 QA DB에 생성했다. 로컬 API/Web·격리 Chrome에서 운영자 로그인 후 상품 대·소분류와 판매자 A, 등록 폼 표시를 확인했고 430px 가로 넘침 없음·Tab 초점 이동도 통과했다. 구매자 별도 로그인 후 관리자 분류 화면의 권한 경고와 등록 폼 비노출을 확인했다. 화면 시험 2단계 PASS이며 분류·상품의 실제 변경은 하지 않았다.
+- 시험 ID `b7411011`을 같은 fixture로 reset한 뒤 전용 QA DB·보호 DB 각각 대상 계정·판매자·상품 버전·상품 분류 `0|0|0|0`, Windows 9091/9092/9229/15442 listener 0, 정확한 Chrome 프로필 부재·소유 Chrome 0을 후조회했다. 오류/재시도·WSL 실행 Web/API·실제 PC 200%는 미검증이다. 제품 코드·설계서·작업계획서 변경 없음.
+
+## 2026-10-11 Task 6 관리자 요청 검토 화면 빈 상태 시험 자원 선언
+
+- 담당 어울. 시작 로컬·WSL exact SHA `fdb40118f937a311f86a4e199e1a497840103051`, 작업 브랜치 `codex/work-plan-20261010-2`. WSL 2 vCPU load average 3.43/3.71/3.70, swap 사용 5118/8192 MiB이라 서버에서 신규 Web/API/Chrome을 가동하지 않고 로컬 부분 시험만 한다.
+- 승인 전용 DB `shoppingmall_qa_20261010_2`의 PG system ID `7622490131194466339`와 고유 ID `c7411011`의 계정·판매자·판매자 분류 각 0행을 확인했다. 시험 수명 동안 가상 5계정·판매자 3곳·판매자 분류 1개만 생성하며 상품·제안·주문은 만들지 않는다. 소유 자원은 Windows 루프백 SSH15442, API9092/Web9091, 격리 Chrome9229/프로필 `D:\tmp\shoppingmall-admin-proposals-c7411011`이다. 시작 전 네 포트 listener 0, 프로필 없음.
+- 운영자의 승인 대기·재고 요청·판매중지 요청의 빈 상태와 타 역할 접근 차단, 430px/Tab을 읽기 전용 브라우저로 확인한다. 종료 시 같은 ID fixture reset, QA·보호 DB 행과 네 포트·프로필·소유 프로세스 잔류를 후조회한다. 이는 요청 심사·오류/재시도·WSL 실행 18화면·실제 PC 200%의 대체 증거가 아니다.
+- 현 SHA의 `admin-proposals` 기존 단위 시험 6 pass·0 fail·0 skip, Windows Web 빌드 exit 0(31경로). 로컬 API/Web·격리 Chrome에서 운영자 로그인 후 승인 대기 상품·재고 증가·판매중지 요청의 세 빈 상태와 예약 취소 입력을 확인하고 재방문 뒤에도 빈 상태를 확인했다. 430px에서 가로 넘침 없음·Tab 초점 이동, 구매자 로그인에서는 운영자 권한 경고·예약 취소 입력 비노출을 확인했다. 브라우저 부분 시험 2단계 PASS; 실제 요청 심사·오류/재시도·WSL 실행 Web/API·PC 실제 200%는 미검증이다.
+- 같은 ID `c7411011` fixture reset 후 전용 QA DB와 보호 DB 각각 대상 계정·판매자·판매자 분류·상품 버전 `0|0|0|0`. Windows 9091/9092/9229/15442 listener 0, 정확한 Chrome 프로필 부재·소유 Chrome 0. 제품 코드·설계서·작업계획서 변경 없음.
+
+## 2026-10-11 Task 6 구매자 상품 검색 화면 시험 자원 선언
+
+- 담당 어울. 시작 로컬·WSL exact SHA `57ca9cf6f3c288da3b2786a76bda4bc27efe3dbf`, 작업 브랜치 `codex/work-plan-20261010-2`. WSL 2 vCPU load average 3.66/3.78/3.70, swap 사용 5118/8192 MiB이라 공유 서버의 신규 Web/API/Chrome은 가동하지 않는다.
+- 승인 전용 DB `shoppingmall_qa_20261010_2`의 PG system ID `7622490131194466339`와 고유 ID `d7411011`의 계정·판매자·상품 분류·상품 버전 각 0행, Windows 9091/9092/9229/15442 listener 0, 정확한 프로필 `D:\tmp\shoppingmall-products-d7411011` 부재를 확인했다. 시험 중 가상 5계정·판매자 3곳·상품 분류 2단계·공개 상품 3개만 만든다.
+- Windows 루프백 SSH15442, 로컬 API9092/Web9091, 격리 Chrome9229와 위 프로필을 시험 수명에만 사용한다. 검색어·카테고리·판매자 필터와 빈 검색, 430px/Tab을 실제 화면에서 확인하되 상품·주문은 변경하지 않는다. 종료 시 같은 ID fixture reset, QA/보호 DB 대상 행과 포트·프로필·소유 프로세스 잔류를 후조회한다. WSL 실행 18화면 전수·오류/재시도·PC 실제 200%의 대체 증거가 아니다.
+- 첫 브라우저 실행은 검색어 제출·결과 1개까지 진행한 뒤 시험용 일회성 `nav()`가 쿼리를 포함한 입력 전체와 `location.pathname`만 비교해 `categoryId` 이동에서 timeout(오류 1회). 제품 검색 실패가 아니라 시험 도구의 URL 비교 오류로 판정했다. 동일 URL의 pathname·search를 분리한 최소 재현 RED→GREEN을 확인했다. 실패 실행의 fixture reset과 정확한 프로필·포트·소유 Chrome 정리 후 전용 DB 해당 ID 계정·판매자·분류·상품 버전 `0|0|0|0`을 재확인했다. 제품 소스 변경 없이 일회성 비교식만 고쳐 다시 시험한다.
+- 같은 SHA의 검색 페이지 단위 회귀 3 pass·0 fail·0 skip, Windows Web 빌드 exit 0(31경로). 보정한 일회성 브라우저 검사에서 공개 상품 3개 표시→검색 폼 제출로 특정 상품 1개→소분류 3개→판매자 3개→가격 내림차순 `23,002/23,001/23,000원`→결과 없음 문구→430px 가로 넘침 없음·Tab 초점 이동을 확인했다. 실제 검색/필터/정렬/빈 상태 부분 시나리오 PASS다. WSL 실행 Web/API, API 오류/재시도, 비공개 상품 차단의 브라우저 조작, 실제 PC 200%는 미검증이다.
+- 동일 ID `d7411011` reset 후 전용 QA DB와 보호 DB 각각 대상 계정·판매자·상품 분류·상품 버전 `0|0|0|0`, Windows 9091/9092/9229/15442 listener 0, 정확한 프로필 부재·소유 Chrome 0. 첫 실행 시험식 오류 외 제품 결함·잔여 자료는 확인되지 않았다. 제품 코드·설계서·작업계획서는 불변이다.
+
+## 2026-10-11 Task 6 관리자 프로모션 화면 빈 상태 시험 자원 선언
+
+- 담당 어울. 시작 로컬·WSL exact SHA `ba52d7877f9f2f555de8a1f969405de76cf9426d`, 작업 브랜치 `codex/work-plan-20261010-2`. WSL 2 vCPU load average 5.10/4.65/4.27, swap 사용 5117/8192 MiB이므로 공유 서버의 신규 Web/API/Chrome은 가동하지 않는다.
+- 승인 전용 DB `shoppingmall_qa_20261010_2`의 PG system ID `7622490131194466339`와 고유 ID `e7411011`의 계정·판매자·판매자 분류 각 0행, 기존 프로모션 0행을 읽기 전용 확인했다. 시험 중 가상 5계정·판매자 3곳·판매자 분류 1개만 생성하고 프로모션·주문·정산 사건은 만들지 않는다.
+- 소유 자원은 Windows 루프백 SSH15442, 로컬 API9092/Web9091, 격리 Chrome9229/프로필 `D:\tmp\shoppingmall-promotions-e7411011`이며 시작 전 네 포트 listener 0, 프로필 없음. 운영자 빈 목록·등록 폼의 필수 입력 차단, 구매자 접근 차단, 430px/Tab을 실제 브라우저에서 관찰한다. 종료 시 동일 ID fixture reset, 전용/보호 DB 대상 행·프로모션 행, 포트·프로필·소유 프로세스 잔류를 대조한다. 실제 혜택 등록·주문 금액 반영, WSL 실행 18화면·오류/재시도·PC 실제 200%와는 별도 증거다.
+- 현 SHA의 관리자 프로모션 단위 시험 3 pass·0 fail·0 skip, Windows Web 빌드 exit 0(31경로). 로컬 API/Web·격리 Chrome에서 운영자 로그인 후 프로모션 빈 목록과 5,000원 기본값, 이름 필수 입력 누락 시 브라우저 제출 차단, 430px 가로 넘침 없음·Tab 초점 이동을 확인했다. 구매자 별도 로그인에서는 운영자 권한 경고와 등록 폼 비노출을 확인했다. 화면 부분 시험 2단계 PASS이나 실제 프로모션 등록·할인/배송비 견적·오류 재시도·WSL 실행 Web/API·PC 실제 200%는 미검증이다.
+- 같은 ID `e7411011` fixture reset 뒤 전용 QA DB와 보호 DB 각각 대상 계정·판매자·판매자 분류·프로모션 `0|0|0|0`; Windows 9091/9092/9229/15442 listener 0, 정확한 프로필 부재·소유 Chrome 0. 실행 오류 0회, 제품 코드·설계서·작업계획서 변경 없음.
+
+## 2026-10-11 Task 6 판매자 네 화면 빈 상태 묶음 시험 자원 선언
+
+- 담당 어울. 시작 로컬·WSL exact SHA `40b1e32577c3c1c4cdea8cedcf7d8310a3e7fd13`, 작업 브랜치 `codex/work-plan-20261010-2`. WSL 2 vCPU load average 7.05/6.05/5.15, swap 사용 5116/8192 MiB이라 공유 서버 신규 Web/API/Chrome은 가동하지 않고 로컬 부분 시험만 수행한다.
+- 승인 전용 DB `shoppingmall_qa_20261010_2`의 PG system ID `7622490131194466339`와 고유 ID `a8411011`의 계정·판매자·판매자 분류 각 0행을 확인했다. 시험 중 가상 5계정·판매자 3곳·분류 1개만 만들고 상품·주문·문의·정산 사건은 만들지 않는다. 소유 자원은 Windows 루프백 SSH15442, 로컬 API9092/Web9091, 격리 Chrome9229/프로필 `D:\tmp\shoppingmall-seller-menus-a8411011`; 시작 전 네 포트 listener 0, 프로필 없음.
+- 판매자 A로 주문·배송 정책·고객지원·정산 화면의 빈 상태/조회와 430px·Tab을 관찰하고, 구매자로 같은 화면의 권한 차단을 확인한다. 배송 정책 변경 요청·정산 완료·송금·문의 답변은 제출하지 않는다. 종료 시 동일 ID fixture reset, 전용/보호 DB 대상 행과 네 포트·프로필·소유 프로세스 잔류를 확인한다. 이 부분 시험은 WSL 실행 18화면 전수·실제 주문/배송/정산 사건·오류 재시도·PC 실제 200%의 대체 증거가 아니다.
+- 현 SHA의 판매자 주문·고객지원·배송 정책·정산 관련 기존 단위 시험 **26 pass·0 fail·0 skip**, Windows Web 빌드 exit 0(31경로). 로컬 API/Web·격리 Chrome에서 판매자 A의 네 경로를 차례로 열어 발송 주문 없음, 배송 정책 및 변경 요청 없음, 문의·클레임 없음, 정산 자료 없음·전체 합계를 확인했다. 정산 화면 430px 가로 넘침 없음·Tab 초점 이동을 관찰했다. 구매자 별도 로그인에서는 네 경로 모두 역할 경고를 확인했다. 각 화면의 빈 상태/권한에 한정한 브라우저 부분 시험 8단계 PASS이고 실제 주문·출고·배송 변경 요청·문의 답변·정산 사건/인쇄·오류 재시도·WSL 실행 Web/API·PC 실제 200%는 미검증이다.
+- 동일 ID `a8411011` fixture reset 후 전용 QA DB와 보호 DB 각각 대상 계정·판매자·판매자 분류 `0|0|0`, 정산 사건 전체 0. Windows 9091/9092/9229/15442 listener 0, 정확한 프로필 부재·소유 Chrome 0. 첫 복합 후조회에서 정산 사건 출력이 빠져 분리 재조회 1회로 확인했으며 시험/제품 오류는 없었다. 제품 코드·설계서·작업계획서 변경 없음.
+
+## 2026-10-11 Task 5·7 독립 검증 경계 재확인
+
+- 담당 어울. 로컬·원격 작업 브랜치와 WSL 지정 checkout의 exact SHA `391b5fefdc13a955baac86e85d81104fe2fdccaf`, WSL checkout clean을 확인했다. 사용자 소유 비추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 변경하지 않았다. WSL 2 vCPU load average 6.44/7.58/6.65, swap 사용 5109/8192 MiB라 공유 서버 신규 Web/API/Chrome·30분 부하 경계는 여전히 충족하지 않는다.
+- 현 SHA에서 인증 전달·가입·복구 표적 로컬 시험은 **11건 중 1 pass·10 DB 조건부 skip·0 fail**이다. 실제 통과는 개발 루프백 mock 외 발송 실패 닫힘 1건뿐이며 나머지 10건은 DB 실연결 증거로 합산하지 않는다. 가입/복구 처리시간 반복 측정과 비동기 방어는 미실행이다. 브라우저 제어 목록에는 Chrome 연결만 있고 Edge 연결이 없으며 현재 로컬 시험 서버도 종료 상태라 Task 7의 실제 Chrome·Edge 200% 증거는 추가되지 않았다. 기존 `docs/design_change.md`의 Task 4·6·7 재개 조건을 유지한다. 이 확인으로 QA 행·상품·주문, 외부 발송, 브라우저 탭·프로필·서버 프로세스를 만들지 않았다. 변경은 본 현황 기록뿐이며 설계서·작업계획서·제품 코드는 불변이다.
+
+## 2026-10-11 Task 5 가입·복구 처리시간 기준 측정 자원 선언
+
+- 담당 어울. 시작 로컬·WSL exact SHA `4dfd6389208ac05f6e53baead7015df65215ea41`, 전용 QA DB `shoppingmall_qa_20261010_2`의 PG system ID `7622490131194466339`. 사전 읽기에서 전용/보호 DB 계정·수단은 각각 0/0이며 전용 DB 기존 보안 이력 29행은 이번 시험 소유가 아니므로 보존한다. WSL 2 vCPU load average 4.97/5.60/5.99, swap 5108/8192 MiB이므로 서버 신규 Web/API/Chrome·부하는 시작하지 않는다.
+- 고유 ID `b8411011`의 가상 등록 계정 1개와 미등록 가상 이메일, 목적별 4회 짝지은 모의 가입·복구 요청만 시험한다. 소유 자원은 Windows 루프백 SSH15442와 로컬 Node 시험 프로세스 1개, 전용 QA DB의 해당 ID 계정·일회용 수단·해시된 보안 이력이다. 먼저 포트·ID 부재를 확인하고 서버에 지속 서비스를 만들지 않는다. 외부 메일/문자·PG·보호 DB 쓰기는 0이다. 비밀값은 프로세스 환경에만 두고 출력하지 않는다.
+- 종료 시 같은 ID의 수단·보안 이력·계정을 순서대로 정확히 회수하고, 전용/보호 DB 대상 행·기존 보안 이력 29행·15442 listener/소유 프로세스 잔류를 확인한다. 이 결과는 처리시간 **기준 자료**일 뿐 A8 비동기 방어 구현이나 실제 외부 수신의 합격 증거가 아니다.
+- `apps/api/test/auth-timing-baseline-db.test.mjs`는 고유 가상 이메일과 4회씩 교차 순서를 사용해 기존/미등록 두 경로의 동일 응답과 모의 전달 횟수를 실제 전용 QA DB에서 측정한다. `b8411011` 실행 **1 pass·0 skip·0 fail**: 가입 기존 p50 50.876ms/p95 61.912ms, 미등록 p50 297.194ms/p95 398.278ms; 복구 기존 p50 178.795ms/p95 190.255ms, 미등록 p50 0.960ms/p95 2.374ms. 작은 표본·로컬↔WSL 터널 조건의 기준값일 뿐 공격 가능성의 정량 판정이나 A8 방어 PASS는 아니다. 코드 흐름과 함께 응답시간 차이가 실측돼 `docs/design_change.md`의 A8 경계를 갱신한다.
+- 시험 `finally`가 정확한 이메일·source 해시·계정 ID의 수단/보안 이력/계정을 정리했고, 사후 읽기에서 전용 QA DB 전체 계정·수단 0/0·기존 보안 이력 29행 불변, 보호 `shoppingmall` 전체 계정·수단·보안 이력 0/0/0, Windows 15442 listener 0이다. 첫 사후 SQL은 PowerShell→SSH 중첩 인용 오류 1회로 조회만 실패했고, 문자열 조건 없는 전체 건수 재조회로 바로잡았다. 제품 API/DB·설계서·작업계획서는 변경하지 않았다.
+- 로컬 전체 `pnpm test` 646건 중 **451 pass·195 DB 조건부 skip·0 fail**(PR 본문 검사 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로). 신규 측정 시험의 기본 환경 skip을 실DB 통과로 합산하지 않는다. 실제 외부 수신·동일 비동기 접수 방어·WSL 18화면·PC 200%·30분 부하는 계속 미검증이다.
+
+## 2026-10-11 Task 4 QA 부하 시작 사전 차단 경계
+
+- 담당 어울. 시작 SHA `8db6af2bd26cd160d9dba99b149a748bd6353585`. 제품의 기존 `assertPaymentBootConfig`/`assertQaLoadMode`가 listener 이전에 개발·루프백·mock·8자리 run ID·외부 PG credential 부재를 검사한다는 사실을 확인했다. 이번에는 계획 파일 지도에 명시된 `scripts/qa-load-gate.mjs`와 `apps/api/test/qa-load-mode.test.mjs`만 추가했다. 새 스크립트는 네트워크·DB에 접속하지 않고 같은 시작 차단 함수를 선실행하며 비밀값을 출력하지 않는다.
+- RED에서 안전 설정 시험은 스크립트 부재로 1 fail, 위험 설정 거부 시험 1 pass였다. GREEN에서 표적 결제/QA 시험 **9 pass·0 fail**. 전체 `pnpm test` 648건 중 **453 pass·195 DB 조건부 skip·0 fail**(PR 본문 검사 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로). 사용자 소유 비추적 파일은 건드리지 않았다.
+- 이 명령은 향후 부하 클라이언트 시작 전 호출할 사전 차단만 검증한다. 실제 부하 실행기와 결합되지 않았고 외부 PG HTTP 0·주문/재고/정산 정합성·30분 계측 증거가 아니다. QA 행·서버·포트·외부 서비스·보호 DB를 생성/변경하지 않았다. 공유 WSL 자원·승인 경계는 `docs/design_change.md` Task 4 기록대로 유지한다.
+
+## 2026-10-11 Task 6 18화면 경로 행렬 자동 감사
+
+- 담당 어울. 시작 SHA `c6a5f9f74149d0982f9c346d45c8b70c7d018ffb`; 로컬·WSL checkout 일치, WSL 2 vCPU load average 4.99/7.00/6.93와 swap 5110/8192 MiB 사용을 확인했다. 보호 DB와 전용 QA DB가 각각 존재하나 신규 서버·계정·상품·주문·포트·프로필은 만들지 않았다. 사용자 소유 비추적 파일은 그대로 보존한다.
+- 계획에 명시된 `scripts/qa-role-matrix.mjs`와 시험을 추가했다. 행렬의 18개 번호·역할·고유 경로와 실제 Next 페이지 파일을 대조하고 누락/중복이면 실패한다. RED는 실행기 모듈 부재로 1 fail, GREEN은 실 행렬·누락/중복 반례 **2 pass** 및 CLI 경로 `18/18`이었다. 전체 `pnpm test` 650건 중 **455 pass·195 DB 조건부 skip·0 fail**(PR 본문 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로).
+- 이는 경로 재고 감사일 뿐 18개 화면의 정상·오류·권한·재시도 조작, WSL 실행 Web/API, Windows Chrome/Edge 실제 200%의 PASS가 아니다. 행렬의 `UNVERIFIED` 판정과 `docs/design_change.md` Task 6·7 재개 조건은 유지한다. 변경 전 경로 문서·화면 동작은 보존했고 복구는 이 커밋의 두 신규 스크립트/시험과 현황 기록만 되돌리면 된다.
+
+## 2026-10-11 Task 4 QA 부하의 보호 DB 오지정 차단
+
+- 담당 어울. 시작 로컬·WSL exact SHA `bec005dcbfee2ba86dc6746a1acf3ce4a2486d3e`. WSL 2 vCPU load average 7.34/7.28/7.14, swap 5109/8192 MiB와 다수 기존 서비스를 확인해 신규 WSL 서비스·30분 부하는 시작하지 않았다. 이전의 `qa-load-gate.mjs`가 개발/mock/loopback 모드는 검사하나 `DATABASE_URL`이 보호 `shoppingmall`을 가리켜도 통과하는 빈틈을 발견했다.
+- RED에서 보호 DB 또는 QA 명칭 불일치 시험 1 fail(앞선 두 시험 2 pass), 별도 IPv6 루프백 반례 1 fail을 확인했다. 최소 수정으로 `PGDATABASE`와 `DATABASE_URL`의 DB 이름을 승인된 `shoppingmall_qa_20261010_2`로 일치시키고 URL의 PostgreSQL 프로토콜·허용된 루프백/`local-postgres` 호스트를 확인한다. 오류에는 연결 문자열/비밀을 출력하지 않는다. GREEN 표적 결제/QA **10 pass·0 fail**, 전체 `pnpm test` 651건 중 **456 pass·195 DB 조건부 skip·0 fail**(PR 본문 별도 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` exit 0(웹 31경로).
+- 이 검사는 설정 문자열의 사전 차단이다. 실제 접속 DB의 system ID·앱 서버와 부하 클라이언트의 동일 대상·외부 PG HTTP 0·30분 정합성을 증명하지 않는다. QA/보호 DB 행, 서비스·포트·외부 계정을 생성하거나 변경하지 않았고 설계서·작업계획서는 불변이다. `docs/design_change.md` Task 4의 환경·자원 재개 조건은 유지한다.
+
+## 2026-10-11 Task 1 기존 이미지 격리·권한 회귀 확인
+
+- 담당 어울. 시작 로컬·WSL exact SHA `c52a2d305a1a627b3288f8988ba9d8974b23b606`. 기존 코드에서 판매자 이미지 등록·조회·삭제가 검증된 세션의 판매자 ID와 상품 소유자를 대조하는 경로 및 타 판매자 거부 DB 시험을 확인했다. 기존 격리 이미지 키·비공개 파일·MIME/손상 파일·위조 판매자 헤더의 DB 비의존 시험은 **4 pass·0 fail**이다.
+- 최초 `node --test` 직접 실행은 TypeScript의 `.js` import 해석 실패 2건, 이어 `pnpm` 샌드박스 realpath 거부 1건이었다. 지정된 `tsx` 실행기로 권한을 맞춰 재실행해 4/4 통과했다. 제품 결함이나 DB 시험 실패로 집계하지 않는다. 변경 파일은 이 현황 기록만이며 사용자 소유 비추적 파일·설계서·작업계획서는 불변이다.
+- WSL 2 vCPU load average 7.43/8.06/7.97, swap 사용 5747/8192 MiB라 신규 WSL 서비스·30분 부하는 시작하지 않았다. 현행 파일 격리 시험은 SeaweedFS 객체 버전·동일 시점 복구, WSL 18화면, 실제 200% 확대의 증거가 아니다. `docs/design_change.md`의 Task 1~3·4·6·7 재개 조건을 유지한다.
+
+## 2026-10-11 Task 0 A1~A8 승인·환경 경계 대조
+
+- 담당 어울. 기준 SHA `14462bc9d43f22e4a7aca7092169e8e1963fb067`, 로컬 단일 작업 브랜치 `codex/work-plan-20261010-2`와 원격 ref 일치, WSL 지정 checkout 동일 SHA·clean. 사용자 소유 비추적 `apps/web/AGENTS.md`, `apps/web/CLAUDE.md`, `legacy-onedrive/`는 보존했다. 새 임시 자원·DB 행·서비스는 만들지 않았다.
+- A1: 실제 S3/SeaweedFS 버전·소유·삭제·보관 제품 계약은 미확정. 현행 로컬 격리 시험만 가능하다.
+- A2: 7일 PITR·일일 14개·RPO/RTO와 영속 WAL/역할/비밀·공유 적용은 미확정. 보호 DB 설정은 건드리지 않는다.
+- A3: DB와 이미지의 동시 경계·영수증 및 공유 복원 대상 미확정. 포맷/실패 반례 외 실제 결합 복원은 미검증이다.
+- A4: 계획의 1사용자 격리 mock smoke는 수행됐으나 100명·30분 공유 WSL 부하 창/중단 기준 승인은 별개이며 현재 자원도 불충족이다.
+- A5: 18개 대표 경로 및 별도 지속 QA DB `shoppingmall_qa_20261010_2` 사용은 신산님이 허용했다. 보호 `shoppingmall`에 시험 거래를 만들 권한은 없으며 정식 WSL 18화면은 자원 경계로 미검증이다.
+- A6: 자기 판매자 신청 조회 신규 공개 API·응답/보관 계약은 미확정. 기존 신청·심사 시험만 합격 범위다.
+- A7: 루트 비추적 `.env`의 초기 수신 대상 위치만 확인됐다. 정식 발송 공급자·발신자·소유 확인·비용/비밀 사용 승인은 없고 실제 수신은 미검증이다.
+- A8: 인증 전달의 별도 비동기 접수/재시도/만료/감사 계약은 미확정. 기존 mock의 시간차 기준 측정만 수행했다.
+- 위 판정은 `docs/WORK_PLAN_20260-10-10-2.md`의 승인 해석과 `docs/design_change.md`의 재개 조건을 대조한 것이다. 설계서와 작업계획서 수정이나 새 승인으로 취급하지 않는다. WSL 재조회 load average 4.43/4.79/6.41, swap 사용 5723/8192 MiB라 실제 18화면 서버/30분 부하는 여전히 시작하지 않았다.
+- WSL 동기화의 첫 읽기 명령은 PowerShell이 원격 문자열의 명령 치환을 로컬에서 해석해 경로 조회 오류 1회(원격 자료 변경 0). 별도 읽기로 WSL checkout clean을 재확인한 뒤 승인 원격을 fetch하여 exact SHA `6ac26eb18280f3e28685b674f934f2f727a506c5`로 맞췄다.
+
+## 2026-10-11 Task 4 QA 부하 실제 DB 식별 사전검사
+
+- 담당 어울. 시작 로컬·WSL exact SHA `5929077c67015de8da5ca2d01b7f78bf51df857e`, 브랜치 `codex/work-plan-20261010-2`. 변경은 `scripts/qa-load-gate.mjs`, 신규 `scripts/qa-load-db-attest.mjs`, `apps/api/test/qa-load-mode.test.mjs`와 본 현황 기록에 한정한다. 기존 URL 문자열 가드를 재사용하면서 실제 접속 대상의 `current_database()`와 `pg_control_system()` ID를 승인 QA 이름·명시된 ID와 읽기 전용 대조한다. 불일치·연결 실패에서는 비밀/연결 문자열/드라이버 stack을 출력하지 않고 실패 닫힘으로 종료한다.
+- RED: 신규 식별 모듈 부재 1 fail, 연결 실패 세부정보 노출 1 fail을 각각 확인했다. GREEN: 표적 **6 pass·0 fail**; 로컬 전체 `pnpm test` **654건 중 459 pass·195 DB 조건부 skip·0 fail**, PR 본문 검사 별도 8/8 pass, `pnpm lint`·`pnpm typecheck`·`pnpm build` exit 0(웹 31경로), `git diff --check` exit 0. RED 두 건은 의도한 시험 선행 실패이며 반복 제품 오류가 아니다.
+- 이 실행은 함수에 주입한 식별 결과와 루프백 연결 거절을 시험했다. 실제 QA DB로 접속한 CLI attestation, 서버·클라이언트 동일 대상/모드, 외부 PG HTTP 0, 30분 부하와 거래 정합성은 **미검증**이다. WSL 2 vCPU load average 4.67/4.73/5.50, swap 5673/8192 MiB라 공유 부하를 시작하지 않았다. 새 DB 행·컨테이너·포트·계정·외부 비용은 없으며 보호 `shoppingmall` DB는 변경하지 않았다. 복구는 위 신규 스크립트와 기존 가드·시험의 이 변경만 되돌리면 된다. 다음 단계는 안전한 exact SHA 보존 후 허용 QA DB의 읽기 전용 실제 식별 확인과 별도 승인된 시간/자원 경계 재평가다.
+
+## 2026-10-11 Task 4 전용 QA DB 실제 식별 읽기
+
+- 담당 어울. 로컬·WSL 코드 SHA `5e7e0b539ec57004548fd88b1259a7c6fa48e636` 일치·WSL checkout clean을 확인했다. 기존 `local-postgres`의 읽기 전용 SQL로 실제 접속 DB 이름 `shoppingmall_qa_20261010_2`와 PostgreSQL system ID `7622490131194466339`가 승인 대상과 일치함을 확인했다. 시험 거래·계정·새 서비스·포트는 만들지 않았다.
+- 이는 DB 서버에서 직접 수행한 식별 읽기이며 신규 Node CLI `qa-load-db-attest.mjs`가 같은 연결로 통과했다는 증거는 아니다. 앱 서버와 부하 클라이언트의 대상 일치, 모의 결제 격리, 30분 부하 및 거래 정합성도 미검증으로 유지한다. WSL 2 vCPU의 load average 5.45/5.70/5.66, swap 5629/8192 MiB라 공유 부하는 시작하지 않았다. 루트 `.env`에는 DB 연결 설정이 없으므로 실제 CLI 연결 검사는 안전한 설정 경로가 마련될 때 재개한다.
+
+## 2026-10-11 Task 7 실제 브라우저 확대 부분 시험 자원 선언
+
+- 담당 어울. 기존 브랜치 SHA `7fcc0609049c24317c2272fc11df4ad3ab1b4e3c`. Windows 로컬에 기존 빌드의 Next Web 하나를 `127.0.0.1:9091`로 이 시험 동안만 열고, 새 Chrome 시험 탭 하나에서 정적 계정 화면의 브라우저 자체 200% 확대 가능 여부를 확인한다. 서버 프로세스와 시험 탭은 종료 시 정리하고 포트 0을 확인한다. API/DB/시험 계정·외부 발송은 만들지 않으며 사용자 소유 탭·프로필·설정은 건드리지 않는다. 18화면 WSL 통합이나 Edge/계정 제출을 이 부분 시험으로 대체하지 않는다.
+- Windows 기존 빌드의 `/signup`을 신규 Chrome 시험 탭에서 실제 열어 제목·이메일 입력·API 미연결 안내를 관찰했다. 브라우저 탭 제어의 `Ctrl++`와 `Ctrl+=`는 화면의 글자·카드 크기를 바꾸지 않아 **브라우저 자체 200% 증거를 얻지 못했다**. CSS/viewport로 대체하지 않았다. 입력/제출·API/DB는 시험하지 않았다.
+- 첫 Web 시작은 작업 경로 sandbox `EPERM realpath`로 1회 실패했고 허용된 프로젝트 경로의 같은 루프백 명령을 재실행해 Ready를 확인했다. 시험용 Chrome 탭을 닫고 Web 프로세스를 종료한 뒤 9091 listener 0을 확인했다. 사용자 소유 탭/프로필·QA/보호 DB·외부 서비스 변경 0. Task 7의 실제 Chrome·Edge 200%와 18화면 행렬은 계속 미검증이다.
+
+## 2026-10-11 Task 7 Windows Chrome 자체 확대 재검증 자원 선언
+
+- 담당 어울. 시작 SHA `9a7e857d2f3871b6713bd9db53390a3e9402a9bb`. 로컬 기존 Next 빌드를 `127.0.0.1:9091` 한 프로세스로 이 시험 동안만 열고, 기존 Chrome의 사용자 탭을 변경하지 않도록 새 시험 창을 만들어 `/signup`만 확인한다. 창 자체 입력으로 200% 확대 표시와 화면 가시성을 대조한 뒤 시험 창·Web 프로세스를 종료하고 9091 listener 0을 확인한다. DB/API/계정/외부 서비스는 사용하지 않으며 다른 창·사용자 자료는 보존한다. 이는 정식 18화면/Edge/계정 제출 검증이 아니다.
+- 기존 Chrome에는 사용자 소유 창 두 개만 보였다. 그중 한 창의 접근성 상태를 읽어 대상 여부를 확인하려는 첫 시도가 사적 화면 접근 위험으로 자동 거부됐다(입력/변경 0). 거부를 우회하지 않고 Web 프로세스를 즉시 종료해 9091 listener 0을 확인했다. 별도 시험 창은 생성하지 않았고 실제 200% 화면은 미검증이다. 동일 원인 오류 1회; 해당 UI 경계의 재개 조건은 `docs/design_change.md`에 남긴다.
+
+## 2026-10-11 Task 6 관리자 배송·관제 시험 도구 대상 확인
+
+- 담당 어울. 작업 브랜치 `codex/work-plan-20261010-2`의 시작 SHA `242d14a3cfa503ad832cdc528cea1110dcbb8df5`와 사용자 소유 비추적 파일을 확인했다. `scripts/qa-fulfillment-browser.mjs`·`scripts/qa-monitoring-browser.mjs`는 모두 `qa-fulfillment-ui-fixture.ts`의 서명된 manifest에 의존한다. 해당 fixture는 `shoppingmall_s5_fulfillment_ui_<runId>` DB명과 일치하는 system ID만 허용하므로 이번 계획의 승인된 전용 `shoppingmall_qa_20261010_2`에 그대로 사용할 수 없다. 다른 DB를 만들거나 이 가드를 느슨하게 하지 않았다.
+- WSL 읽기 전용 재조회에서 2 vCPU load average 4.46/4.99/5.53, swap 사용 5491/8192 MiB였다. 신규 WSL Web/API/Chrome 및 30분 부하는 실행하지 않았다. 관리자 #14·#18의 화면 조작은 `UNVERIFIED`이며, 다음은 승인 전용 QA DB에 한정된 가상 자료·정리 경계를 별도로 마련한 뒤 자원 여유 시 실행한다. 이번 확인의 시험 행·서버·포트·외부 서비스 변경은 0, 제품 코드·설계서·작업계획서 변경은 0이다.
+
+## 2026-10-11 Task 4 QA DB 사전검사 실제 접속 자원 선언
+
+- 담당 어울. 시작 SHA `a9bfa72f1c75b85ed8f6652850b68b30492072f6`, WSL 지정 checkout 동일 SHA. 승인된 전용 DB `shoppingmall_qa_20261010_2`의 기존 localhost PostgreSQL 5432에 WSL Node 24 일회성 프로세스 1개만 접속해 `scripts/qa-load-db-attest.mjs`의 `current_database()`/system ID를 읽기 전용 대조한다. 기존 `local-postgres`의 개발 자격증명을 프로세스 환경으로만 전달하고 URL·비밀을 화면/로그/파일에 출력하지 않는다. 수명은 1회 조회 동안이며 종료 시 해당 프로세스·연결 잔류를 확인한다. 새 DB/컨테이너/포트/계정·가상 거래는 만들지 않고 보호 `shoppingmall` 자료는 읽거나 쓰지 않는다. 실패하면 비밀을 출력하지 않은 채 사유를 분류하고 다른 계획 작업을 계속한다.
+- 실제 실행에서 `QA load database attested`, exit 0을 확인했다. 조회는 승인 QA DB 이름과 PostgreSQL system ID `7622490131194466339`에 일치했고 연결은 풀 종료 경로를 통과했다. 새 컨테이너/포트/DB 행은 만들지 않았고 사후 `qa-load-db-attest` 프로세스는 0이었다. 로컬·WSL 작업 SHA는 실행 중 동일했다. 계획 Task 4의 DB 식별 **사전검사**에 한정된 합격이며 앱 서버·부하 클라이언트 동일 대상, 외부 PG 요청 0, 30분 성능·거래 정합성은 미검증이다.
+- 오류 2회: Windows 표준입력의 CR 문자가 원격 파일 경로 끝에 붙어 DB 연결 전에 모듈을 찾지 못했다. 무해한 입력으로 원격 `tr -d '\r'`를 확인한 뒤 동일 명령 1회 재실행해 통과했다. 이 실행에는 WSL 기본 Node 18이 사용됐으므로 상태 선언의 'Node 24'는 실제와 달랐다. DB 사전검사만의 실행 증거로 보존하고 정식 30분 부하의 런타임 검증으로 승격하지 않는다. 비밀값은 출력·저장하지 않았다.
+
+## 2026-10-11 Task 8 로컬 전체 회귀 자원 선언
+
+- 담당 어울. 시작 SHA `5c962f6023ddeac8ca2fe16979f24df37c878390`, 작업 브랜치 `codex/work-plan-20261010-2`. Windows 정본에서 `pnpm test`·`pnpm typecheck`·`pnpm lint`·`pnpm build`의 일회성 로컬 프로세스만 실행한다. 수명은 각 명령이 끝날 때까지이며 종료 후 소유 프로세스·포트 및 Git 변경 범위를 확인한다. Web 빌드의 무시 대상 산출물 외 지속 자료/DB/서버·외부 서비스는 만들지 않고 사용자 소유 비추적 파일과 설계서·작업계획서는 보존한다. 조건부 DB skip을 PASS로 합치지 않는다.
+- 현 SHA에서 `pnpm test` exit 0(일반 시험과 PR 본문 검사 8/8), `pnpm typecheck`·`pnpm lint`·`pnpm build` 모두 exit 0; Web 빌드 31경로 생성. 전체 시험 출력에서 DB 조건부 skip이 존재하므로 이를 실제 DB 통과로 합산하지 않는다. 테스트·빌드 후 변경은 본 현황 파일뿐이며 9091/9092 listener 0, 사용자 소유 비추적 파일 불변이다. WSL 실제 18화면·PC 실제 200%·7일 PITR/이미지 결합 복원·승인된 30분 부하는 여전히 미검증이고 이 로컬 회귀를 대체 증거로 쓰지 않는다. 실행 오류 0회.
+
+## 2026-10-11 Task 6 관리자 배송·관제 차단 기록 연결
+
+- 담당 어울. 시작 SHA `72935b88d1a0526862b9e6c7a1c7b0d1209efe55`. 앞서 확인한 기존 관리자 배송·관제 스크립트의 과거 전용 DB fixture 제약을 `docs/design_change.md` Task 6에 판정·영향·재개 조건으로 기록했다. 이번에는 가상 자료·서버를 만들지 않았고 WSL load average 2.94/3.32/3.43(2 vCPU), swap 5286/8192 MiB라 공유 서버 18화면·30분 부하는 실행하지 않았다. 관리자 #14·#18은 계속 `UNVERIFIED`; 사용자 소유 비추적 파일·설계서·작업계획서는 불변이다.
+
+## 2026-10-11 병합 전 Task 4 부하 API 시작 안전 재검토
+
+- 담당 어울. 작업 브랜치 `codex/work-plan-20261010-2`, 검토 기준 main `a2a2a3dd612df5125fd68bd92e1d87fb955251ae`. 독립 코드 검토에서 Important 1건: 기존 `qa-load-db-attest.mjs` 사전검사를 생략하면 `QA_LOAD_MODE=1` API가 실제 DB 식별 없이 리스너를 열 수 있었다. 이는 승인 계획 Task 4의 listener 시작 전 거부 조건에 해당한다.
+- RED: 보호/불일치 DB 설정이 `assertPaymentBootConfig`에서 거부되지 않는 시험 1 fail, 실제 QA DB 연결 실패 상태에서 API가 종료하지 않아 제한시간을 넘긴 시험 1 fail. GREEN: `apps/api/src/payments/adapter.ts`에서 승인 QA DB URL·이름·system ID 설정을 선검사하고, `apps/api/src/main.ts`에서 실제 `current_database()`·`pg_control_system()` 식별을 확인한 뒤에만 listener를 연다. 연결/식별 오류는 앱을 닫고 비밀을 숨긴 일반 오류로 거부한다. 변경 시험은 `apps/api/test/payment-adapter.test.mjs`, `apps/api/test/qa-load-mode.test.mjs`에 한정했다.
+- 표적 시험 통과 후 전체 `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` exit 0, Web 31경로 생성. 첫 전체 재실행은 신규 API 자식 프로세스의 5초 제한에 걸려 시험 1 fail이었고, 병렬 전체 실행에서도 안정적인 20초 제한으로 재실행해 통과했다. DB 조건부 skip은 실DB PASS가 아니다. 사전검사는 이미 기록된 QA DB 실제 식별 읽기와 구분하고, 실제 30분 부하·WSL 18화면·PITR/이미지 결합 복원·PC 200%는 계속 `UNVERIFIED`다. 공유 DB·외부 공급자·설계서·승인 계획서는 변경하지 않았다. 사용자 소유 비추적 파일은 보존한다.

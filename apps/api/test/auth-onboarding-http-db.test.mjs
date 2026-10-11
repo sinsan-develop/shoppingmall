@@ -9,19 +9,32 @@ import { AuthRepository } from '../src/auth/repository.ts';
 
 const systemId = process.env.AUTH_ADMIN_TEST_DB_SYSTEM_ID;
 
+async function checkedQaPool() {
+  const databaseName = process.env.PGDATABASE;
+  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2'].includes(databaseName));
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${databaseName}`);
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    const actual = await pool.query('SELECT current_database() AS name, system_identifier::text AS id FROM pg_control_system()');
+    assert.equal(actual.rows[0].name, databaseName);
+    assert.equal(actual.rows[0].id, systemId);
+    return pool;
+  } catch (error) {
+    await pool.end();
+    throw error;
+  }
+}
+
 test('admin setup HTTP is owner-link only, Origin protected, and creates no session cookie', {
   skip: !systemId,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_admin_1010');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = await checkedQaPool();
   const fixtureLock = await pool.connect();
   await fixtureLock.query("SELECT pg_advisory_lock(hashtext('auth-admin-qa-fixture'))");
   const httpSources = ['127.0.0.1', '::ffff:127.0.0.1', '::1'].map((address) =>
     createHmac('sha256', process.env.AUTH_AUDIT_HMAC_KEY).update(`source:${address}`).digest('hex'));
   await pool.query("DELETE FROM auth_security_events WHERE purpose='admin_setup' AND source_hash=ANY($1::text[])",
     [httpSources]);
-  const id = await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()');
-  assert.equal(id.rows[0].id, systemId);
   const email = `admin-http+${randomUUID()}@example.invalid`;
   const password = 'isolated-http-password-123';
   const source = `qa-${randomUUID()}`;
@@ -85,8 +98,7 @@ test('admin setup HTTP is owner-link only, Origin protected, and creates no sess
 test('seller application HTTP requires buyer session and only admin can review an existing seller', {
   skip: !systemId,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_admin_1010');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = await checkedQaPool();
   const fixtureLock = await pool.connect();
   await fixtureLock.query("SELECT pg_advisory_lock(hashtext('auth-admin-qa-fixture'))");
   const repository = new AuthRepository(pool);
@@ -179,8 +191,7 @@ test('seller application HTTP requires buyer session and only admin can review a
 test('customer signup HTTP keeps existing and unknown email responses equal and ignores role escalation', {
   skip: !systemId,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_admin_1010');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = await checkedQaPool();
   const email = `customer-http+${randomUUID()}@example.invalid`;
   const password = 'isolated-customer-http-123';
   const saved = [process.env.AUTH_DELIVERY_MODE, process.env.APP_ENV,
@@ -256,8 +267,7 @@ test('customer signup HTTP keeps existing and unknown email responses equal and 
 test('password reset HTTP hides account existence and invalidates the old session cookie', {
   skip: !systemId,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_admin_1010');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = await checkedQaPool();
   const repository = new AuthRepository(pool);
   const email = `reset-http+${randomUUID()}@example.invalid`;
   const unknown = `unknown-http+${randomUUID()}@example.invalid`;

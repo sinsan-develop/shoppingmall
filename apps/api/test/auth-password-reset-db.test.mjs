@@ -11,12 +11,12 @@ const systemId = process.env.AUTH_ADMIN_TEST_DB_SYSTEM_ID;
 test('verified owner reset revokes customer, seller and admin sessions atomically', {
   skip: !systemId,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_admin_1010');
+  const databaseName = process.env.PGDATABASE;
+  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2'].includes(databaseName));
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${databaseName}`);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const fixtureLock = await pool.connect();
   await fixtureLock.query("SELECT pg_advisory_lock(hashtext('auth-admin-qa-fixture'))");
-  const system = await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()');
-  assert.equal(system.rows[0].id, systemId);
   const email = `reset+${randomUUID()}@example.invalid`;
   const unknownEmail = `unknown+${randomUUID()}@example.invalid`;
   const password = 'isolated-reset-old-password-123';
@@ -34,6 +34,9 @@ test('verified owner reset revokes customer, seller and admin sessions atomicall
   let categoryId;
   let sellerId;
   try {
+    const system = await pool.query('SELECT current_database() AS name, system_identifier::text AS id FROM pg_control_system()');
+    assert.equal(system.rows[0].name, databaseName);
+    assert.equal(system.rows[0].id, systemId);
     const repository = new AuthRepository(pool);
     accountId = await repository.createCustomerAccount(email, password);
     await pool.query('UPDATE account_identities SET verified_at=$2 WHERE account_id=$1', [accountId, now]);
@@ -124,12 +127,12 @@ test('verified owner reset revokes customer, seller and admin sessions atomicall
 test('a login paused before session insert cannot leave an old-password session after reset', {
   skip: !systemId,
 }, async () => {
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_admin_1010');
+  const databaseName = process.env.PGDATABASE;
+  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2'].includes(databaseName));
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${databaseName}`);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const fixtureLock = await pool.connect();
   await fixtureLock.query("SELECT pg_advisory_lock(hashtext('auth-admin-qa-fixture'))");
-  const system = await pool.query('SELECT system_identifier::text AS id FROM pg_control_system()');
-  assert.equal(system.rows[0].id, systemId);
   const email = `reset-race+${randomUUID()}@example.invalid`;
   const oldPassword = 'isolated-race-old-password-123';
   const nextPassword = 'isolated-race-next-password-123';
@@ -140,6 +143,9 @@ test('a login paused before session insert cannot leave an old-password session 
   const enteredInsert = new Promise((resolve) => { insertSeen = resolve; });
   const insertGate = new Promise((resolve) => { releaseInsert = resolve; });
   try {
+    const system = await pool.query('SELECT current_database() AS name, system_identifier::text AS id FROM pg_control_system()');
+    assert.equal(system.rows[0].name, databaseName);
+    assert.equal(system.rows[0].id, systemId);
     accountId = await new AuthRepository(pool).createCustomerAccount(email, oldPassword);
     await pool.query('UPDATE account_identities SET verified_at=$2 WHERE account_id=$1', [accountId, now]);
     const token = await issueActionToken(pool, { purpose: 'password_reset', email,

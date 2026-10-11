@@ -6,8 +6,12 @@ const email = process.env.QA_EMAIL;
 const password = process.env.QA_PASSWORD;
 const productId = process.env.QA_PRODUCT_ID;
 const debugging = process.env.QA_CHROME_DEBUGGING ?? 'http://127.0.0.1:9229';
-if (!web || !/^qa\+[0-9a-f]{8}-customer@example\.invalid$/.test(email ?? '') || !password || !productId) {
-  throw new Error('QA browser inputs missing or customer is not synthetic');
+if (!/^http:\/\/127\.0\.0\.1:9091$/.test(web ?? '')
+  || !/^http:\/\/127\.0\.0\.1:\d+$/.test(debugging)
+  || !/^qa\+[0-9a-f]{8}-customer@example\.invalid$/.test(email ?? '')
+  || !password
+  || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(productId ?? '')) {
+  throw new Error('QA browser inputs invalid or outside synthetic loopback fixture');
 }
 
 const page = await fetch(`${debugging}/json/new?about:blank`, { method: 'PUT' }).then((response) => response.json());

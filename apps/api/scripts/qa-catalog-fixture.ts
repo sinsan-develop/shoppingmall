@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { Pool, type PoolClient } from 'pg';
-import { qaNames, runQaFixture, validateQaRunId } from './qa-fixture.js';
+import { assertQaFixtureDatabase, qaNames, runQaFixture, validateQaRunId } from './qa-fixture.js';
 
 /** Synthetic values only: never treat these prices or stock as a sales launch decision. */
 export const catalogQaSpecs = [
@@ -199,15 +199,31 @@ export async function resetQaCatalog(client: PoolClient, runId: string, qaAccoun
 export async function runQaCatalogFixture(action: 'seed' | 'reset', runId: string,
   databaseUrl: string, password?: string) {
   const id = validateQaRunId(runId);
-  if (new URL(databaseUrl).pathname !== '/shoppingmall') throw new Error('QA fixture is limited to shoppingmall database');
+  if (!['/shoppingmall', '/shoppingmall_qa_20261010_2'].includes(new URL(databaseUrl).pathname)) {
+    throw new Error('QA fixture is limited to shoppingmall database or approved role QA database');
+  }
   if (action !== 'seed' && action !== 'reset') throw new Error('Invalid QA action');
   if (action === 'seed') await runQaFixture('seed', id, databaseUrl, password);
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     const client = await pool.connect();
     try {
+      await assertQaFixtureDatabase(client, databaseUrl);
       await client.query('BEGIN');
-      const result = action === 'seed' ? await seedCatalog(client, id) : await resetQaCatalog(client, id);
+      const accounts = await client.query<{ account_id: string }>(
+        `SELECT account_id FROM account_identities WHERE kind='email' AND identifier=ANY($1::text[])`,
+        [qaNames(id).emails]);
+      if (accounts.rows.length !== 0 && accounts.rows.length !== 5) {
+        throw new Error('QA catalog has partial account fixture');
+      }
+      const accountIds = accounts.rows.length === 5 ? accounts.rows.map((row) => row.account_id) : undefined;
+      const safe = await assertQaCatalogResetSafe(client, id, accountIds);
+      if (safe.products > 0 && !accountIds) throw new Error('QA catalog has products without fixture accounts');
+      const result = action === 'seed'
+        ? safe.products === catalogQaSpecs.length
+          ? { products: catalogQaSpecs.length, sellers: 3, virtual: true }
+          : await seedCatalog(client, id)
+        : await resetQaCatalog(client, id, accountIds);
       await client.query('COMMIT');
       if (action === 'reset') await runQaFixture('reset', id, databaseUrl);
       return result;
