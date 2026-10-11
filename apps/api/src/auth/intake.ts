@@ -4,7 +4,7 @@ import { requireAuthDelivery, type MockAuthSink } from './delivery.js';
 
 export type IntakePurpose = 'customer_signup' | 'password_reset';
 export type IntakeJob = { id: string; purpose: IntakePurpose; email: string;
-  source_hash: string; attempts: number; lease_until: Date };
+  source_hash: string; attempts: number; lease_until: Date; created_at: Date };
 
 function normalizedEmail(value: string): string {
   if (typeof value !== 'string') throw new Error('Invalid email');
@@ -68,7 +68,7 @@ export async function claimAuthIntakeJob(pool: Pool, now: Date): Promise<IntakeJ
     ) UPDATE auth_intake_jobs j SET status='processing',attempts=j.attempts+1,
       lease_until=$2,updated_at=$1
       FROM picked WHERE j.id=picked.id
-      RETURNING j.id,j.purpose,j.email,j.source_hash,j.attempts,j.lease_until`,
+      RETURNING j.id,j.purpose,j.email,j.source_hash,j.attempts,j.lease_until,j.created_at`,
     [now, new Date(now.getTime() + 2 * 60 * 1000)]);
     await client.query('COMMIT');
     return result.rows[0];
