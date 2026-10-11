@@ -5361,3 +5361,9 @@
 
 - 담당 어울. 작업 브랜치 `codex/work-plan-20261010-2`의 시작 SHA `242d14a3cfa503ad832cdc528cea1110dcbb8df5`와 사용자 소유 비추적 파일을 확인했다. `scripts/qa-fulfillment-browser.mjs`·`scripts/qa-monitoring-browser.mjs`는 모두 `qa-fulfillment-ui-fixture.ts`의 서명된 manifest에 의존한다. 해당 fixture는 `shoppingmall_s5_fulfillment_ui_<runId>` DB명과 일치하는 system ID만 허용하므로 이번 계획의 승인된 전용 `shoppingmall_qa_20261010_2`에 그대로 사용할 수 없다. 다른 DB를 만들거나 이 가드를 느슨하게 하지 않았다.
 - WSL 읽기 전용 재조회에서 2 vCPU load average 4.46/4.99/5.53, swap 사용 5491/8192 MiB였다. 신규 WSL Web/API/Chrome 및 30분 부하는 실행하지 않았다. 관리자 #14·#18의 화면 조작은 `UNVERIFIED`이며, 다음은 승인 전용 QA DB에 한정된 가상 자료·정리 경계를 별도로 마련한 뒤 자원 여유 시 실행한다. 이번 확인의 시험 행·서버·포트·외부 서비스 변경은 0, 제품 코드·설계서·작업계획서 변경은 0이다.
+
+## 2026-10-11 Task 4 QA DB 사전검사 실제 접속 자원 선언
+
+- 담당 어울. 시작 SHA `a9bfa72f1c75b85ed8f6652850b68b30492072f6`, WSL 지정 checkout 동일 SHA. 승인된 전용 DB `shoppingmall_qa_20261010_2`의 기존 localhost PostgreSQL 5432에 WSL Node 24 일회성 프로세스 1개만 접속해 `scripts/qa-load-db-attest.mjs`의 `current_database()`/system ID를 읽기 전용 대조한다. 기존 `local-postgres`의 개발 자격증명을 프로세스 환경으로만 전달하고 URL·비밀을 화면/로그/파일에 출력하지 않는다. 수명은 1회 조회 동안이며 종료 시 해당 프로세스·연결 잔류를 확인한다. 새 DB/컨테이너/포트/계정·가상 거래는 만들지 않고 보호 `shoppingmall` 자료는 읽거나 쓰지 않는다. 실패하면 비밀을 출력하지 않은 채 사유를 분류하고 다른 계획 작업을 계속한다.
+- 실제 실행에서 `QA load database attested`, exit 0을 확인했다. 조회는 승인 QA DB 이름과 PostgreSQL system ID `7622490131194466339`에 일치했고 연결은 풀 종료 경로를 통과했다. 새 컨테이너/포트/DB 행은 만들지 않았고 사후 `qa-load-db-attest` 프로세스는 0이었다. 로컬·WSL 작업 SHA는 실행 중 동일했다. 계획 Task 4의 DB 식별 **사전검사**에 한정된 합격이며 앱 서버·부하 클라이언트 동일 대상, 외부 PG 요청 0, 30분 성능·거래 정합성은 미검증이다.
+- 오류 2회: Windows 표준입력의 CR 문자가 원격 파일 경로 끝에 붙어 DB 연결 전에 모듈을 찾지 못했다. 무해한 입력으로 원격 `tr -d '\r'`를 확인한 뒤 동일 명령 1회 재실행해 통과했다. 이 실행에는 WSL 기본 Node 18이 사용됐으므로 상태 선언의 'Node 24'는 실제와 달랐다. DB 사전검사만의 실행 증거로 보존하고 정식 30분 부하의 런타임 검증으로 승격하지 않는다. 비밀값은 출력·저장하지 않았다.
