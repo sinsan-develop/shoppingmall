@@ -15,8 +15,9 @@ test('isolated QA records signup and reset latency for present and absent identi
   skip: !runId || !expectedSystemId,
 }, async () => {
   assert.match(runId, /^[a-z0-9]{8}$/);
-  assert.equal(process.env.PGDATABASE, 'shoppingmall_qa_20261010_2');
-  assert.equal(new URL(process.env.DATABASE_URL).pathname, '/shoppingmall_qa_20261010_2');
+  assert.ok(['shoppingmall_qa_20261010_2', 'shoppingmall_auth_intake_1011']
+    .includes(process.env.PGDATABASE));
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${process.env.PGDATABASE}`);
   assert.equal(process.env.APP_ENV, 'development');
   assert.equal(process.env.AUTH_DELIVERY_MODE, 'mock');
   assert.equal(process.env.API_HOST, '127.0.0.1');

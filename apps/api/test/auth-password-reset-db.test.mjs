@@ -13,7 +13,8 @@ test('verified owner reset revokes customer, seller and admin sessions atomicall
   skip: !systemId,
 }, async () => {
   const databaseName = process.env.PGDATABASE;
-  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2'].includes(databaseName));
+  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2',
+    'shoppingmall_auth_intake_1011'].includes(databaseName));
   assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${databaseName}`);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const fixtureLock = await pool.connect();
@@ -137,7 +138,8 @@ test('a login paused before session insert cannot leave an old-password session 
   skip: !systemId,
 }, async () => {
   const databaseName = process.env.PGDATABASE;
-  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2'].includes(databaseName));
+  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2',
+    'shoppingmall_auth_intake_1011'].includes(databaseName));
   assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${databaseName}`);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const fixtureLock = await pool.connect();

@@ -12,7 +12,8 @@ const systemId = process.env.AUTH_ADMIN_TEST_DB_SYSTEM_ID;
 
 async function checkedQaPool() {
   const databaseName = process.env.PGDATABASE;
-  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2'].includes(databaseName));
+  assert.ok(['shoppingmall_auth_admin_1010', 'shoppingmall_qa_20261010_2',
+    'shoppingmall_auth_intake_1011'].includes(databaseName));
   assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${databaseName}`);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
