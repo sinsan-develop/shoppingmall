@@ -89,7 +89,7 @@ export async function retryAuthIntakeJob(pool: Pool, job: IntakeJob, now: Date):
   const exhausted = job.attempts >= 5;
   const result = await pool.query(`UPDATE auth_intake_jobs SET status=$3,
     available_at=$4,lease_until=NULL,updated_at=$5,
-    completed_at=CASE WHEN $3='dead' THEN $5 ELSE NULL END,
+    completed_at=CASE WHEN $3='dead' THEN $5::timestamptz ELSE NULL END,
     last_error_code='processing_failed'
     WHERE id=$1 AND status='processing' AND lease_until=$2`,
   [job.id, job.lease_until, exhausted ? 'dead' : 'pending',
