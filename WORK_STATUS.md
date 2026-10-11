@@ -5340,3 +5340,8 @@
 - 담당 어울. 시작 로컬·WSL exact SHA `5929077c67015de8da5ca2d01b7f78bf51df857e`, 브랜치 `codex/work-plan-20261010-2`. 변경은 `scripts/qa-load-gate.mjs`, 신규 `scripts/qa-load-db-attest.mjs`, `apps/api/test/qa-load-mode.test.mjs`와 본 현황 기록에 한정한다. 기존 URL 문자열 가드를 재사용하면서 실제 접속 대상의 `current_database()`와 `pg_control_system()` ID를 승인 QA 이름·명시된 ID와 읽기 전용 대조한다. 불일치·연결 실패에서는 비밀/연결 문자열/드라이버 stack을 출력하지 않고 실패 닫힘으로 종료한다.
 - RED: 신규 식별 모듈 부재 1 fail, 연결 실패 세부정보 노출 1 fail을 각각 확인했다. GREEN: 표적 **6 pass·0 fail**; 로컬 전체 `pnpm test` **654건 중 459 pass·195 DB 조건부 skip·0 fail**, PR 본문 검사 별도 8/8 pass, `pnpm lint`·`pnpm typecheck`·`pnpm build` exit 0(웹 31경로), `git diff --check` exit 0. RED 두 건은 의도한 시험 선행 실패이며 반복 제품 오류가 아니다.
 - 이 실행은 함수에 주입한 식별 결과와 루프백 연결 거절을 시험했다. 실제 QA DB로 접속한 CLI attestation, 서버·클라이언트 동일 대상/모드, 외부 PG HTTP 0, 30분 부하와 거래 정합성은 **미검증**이다. WSL 2 vCPU load average 4.67/4.73/5.50, swap 5673/8192 MiB라 공유 부하를 시작하지 않았다. 새 DB 행·컨테이너·포트·계정·외부 비용은 없으며 보호 `shoppingmall` DB는 변경하지 않았다. 복구는 위 신규 스크립트와 기존 가드·시험의 이 변경만 되돌리면 된다. 다음 단계는 안전한 exact SHA 보존 후 허용 QA DB의 읽기 전용 실제 식별 확인과 별도 승인된 시간/자원 경계 재평가다.
+
+## 2026-10-11 Task 4 전용 QA DB 실제 식별 읽기
+
+- 담당 어울. 로컬·WSL 코드 SHA `5e7e0b539ec57004548fd88b1259a7c6fa48e636` 일치·WSL checkout clean을 확인했다. 기존 `local-postgres`의 읽기 전용 SQL로 실제 접속 DB 이름 `shoppingmall_qa_20261010_2`와 PostgreSQL system ID `7622490131194466339`가 승인 대상과 일치함을 확인했다. 시험 거래·계정·새 서비스·포트는 만들지 않았다.
+- 이는 DB 서버에서 직접 수행한 식별 읽기이며 신규 Node CLI `qa-load-db-attest.mjs`가 같은 연결로 통과했다는 증거는 아니다. 앱 서버와 부하 클라이언트의 대상 일치, 모의 결제 격리, 30분 부하 및 거래 정합성도 미검증으로 유지한다. WSL 2 vCPU의 load average 5.45/5.70/5.66, swap 5629/8192 MiB라 공유 부하는 시작하지 않았다. 루트 `.env`에는 DB 연결 설정이 없으므로 실제 CLI 연결 검사는 안전한 설정 경로가 마련될 때 재개한다.
