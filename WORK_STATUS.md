@@ -2,6 +2,11 @@
 
 ## 2026-10-11 `WORK_PLAN_20260-10-11.md` Stage 3 정리 및 Stage 4 QA fixture 보호 진행
 
+- R16 교차 작업 보정 결과: exact SHA `e7c0ef4d84616ed644e6367b7bd0686b92f81b3c`를 SSH 원격·WSL 지정 checkout에서 일치시켜 전용 DB에 0000~0027 적용했다. 인증 접수·교차 작업 경합·모의 전달 실패 재시도·관리자/가입/복구 HTTP/DB 9/9 pass/0 skip/0 fail. 기존 0026은 불변, 신규 0027에 작업 ID와 전달 실패 표지만 추가했다. 계정·큐·토큰·감사·세션·주문·정산 각0, 격리 보안사건24, 연결 세션0 확인 후 전용 DB 한 개 제거·이름 잔류0. 보호 `shoppingmall`·고정 QA DB 쓰기0.
+- R16 보정 후 최종 로컬 순차 회귀: `pnpm test` 674건/476 pass/198 DB 조건부 skip/0 fail, PR 본문 8/8; `pnpm typecheck`·`pnpm lint`·`pnpm build` 각 exit0, 웹 31경로. 조건부 skip은 실DB/화면 합격으로 계산하지 않는다. Stage 2 R15 신규 GET의 401·빈 목록·본인 pending/approved/rejected·타인 차단은 기존 `auth-onboarding-http-db.test.mjs`의 격리 HTTP 시험에서 확인했지만 실제 브라우저 새로고침/재로그인은 `UNVERIFIED`다. Stage 4 고정 QA DB seed→부분 화면→reset은 WSL 2 vCPU load 6.97/6.42/6.45, swap 5.1GiB, 사용자 10명으로 미실행·`UNVERIFIED`다. 작업 브랜치의 코드·시험은 push했으나 문서 최종 판정 기록은 후속 commit 전이다.
+
+- R16 교차 작업 GREEN 자원 선언: 승인 SSH push `e7c0ef4`를 WSL 지정 checkout에 맞췄다. 이름 부재를 재확인한 후 격리 DB `shoppingmall_auth_intake_1011` 한 개만 생성해 0000~0027 적용, 교차 작업 경합과 모의 전달 실패 재시도·인증 HTTP/DB를 시험한다. 보호 `shoppingmall`·고정 QA DB 쓰기 0. 종료 시 시험 행·불변 정산·세션 및 연결을 확인하고 정확한 전용 DB 하나만 제거해 이름 잔류 0을 확인한다.
+
 - R16 교차 작업 경합 RED: exact SHA `c278ceba1c80fb904e2871cac1a6f339b7e40f21` 격리 DB에서 2시험/1 pass/1 fail로 옛 작업 재시도가 새 링크를 다시 보내 4개 예상 대신 5개 전달되는 결함을 확인했다. 원인은 첫 작업 토큰이 새 발급으로 revoked되면 재시도에서 같은 작업의 성공 발급 근거가 사라지는 점이다. 0027 신규 migration에 전달 실패 구분 시각을 추가하고, 실패 아닌 같은 작업의 과거 발급은 revoked/consumed 이후에도 재발급하지 않도록 보정 중이다. 기존 0026은 불변이다. 수정 전 DB `shoppingmall_auth_intake_1011`은 정확한 이름·행·세션을 확인해 제거한 뒤 새 0027 SQL로 재생성한다. 보호 DB·고정 QA DB 쓰기 0.
 
 - R16 교차 작업 재시도 RED 자원 선언: 승인 SSH push `c278ceb`를 WSL 지정 checkout에 맞춘 뒤, 부재를 확인할 격리 DB `shoppingmall_auth_intake_1011` 하나를 잠시 생성한다. 0000~0027을 적용하고 옛 작업 완료 SQL 실패→새 접수 링크 전달→옛 작업 재시도 순서의 실패 시험만 실행한다. 보호 `shoppingmall`·고정 QA DB 쓰기 0. 시험 뒤 계정·큐·토큰·감사·세션·정산·DB 연결을 확인한 다음 이 DB만 제거하고 이름 잔류 0을 검증한다.
