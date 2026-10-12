@@ -1,7 +1,7 @@
 import type { Pool } from 'pg';
 import { claimAuthIntakeJob, expireAuthIntakeJobs, finishAuthIntakeJob,
   retryAuthIntakeJob } from './intake.js';
-import { getQaAuthSink, type MockAuthSink } from './delivery.js';
+import { assertAuthDeliveryBootConfig, getQaAuthSink, type MockAuthSink } from './delivery.js';
 import { processCustomerSignupIntake } from './onboarding.js';
 import { processPasswordResetIntake } from './password-recovery.js';
 
@@ -28,7 +28,9 @@ export async function processAuthIntakeOnce(pool: Pool, now: Date,
 }
 
 export function startAuthIntakeLoop(pool: Pool): () => void {
-  if (process.env.AUTH_DELIVERY_MODE !== 'mock' || process.env.APP_ENV !== 'development' ||
+  const mode = process.env.AUTH_DELIVERY_MODE;
+  if (mode === 'smtp') assertAuthDeliveryBootConfig(process.env);
+  else if (mode !== 'mock' || process.env.APP_ENV !== 'development' ||
       !['127.0.0.1', '::1', 'localhost'].includes(process.env.API_HOST ?? '')) return () => {};
   let running = false;
   const timer = setInterval(() => {
