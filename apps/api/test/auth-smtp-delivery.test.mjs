@@ -198,6 +198,7 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
     const received = [];
     const recipients = [];
     let rejectFirstMessage = true;
+    let rejectionEvents = 0;
     const server = new SMTPServer({ secure: true, key: await readFile(keyPath),
       cert: await readFile(certPath), disabledCommands: ['AUTH'], authOptional: true,
       onRcptTo(address, _session, callback) { recipients.push(address.address); callback(); },
@@ -207,6 +208,7 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
         stream.on('end', () => {
           if (rejectFirstMessage) {
             rejectFirstMessage = false;
+            rejectionEvents++;
             callback(new Error('simulated provider rejection with fake-test-secret'));
           } else { received.push(source); callback(); }
         });
@@ -244,6 +246,9 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
           assert.deepEqual(await signup.json(), { status: 'accepted' });
           const firstAt = new Date();
           await processAuthIntakeOnce(pool, firstAt);
+          const firstReply = new Promise((resolve) => process.once('message', resolve));
+          process.send({ phase: 'first-attempt' });
+          assert.deepEqual(await firstReply, { rejected: 1, accepted: 0 });
           const failedJob = await pool.query('SELECT status,attempts,last_error_code FROM auth_intake_jobs WHERE email=$1', [email]);
           assert.deepEqual(failedJob.rows[0], { status: 'pending', attempts: 1, last_error_code: 'processing_failed' });
           const failedToken = await pool.query('SELECT revoked_at,delivery_failed_at FROM auth_action_tokens WHERE email=$1', [email]);
@@ -314,7 +319,9 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
       const phases = [];
       child.on('message', (message) => {
         phases.push(message.phase);
-        if (message.phase === 'signup' || message.phase === 'reset') {
+        if (message.phase === 'first-attempt') {
+          child.send({ rejected: rejectionEvents, accepted: received.length });
+        } else if (message.phase === 'signup' || message.phase === 'reset') {
           const expectedPath = message.phase === 'signup' ? '/signup' : '/reset-password';
           const expectedCount = message.phase === 'signup' ? 1 : 2;
           assert.equal(received.length, expectedCount);
@@ -335,7 +342,7 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
         child.on('error', reject); child.on('exit', resolveExit);
       });
       assert.equal(code, 0, errors.join('').replaceAll('fake-test-secret', '[redacted]'));
-      assert.deepEqual(phases, ['signup', 'negative', 'reset', 'done']);
+      assert.deepEqual(phases, ['first-attempt', 'signup', 'negative', 'reset', 'done']);
       assert.equal(received.length, 2);
       assert.doesNotMatch(received.join(''), /fake-test-secret|isolated-smtp-.*password/);
     } finally {
