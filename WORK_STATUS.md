@@ -1,5 +1,15 @@
 # 어울몰 작업현황
 
+## 2026-10-13 SMTP 격리 WSL 검증 준비 — 로컬·WSL 1단계
+
+- 담당 어울. 신산님이 비공개 `codex/next-work-20261011` 원격 push를 명시 승인했고 노출 메일 비밀번호의 교체 완료를 확인했다. 루트 `.env`와 실제 자격정보는 읽거나 전송하지 않았다. 로컬·원격·지정 WSL checkout HEAD가 모두 `f91d09c90e1bc4a69f85ffa139436f319e38e442`이며 WSL Git 상태는 clean이다. 사용자 비추적 세 경로는 보존했다. 실제 외부 발송의 수신자·범위·HTTPS 주소는 승인되지 않아 실행하지 않는다.
+- WSL은 2 vCPU 대비 load 약 2.86/2.89/3.06, 사용 가능 메모리 약 2.2GiB·swap 사용 약 2.6GiB다. 다른 실행 중인 서비스는 건드리지 않는다. Task 3의 정확 SHA 격리 DB 시험을 위해 일회성 자원 `shoppingmall-smtp-qa-1013-net`(비공개 Docker network)과 `shoppingmall-smtp-qa-1013-pg`(PostgreSQL 15 tmpfs, 외부 공개 port·영속 mount 없음), DB `shoppingmall_auth_intake_1011`을 사용한다. 시험 runner는 기존 `node:24-bookworm-slim` 이미지의 `--rm` 일회성 컨테이너로 제한한다. migration 0000~0027과 가상 자료는 해당 격리 DB에만 적용하며 `local-postgres`의 보호 `shoppingmall`·고정 QA DB는 변경하지 않는다. 필요 기간은 Task 3 검증 중이며 종료·실패 시 정확한 컨테이너·network만 제거하고 이름·mount·port 잔류 0을 확인한다. 부하 악화 시 시험을 중단하고 상태를 기록한다.
+- 이번 기록은 자원 생성 전 선언이다. 아직 DB 시험·실제 메일 발송·브라우저 검증을 통과한 것은 아니다. 설계서와 승인 작업계획서는 변경하지 않는다.
+- 실행 결과: 기존 지정 WSL checkout에 원격 Git으로 정확 SHA `ea6efce4b98e7f00c9ede16545c40c118daf37a1`을 반영했다. 일회성 `shoppingmall-smtp-qa-1013-pg`의 DB `shoppingmall_auth_intake_1011`/system ID `7695917569278230567`에 표준 migrator를 적용했고 host 공개 port·영속 mount 0을 확인했다. 기존 인증 HTTP/DB 9건/9 pass·0 skip, SMTP/작업자 8건/8 pass, 신규 HTTP 접수→작업자→루프백 TLS SMTP→가입·복구 완료/저장·조회·1회 사용·미등록/중복 무발송·공급자 첫 거부 후 재시도를 포함한 최종 영향 범위 18건/18 pass·0 skip·0 fail을 같은 SHA에서 확인했다. 신산님이 실제 이메일을 수신한 결과나 브라우저 직접 확인은 아니다.
+- 실패·조치: WSL 의존성 설치에서 기존 root 소유 `node_modules`를 비대화형으로 갱신하려다 1회 중단되어, 다른 실행 작업 부재 확인 후 lockfile 그대로 `CI=true` API 범위 설치가 성공했다. 첫 실DB 실행은 32자 미만 가상 HMAC 키로 8건 실패·1건 성공했고, 키 길이만 바로잡아 9/9 pass했다. 합동 SMTP 시험은 같은 격리 DB에서 반복 실행한 토큰 발급 제한 사건의 이중 출처 해시가 남아 4회 실패했다. 본 담당자가 접수/발급 양쪽 해시의 누적을 추적하여 신규 시험의 격리 DB 사전·사후 정리만 보정했고, 마지막 18/18 pass했다. 기존 시험 기대값·제품 코드는 낮추거나 바꾸지 않았다. 시험 자료의 계정/작업/토큰은 제거 전 각각 0/0/0, 보안 사건 66건은 폐기 대상 임시 DB에만 남아 있었다. 캐시 제거 첫 시도는 컨테이너 root 소유 권한으로 1회 실패했고, 정확한 경로를 확인해 같은 컨테이너 권한으로 제거했다.
+- 정리: 격리 PostgreSQL container `a8a3d774980e2ac6486ab0a75e9c602cc7623803e0fed3d172b814af4f668afb`, 전용 network, 시험 인증서 디렉터리와 이번 설치의 `.pnpm-store`를 제거했다. container/network 이름 잔류 0, 지정 WSL checkout `git status --short` 출력 0. 보호 `shoppingmall` 및 고정 QA DB 쓰기 0. 로컬 사용자 소유 비추적 세 경로는 그대로 보존했다.
+- 기능 판정: 로컬·WSL 1단계의 가입·비밀번호 복구 SMTP 전달은 **구현 완료·격리 핵심 동작 확인**이다. 다만 실제 공급자·수신 주소·작동하는 HTTPS 링크·사용자 브라우저·고정 QA DB의 0026/0027은 **동작 미확인**이며 출시/인수 완료가 아니다. 실제 SMTP의 인사말 지연/시간초과, 작업자 프로세스 재시작, 오래된 교차 작업 경합도 직접 시험은 아직 없다. 기존 모의 실DB 시험의 리스·재시도·경합 결과를 이 경계의 대체 증거로 올리지 않는다. 격리 시험 정리 후 WSL load는 2 vCPU 대비 3.83/4.14/3.84, swap 사용 3.5GiB로 상승해 고정 QA DB의 지속 migration은 이번 실행에서 하지 않았다. 다음은 자원 여유를 확인해 승인된 고정 QA DB migration·정식 WSL 핵심 확인을 진행하고, 실제 외부 메일 시험은 정확한 수신 대상·발송 범위·HTTPS 주소의 별도 결정 후에만 한다. 전체 브라우저·부하·복구는 2단계로 남긴다.
+
 ## 2026-10-13 SMTP 전달 구현 진행 — 로컬·WSL 1단계
 
 - 담당 어울. 신산님의 별도 SMTP 설계·구현계획 승인을 받아 기존 `codex/next-work-20261011` 브랜치의 `88822f0`부터 진행한다. 기존 예약은 취소 상태를 유지한다. `docs/design/DESIGN.md`와 `docs/WORK_PLAN_20260-10-11.md`, 루트 `.env`, 사용자 소유 비추적 파일은 수정·열람하지 않았다.
