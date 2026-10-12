@@ -182,3 +182,151 @@ test('STARTTLS refuses a server that offers only plaintext before sending a link
       await new Promise((resolveClose) => server.close(resolveClose));
     }
   });
+
+test('isolated DB HTTP signup and reset send only eligible SMTP links and consume each once',
+  { skip: !process.env.AUTH_INTAKE_TEST_DB_SYSTEM_ID, timeout: 45000 }, async () => {
+    assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_intake_1011');
+    assert.equal(new URL(process.env.DATABASE_URL).pathname, '/shoppingmall_auth_intake_1011');
+    const directory = await mkdtemp(join(tmpdir(), 'shoppingmall-smtp-'));
+    assert.ok(resolve(directory).startsWith(resolve(tmpdir()) + sep));
+    const keyPath = join(directory, 'key.pem');
+    const certPath = join(directory, 'cert.pem');
+    const certificate = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+      '-keyout', keyPath, '-out', certPath, '-days', '1', '-subj', '/CN=localhost',
+      '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1'], { encoding: 'utf8' });
+    assert.equal(certificate.status, 0);
+    const received = [];
+    const recipients = [];
+    const server = new SMTPServer({ secure: true, key: await readFile(keyPath),
+      cert: await readFile(certPath), disabledCommands: ['AUTH'], authOptional: true,
+      onRcptTo(address, _session, callback) { recipients.push(address.address); callback(); },
+      onData(stream, _session, callback) {
+        let source = '';
+        stream.on('data', (chunk) => { source += chunk.toString(); });
+        stream.on('end', () => { received.push(source); callback(); });
+      },
+    });
+    try {
+      await new Promise((resolveListen, reject) => server.listen(0, '127.0.0.1',
+        (error) => error ? reject(error) : resolveListen()));
+      const childCode = `
+        import assert from 'node:assert/strict';
+        import { createHmac, randomUUID } from 'node:crypto';
+        import { Pool } from 'pg';
+        import { createApp } from './src/app.ts';
+        import { processAuthIntakeOnce } from './src/auth/intake-worker.ts';
+        const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+        const identity = await pool.query('SELECT current_database() AS name, system_identifier::text AS id FROM pg_control_system()');
+        assert.equal(identity.rows[0].name, 'shoppingmall_auth_intake_1011');
+        assert.equal(identity.rows[0].id, process.env.AUTH_INTAKE_TEST_DB_SYSTEM_ID);
+        const email = 'smtp-flow-' + randomUUID() + '@example.invalid';
+        const unknown = 'smtp-unknown-' + randomUUID() + '@example.invalid';
+        const oldPassword = 'isolated-smtp-old-password-123';
+        const newPassword = 'isolated-smtp-new-password-123';
+        const sourceHashes = ['127.0.0.1', '::ffff:127.0.0.1', '::1'].map((source) =>
+          createHmac('sha256', process.env.AUTH_AUDIT_HMAC_KEY).update('source:' + source).digest('hex'));
+        let app;
+        try {
+          app = await createApp();
+          await app.listen(0, '127.0.0.1');
+          const base = 'http://127.0.0.1:' + app.getHttpServer().address().port;
+          const post = (path, body) => fetch(base + path, { method: 'POST',
+            headers: { 'content-type': 'application/json', origin: 'http://127.0.0.1:9091' },
+            body: JSON.stringify(body) });
+          const signup = await post('/auth/customer-signup/start', { email });
+          assert.equal(signup.status, 201);
+          assert.deepEqual(await signup.json(), { status: 'accepted' });
+          await processAuthIntakeOnce(pool, new Date());
+          const signupReply = new Promise((resolve) => process.once('message', resolve));
+          process.send({ phase: 'signup', email });
+          const signupToken = (await signupReply).token;
+          const complete = await post('/auth/customer-signup/complete', { token: signupToken, password: oldPassword });
+          assert.equal(complete.status, 201);
+          assert.deepEqual(await complete.json(), { status: 'ok' });
+          assert.equal((await post('/auth/customer-signup/complete', { token: signupToken, password: oldPassword })).status, 401);
+          assert.equal((await post('/auth/login', { email, password: oldPassword })).status, 201);
+          const duplicate = await post('/auth/customer-signup/start', { email });
+          const unknownStart = await post('/auth/password-reset/start', { email: unknown });
+          assert.equal(duplicate.status, 201);
+          assert.deepEqual(await duplicate.json(), { status: 'accepted' });
+          assert.equal(unknownStart.status, 201);
+          assert.deepEqual(await unknownStart.json(), { status: 'accepted' });
+          await processAuthIntakeOnce(pool, new Date());
+          await processAuthIntakeOnce(pool, new Date());
+          process.send({ phase: 'negative' });
+          const resetStart = await post('/auth/password-reset/start', { email });
+          assert.equal(resetStart.status, 201);
+          assert.deepEqual(await resetStart.json(), { status: 'accepted' });
+          await processAuthIntakeOnce(pool, new Date());
+          const resetReply = new Promise((resolve) => process.once('message', resolve));
+          process.send({ phase: 'reset', email });
+          const resetToken = (await resetReply).token;
+          assert.equal((await post('/auth/password-reset/complete', { token: resetToken, password: newPassword })).status, 201);
+          assert.equal((await post('/auth/password-reset/complete', { token: resetToken, password: newPassword })).status, 401);
+          assert.equal((await post('/auth/login', { email, password: oldPassword })).status, 401);
+          assert.equal((await post('/auth/login', { email, password: newPassword })).status, 201);
+          const stored = await pool.query("SELECT count(*)::int AS n FROM account_identities WHERE kind='email' AND identifier=$1 AND verified_at IS NOT NULL", [email]);
+          assert.equal(stored.rows[0].n, 1);
+          const jobs = await pool.query("SELECT count(*)::int AS n FROM auth_intake_jobs WHERE email=ANY($1::text[]) AND status='done'", [[email, unknown]]);
+          assert.equal(jobs.rows[0].n, 4);
+          process.send({ phase: 'done' });
+        } finally {
+          if (app) await app.close();
+          const account = await pool.query("SELECT account_id FROM account_identities WHERE kind='email' AND identifier=$1", [email]);
+          await pool.query('DELETE FROM auth_intake_jobs WHERE email=ANY($1::text[])', [[email, unknown]]);
+          await pool.query('DELETE FROM auth_action_tokens WHERE email=ANY($1::text[])', [[email, unknown]]);
+          if (account.rows[0]) {
+            const id = account.rows[0].account_id;
+            await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [id]);
+            await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [id]);
+            await pool.query('DELETE FROM account_roles WHERE account_id=$1', [id]);
+            await pool.query('DELETE FROM account_identities WHERE account_id=$1', [id]);
+            await pool.query('DELETE FROM accounts WHERE id=$1', [id]);
+          }
+          await pool.query("DELETE FROM auth_security_events WHERE purpose=ANY($1::text[]) AND source_hash=ANY($2::text[])",
+            [['customer_signup', 'password_reset'], sourceHashes]);
+          await pool.end();
+        }
+      `;
+      const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', childCode], {
+        cwd: new URL('../', import.meta.url),
+        env: { ...process.env, NODE_EXTRA_CA_CERTS: certPath,
+          AUTH_DELIVERY_MODE: 'smtp', APP_ENV: 'development', API_HOST: '127.0.0.1',
+          AUTH_LINK_ORIGIN: 'https://shop.example.invalid', WEB_ORIGIN: 'http://127.0.0.1:9091',
+          SMTP_HOST: '127.0.0.1', SMTP_PORT: String(server.server.address().port),
+          SMTP_SECURITY: 'implicit_tls', SMTP_USER: 'fake-user',
+          SMTP_PASSWORD: 'fake-test-secret', SMTP_FROM: 'no-reply@example.invalid' },
+        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      });
+      const phases = [];
+      child.on('message', (message) => {
+        phases.push(message.phase);
+        if (message.phase === 'signup' || message.phase === 'reset') {
+          const expectedPath = message.phase === 'signup' ? '/signup' : '/reset-password';
+          const expectedCount = message.phase === 'signup' ? 1 : 2;
+          assert.equal(received.length, expectedCount);
+          assert.equal(recipients.at(-1), message.email);
+          const match = decodedMailBody(received.at(-1)).match(/https:\/\/shop\.example\.invalid\/[^\s]+/);
+          assert.ok(match);
+          const link = new URL(match[0]);
+          assert.equal(link.pathname, expectedPath);
+          assert.equal(link.search, '');
+          child.send({ token: link.hash.slice('#token='.length) });
+        } else if (message.phase === 'negative') {
+          assert.equal(received.length, 1);
+        }
+      });
+      const errors = [];
+      child.stderr.on('data', (chunk) => errors.push(chunk.toString()));
+      const code = await new Promise((resolveExit, reject) => {
+        child.on('error', reject); child.on('exit', resolveExit);
+      });
+      assert.equal(code, 0, errors.join('').replaceAll('fake-test-secret', '[redacted]'));
+      assert.deepEqual(phases, ['signup', 'negative', 'reset', 'done']);
+      assert.equal(received.length, 2);
+      assert.doesNotMatch(received.join(''), /fake-test-secret|isolated-smtp-.*password/);
+    } finally {
+      await new Promise((resolveClose) => server.close(resolveClose));
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
