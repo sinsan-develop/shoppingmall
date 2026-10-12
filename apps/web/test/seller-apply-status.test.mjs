@@ -8,7 +8,7 @@ const approved = { id: 'application-1', displayName: '승인된 농가', status:
   sellerId: 'seller-1', reviewReason: null, createdAt: '2026-10-11T00:00:00Z',
   reviewedAt: '2026-10-12T00:00:00Z' };
 
-test('approved applicant sees approval but cannot submit a duplicate application', () => {
+test('approved applicant sees approval without a reapplication form', () => {
   const View = sellerApplyPage.SellerApplyView ?? (() => null);
   const html = renderToStaticMarkup(createElement(View, {
     state: 'buyer', busy: false, message: '', applications: [approved], onSubmit: () => {},
