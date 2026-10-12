@@ -73,6 +73,7 @@ export async function deliverAuthLink(purpose: AuthActionPurpose, email: string,
   if (typeof email !== 'string' || !emailPattern.test(email) || email.length > 254) throw unavailable();
   if (process.env.AUTH_DELIVERY_MODE === 'smtp') {
     const config = smtpConfig(process.env);
+    const recipient = email.toLowerCase();
     const path = purpose === 'customer_signup' ? '/signup' : '/reset-password';
     if (link.origin !== config.origin || link.pathname !== path || link.search ||
         link.username || link.password || !/^#token=[A-Za-z0-9_-]+$/.test(link.hash) ||
@@ -83,10 +84,10 @@ export async function deliverAuthLink(purpose: AuthActionPurpose, email: string,
       connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 10000,
       disableFileAccess: true, disableUrlAccess: true });
     try {
-      const result = await transport.sendMail({ from: config.from, to: email,
+      const result = await transport.sendMail({ from: config.from, to: recipient,
         subject: purpose === 'customer_signup' ? '회원가입 이메일 확인' : '비밀번호 재설정',
         text: `${purpose === 'customer_signup' ? '회원가입 이메일 확인' : '비밀번호 재설정'} 링크: ${url}` });
-      if (result.accepted.length !== 1 || result.accepted[0]?.toLowerCase() !== email.toLowerCase() ||
+      if (result.accepted.length !== 1 || result.accepted[0]?.toLowerCase() !== recipient ||
           result.rejected.length) throw new Error('SMTP recipient rejected');
     } catch {
       throw new Error('Auth delivery failed');

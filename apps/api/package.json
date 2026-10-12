@@ -25,6 +25,7 @@
     "@types/node": "^24.0.0",
     "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.11",
+    "smtp-server": "3.17.0",
     "tsx": "^4.20.0",
     "typescript": "5.9.3"
   }
