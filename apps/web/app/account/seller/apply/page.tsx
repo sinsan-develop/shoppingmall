@@ -66,6 +66,14 @@ export default function SellerApplyPage() {
     finally { setBusy(false); }
   }
 
+  return <SellerApplyView state={state} busy={busy} message={message}
+    applications={applications} onSubmit={submit} />;
+}
+
+export function SellerApplyView({ state, busy, message, applications, onSubmit }: {
+  state: ViewState; busy: boolean; message: string; applications: Application[];
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
   return <main id="main-content" tabIndex={-1} className="shell account-shell">
     <a className="text-link" href="/account">내 계정으로 돌아가기</a>
     <section className="account-card" aria-labelledby="seller-apply-title">
@@ -80,7 +88,7 @@ export default function SellerApplyPage() {
           item.status === 'approved' ? '승인' : '반려'}
         {item.status === 'rejected' && item.reviewReason ? ` — ${item.reviewReason}` : ''}
       </p>)}
-      {state === 'buyer' && !applications.some((item) => item.status === 'pending') ? <form className="account-form" onSubmit={submit}>
+      {state === 'buyer' && !applications.some((item) => item.status === 'pending' || item.status === 'approved') ? <form className="account-form" onSubmit={onSubmit}>
         <label htmlFor="seller-display-name">신청 판매자 이름</label>
         <input id="seller-display-name" name="displayName" maxLength={120} required />
         <button className="primary-button" type="submit" disabled={busy}>
