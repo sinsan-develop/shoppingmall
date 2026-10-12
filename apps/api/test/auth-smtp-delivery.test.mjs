@@ -197,13 +197,19 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
     assert.equal(certificate.status, 0);
     const received = [];
     const recipients = [];
+    let rejectFirstMessage = true;
     const server = new SMTPServer({ secure: true, key: await readFile(keyPath),
       cert: await readFile(certPath), disabledCommands: ['AUTH'], authOptional: true,
       onRcptTo(address, _session, callback) { recipients.push(address.address); callback(); },
       onData(stream, _session, callback) {
         let source = '';
         stream.on('data', (chunk) => { source += chunk.toString(); });
-        stream.on('end', () => { received.push(source); callback(); });
+        stream.on('end', () => {
+          if (rejectFirstMessage) {
+            rejectFirstMessage = false;
+            callback(new Error('simulated provider rejection with fake-test-secret'));
+          } else { received.push(source); callback(); }
+        });
       },
     });
     try {
@@ -236,7 +242,14 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
           const signup = await post('/auth/customer-signup/start', { email });
           assert.equal(signup.status, 201);
           assert.deepEqual(await signup.json(), { status: 'accepted' });
-          await processAuthIntakeOnce(pool, new Date());
+          const firstAt = new Date();
+          await processAuthIntakeOnce(pool, firstAt);
+          const failedJob = await pool.query('SELECT status,attempts,last_error_code FROM auth_intake_jobs WHERE email=$1', [email]);
+          assert.deepEqual(failedJob.rows[0], { status: 'pending', attempts: 1, last_error_code: 'processing_failed' });
+          const failedToken = await pool.query('SELECT revoked_at,delivery_failed_at FROM auth_action_tokens WHERE email=$1', [email]);
+          assert.equal(failedToken.rows.length, 1);
+          assert.ok(failedToken.rows[0].revoked_at && failedToken.rows[0].delivery_failed_at);
+          await processAuthIntakeOnce(pool, new Date(firstAt.getTime() + 11_000));
           const signupReply = new Promise((resolve) => process.once('message', resolve));
           process.send({ phase: 'signup', email });
           const signupToken = (await signupReply).token;
