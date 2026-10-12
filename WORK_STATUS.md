@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-13 SMTP 후속 설계 초안
+
+- 담당 어울. 로컬·WSL-server 1단계, 브랜치 `codex/next-work-20261011`, 시작 HEAD `319eeb0`. 신산님이 실제 SMTP 전달을 포함하는 방향과 기존 비동기 접수·작업자 유지안을 승인하여 별도 후속 설계 문서 `docs/superpowers/specs/2026-10-13-auth-smtp-delivery-design.md`를 작성했다. 기존 `docs/design/DESIGN.md`와 `docs/WORK_PLAN_20260-10-11.md`는 수정하지 않았다.
+- 현재는 작성된 설계 문서의 신산님 검토 대기이며 제품 코드·DB·환경·실제 발송은 변경하지 않았다. 과거 노출된 메일 자격정보의 교체 여부가 확인되지 않아 해당 자격정보를 읽거나 사용하지 않았다. 실제 수신·사용 가능한 가입/복구는 여전히 미구현이며 설계 초안을 기능 진도로 계산하지 않는다.
+- WSL 2 vCPU/load 3.29/3.23/3.40, 지정 checkout `e7c0ef4` clean, 0026용 백업 파일 0600/286345 bytes 존재를 읽기 전용으로 확인했다. QA DB 0026·0027은 적용하지 않았다. 설계 검토 후 후속 구현계획 승인, 자격정보 교체와 발송 범위 확인, 안전한 QA DB 적용·핵심 동작 검증이 다음 경계다.
+
 ## 2026-10-12 QA DB 0026 적용 준비
 
 - 담당 어울. 신산님 재개 지시로 기존 브랜치 `codex/next-work-20261011`/`10065bc`에서 A3의 QA DB 준비를 이어간다. WSL 지정 checkout `e7c0ef4`는 clean, `local-postgres` 실행 중이며 보호 `shoppingmall`과 고정 QA DB `shoppingmall_qa_20261010_2`가 구분된다. QA DB cluster system ID `7622490131194466339`, Drizzle 이력 26건(0000~0025), `auth_intake_jobs` 부재, 크기 13,507,943 bytes를 읽기 전용으로 확인했다. 로컬 0026/0027 SHA-256은 기록된 값과 일치한다.
