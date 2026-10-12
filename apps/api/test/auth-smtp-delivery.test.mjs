@@ -231,10 +231,16 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
         const unknown = 'smtp-unknown-' + randomUUID() + '@example.invalid';
         const oldPassword = 'isolated-smtp-old-password-123';
         const newPassword = 'isolated-smtp-new-password-123';
-        const sourceHashes = ['127.0.0.1', '::ffff:127.0.0.1', '::1'].map((source) =>
-          createHmac('sha256', process.env.AUTH_AUDIT_HMAC_KEY).update('source:' + source).digest('hex'));
+        const hash = (value) => createHmac('sha256', process.env.AUTH_AUDIT_HMAC_KEY)
+          .update(value).digest('hex');
+        const sourceHashes = ['127.0.0.1', '::ffff:127.0.0.1', '::1'].flatMap((source) => {
+          const intakeHash = hash('source:' + source);
+          return [intakeHash, hash('source:' + intakeHash)];
+        });
         let app;
         try {
+          await pool.query("DELETE FROM auth_security_events WHERE purpose=ANY($1::text[]) AND source_hash=ANY($2::text[])",
+            [['customer_signup', 'password_reset'], sourceHashes]);
           app = await createApp();
           await app.listen(0, '127.0.0.1');
           const base = 'http://127.0.0.1:' + app.getHttpServer().address().port;
