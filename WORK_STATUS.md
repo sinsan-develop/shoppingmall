@@ -2,6 +2,12 @@
 
 ## 2026-10-14 설계 전체 누락 보완 S7 착수
 
+- 후속 결과: exact `ae2a8ad`의 WSL 격리 DB systemID `7696281263276314668`에서 모바일 실제 HTTP/DB1/1 pass·0 skip·0 fail. 서버 견적49000원(상품46000+배송3000)→주문 저장 후 응답 유실→같은 요청키 재시도/주문1행→모의 거절/승인·중복 승인→PAID·출고READY→본인 주문 목록·문의·수신동의 저장→로그아웃/401을 확인했다. 초기 마운트 접점 부재1회·pg CommonJS 준비 import1회 실패를 준비 명령에서 보정했다. 첫 기능 실행은 결제 완료 목록의 필수 status/limit 누락으로1회 실패했고 로컬 회귀 RED로 고정한 뒤 클라이언트만 보정해 재통과했다. 각 폐기 PG/runner/network와 내부 QA checkout은 종료 trap으로 제거했으며 잔류0, 보호DB/고정QA 쓰기0, 기존 main WSL /ready200 유지.
+- 독립 코드 리뷰: Critical0/Important4/Minor4. 구매 종료/만료 후 재구매, 과거 조회의 구매 상태 덮어쓰기, 서버 활성 예약 복구, 오래된 문의 페이지 누락을 보정했다. 동일 문의 새 접수·검색결과 혼합·이메일 잔류는 실제 새 접수 불가/검색 누락/개인정보 영향으로 Important로 재분류하고 RED→GREEN 보정했다. 현황 시차 Minor는 이 누적 결과로 정리한다. 최신 모바일18/18 pass·0 skip, typecheck/lint exit0. 예약/종료/조회·문의 데이터가 현재 화면에 분리되어야 한다는 판정이며 사용자 소유 정상 기능·API 계약은 바꾸지 않았다. 리뷰의 아이콘/nativecookie/OS푸시/외부공급자/정식관리자 제외 판단은 각각 별도 승인·미확인으로 채택했으며 잘못 채택하면 실연동 공백이 남으므로 전체S7 완료 판단에 사용하지 않는다.
+- 회귀: 초기 병렬 루트 실행에서 기존 SMTP 시작 차단 child의10초 제한/출력 부재로1회 실패. 같은 child 기준 단독3/3 pass, 변경 없이 순차 전체698건/498 pass·200조건부skip·0fail 및 PR본문8/8 pass. 순차 실행 도중 리뷰 보정이 추가되어 이 결과를 최신 최종 후보 전체 PASS로 승격하지 않는다. 최신18건 모바일 검증은 위 별도 결과다. 시간/기대값/합격 기준은 낮추지 않았다.
+- 아이콘: 신산님 지시로 담당자가 imagegen을 사용해 황금 바구니·새싹·크림 배경·중심 안전 여백의 검토 시안 `docs/design/assets/app-icon-candidate-20261014.png`를 제작했다. 생성 원본도 보존하며 앱 설정에는 승인 전 적용하지 않는다. Android JS 번들은 준비 결과일 뿐 APK/native 설치 증거가 아니다. 아이콘 제작 책임을 신산님께 넘기지 않는다.
+- 후속 모바일 코드 누락은 design_change의 별도 미구현 목록에 남긴다. 이 checkpoint는 전체 개발 완료보고가 아니다. 기존 설계·계획·실메일 HTTPS 보류·지속계정 승인 경계를 유지한다.
+
 - 담당 어울. PMO가 전달한 신산님 직접 수정 지시에 따라 main `3d692a8` 기준 `codex/s7-mobile-20261014`에서 고객 앱을 구현한다. 승인된 DESIGN/WORK_PLAN과 다음 주기 초안을 대조했으며 기존 시안·계정·메일/HTTPS 보류를 유지한다. 현재 실행 중 WSL main 웹/API는 변경하지 않는다.
 - 첫 HTTP 경계5건 및 기존 안내 화면2건 RED 확인 후 고객 화면·기존 API 연결을 구현했다. 검색 계약 보정 RED1→GREEN, 세션 만료의 실제 화면 제거를 포함하여 모바일9/9 pass·0 skip, mobile typecheck/lint exit0. 시험용 renderer는 네이티브 컨트롤만 대체하고 실제 React 상태·HTTP 클라이언트를 실행한다. react-test-renderer의 deprecated 경고가 있으며 네이티브 동작 증거가 아니다. Android JS/Hermes 번들587모듈·1.5MB export 성공, APK/설치/에뮬레이터 구매는 아직 미확인이다.
 - 자원 사전 선언: 실제 HTTP/DB 연결은 WSL의 일회성 `shoppingmall-qa-s7-20261014-pg`(PG15 tmpfs/전용 network, 보호 클러스터와 다른 systemID)와 `shoppingmall-s7-qa-node` 제한 runner로 확인한다. 가상 자료는 신규 폐기 DB shoppingmall에만 생성하고 정확 identity gate 뒤 사용한다. 실행 중 main checkout을 바꾸지 않도록 Git의 동일 후보를 내부 QA checkout으로 준비한다. 시험 종료·실패 시 해당 runner/PG/network를 제거한다. 고정 QA DB·보호 shoppingmall DB에는 거래를 만들지 않는다.

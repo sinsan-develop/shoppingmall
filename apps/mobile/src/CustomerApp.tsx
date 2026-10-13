@@ -28,6 +28,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const lock = useRef(false);
   const [message, setMessage] = useState('');
   const [query, setQuery] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [products, setProducts] = useState<ProductSummary[]>([]);
@@ -44,17 +45,19 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const [addressId, setAddressId] = useState('');
   const [address, setAddress] = useState<AddressInput>({ ...initialAddress });
   const [order, setOrder] = useState<Order>();
+  const [viewedOrder, setViewedOrder] = useState<Order>();
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderCursor, setOrderCursor] = useState<string | null>(null);
   const [lookupId, setLookupId] = useState('');
   const [preferences, setPreferences] = useState<Preferences>({ marketingEmail: false, marketingSms: false, push: false });
   const [questionText, setQuestionText] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [questionCursor, setQuestionCursor] = useState<string | null>(null);
   const [question, setQuestion] = useState<Question>();
   const clearPrivate = useCallback(() => {
-    setSignedIn(false); setPassword(''); setCart([]); setQuote(undefined); setReservation(undefined);
+    setSignedIn(false); setEmail(''); setPassword(''); setCart([]); setQuote(undefined); setReservation(undefined);
     setPayable(undefined); setCoupon(''); setAddresses([]); setAddressId(''); setAddress({ ...initialAddress });
-    setOrder(undefined); setOrders([]); setLookupId(''); setQuestions([]); setQuestion(undefined); setQuestionText('');
+    setOrder(undefined); setViewedOrder(undefined); setOrders([]); setLookupId(''); setQuestions([]); setQuestionCursor(null); setQuestion(undefined); setQuestionText('');
     setPreferences({ marketingEmail: false, marketingSms: false, push: false });
     setScreen('login');
   }, []);
@@ -71,7 +74,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
     finally { lock.current = false; setBusy(false); }
   }, []);
   const search = useCallback(async () => {
-    const found = await api.products(query, 1); setProducts(found); setPage(1); setHasMore(found.length === 24);
+    const found = await api.products(query, 1); setProducts(found); setAppliedQuery(query); setPage(1); setHasMore(found.length === 24);
   }, [api, query]);
   useEffect(() => { void run(async () => {
     const found = await api.products(); setProducts(found); setHasMore(found.length === 24);
@@ -81,7 +84,14 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
     const items = await api.cart(); setCart(items);
     const savedAddresses = await api.addresses(); setAddresses(savedAddresses);
     setAddressId(current => savedAddresses.some(a => a.id === current) ? current : savedAddresses[0]?.id ?? '');
-    if (items.length) setQuote(await api.quote());
+    const held = await api.activeReservation(); setReservation(held);
+    if (held?.quote) { setQuote(held.quote); if (!coupon.trim()) setPayable(held.quote.totalWon); }
+    else { setPayable(undefined); if (items.length) setQuote(await api.quote()); }
+    if (order) {
+      const current = await api.order(order.id);
+      if (current.status !== 'PENDING_PAYMENT') { setViewedOrder(current); setOrder(undefined); }
+      else setOrder(current);
+    }
   }
   function navigate(next: Screen) {
     setMessage('');
@@ -96,10 +106,17 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
       if (next === 'profile') {
         const list = await api.addresses(); setAddresses(list); setPreferences(await api.preferences());
       }
-      if (next === 'questions') { setQuestion(undefined); setQuestions((await api.questions()).items); }
+      if (next === 'questions') { const result = await api.questions(); setQuestion(undefined); setQuestions(result.items); setQuestionCursor(result.nextCursor); }
     });
   }
-  async function openOrder(id: string) { setOrder(undefined); setOrder(await api.order(id)); setLookupId(id); }
+  async function openOrder(id: string) { setViewedOrder(undefined); setViewedOrder(await api.order(id)); setLookupId(id); }
+  async function refreshCheckout() {
+    if (!order) return;
+    const current = await api.order(order.id);
+    if (current.status !== 'PENDING_PAYMENT') { setViewedOrder(current); setOrder(undefined); }
+    else setOrder(current);
+    await loadCart();
+  }
   const activeReservation = reservation?.status === 'ACTIVE';
   const canOrder = activeReservation && Date.parse(reservation.expiresAt) > Date.now() &&
     Boolean(addressId) && payable !== undefined && !order;
@@ -128,7 +145,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
           })} />
         </View>)}
         {hasMore ? <Button label="상품 더 보기" disabled={busy || page >= 1000} onPress={() => void run(async () => {
-          const found = await api.products(query, page + 1); setProducts(previous => [...previous, ...found]);
+          const found = await api.products(appliedQuery, page + 1); setProducts(previous => [...previous, ...found]);
           setPage(page + 1); setHasMore(found.length === 24);
         })} /> : null}
       </> : null}
@@ -216,9 +233,9 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
             <Button key={outcome} label={['모의 결제 승인', '모의 결제 거절', '모의 결제 지연'][i]} disabled={busy || order.status !== 'PENDING_PAYMENT'}
               onPress={() => void run(async () => {
                 const result = await api.payMock(order.id, outcome); setMessage(`모의 처리 ${result.status} · 서버 주문 상태를 확인합니다.`);
-                await openOrder(order.id);
+                await refreshCheckout();
               })} />) : <Text>이 앱 실행에서는 모의 결제 버튼이 비활성입니다.</Text>}
-          <Button label="주문 상태 재조회" disabled={busy} onPress={() => void run(() => openOrder(order.id))} />
+          <Button label="주문 상태 재조회" disabled={busy} onPress={() => void run(refreshCheckout)} />
         </> : null}
       </> : null}
       {screen === 'orders' ? <>
@@ -230,8 +247,8 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         })} /> : null}
         <Field label="본인 주문 번호" value={lookupId} onChange={setLookupId} />
         <Button label="주문·배송 조회" disabled={busy || !lookupId.trim()} onPress={() => void run(() => openOrder(lookupId.trim()))} />
-        {order ? <View style={styles.card}><Text>주문 {order.status} · {won(order.payableWon)}</Text>
-          {order.shipments.map(shipment => <View key={shipment.id} style={styles.card}>
+        {viewedOrder ? <View style={styles.card}><Text>주문 {viewedOrder.status} · {won(viewedOrder.payableWon)}</Text>
+          {viewedOrder.shipments.map(shipment => <View key={shipment.id} style={styles.card}>
             {shipment.lines.map(line => <Text key={line.optionId}>{line.productName} {line.optionName} {line.quantity}개</Text>)}
             <Text>출고 {shipment.fulfillment?.status ?? shipment.status}</Text>
             <Text>예상 출고일 {shipment.fulfillment?.expectedShipDate ?? '미등록'}</Text>
@@ -264,6 +281,9 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         <Text style={styles.heading}>내 상품 문의</Text>
         {questions.length === 0 ? <Text>접수한 문의가 없습니다.</Text> : questions.map(item => <Button key={item.id}
           label={`${item.status} · ${item.body}`} disabled={busy} onPress={() => void run(async () => setQuestion(await api.question(item.id)))} />)}
+        {questionCursor ? <Button label="문의 더 보기" disabled={busy} onPress={() => void run(async () => {
+          const result = await api.questions(questionCursor); setQuestions(previous => [...previous, ...result.items]); setQuestionCursor(result.nextCursor);
+        })} /> : null}
         {question ? <View style={styles.card}><Text>{question.body}</Text><Text>{question.status}</Text>
           {question.messages?.map(item => <Text key={item.id}>{item.authorRole} · {item.body}</Text>)}
         </View> : null}

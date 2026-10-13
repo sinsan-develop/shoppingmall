@@ -92,6 +92,13 @@ export class CustomerApi {
     return this.request<Reservation>('/customer/checkout/reservations', 'POST', undefined, this.key('reserve', {}));
   }
   reservation(id: string) { return this.request<Reservation>(`/customer/checkout/reservations/${encodeURIComponent(id)}`); }
+  async activeReservation() {
+    try { return await this.request<Reservation>('/customer/checkout/reservations/active'); }
+    catch (error) {
+      if (error instanceof CustomerApiError && error.code === 'not_found') { this.keys.delete('reserve'); return undefined; }
+      throw error;
+    }
+  }
   async release(id: string) {
     const value = await this.request<Reservation>(`/customer/checkout/reservations/${encodeURIComponent(id)}`, 'DELETE');
     this.keys.delete('reserve'); return value;
@@ -120,8 +127,9 @@ export class CustomerApi {
   savePreferences(input: Preferences) { return this.request('/customer/preferences', 'PUT', input); }
   questions(cursor = '') { return this.request<Page<Question>>(`/customer/support/questions${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`); }
   question(id: string) { return this.request<Question>(`/customer/support/questions/${encodeURIComponent(id)}`); }
-  askQuestion(productId: string, text: string) {
+  async askQuestion(productId: string, text: string) {
     const input = { productId, text };
-    return this.request<Question>('/customer/support/questions', 'POST', input, this.key('question', input));
+    const result = await this.request<Question>('/customer/support/questions', 'POST', input, this.key('question', input));
+    this.keys.delete('question'); return result;
   }
 }

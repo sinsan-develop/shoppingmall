@@ -90,3 +90,16 @@ test('paid-order pagination explicitly supplies required status and limit', asyn
   assert.equal(query.get('limit'), '20');
   assert.equal(query.get('cursor'), 'opaque-cursor');
 });
+test('finished reservation permits a fresh reservation key', async t => {
+  const { base, requests } = await serve(t, (req, res) => json(res, { id: key1, status: 'ACTIVE' },
+    req.url.endsWith('/active') ? 404 : 200));
+  let index = 0; const api = client(base, { createKey: () => [key1, key2][index++] });
+  await api.reserve(); await api.activeReservation(); await api.reserve();
+  assert.deepEqual(requests.filter(r => r.method === 'POST').map(r => r.key), [key1, key2]);
+});
+test('confirmed question ends its retry intent; a new identical question receives new key', async t => {
+  const { base, requests } = await serve(t, (_req, res) => json(res, { id: key1 }));
+  let index = 0; const api = client(base, { createKey: () => [key1, key2][index++] });
+  await api.askQuestion(key1, '같은 문의'); await api.askQuestion(key1, '같은 문의');
+  assert.deepEqual(requests.map(r => r.key), [key1, key2]);
+});

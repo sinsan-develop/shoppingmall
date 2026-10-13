@@ -21,7 +21,7 @@ async function component() {
   const mod = { exports: {} }; new Function('require', 'module', 'exports', result.outputFiles[0].text)(require, mod, mod.exports);
   return mod.exports;
 }
-async function ready(t, status = {}) {
+async function ready(t, status = {}, overrides = {}) {
   const requests = [];
   const server = createServer(async (req, res) => {
     let body = ''; for await (const chunk of req) body += chunk;
@@ -31,7 +31,8 @@ async function ready(t, status = {}) {
       req.url === '/customer/cart' ? [{ optionId: key, productId: key, title: '시험 고추', optionName: '1kg', quantity: 2, unitPriceWon: 3000, availability: 'available' }] :
       req.url === '/customer/addresses' ? [{ id: key, label: '집', line1: '가상 주소', recipientName: 'QA' }] :
       req.url === '/customer/preferences' ? { marketingEmail: false, marketingSms: false, push: false } : { status: 'ok' };
-    res.writeHead(status[req.url] ?? 200, { 'content-type': 'application/json' }); res.end(JSON.stringify(value));
+    res.writeHead(status[req.url] ?? (req.url === '/customer/checkout/reservations/active' ? 404 : 200),
+      { 'content-type': 'application/json' }); res.end(JSON.stringify(overrides[req.url] ?? value));
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
@@ -49,8 +50,27 @@ async function until(check, describe = () => '') {
   }
   assert.fail(`화면 상태 전이가 완료되지 않음 ${describe()}`);
 }
-const text = tree => JSON.stringify(tree.toJSON());
+function text(tree) {
+  const output = [];
+  function visit(node) {
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'Text') output.push((node.children ?? []).filter(x => typeof x !== 'object').join(''));
+    else (node.children ?? []).forEach(visit);
+  }
+  visit(tree.toJSON()); return output.join('\n');
+}
 function button(tree, label) { return tree.root.findAllByType('Pressable').find(node => node.props.accessibilityLabel === label); }
+async function login(tree) {
+  await until(() => button(tree, '로그인')?.props.disabled === false);
+  await act(async () => { button(tree, '로그인').props.onPress(); });
+  await act(async () => {
+    tree.root.findAllByType('TextInput').find(x => x.props.accessibilityLabel === '이메일').props.onChangeText('qa@example.test');
+    tree.root.findAllByType('TextInput').find(x => x.props.accessibilityLabel === '비밀번호').props.onChangeText('Test-passphrase-1014');
+  });
+  await act(async () => { button(tree, '구매자 로그인').props.onPress(); });
+  await until(() => text(tree).includes('로그아웃') && button(tree, '장바구니')?.props.disabled === false);
+}
 test('mobile search renders fetched products rather than construction notice', async t => {
   const { tree } = await ready(t);
   await until(() => text(tree).includes('시험 고추'));
@@ -91,4 +111,89 @@ test('session expiry removes previously displayed private quote and order contro
   assert.equal(text(tree).includes('9,000원'), false);
   assert.equal(button(tree, '주문 생성'), undefined);
   assert.ok(button(tree, '구매자 로그인'));
+});
+test('returning customer restores owned active hold and can release it', async t => {
+  const activePath = '/customer/checkout/reservations/active';
+  const { tree, requests } = await ready(t, { [activePath]: 200 }, { [activePath]: {
+    id: key, status: 'ACTIVE', expiresAt: '2099-01-01T00:00:00.000Z',
+    quote: { goodsWon: 6000, shippingWon: 3000, totalWon: 9000, shipments: [] },
+  } });
+  await login(tree);
+  await act(async () => { button(tree, '장바구니').props.onPress(); });
+  await until(() => button(tree, '예약 해제')?.props.disabled === false);
+  assert.ok(requests.some(([path]) => path === activePath));
+  assert.ok(text(tree).includes('2099-01-01'));
+});
+test('older paid order lookup never overwrites current held checkout', async t => {
+  const activePath = '/customer/checkout/reservations/active';
+  const oldId = 'bf66b7c1-b0f6-4346-8333-d42ee1c8e299';
+  const { tree } = await ready(t, { [activePath]: 200 }, {
+    [activePath]: { id: key, status: 'ACTIVE', expiresAt: '2099-01-01T00:00:00.000Z',
+      quote: { totalWon: 9000, goodsWon: 6000, shippingWon: 3000, shipments: [] } },
+    '/customer/checkout/orders?status=PAID&limit=20': { items: [{ id: oldId, payableWon: 10000 }], nextCursor: null },
+    [`/customer/checkout/orders/${oldId}`]: { id: oldId, status: 'PAID', payableWon: 10000, shipments: [] },
+  });
+  await login(tree);
+  await act(async () => { button(tree, '장바구니').props.onPress(); });
+  await until(() => button(tree, '주문 생성')?.props.disabled === false);
+  await act(async () => { button(tree, '주문·배송').props.onPress(); });
+  await until(() => button(tree, `${oldId} · 10,000원`)?.props.disabled === false);
+  await act(async () => { button(tree, `${oldId} · 10,000원`).props.onPress(); });
+  await until(() => text(tree).includes('주문 PAID'));
+  await until(() => button(tree, '장바구니')?.props.disabled === false);
+  await act(async () => { button(tree, '장바구니').props.onPress(); });
+  await until(() => button(tree, '주문 생성')?.props.disabled === false);
+  assert.equal(text(tree).includes('10,000원'), false);
+});
+test('question history exposes next cursor rather than hiding older answers', async t => {
+  const { tree, requests } = await ready(t, {}, {
+    '/customer/support/questions': { items: [{ id: key, status: 'OPEN', body: '첫 페이지 문의' }], nextCursor: 'old-cursor' },
+    '/customer/support/questions?cursor=old-cursor': { items: [{ id: 'old', status: 'ANSWERED', body: '오래된 답변 문의' }], nextCursor: null },
+  });
+  await login(tree);
+  await act(async () => { button(tree, '내 문의').props.onPress(); });
+  await until(() => button(tree, '문의 더 보기')?.props.disabled === false);
+  await act(async () => { button(tree, '문의 더 보기').props.onPress(); });
+  await until(() => text(tree).includes('오래된 답변 문의'));
+  assert.ok(requests.some(([path]) => path === '/customer/support/questions?cursor=old-cursor'));
+});
+test('paid or expired checkout refresh frees cart controls for another purchase', async t => {
+  for (const finalStatus of ['PAID', 'EXPIRED']) {
+    const id = 'bf66b7c1-b0f6-4346-8333-d42ee1c8e299';
+    const active = { id: key, status: 'ACTIVE', expiresAt: '2099-01-01T00:00:00.000Z',
+      quote: { goodsWon: 6000, shippingWon: 3000, totalWon: 9000, shipments: [] } };
+    const overrides = { '/customer/checkout/reservations': active,
+      [`/customer/checkout/reservations/${key}`]: active,
+      '/customer/checkout/orders': { id, status: 'PENDING_PAYMENT', payableWon: 9000, shipments: [] },
+      [`/customer/checkout/orders/${id}`]: { id, status: finalStatus, payableWon: 9000, shipments: [] } };
+    const { tree } = await ready(t, {}, overrides);
+    await login(tree);
+    await act(async () => { button(tree, '장바구니').props.onPress(); });
+    await until(() => button(tree, '재고 예약')?.props.disabled === false);
+    await act(async () => { button(tree, '재고 예약').props.onPress(); });
+    await until(() => button(tree, '주문 생성')?.props.disabled === false);
+    await act(async () => { button(tree, '주문 생성').props.onPress(); });
+    await until(() => button(tree, '주문 상태 재조회')?.props.disabled === false);
+    await act(async () => { button(tree, '주문 상태 재조회').props.onPress(); });
+    await until(() => button(tree, '1kg 수량 늘리기')?.props.disabled === false);
+    assert.equal(button(tree, '재고 예약').props.disabled, false);
+    assert.equal(text(tree).includes('PENDING_PAYMENT'), false);
+  }
+});
+test('logout removes the prior account email from login input', async t => {
+  const { tree } = await ready(t);
+  await login(tree);
+  await act(async () => { button(tree, '로그아웃').props.onPress(); });
+  await until(() => button(tree, '구매자 로그인') !== undefined);
+  assert.equal(tree.root.findAllByType('TextInput').find(x => x.props.accessibilityLabel === '이메일').props.value, '');
+});
+test('pagination keeps applied search distinct from an unsubmitted draft', async t => {
+  const items = Array.from({ length: 24 }, (_, i) => ({ productId: `qa-${i}`, title: `시험 ${i}`, sellerName: '농가', originLabel: 'QA', minPriceWon: 3000 }));
+  const { tree, requests } = await ready(t, {}, { '/catalog/products?q=&sort=latest&page=1': items });
+  await until(() => button(tree, '상품 더 보기')?.props.disabled === false);
+  await act(async () => { tree.root.findAllByType('TextInput').find(x => x.props.accessibilityLabel === '상품명·판매자 검색').props.onChangeText('다른 검색'); });
+  await act(async () => { button(tree, '상품 더 보기').props.onPress(); });
+  await until(() => requests.some(([path]) => path.startsWith('/catalog/products?') && new URL(path, 'http://qa.test').searchParams.get('page') === '2'));
+  const query = new URL(requests.at(-1)[0], 'http://qa.test').searchParams;
+  assert.equal(query.get('q'), '');
 });
