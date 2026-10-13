@@ -104,7 +104,11 @@ export class CustomerApi {
     return this.request<Order>('/customer/checkout/orders', 'POST', input, this.key('order', input));
   }
   order(id: string) { return this.request<Order>(`/customer/checkout/orders/${encodeURIComponent(id)}`); }
-  orders(cursor = '') { return this.request<Page<Order>>(`/customer/checkout/orders${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`); }
+  orders(cursor = '') {
+    const params = new URLSearchParams({ status: 'PAID', limit: '20' });
+    if (cursor) params.set('cursor', cursor);
+    return this.request<Page<Order>>(`/customer/checkout/orders?${params}`);
+  }
   payMock(id: string, testOutcome: 'approve' | 'decline' | 'delay') {
     return this.request<{ status: string; mockOnly: boolean }>(
       `/customer/checkout/orders/${encodeURIComponent(id)}/payment-attempts`, 'POST', { testOutcome },

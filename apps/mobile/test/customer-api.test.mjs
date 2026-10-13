@@ -82,3 +82,11 @@ test('catalog pagination uses supported sort and numeric page, with array respon
   assert.equal(query.has('cursor'), false);
   assert.deepEqual(result, [{ productId: key1, title: '고추' }]);
 });
+test('paid-order pagination explicitly supplies required status and limit', async t => {
+  const { base, requests } = await serve(t, (_req, res) => json(res, { items: [], nextCursor: null }));
+  await client(base).orders('opaque-cursor');
+  const query = new URL(requests[0].path, base).searchParams;
+  assert.equal(query.get('status'), 'PAID');
+  assert.equal(query.get('limit'), '20');
+  assert.equal(query.get('cursor'), 'opaque-cursor');
+});
