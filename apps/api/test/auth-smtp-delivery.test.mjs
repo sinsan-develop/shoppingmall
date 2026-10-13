@@ -242,16 +242,21 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
         (error) => error ? reject(error) : resolveListen()));
       const childCode = `
         import assert from 'node:assert/strict';
-        import { createHmac, randomUUID } from 'node:crypto';
+        import { spawnSync } from 'node:child_process';
+        import { createHash, createHmac, randomUUID } from 'node:crypto';
         import { Pool } from 'pg';
         import { createApp } from './src/app.ts';
         import { processAuthIntakeOnce } from './src/auth/intake-worker.ts';
+        import { startCustomerSignup } from './src/auth/onboarding.ts';
+        import { startPasswordReset } from './src/auth/password-recovery.ts';
         const pool = new Pool({ connectionString: process.env.DATABASE_URL });
         const identity = await pool.query('SELECT current_database() AS name, system_identifier::text AS id FROM pg_control_system()');
         assert.equal(identity.rows[0].name, 'shoppingmall_auth_intake_1011');
         assert.equal(identity.rows[0].id, process.env.AUTH_INTAKE_TEST_DB_SYSTEM_ID);
         const email = 'smtp-flow-' + randomUUID() + '@example.invalid';
         const unknown = 'smtp-unknown-' + randomUUID() + '@example.invalid';
+        const restartEmail = 'smtp-restart-' + randomUUID() + '@example.invalid';
+        const emails = [email, unknown, restartEmail];
         const oldPassword = 'isolated-smtp-old-password-123';
         const newPassword = 'isolated-smtp-new-password-123';
         const hash = (value) => createHmac('sha256', process.env.AUTH_AUDIT_HMAC_KEY)
@@ -316,14 +321,64 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
           assert.equal(stored.rows[0].n, 1);
           const jobs = await pool.query("SELECT count(*)::int AS n FROM auth_intake_jobs WHERE email=ANY($1::text[]) AND status='done'", [[email, unknown]]);
           assert.equal(jobs.rows[0].n, 4);
+          const staleAt = new Date();
+          await startPasswordReset(pool, email, '127.0.0.1', staleAt);
+          const originalQuery = pool.query.bind(pool);
+          let failCompletion = true;
+          pool.query = (...args) => {
+            if (failCompletion && typeof args[0] === 'string' &&
+                args[0].startsWith("UPDATE auth_intake_jobs SET status='done'")) {
+              failCompletion = false;
+              return Promise.reject(new Error('simulated completion write failure'));
+            }
+            return originalQuery(...args);
+          };
+          await processAuthIntakeOnce(pool, staleAt);
+          assert.equal(failCompletion, false);
+          const staleReply = new Promise((resolve) => process.once('message', resolve));
+          process.send({ phase: 'stale-link', email });
+          const staleToken = (await staleReply).token;
+          const freshAt = new Date(staleAt.getTime() + 1000);
+          await startPasswordReset(pool, email, '127.0.0.1', freshAt);
+          await processAuthIntakeOnce(pool, freshAt);
+          const freshReply = new Promise((resolve) => process.once('message', resolve));
+          process.send({ phase: 'fresh-link', email });
+          const freshToken = (await freshReply).token;
+          assert.ok(freshToken !== staleToken, 'a fresh request must receive a distinct link');
+          await processAuthIntakeOnce(pool, new Date(staleAt.getTime() + 11000));
+          const raceReply = new Promise((resolve) => process.once('message', resolve));
+          process.send({ phase: 'stale-retry' });
+          assert.deepEqual(await raceReply, { accepted: 4 });
+          const stillValid = await originalQuery('SELECT revoked_at FROM auth_action_tokens WHERE token_hash=$1',
+            [createHash('sha256').update(freshToken).digest('hex')]);
+          assert.equal(stillValid.rows[0].revoked_at, null);
+          assert.equal((await post('/auth/password-reset/complete', { token: staleToken, password: newPassword })).status, 401);
+          assert.equal((await post('/auth/password-reset/complete', { token: freshToken, password: newPassword })).status, 201);
+          const restartAt = new Date();
+          await startCustomerSignup(pool, restartEmail, '127.0.0.1', restartAt);
+          const stoppedWorker = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval',
+            "import assert from 'node:assert/strict'; import {Pool} from 'pg'; import {claimAuthIntakeJob} from './src/auth/intake.ts'; const pool=new Pool({connectionString:process.env.DATABASE_URL}); try { const identity=await pool.query('SELECT current_database() AS name,system_identifier::text AS id FROM pg_control_system()'); assert.equal(identity.rows[0].name,'shoppingmall_auth_intake_1011'); assert.equal(identity.rows[0].id,process.env.AUTH_INTAKE_TEST_DB_SYSTEM_ID); const job=await claimAuthIntakeJob(pool,new Date(process.env.QA_CLAIM_TIME)); assert.equal(job.email,process.env.QA_CLAIM_EMAIL); process.stdout.write(String(process.pid)); } finally {await pool.end();}"],
+            { encoding: 'utf8', timeout: 15000, env: { ...process.env, QA_CLAIM_TIME: restartAt.toISOString(), QA_CLAIM_EMAIL: restartEmail } });
+          assert.equal(stoppedWorker.status, 0, stoppedWorker.stderr);
+          assert.ok(Number(stoppedWorker.stdout) > 0 && Number(stoppedWorker.stdout) !== process.pid,
+            'the first claim must run in a separate process');
+          const recoverAt = new Date(restartAt.getTime() + 121000);
+          await processAuthIntakeOnce(pool, recoverAt);
+          const restartReply = new Promise((resolve) => process.once('message', resolve));
+          process.send({ phase: 'restart', email: restartEmail });
+          const restartToken = (await restartReply).token;
+          assert.equal((await post('/auth/customer-signup/complete', { token: restartToken, password: oldPassword })).status, 201);
+          assert.equal((await processAuthIntakeOnce(pool, new Date(recoverAt.getTime() + 1000))).processed, false);
+          const recovered = await pool.query('SELECT status,attempts FROM auth_intake_jobs WHERE email=$1', [restartEmail]);
+          assert.deepEqual(recovered.rows[0], { status: 'done', attempts: 2 });
           process.send({ phase: 'done' });
         } finally {
           if (app) await app.close();
-          const account = await pool.query("SELECT account_id FROM account_identities WHERE kind='email' AND identifier=$1", [email]);
-          await pool.query('DELETE FROM auth_intake_jobs WHERE email=ANY($1::text[])', [[email, unknown]]);
-          await pool.query('DELETE FROM auth_action_tokens WHERE email=ANY($1::text[])', [[email, unknown]]);
-          if (account.rows[0]) {
-            const id = account.rows[0].account_id;
+          const account = await pool.query("SELECT account_id FROM account_identities WHERE kind='email' AND identifier=ANY($1::text[])", [emails]);
+          await pool.query('DELETE FROM auth_intake_jobs WHERE email=ANY($1::text[])', [emails]);
+          await pool.query('DELETE FROM auth_action_tokens WHERE email=ANY($1::text[])', [emails]);
+          for (const row of account.rows) {
+            const id = row.account_id;
             await pool.query('DELETE FROM audit_events WHERE actor_account_id=$1', [id]);
             await pool.query('DELETE FROM auth_sessions WHERE account_id=$1', [id]);
             await pool.query('DELETE FROM account_roles WHERE account_id=$1', [id]);
@@ -350,9 +405,9 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
         phases.push(message.phase);
         if (message.phase === 'first-attempt') {
           child.send({ rejected: rejectionEvents, accepted: received.length });
-        } else if (message.phase === 'signup' || message.phase === 'reset') {
-          const expectedPath = message.phase === 'signup' ? '/signup' : '/reset-password';
-          const expectedCount = message.phase === 'signup' ? 1 : 2;
+        } else if (['signup', 'reset', 'stale-link', 'fresh-link', 'restart'].includes(message.phase)) {
+          const expectedPath = ['signup', 'restart'].includes(message.phase) ? '/signup' : '/reset-password';
+          const expectedCount = { signup: 1, reset: 2, 'stale-link': 3, 'fresh-link': 4, restart: 5 }[message.phase];
           assert.equal(received.length, expectedCount);
           assert.equal(recipients.at(-1), message.email);
           const match = decodedMailBody(received.at(-1)).match(/https:\/\/shop\.example\.invalid\/[^\s]+/);
@@ -363,16 +418,23 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
           child.send({ token: link.hash.slice('#token='.length) });
         } else if (message.phase === 'negative') {
           assert.equal(received.length, 1);
+        } else if (message.phase === 'stale-retry') {
+          child.send({ accepted: received.length });
         }
       });
       const errors = [];
       child.stderr.on('data', (chunk) => errors.push(chunk.toString()));
-      const code = await new Promise((resolveExit, reject) => {
-        child.on('error', reject); child.on('exit', resolveExit);
-      });
+      const childTimer = setTimeout(() => child.kill(), 40000);
+      let code;
+      try {
+        code = await new Promise((resolveExit, reject) => {
+          child.on('error', reject); child.on('exit', resolveExit);
+        });
+      } finally { clearTimeout(childTimer); }
       assert.equal(code, 0, errors.join('').replaceAll('fake-test-secret', '[redacted]'));
-      assert.deepEqual(phases, ['first-attempt', 'signup', 'negative', 'reset', 'done']);
-      assert.equal(received.length, 2);
+      assert.deepEqual(phases, ['first-attempt', 'signup', 'negative', 'reset',
+        'stale-link', 'fresh-link', 'stale-retry', 'restart', 'done']);
+      assert.equal(received.length, 5);
       assert.doesNotMatch(received.join(''), /fake-test-secret|isolated-smtp-.*password/);
     } finally {
       await new Promise((resolveClose) => server.close(resolveClose));
