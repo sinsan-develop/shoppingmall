@@ -1,5 +1,13 @@
 # 어울몰 작업현황
 
+## 2026-10-14 승인 WSL 개발 배포·실행
+
+- 담당 어울. 신산님의 WSL 배포·실행 요청으로 지정 checkout의 main 코드 `3b28b6fed99207a420d31afa510143b76a2ffebe`를 Git으로 받아 실행했다. 실제 메일·HTTPS 시험은 인수테스트 보류를 유지한다. 보호 shoppingmall DB·migration·계정·Secret·Oracle·공개 도메인은 변경하지 않았다.
+- 자원: 지정 checkout의 Node24 일회성 `shoppingmall-wsl-build`로 API와 Web31경로 빌드. 최초에는 이전 API 전용 설치 때문에 Next 모듈이 없어 1회 실패했고, pnpm11.19.0의 frozen-lockfile 설치 후 재빌드 성공했다. 빌드/config 실행기는 --rm으로 제거했다. 지속 개발 실행기는 `shoppingmall-wsl-api`와 `shoppingmall-wsl-web`, 각 CPU0.5·메모리768MiB·restart unless-stopped이며 종료 요청 시 해당 두 컨테이너만 중지한다. 기존 다른 서비스는 변경하지 않았다.
+- 연결: 웹 `http://172.27.253.53:9091/`, API9092, 승인된 QA DB `shoppingmall_qa_20261010_2`(migration28). SMTP·결제·알림은 disabled, 실제 연결 비밀값은 런타임에서만 소비하고 기록하지 않았다. 기존 QA 계정은 disabled 상태를 그대로 유지하므로 로그인·주문 사용자 시험 완료를 주장하지 않는다.
+- 최소 검증: WSL /health·/ready200, 공개 /catalog/products200, 익명 /catalog/admin/proposals401. Windows PC에서 / 및 /products200, API /ready200. 화면 탭 열기를 요청했다. 사용자 브라우저 상호작용·인수·실제 메일 수신은 미확인이다. 개발 URL은 WSL IP 변경 시 재설정이 필요하며 외부 공개·운영 배포가 아니다.
+- 복구: 배포 전에는 해당 포트/쇼핑몰 서비스가 없었다. 실행 중단은 `docker stop shoppingmall-wsl-web shoppingmall-wsl-api`로 수행하고 QA DB는 보존한다. 제품 소스·설계·계획 변경은 없으며 이 기록만 통합한다. 설치 캐시는 소유 경로 확인 뒤 제거하고 의존성/빌드 산출물은 실행용으로 남긴다.
+
 ## 2026-10-14 신산님 승인 저장소 통합·정리
 
 - 담당 어울. 신산님이 작업 브랜치의 main 병합, 로컬·원격 동기화와 main 외 로컬 브랜치 정리를 직접 요청했다. 대상 코드 SHA는 `86e1d15a6d051fa5b5bd8d69485818d76b95f9d8`; 원격 main `ccdef9752d5da09ecbe53b6b3f33c72e15dd602c`는 이 커밋의 조상이며 미병합 main 변경은 없다.
