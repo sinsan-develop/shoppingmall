@@ -6,6 +6,10 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "android": { "package": "kr.owool.mall.dev" }
+    "icon": "./assets/icon.png",
+    "android": {
+      "package": "kr.owool.mall.dev",
+      "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#faf7ef" }
+    }
   }
 }

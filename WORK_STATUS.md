@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-14 승인 앱 아이콘 적용·Android 확인 착수
+
+- 적용 후 모바일19/19 pass·0 skip·0 fail, typecheck 및 diff check exit0. Expo Android prebuild 성공. 첫 native assembleDebug(x86_64, workers2)는 CMake 경로 길이 경고 뒤 Ninja manifest 재생성100회 오류로 실패했다. APK/네이티브 시작은 미확인이며 기준·의존성은 변경하지 않았다. 원인 분리를 위해 동일 커밋의 짧은 Git 빌드용 checkout `D:\tmp\s7a1014`를 사용한다. 해당 임시 경로에서 개발하지 않으며 frozen lockfile·동일 SDK/NDK/빌드 조건을 유지하고, 결과·필요 APK를 보존한 뒤 정확 경로를 검증해 제거한다. 기존 Metro 세션은 종료 요청했고 포트 잔류를 확인한다.
+- 신산님이 황금 바구니·새싹 시안을 직접 승인했다. 담당 어울, `codex/s7-mobile-20261014`/시작`3c7e06e`. 후보 PNG를 변경 없이 `apps/mobile/assets/icon.png`로 복사하고 Expo 기본/adaptive 아이콘에 연결한다. 설정 소비 시험은 누락 RED를 먼저 확인했다. 출시 서명·외부 계정·실메일·HTTPS는 변경하지 않는다.
+- 자원 사전 선언: Windows의 작업용 AVD `shoppingmall-s7-qa`/emulator5580, 작업 임시 출력 `D:\tmp\shoppingmall-s7-android-20261014`, 앱 내부 Expo 생성 Android 디렉터리 및 개발 APK. 목적은 승인 아이콘·실제 네이티브 시작 확인이며 기존 다른 AVD/기기는 변경하지 않는다. 사용 후 전용 에뮬레이터만 종료하고 전용 AVD/임시 출력·생성 캐시는 정리한다. APK·필요 화면 증거는 검증 결과와 분리해 보존한다. Native APK는 완료 결과가 있어야만 PASS로 기록한다.
+
 ## 2026-10-14 설계 전체 누락 보완 S7 착수
 
 - 후속 결과: exact `ae2a8ad`의 WSL 격리 DB systemID `7696281263276314668`에서 모바일 실제 HTTP/DB1/1 pass·0 skip·0 fail. 서버 견적49000원(상품46000+배송3000)→주문 저장 후 응답 유실→같은 요청키 재시도/주문1행→모의 거절/승인·중복 승인→PAID·출고READY→본인 주문 목록·문의·수신동의 저장→로그아웃/401을 확인했다. 초기 마운트 접점 부재1회·pg CommonJS 준비 import1회 실패를 준비 명령에서 보정했다. 첫 기능 실행은 결제 완료 목록의 필수 status/limit 누락으로1회 실패했고 로컬 회귀 RED로 고정한 뒤 클라이언트만 보정해 재통과했다. 각 폐기 PG/runner/network와 내부 QA checkout은 종료 trap으로 제거했으며 잔류0, 보호DB/고정QA 쓰기0, 기존 main WSL /ready200 유지.
