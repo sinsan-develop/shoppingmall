@@ -183,6 +183,29 @@ test('STARTTLS refuses a server that offers only plaintext before sending a link
     }
   });
 
+test('SMTP greeting timeout fails closed without exposing link or credentials',
+  { timeout: 15000 }, async () => {
+    const commands = [];
+    const sockets = new Set();
+    const server = createServer((socket) => {
+      sockets.add(socket);
+      socket.on('close', () => sockets.delete(socket));
+      socket.on('data', (data) => commands.push(data.toString()));
+    });
+    await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+    try {
+      configure({ SMTP_HOST: '127.0.0.1', SMTP_PORT: String(server.address().port),
+        SMTP_SECURITY: 'starttls' });
+      await assert.rejects(delivery.deliverAuthLink('password_reset', 'user@example.invalid',
+        'https://shop.example.invalid/reset-password#token=fakeOneTimeToken'),
+      (error) => error.message === 'Auth delivery failed');
+      assert.doesNotMatch(commands.join(''), /MAIL FROM|RCPT TO|fakeOneTimeToken|fake-test-secret/i);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise((resolveClose) => server.close(resolveClose));
+    }
+  });
+
 test('isolated DB HTTP signup and reset send only eligible SMTP links and consume each once',
   { skip: !process.env.AUTH_INTAKE_TEST_DB_SYSTEM_ID, timeout: 45000 }, async () => {
     assert.equal(process.env.PGDATABASE, 'shoppingmall_auth_intake_1011');
