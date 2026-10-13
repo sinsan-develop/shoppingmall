@@ -220,6 +220,13 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
     assert.equal(certificate.status, 0);
     const received = [];
     const recipients = [];
+    const stalledSockets = new Set();
+    const stalledCommands = [];
+    const stalledServer = createServer((socket) => {
+      stalledSockets.add(socket);
+      socket.on('close', () => stalledSockets.delete(socket));
+      socket.on('data', (data) => stalledCommands.push(data.toString()));
+    });
     let rejectFirstMessage = true;
     let rejectionEvents = 0;
     const server = new SMTPServer({ secure: true, key: await readFile(keyPath),
@@ -240,6 +247,7 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
     try {
       await new Promise((resolveListen, reject) => server.listen(0, '127.0.0.1',
         (error) => error ? reject(error) : resolveListen()));
+      await new Promise((resolveListen) => stalledServer.listen(0, '127.0.0.1', resolveListen));
       const childCode = `
         import assert from 'node:assert/strict';
         import { spawnSync } from 'node:child_process';
@@ -363,14 +371,26 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
           assert.ok(Number(stoppedWorker.stdout) > 0 && Number(stoppedWorker.stdout) !== process.pid,
             'the first claim must run in a separate process');
           const recoverAt = new Date(restartAt.getTime() + 121000);
+          const realSmtpPort = process.env.SMTP_PORT;
+          process.env.SMTP_PORT = process.env.QA_SMTP_HANG_PORT;
+          process.env.SMTP_SECURITY = 'starttls';
           await processAuthIntakeOnce(pool, recoverAt);
+          const timedOut = await pool.query('SELECT status,attempts,last_error_code FROM auth_intake_jobs WHERE email=$1', [restartEmail]);
+          assert.deepEqual(timedOut.rows[0], { status: 'pending', attempts: 2, last_error_code: 'processing_failed' });
+          const timedOutToken = await pool.query('SELECT revoked_at,delivery_failed_at FROM auth_action_tokens WHERE email=$1', [restartEmail]);
+          assert.equal(timedOutToken.rows.length, 1);
+          assert.ok(timedOutToken.rows[0].revoked_at && timedOutToken.rows[0].delivery_failed_at);
+          process.env.SMTP_PORT = realSmtpPort;
+          process.env.SMTP_SECURITY = 'implicit_tls';
+          const retryAt = new Date(recoverAt.getTime() + 21000);
+          await processAuthIntakeOnce(pool, retryAt);
           const restartReply = new Promise((resolve) => process.once('message', resolve));
           process.send({ phase: 'restart', email: restartEmail });
           const restartToken = (await restartReply).token;
           assert.equal((await post('/auth/customer-signup/complete', { token: restartToken, password: oldPassword })).status, 201);
-          assert.equal((await processAuthIntakeOnce(pool, new Date(recoverAt.getTime() + 1000))).processed, false);
+          assert.equal((await processAuthIntakeOnce(pool, new Date(retryAt.getTime() + 1000))).processed, false);
           const recovered = await pool.query('SELECT status,attempts FROM auth_intake_jobs WHERE email=$1', [restartEmail]);
-          assert.deepEqual(recovered.rows[0], { status: 'done', attempts: 2 });
+          assert.deepEqual(recovered.rows[0], { status: 'done', attempts: 3 });
           process.send({ phase: 'done' });
         } finally {
           if (app) await app.close();
@@ -396,6 +416,7 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
           AUTH_DELIVERY_MODE: 'smtp', APP_ENV: 'development', API_HOST: '127.0.0.1',
           AUTH_LINK_ORIGIN: 'https://shop.example.invalid', WEB_ORIGIN: 'http://127.0.0.1:9091',
           SMTP_HOST: '127.0.0.1', SMTP_PORT: String(server.server.address().port),
+          QA_SMTP_HANG_PORT: String(stalledServer.address().port),
           SMTP_SECURITY: 'implicit_tls', SMTP_USER: 'fake-user',
           SMTP_PASSWORD: 'fake-test-secret', SMTP_FROM: 'no-reply@example.invalid' },
         stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
@@ -435,8 +456,11 @@ test('isolated DB HTTP signup and reset send only eligible SMTP links and consum
       assert.deepEqual(phases, ['first-attempt', 'signup', 'negative', 'reset',
         'stale-link', 'fresh-link', 'stale-retry', 'restart', 'done']);
       assert.equal(received.length, 5);
+      assert.doesNotMatch(stalledCommands.join(''), /MAIL FROM|RCPT TO|token=|fake-test-secret/i);
       assert.doesNotMatch(received.join(''), /fake-test-secret|isolated-smtp-.*password/);
     } finally {
+      for (const socket of stalledSockets) socket.destroy();
+      await new Promise((resolveClose) => stalledServer.close(resolveClose));
       await new Promise((resolveClose) => server.close(resolveClose));
       await rm(directory, { recursive: true, force: true });
     }
