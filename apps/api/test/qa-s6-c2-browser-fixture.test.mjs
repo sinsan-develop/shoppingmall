@@ -48,3 +48,21 @@ test('C2 browser fixture refuses wrong actual database, migrations or existing r
     { database: expected.database, systemId, migrations: 26, accounts: 0, events: 1 },
   ]) assert.throws(() => assertS6C2BrowserBaseline(expected, systemId, actual));
 });
+
+test('C2 accepts the approved 28-migration QA checkpoint only with exact auth migration hashes', () => {
+  const target = { database: 'shoppingmall_qa_20261010_2', migrations: 26 };
+  const systemId = '7622490131194466339';
+  const authIntakeMigrations = [
+    { hash: '040297ad32b0f118d8f39ca0b80d78d3f04b9145f73ed2c91b1cd112e7de7568', createdAt: 1791964800000 },
+    { hash: '94062c165d10b7052438d1ce8203651e9baf4807d90270a9c52d39d37828bd15', createdAt: 1792051200000 },
+  ];
+  const actual = { database: target.database, systemId, migrations: 28,
+    accounts: 0, events: 0, authIntakeMigrations };
+  assert.doesNotThrow(() => assertS6C2BrowserBaseline(target, systemId, actual));
+  for (const unsafe of [
+    { ...actual, authIntakeMigrations: [] },
+    { ...actual, migrations: 27 }, { ...actual, migrations: 29 },
+    { ...actual, authIntakeMigrations: [{ ...authIntakeMigrations[0], hash: '0'.repeat(64) }, authIntakeMigrations[1]] },
+    { ...actual, authIntakeMigrations: [authIntakeMigrations[0], { ...authIntakeMigrations[1], createdAt: 1 }] },
+  ]) assert.throws(() => assertS6C2BrowserBaseline(target, systemId, unsafe));
+});

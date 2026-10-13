@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import * as fulfillmentFixture from '../scripts/qa-fulfillment-ui-fixture.ts';
 import {
   fulfillmentUiDatabaseName,
   fulfillmentUiEmails,
@@ -13,6 +14,21 @@ import {
 
 const uuid = (digit) => `${digit.repeat(8)}-${digit.repeat(4)}-${digit.repeat(4)}-${digit.repeat(4)}-${digit.repeat(12)}`;
 const fixtureSourceUrl = new URL('../scripts/qa-fulfillment-ui-fixture.ts', import.meta.url);
+
+test('fulfillment accepts the approved auth migration checkpoint and rejects unknown history', () => {
+  assert.equal(typeof fulfillmentFixture.assertApprovedFulfillmentMigrationHistory, 'function');
+  const validate = fulfillmentFixture.assertApprovedFulfillmentMigrationHistory;
+  const history = [
+    { hash: '040297ad32b0f118d8f39ca0b80d78d3f04b9145f73ed2c91b1cd112e7de7568', createdAt: 1791964800000 },
+    { hash: '94062c165d10b7052438d1ce8203651e9baf4807d90270a9c52d39d37828bd15', createdAt: 1792051200000 },
+  ];
+  assert.doesNotThrow(() => validate(26, []));
+  assert.doesNotThrow(() => validate(28, history));
+  for (const count of [25, 27, 29]) assert.throws(() => validate(count, history));
+  assert.throws(() => validate(28, []));
+  assert.throws(() => validate(28, [history[0], { ...history[1], hash: '0'.repeat(64) }]));
+  assert.throws(() => validate(28, [{ ...history[0], createdAt: 1 }, history[1]]));
+});
 
 test('fulfillment browser fixture is bound to one exact isolated database and five virtual roles', () => {
   assert.equal(fulfillmentUiDatabaseName('A1B2C3D4'), 'shoppingmall_s5_fulfillment_ui_a1b2c3d4');

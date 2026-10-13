@@ -6,7 +6,8 @@ import { completeSellerPeriod } from '../src/settlement/complete.js';
 import { qaNames, runQaFixture, validateQaRunId } from './qa-fixture.js';
 
 type FixtureTarget = { database: string; migrations: number };
-type FixtureBaseline = FixtureTarget & { systemId: string; accounts: number; events: number };
+type FixtureBaseline = FixtureTarget & { systemId: string; accounts: number; events: number;
+  authIntakeMigrations?: { hash: string; createdAt: number }[] };
 
 export function validateS6C2BrowserTarget(databaseUrl: string, runId: string,
   systemId: string, mode?: string): FixtureTarget {
@@ -30,7 +31,15 @@ export function validateS6C2BrowserTarget(databaseUrl: string, runId: string,
 
 export function assertS6C2BrowserBaseline(target: FixtureTarget, expectedSystemId: string,
   actual: FixtureBaseline): void {
-  assert.deepEqual({ database: actual.database, migrations: actual.migrations }, target);
+  assert.equal(actual.database, target.database);
+  if (target.database === 'shoppingmall_qa_20261010_2' && target.migrations === 26 &&
+      actual.migrations === 28) {
+    const approved = [
+      { hash: '040297ad32b0f118d8f39ca0b80d78d3f04b9145f73ed2c91b1cd112e7de7568', createdAt: 1791964800000 },
+      { hash: '94062c165d10b7052438d1ce8203651e9baf4807d90270a9c52d39d37828bd15', createdAt: 1792051200000 },
+    ];
+    assert.deepEqual(actual.authIntakeMigrations, approved);
+  } else assert.equal(actual.migrations, target.migrations);
   assert.equal(actual.systemId, expectedSystemId);
   assert.equal(actual.accounts, 0);
   assert.equal(actual.events, 0);
@@ -49,7 +58,10 @@ try {
     system_identifier::text AS "systemId",
     (SELECT count(*)::int FROM drizzle.__drizzle_migrations) AS migrations,
     (SELECT count(*)::int FROM accounts) AS accounts,
-    (SELECT count(*)::int FROM settlement_events) AS events
+    (SELECT count(*)::int FROM settlement_events) AS events,
+    (SELECT coalesce(jsonb_agg(jsonb_build_object('hash',hash,'createdAt',created_at)
+      ORDER BY created_at),'[]'::jsonb) FROM drizzle.__drizzle_migrations
+      WHERE created_at>=1791964800000) AS "authIntakeMigrations"
     FROM pg_control_system()`)).rows[0] as FixtureBaseline;
   assertS6C2BrowserBaseline(target, systemId, baseline);
   await runQaFixture('seed', run, databaseUrl, password);

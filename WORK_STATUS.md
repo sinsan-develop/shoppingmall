@@ -1,5 +1,18 @@
 # 어울몰 작업현황
 
+## 2026-10-13 고정 QA DB 후속 적용 착수
+
+- 담당 어울, 기존 작업 브랜치 `codex/next-work-20261011`/`4ebc89a`. 고정 QA DB `shoppingmall_qa_20261010_2`의 system ID `7622490131194466339`, migration 26건과 주요 계정·신원·정산 사건 0행, 0026·0027 SQL 해시를 재확인했다. 기존 `/tmp`의 0026 백업은 현재 없어 재사용하지 않는다.
+- 자원 사전 선언: 지정 WSL의 `/tmp/shoppingmall-qa-0026-pre-20261013.dump`·`/tmp/shoppingmall-qa-0027-pre-20261013.dump`와 일회성 복원 DB `shoppingmall_qa_restore_0026_20261013`·`shoppingmall_qa_restore_0027_20261013`. 각 migration 직전에 고정 QA DB만 새로 백업하고 실제 복원·주요 행을 대조한다. 복원 DB는 즉시 제거하며 백업은 해당 적용·사후 확인 완료 뒤 제거한다. 실패 시 해당 백업과 원본 QA DB를 보존한다. 보호 DB 쓰기와 외부 발송은 없다.
+- WSL load 4.44/5.10/4.87이나 최근 CPU idle 21~24%, I/O wait 0이다. 작은 DB DDL을 순차·낮은 우선순위로 수행하며 `lock_timeout=3s`, `statement_timeout=20s`와 트랜잭션으로 잠금·지연 시 자동 rollback한다. 부하·복구 시험이나 전체 회귀는 이번 변경의 선행 작업으로 반복하지 않는다.
+- 정식 QA 핵심 동작 자원 사전 선언: `shoppingmall-auth-fixedqa-1013-node` 일회성 `node:24-bookworm-slim` runner, CPU 0.5·메모리 768MiB, 지정 checkout 읽기 전용 mount·`local-postgres` network namespace·host 공개 port 없음. 기존 고정 QA DB 허용 gate를 가진 인증 HTTP/복구 시험 두 파일만 순차 실행하며, 이번 실행 전용 가상 HMAC 키와 fixture를 사용한다. 종료 시 runner는 `--rm`으로 제거하고 QA 계정·토큰·접수 작업·기타 생성 자료의 잔류를 확인한다. 원래 보안 감사 29행을 삭제하지 않는다.
+- R15 화면 확인 자원 사전 선언: 고정 QA DB의 `QA_RUN_ID=f413a013` 기존 역할 fixture, 일회성 `shoppingmall-r15-fixture-1013` seed/reset runner와 `shoppingmall-r15-api-1013`(CPU 0.5·메모리 768MiB·WSL 루프백9092), Windows 로컬 Web9091·9092 SSH 터널·새 in-app 시험 탭. 목적은 본인 신청의 접수·새로고침·재로그인과 승인 후 양식 숨김 확인이다. 현재 checkout의 동일 제품 코드를 사용하고 종료 시 정확한 fixture 신청 행을 먼저 지운 뒤 기존 reset 도구를 실행한다. 서비스·터널·시험 탭은 해당 확인 종료 시 제거한다. 실제 비밀번호·메일 설정은 사용하지 않는다.
+- 결과: 0026 전 백업 SHA-256 `45bea74da71432d4fbc9d87f574ea02306eedbb8addd9728bb4a1c3e1c48dc48`/286345 bytes/0600, 실제 복원과 주요 행 `26|0|0|0|0` 대조 성공. 0026을 정확한 SQL·hash·Drizzle 시각을 한 트랜잭션으로 적용했다. 0027 전 별도 백업 `f539f0298382f13f059782624aca1dca0ef050ca200ba53e7840c19e3168e075`/289150 bytes/0600과 실제 복원 `27|0|0|0|0|0` 대조 성공 후 0027을 단독 적용했다. 최종 migration28·접수 큐·두 토큰 열과 index를 확인했다. 복원 DB 두 개와 인증 runner 잔류0. 기존 승인 SQL은 수정하지 않았다.
+- 정확 SHA `4ebc89a`의 고정 QA DB 인증 HTTP·복구 두 파일은 6/6 pass·0 skip·0 fail. 가입 저장/1회 사용/관리자 역할 상승 거부, 동일 응답·미등록 무발송, 비밀번호 복구/옛 세션 무효화/실패 재시도 및 경합을 확인했다. 시험 계정·역할·신원·세션·작업·토큰·판매자 신청·판매자·분류·일반 감사·정산 사건 모두0. 보안 사건은 기존29→53으로 가상 시험의 해시 감사24행을 보존했으며 원래 감사행을 삭제하지 않았다.
+- R15 실제 화면: Windows 현재 Web 코드→WSL 동일 SHA API→고정 QA DB로 `f413a013` 신청을 접수하고 심사 대기·새로고침·로그아웃/재로그인 지속성을 확인했다. 가상 관리자 승인 API201 뒤 오래된 구매자 세션과 새 구매자 세션 양쪽에서 승인 표시·신청 양식0을 확인했다. 기존 본인/타인/권한 시험6건과 함께 R15 핵심 동작 확인이다. 신청1행과 고유 fixture5계정·3판매자·1분류·관련 세션/일반 감사를 정확한 reset으로 정리하고 임시 API를 종료했다. 모든 브라우저/기기 검증은 2단계다.
+- Stage4 진행 중 발견한 실제 도구 차단: 출고·C2 fixture의 26건 고정 gate가 승인된 현재28건을 거부한다. 기존26건·DB명·systemID·기존 자료·불변 기록 기준은 유지하고, 추가0026·0027의 정확한 해시/시각을 가진28건만 허용했다. 신규2건 RED→대상12/12 GREEN·변경4파일 lint·API typecheck/build exit0. 수정 파일은 계획의 두 fixture 및 직접 시험뿐이며 설계·작업계획서·제품 동작은 변경하지 않았다. 로컬 검색의 잘못된 glob/파일명 조회 오류는 진단만 중단했고 DB쓰기 영향0이다.
+- Stage4 후속 자원 사전 선언: 고정 QA DB의 환불`f413b013`·출고`f413c013`·지원`f413d013`·C2`f413e013` run ID를 한 번에 하나씩 사용한다. `shoppingmall-stage4-fixture-1013` 제한 runner는 생성 manifest를 메모리에 보존하며 화면 확인 후 동일 manifest로 reset한다. 지원 recovery/이미지 경로는 해당 컨테이너 내부 `/tmp/shoppingmall-s52-support-ui`에 한정하며 reset 실패 시 컨테이너를 보존한다. `shoppingmall-stage4-api-1013`는 제한된 WSL 루프백9092 API이며 기존 로컬 Web·터널·시험 탭을 재사용한다. C2 불변 정산 사건은 계획대로 식별·보존하고 무단 삭제하지 않는다. 그 외 성공한 runner·서비스·로컬 프로세스는 확인 종료 때 정리한다.
+
 ## 2026-10-13 SMTP 시간초과 경계 추가 — 로컬·WSL 1단계
 
 - 담당 어울. 기존 작업 브랜치 `codex/next-work-20261011`, 시작 HEAD `62bfba5`; 로컬 사용자 소유 비추적 세 경로는 보존했다. PMO·승인 계획·설계·환경·진도와 WSL 실제 상태를 다시 대조했다. 설계서·작업계획서·루트 `.env`는 수정·열람하지 않았다.

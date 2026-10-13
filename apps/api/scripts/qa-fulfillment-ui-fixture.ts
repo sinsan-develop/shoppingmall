@@ -92,6 +92,19 @@ export function validateFulfillmentUiSystemTarget(value: string, expectedSystemI
   return { databaseName: actual.databaseName, systemId: actual.systemId };
 }
 
+export function assertApprovedFulfillmentMigrationHistory(count: number,
+  history: { hash: string; createdAt: number }[]): void {
+  if (count === 26 && history.length === 0) return;
+  const approved = [
+    { hash: '040297ad32b0f118d8f39ca0b80d78d3f04b9145f73ed2c91b1cd112e7de7568', createdAt: 1791964800000 },
+    { hash: '94062c165d10b7052438d1ce8203651e9baf4807d90270a9c52d39d37828bd15', createdAt: 1792051200000 },
+  ];
+  if (count !== 28 || history.length !== approved.length ||
+      !approved.every((entry, index) => history[index]?.hash === entry.hash &&
+        Number(history[index]?.createdAt) === entry.createdAt))
+    throw new Error('Fulfillment UI fixture requires the approved QA migration checkpoint');
+}
+
 export function validateFulfillmentUiManifest(value: string, candidate: unknown,
   password: string): FulfillmentUiManifest {
   const manifest = candidate as Partial<FulfillmentUiManifest> | null;
@@ -547,7 +560,11 @@ export async function runFulfillmentUiFixture(action: 'seed' | 'reset', value: s
       if (mode === 'approved-qa') {
         const migrations = (await client.query<{ count: number }>(
           'SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations')).rows[0]?.count;
-        if (migrations !== 26) throw new Error('Fulfillment UI fixture requires 26 QA migrations');
+        const history = (await client.query<{ hash: string; createdAt: string }>(
+          `SELECT hash,created_at AS "createdAt" FROM drizzle.__drizzle_migrations
+           WHERE created_at>=1791964800000 ORDER BY created_at`)).rows
+          .map((entry) => ({ hash: entry.hash, createdAt: Number(entry.createdAt) }));
+        assertApprovedFulfillmentMigrationHistory(migrations, history);
       }
       const result = action === 'seed'
         ? await seedFixture(client, runId, password!) : await resetFixture(client, manifest!);
