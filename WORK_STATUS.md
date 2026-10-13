@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 2026-10-14 설계 전체 누락 보완 S7 착수
+
+- 담당 어울. PMO가 전달한 신산님 직접 수정 지시에 따라 main `3d692a8` 기준 `codex/s7-mobile-20261014`에서 고객 앱을 구현한다. 승인된 DESIGN/WORK_PLAN과 다음 주기 초안을 대조했으며 기존 시안·계정·메일/HTTPS 보류를 유지한다. 현재 실행 중 WSL main 웹/API는 변경하지 않는다.
+- 첫 HTTP 경계5건 및 기존 안내 화면2건 RED 확인 후 고객 화면·기존 API 연결을 구현했다. 검색 계약 보정 RED1→GREEN, 세션 만료의 실제 화면 제거를 포함하여 모바일9/9 pass·0 skip, mobile typecheck/lint exit0. 시험용 renderer는 네이티브 컨트롤만 대체하고 실제 React 상태·HTTP 클라이언트를 실행한다. react-test-renderer의 deprecated 경고가 있으며 네이티브 동작 증거가 아니다. Android JS/Hermes 번들587모듈·1.5MB export 성공, APK/설치/에뮬레이터 구매는 아직 미확인이다.
+- 자원 사전 선언: 실제 HTTP/DB 연결은 WSL의 일회성 `shoppingmall-qa-s7-20261014-pg`(PG15 tmpfs/전용 network, 보호 클러스터와 다른 systemID)와 `shoppingmall-s7-qa-node` 제한 runner로 확인한다. 가상 자료는 신규 폐기 DB shoppingmall에만 생성하고 정확 identity gate 뒤 사용한다. 실행 중 main checkout을 바꾸지 않도록 Git의 동일 후보를 내부 QA checkout으로 준비한다. 시험 종료·실패 시 해당 runner/PG/network를 제거한다. 고정 QA DB·보호 shoppingmall DB에는 거래를 만들지 않는다.
+- 실제 UI→네이티브 cookie·OS 푸시 권한·승인 아이콘·에뮬레이터는 아직 미확인이다. 정식 관리자 대상/소유 확인·1회용 전달과 지속 행은 별도 결정 전 실행하지 않는다. S7·S8 또는 설계 전체 완료를 선언하지 않는다. 개발계획·설계서는 수정하지 않는다.
+
 ## 2026-10-14 승인 WSL 개발 배포·실행
 
 - 담당 어울. 신산님의 WSL 배포·실행 요청으로 지정 checkout의 main 코드 `3b28b6fed99207a420d31afa510143b76a2ffebe`를 Git으로 받아 실행했다. 실제 메일·HTTPS 시험은 인수테스트 보류를 유지한다. 보호 shoppingmall DB·migration·계정·Secret·Oracle·공개 도메인은 변경하지 않았다.

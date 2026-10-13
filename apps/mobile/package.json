@@ -9,11 +9,14 @@
   },
   "dependencies": {
     "expo": "57.0.25",
+    "expo-crypto": "~57.0.3",
     "react": "19.2.3",
     "react-native": "0.86.3"
   },
   "devDependencies": {
     "@types/react": "^19.2.0",
+    "esbuild": "0.28.2",
+    "react-test-renderer": "19.2.3",
     "typescript": "5.9.3"
   }
 }
