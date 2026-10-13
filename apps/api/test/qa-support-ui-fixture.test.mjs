@@ -146,6 +146,34 @@ test('S5.2 formal shared seed refuses non-baseline business or policy rows', () 
   assert.throws(() => validateSharedSupportUiBaseline({ accounts:0 }));
 });
 
+test('approved support baseline preserves declared authentication audit rows without allowing business residue', () => {
+  const baseline = { fulfillment_settings:1,home_content_current:1,
+    home_content_draft:1,shipping_policy_global:1,support_policy_versions:1,
+    accounts:0,checkout_orders:0,support_claims:0,auth_security_events:53 };
+  assert.doesNotThrow(() => validateSharedSupportUiBaseline(baseline,53));
+  assert.throws(() => validateSharedSupportUiBaseline(baseline));
+  assert.throws(() => validateSharedSupportUiBaseline({ ...baseline,auth_security_events:54 },53));
+  assert.throws(() => validateSharedSupportUiBaseline({ ...baseline,accounts:1 },53));
+});
+
+test('support reset refuses changed protected authentication audit contents', () => {
+  assert.equal(typeof supportFixture.assertPreservedSupportAuthAudit,'function');
+  const expected = { count:53,hash:'a'.repeat(64) };
+  assert.doesNotThrow(() => supportFixture.assertPreservedSupportAuthAudit(expected,{ ...expected }));
+  assert.throws(() => supportFixture.assertPreservedSupportAuthAudit(expected,
+    { ...expected,count:54 }));
+  assert.throws(() => supportFixture.assertPreservedSupportAuthAudit(expected,
+    { ...expected,hash:'b'.repeat(64) }));
+});
+
+test('support creation manifest signs the preserved authentication audit snapshot', () => {
+  const protectedManifest = { ...sampleManifest(),preservedAuthSecurityEvents:{ count:53,hash:'a'.repeat(64) } };
+  const manifest = { ...protectedManifest,signature:signSupportUiManifest(protectedManifest,password) };
+  assert.deepEqual(validateSupportUiManifest(runId,manifest,password),manifest);
+  assert.throws(() => validateSupportUiManifest(runId,
+    { ...manifest,preservedAuthSecurityEvents:{ count:53,hash:'b'.repeat(64) } },password));
+});
+
 test('S5.2 reset requires complete unmodified signed creation manifest', () => {
   const manifest = sampleManifest();
   assert.deepEqual(validateSupportUiManifest(runId,manifest,password),manifest);

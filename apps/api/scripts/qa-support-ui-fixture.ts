@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -15,6 +15,7 @@ const approvedQaDatabase = 'shoppingmall_qa_20261010_2';
 const approvedQaSystemId = '7622490131194466339';
 type PreviousSetting = { owoolSellerId: string | null; updatedBy: string | null;
   version: number; updatedAt: string };
+type PreservedAuthAudit = { count: number; hash: string };
 export type SupportUiManifest = {
   runId: string; emails: string[]; accountIds: string[]; sellerIds: string[];
   sellerCategoryId: string; productCategoryIds: string[];
@@ -24,6 +25,7 @@ export type SupportUiManifest = {
   initialFulfillmentEventIds: string[]; orderStatusEventId: string;
   previousFulfillmentSetting: PreviousSetting;
   seededFulfillmentSettingUpdatedAt: string; signature: string;
+  preservedAuthSecurityEvents?: PreservedAuthAudit;
 };
 type UnsignedManifest = Omit<SupportUiManifest,'signature'>;
 const manifestFields = ['runId','emails','accountIds','sellerIds','sellerCategoryId',
@@ -186,16 +188,33 @@ export function validateApprovedSupportUiTarget(databaseUrl: string,value: strin
   return { url,database };
 }
 
-export function validateSharedSupportUiBaseline(counts: Record<string,number>) {
+export function validateSharedSupportUiBaseline(counts: Record<string,number>,
+  preservedAuthCount = 0) {
   const defaults = new Set(['fulfillment_settings','home_content_current',
     'home_content_draft','shipping_policy_global','support_policy_versions']);
-  if ([...defaults].some((name) => counts[name] !== 1) ||
+  if (!Number.isSafeInteger(preservedAuthCount) || preservedAuthCount < 0 ||
+      (preservedAuthCount > 0 && counts.auth_security_events !== preservedAuthCount) ||
+      [...defaults].some((name) => counts[name] !== 1) ||
       Object.entries(counts).some(([name,count]) =>
-        !Number.isSafeInteger(count) || count !== (defaults.has(name) ? 1 : 0)))
+        !Number.isSafeInteger(count) || count !== (name === 'auth_security_events'
+          ? preservedAuthCount : defaults.has(name) ? 1 : 0)))
     throw new Error('Support UI shared fixture requires an untouched empty QA baseline');
 }
 
-async function assertSharedSupportUiBaseline(client: PoolClient) {
+export function assertPreservedSupportAuthAudit(expected: PreservedAuthAudit,
+  actual: PreservedAuthAudit): void {
+  if (!Number.isSafeInteger(expected.count) || expected.count < 0 ||
+      !/^[0-9a-f]{64}$/.test(expected.hash) || actual.count !== expected.count ||
+      actual.hash !== expected.hash)
+    throw new Error('Support UI protected authentication audit changed');
+}
+
+async function readProtectedAuthAudit(client: PoolClient): Promise<PreservedAuthAudit> {
+  const rows = (await client.query('SELECT * FROM auth_security_events ORDER BY id')).rows;
+  return { count: rows.length, hash: createHash('sha256').update(JSON.stringify(rows)).digest('hex') };
+}
+
+async function assertSharedSupportUiBaseline(client: PoolClient, expected?: PreservedAuthAudit) {
   await client.query("SET LOCAL lock_timeout='1s'");
   await client.query("SET LOCAL statement_timeout='10s'");
   const tables = (await client.query<{ tablename: string }>(`SELECT tablename FROM pg_tables
@@ -208,7 +227,10 @@ async function assertSharedSupportUiBaseline(client: PoolClient) {
     counts[tables[index]] = (await client.query<{ count: number }>(
       `SELECT count(*)::int AS count FROM ${quoted[index]}`)).rows[0].count;
   }
-  validateSharedSupportUiBaseline(counts);
+  const audit = await readProtectedAuthAudit(client);
+  if (expected) assertPreservedSupportAuthAudit(expected,audit);
+  validateSharedSupportUiBaseline(counts,audit.count);
+  return audit;
 }
 
 export function validateSupportUiSystemTarget(value: string,expectedSystemId: string | undefined,
@@ -244,14 +266,16 @@ function exactUuids(value: unknown,length: number) {
 }
 
 function manifestPayload(manifest: UnsignedManifest) {
-  return JSON.stringify([
+  const payload: unknown[] = [
     manifest.runId,manifest.emails,manifest.accountIds,manifest.sellerIds,
     manifest.sellerCategoryId,manifest.productCategoryIds,manifest.productId,
     manifest.revisionId,manifest.optionId,manifest.addressId,manifest.reservationId,
     manifest.orderId,manifest.shipmentId,manifest.paymentAttemptId,manifest.paymentEventId,
     manifest.initialFulfillmentEventIds,manifest.orderStatusEventId,
     manifest.previousFulfillmentSetting,manifest.seededFulfillmentSettingUpdatedAt,
-  ]);
+  ];
+  if (manifest.preservedAuthSecurityEvents) payload.push(manifest.preservedAuthSecurityEvents);
+  return JSON.stringify(payload);
 }
 
 export function signSupportUiManifest(manifest: UnsignedManifest,password: string) {
@@ -265,7 +289,13 @@ export function validateSupportUiManifest(value: string,candidate: unknown,
   const manifest = candidate as Partial<SupportUiManifest> | null;
   const previous = manifest?.previousFulfillmentSetting;
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) ||
-      Object.keys(manifest).sort().join(',') !== [...manifestFields].sort().join(',') ||
+      Object.keys(manifest).filter((key) => key !== 'preservedAuthSecurityEvents').sort().join(',') !==
+        [...manifestFields].sort().join(',') ||
+      (manifest.preservedAuthSecurityEvents !== undefined &&
+        (Object.keys(manifest.preservedAuthSecurityEvents ?? {}).sort().join(',') !== 'count,hash' ||
+          !Number.isSafeInteger(manifest.preservedAuthSecurityEvents.count) ||
+          manifest.preservedAuthSecurityEvents.count < 0 ||
+          !/^[0-9a-f]{64}$/.test(manifest.preservedAuthSecurityEvents.hash))) ||
       manifest.runId !== validateQaRunId(value) ||
       JSON.stringify(manifest.emails) !== JSON.stringify(supportUiEmails(value)) ||
       !exactUuids(manifest.accountIds,5) || !exactUuids(manifest.sellerIds,2) ||
@@ -794,9 +824,13 @@ export async function runSupportUiFixture(action: 'seed' | 'reset',value: string
         FROM pg_control_system()`)).rows[0];
       validateSupportUiSystemTarget(runId,expectedSystemId,actual,databaseName);
       if (action === 'seed') {
-        if (sharedConsent !== undefined || approvedQaConsent !== undefined)
-          await assertSharedSupportUiBaseline(client);
-        result = await seedFixture(client,runId,password);
+        const audit = sharedConsent !== undefined || approvedQaConsent !== undefined
+          ? await assertSharedSupportUiBaseline(client) : undefined;
+        const created = await seedFixture(client,runId,password);
+        if (audit) {
+          const preserved = { ...created,preservedAuthSecurityEvents:audit };
+          result = { ...preserved,signature:signSupportUiManifest(preserved,password) };
+        } else result = created;
         await createRecoveryFile(recoveryPath,password,result,
           () => { recoveryCreated = true; });
       }
@@ -807,6 +841,12 @@ export async function runSupportUiFixture(action: 'seed' | 'reset',value: string
         if (saved.password !== password ||
             JSON.stringify(saved.manifest) !== JSON.stringify(manifest))
           throw new Error('Support UI fixture recovery file mismatch');
+        if (sharedConsent !== undefined || approvedQaConsent !== undefined) {
+          await client.query('LOCK TABLE auth_security_events IN SHARE ROW EXCLUSIVE MODE');
+          assertPreservedSupportAuthAudit(manifest!.preservedAuthSecurityEvents ??
+            { count:0,hash:createHash('sha256').update('[]').digest('hex') },
+          await readProtectedAuthAudit(client));
+        }
         const files = await assertResetOwnership(client,manifest!);
         if (approvedQaConsent !== undefined)
           await assertNoImmutableSupportUiEvents(client,manifest!);
@@ -815,7 +855,7 @@ export async function runSupportUiFixture(action: 'seed' | 'reset',value: string
         for (const file of files) staged.push(await store.stageRemoval(file.object_key));
         result = await deleteOwnedRows(client,manifest!);
         if (sharedConsent !== undefined || approvedQaConsent !== undefined)
-          await assertSharedSupportUiBaseline(client);
+          await assertSharedSupportUiBaseline(client,manifest!.preservedAuthSecurityEvents);
       }
       await client.query('COMMIT');
       committed = true;
