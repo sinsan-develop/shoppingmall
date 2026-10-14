@@ -2,6 +2,8 @@
 
 ## 2026-10-14 S7.1 모바일 찜·재입고 연결
 
+- 결과: exact `4f8df93fd85bb12329fd509455d242e5c43e513e`의 폐기 DB systemID `7696330278853570604`, 표준 migration 뒤 실제 클라이언트→HTTP→DB 통합1/1 pass·0 skip·0 fail. 중복 찜1행/조회→삭제0행, 재고 있는 옵션 신청409, 가상 품절 옵션 중복 신청1행/동일ID·상태조회→취소 DB상태/재조회, 로그아웃 후 찜·신청401을 확인했다. 기존 구매49000원·응답 유실 재시도·모의 결제/배송/문의/동의 흐름도 동일 시험에서 통과했다. 모바일22/22 pass·0 skip·0 fail, typecheck 및 변경 파일 eslint exit0. native 찜·재입고 상호작용은 미확인, 실제 발송0이다.
+- 준비 오류: 첫 로컬 clone은 FETCH_HEAD의 미광고 commit이 없어1회 실패해 같은 원격 branch를 직접 clone했다. 다음 실행은 PowerShell 마지막 CR이 시험 경로에 붙어 시작하지 못했고, LF 변환 후 제품 시험은 통과했다. 그 래퍼의 마지막 빈 줄 CR로 종료127이 남았으므로 전체 shell 성공으로 표시하지 않는다. 제품 시험 PASS와 별도로 정확 container/network/checkout 잔류0을 확인하며, 이후 전달은 수신 측 CR 제거를 사용한다. 실패 포함 각 trap에서 전용 자원을 정리했다. main `3d692a8`·clean과 /ready200 유지, 고정 QA/보호DB 쓰기0. 이번 기능은 화면/HTTP 및 격리 DB 핵심 확인이며 정식 사용자 인수나 전체 S7 완료가 아니다.
 - 담당 어울, 시작65a660d. 승인된 DESIGN R12/WORK_PLAN S7.1과 최신 미구현 우선 지시로 기존 고객 API의 찜 목록/추가/삭제, 품절 옵션 재입고 신청/취소/상태 화면을 연결한다. 서버 계약·DB schema·권한·실제 발송·설계·계획은 변경하지 않는다. 새 HTTP/실제 React 화면3건 RED(메서드/메뉴/신청 미구현)→GREEN, 영향 범위21/21 pass·0 skip·0 fail, 모바일 typecheck exit0. 개인 목록은401/로그아웃 시 제거하며 비공개 상세를 비활성화하고 취소/신청 결과는 서버 재조회한다. 이는 네이티브 구매·실제 알림 수신 증거가 아니다.
 - 자원 사전 선언: 기존 폐기 QA 절차의 WSL `shoppingmall-qa-s7-20261014-pg`(PG15 tmpfs·전용 network `shoppingmall-s7-qa-20261014-net`), `shoppingmall-s7-qa-node` 일회성 runner와 exact-SHA QA checkout `/home/daon/deploy/shopping-qa-s7-20261014`를 생성한다. 보호 클러스터와 다른 systemID·DB identity·초기 계정0 gate 뒤에만 가상 품절 재고/찜/신청을 만든다. 실제 DB 저장/중복/취소/401을 확인한 뒤 전용 container/network/QA checkout을 제거하고 잔류0을 확인한다. 고정 QA·보호DB와 현재main서비스는 변경하지 않는다.
 
