@@ -2,6 +2,7 @@
 
 ## 2026-10-14 S7.1 모바일 출고 전 취소·환불 요청
 
+- 결과: exact `d077e532eb621387c80af03cf12d43c3fa86bcc2`, 폐기 DB systemID `7696334998520148012`의 실제 CustomerApi→HTTP→DB1/1 pass·0 skip·0 fail, 준비/시험/정리 shell exit0. 41000원 결제 완료 주문 일부1개 취소 접수→응답 유실→동일 키 재시도 환불사례1행/수량1, REQUESTED·예상20500원/미확정, 본인 내역 조회·로그아웃401을 확인했다. refund_attempts0·원주문PAID/41000원 불변으로 실제 환불을 실행하지 않았음을 확인했다. 모바일28/28·typecheck·변경eslint exit0, 오류0. 전용 container/network/checkout 잔류0 및 기존 main3d692a8/clean·ready200을 별도 확인했다. native 환불 상호작용·관리자 심사/실PG 환불은 이번 확인이 아니며 전체 S7 완료가 아니다. 다음은 구매확정·리뷰·클레임의 기존 고객 API 연결이다.
 - 담당 어울, 시작d9149de. 기존 고객 refund-cases API로 결제 완료/출고 READY·PACKING·DELAYED 묶음의 수량·사유 접수와 처리 내역 조회를 연결한다. 요청과 실제 REFUNDED를 구분하며 예상/확정 금액은 서버 응답만 표시한다. 관리자 예약 강제취소는 고객 권한으로 호출할 수 없어 제외하고 기존 고객 예약 해제를 유지한다. 새 endpoint·DB·권한·실제 환불 실행·설계/계획 변경0. 요청·재시도·유효수량·출고후 경로·401 개인자료 제거3건 RED→GREEN, 모바일28/28 pass·0 skip·0 fail 및 typecheck exit0. 응답 유실은 입력을 잠그고 동일 요청 키로 재시도한다. 서버 최종 출고/잔여 환불 가능액 판정은 담당 심사에 남긴다.
 - QA 사전 선언: 직전의 WSL 폐기 shoppingmall-qa-s7-20261014-pg(PG15 tmpfs)/shoppingmall-s7-qa-20261014-net(internal)/shoppingmall-s7-qa-node(--rm), exact checkout /home/daon/deploy/shopping-qa-s7-20261014를 재생성한다. 보호systemID 배제·초기계정0 뒤 가상 부분 취소를 접수해 응답 유실 재시도1행·예상20500원·환불시도0/원주문41000원·PAID 불변을 확인하고 모두 제거한다. 고정QA/보호DB·main서비스·외부PG·실발송은 변경하지 않는다. native 환불 화면은 별도 미확인이다.
 
