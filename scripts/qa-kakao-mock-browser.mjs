@@ -77,6 +77,13 @@ async function run(){
   }else if(event.method==='Target.targetDestroyed')popupTargets.delete(event.params.targetId);});
   await browser.send('Target.setDiscoverTargets',{discover:true});
   const original=await newPage();
+  step='popup-blocked';await visit(original,'/login');
+  await wait(()=>evaluate(original,"[...document.querySelectorAll('button')].some(n=>n.textContent==='카카오 모의 로그인'&&!n.disabled&&Object.keys(n).some(k=>k.startsWith('__reactProps$')))"),'login ready');
+  const startsBefore=original.requests.filter(path=>path==='/auth/kakao-mock/start').length;
+  await evaluate(original,"[...document.querySelectorAll('button')].find(n=>n.textContent==='카카오 모의 로그인').click()",false);
+  await wait(()=>evaluate(original,"Boolean(document.querySelector('[role=alert]'))"),'real popup block');
+  assert.equal(original.requests.filter(path=>path==='/auth/kakao-mock/start').length,startsBefore);
+  assert.equal((await session(original)).status,401);
   for(const [outcome,label]of [['cancel','모의 취소'],['fail','모의 실패']]){
     step=outcome;await visit(original,'/login');const opened=await popup(original);await button(opened,label);
     await wait(()=>evaluate(original,"Boolean(document.querySelector('[role=alert]'))"),'safe failure UI');
@@ -123,7 +130,7 @@ async function run(){
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM account_identities')).rows[0].n,3);
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM account_roles')).rows[0].n,2);
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM audit_events WHERE action='auth.kakao_mock.login'")).rows[0].n,2);
-  console.log('KAKAO_BROWSER_CORE_PASS approve cancel fail closed-popup reload no-opener owned-address cross-tab-lock logout');
+  console.log('KAKAO_BROWSER_CORE_PASS popup-blocked approve cancel fail closed-popup reload no-opener owned-address cross-tab-lock logout');
 }
 try{await run();}catch{console.error(`KAKAO_BROWSER_QA_FAILED step=${step}`);process.exitCode=1;}
 finally{
