@@ -237,7 +237,7 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     }
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_review_images')).rows[0].n, 1);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_claim_evidence')).rows[0].n, 1);
-    if (native && process.env.QA_S7_NATIVE_PURCHASE !== '1' && process.env.QA_S7_NATIVE_CATALOG !== '1') {
+    if (native && process.env.QA_S7_NATIVE_PURCHASE !== '1' && process.env.QA_S7_NATIVE_CATALOG !== '1' && process.env.QA_S7_NATIVE_NOTIFICATIONS !== '1') {
       await writeFile('/tmp/shoppingmall-s7-native.ready', JSON.stringify({ orderId: order.id, reviewId: review.id, claimId: claim.id }));
       const deadline = Date.now() + 20 * 60 * 1000;
       let done = false;
@@ -299,6 +299,26 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     assert.equal((await api.questions()).items[0].id, asked.id);
     await api.savePreferences({ marketingEmail: true, marketingSms: false, push: false });
     assert.deepEqual(await api.preferences(), { marketingEmail: true, marketingSms: false, push: false });
+    if (native && process.env.QA_S7_NATIVE_NOTIFICATIONS === '1') {
+      const observed = [];
+      const observe = request => {
+        if (request.url === '/customer/preferences' && request.method !== 'GET') observed.push(request.method);
+      };
+      app.getHttpServer().on('request', observe);
+      try {
+        await writeFile('/tmp/shoppingmall-s7-native.ready', JSON.stringify({ scenario: 'notifications' }));
+        const deadline = Date.now() + 20 * 60 * 1000;
+        let done = false;
+        while (Date.now() < deadline) {
+          try { await access('/tmp/shoppingmall-s7-native.done'); done = true; break; } catch { await delay(1000); }
+        }
+        assert.ok(done, 'Android native permission/mock-notification evidence marker required');
+        assert.deepEqual(observed, [], 'native OS permission must not change server consent');
+        assert.deepEqual(await api.preferences(), { marketingEmail: true, marketingSms: false, push: false });
+        assert.equal((await pool.query('SELECT count(*)::int AS n FROM checkout_orders')).rows[0].n, 1,
+          'notification verification must not repeat native purchase');
+      } finally { app.getHttpServer().removeListener('request', observe); }
+    }
     if (native && process.env.QA_S7_NATIVE_PURCHASE === '1') {
       for (const item of await api.cart()) await api.removeCartItem(item.optionId);
       assert.equal((await api.cart()).length, 0, 'native purchase must start with an empty cart');
