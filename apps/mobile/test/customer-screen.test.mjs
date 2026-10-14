@@ -85,6 +85,92 @@ async function login(tree) {
   await act(async () => { button(tree, '구매자 로그인').props.onPress(); });
   await until(() => text(tree).includes('로그아웃') && button(tree, '장바구니')?.props.disabled === false);
 }
+
+test('Android 알림은 명시 요청만 실행하고 거부 시 기존 확인 경로를 유지한다', async t => {
+  let prompts = 0;
+  const notifications = { readPermission: async () => 'undetermined',
+    requestPermission: async () => { prompts++; return 'denied'; }, sendMock: async () => { throw Error('거부 시 발송 금지'); }, clearMock: async () => {} };
+  const { tree, requests } = await ready(t, {}, { '/customer/checkout/orders?status=PAID&limit=20': { items: [], nextCursor: null } }, { notifications, enableMockNotifications: true });
+  await login(tree);
+  await act(async () => button(tree, '배송지·알림').props.onPress());
+  await until(() => button(tree, 'Android 알림 권한 요청'));
+  assert.equal(prompts, 0);
+  await act(async () => button(tree, 'Android 알림 권한 요청').props.onPress());
+  await until(() => text(tree).includes('거부됨'));
+  assert.equal(prompts, 1);
+  assert.equal(button(tree, '개발용 모의 알림 보내기').props.disabled, true);
+  assert.ok(text(tree).includes('주문·내 문의'));
+  assert.equal(requests.some(([path, method]) => path === '/customer/preferences' && method !== 'GET'), false);
+  await act(async () => button(tree, '주문·배송').props.onPress());
+  await until(() => text(tree).includes('본인 결제 완료 주문·배송'));
+});
+
+test('Android 알림 허용은 서버 동의와 독립이며 모의 알림은 명시 개발 옵션에만 보인다', async t => {
+  let sends = 0;
+  const notifications = { readPermission: async () => 'granted', requestPermission: async () => 'granted',
+    sendMock: async () => { sends++; }, clearMock: async () => {} };
+  const { tree, requests } = await ready(t, {}, {}, { notifications, enableMockNotifications: true });
+  await login(tree);
+  await act(async () => button(tree, '배송지·알림').props.onPress());
+  await until(() => button(tree, '개발용 모의 알림 보내기')?.props.disabled === false);
+  assert.equal(sends, 0);
+  await act(async () => button(tree, '개발용 모의 알림 보내기').props.onPress());
+  await until(() => text(tree).includes('모의 알림을 표시했습니다'));
+  assert.equal(sends, 1);
+  assert.equal(requests.some(([path, method]) => path === '/customer/preferences' && method !== 'GET'), false);
+  const normal = await ready(t, {}, {}, { notifications });
+  await login(normal.tree);
+  await act(async () => button(normal.tree, '배송지·알림').props.onPress());
+  await until(() => text(normal.tree).includes('기기 알림 권한'));
+  assert.equal(button(normal.tree, '개발용 모의 알림 보내기'), undefined);
+});
+
+test('알림 OS 오류를 숨김 성공으로 표시하지 않고 서버 설정과 상품 탐색은 유지한다', async t => {
+  const notifications = { readPermission: async () => { throw Error('private-native-error'); },
+    requestPermission: async () => { throw Error('private-native-error'); }, sendMock: async () => {}, clearMock: async () => {} };
+  const { tree } = await ready(t, {}, {}, { notifications, enableMockNotifications: true });
+  await login(tree);
+  await act(async () => button(tree, '배송지·알림').props.onPress());
+  await until(() => text(tree).includes('기기 알림 상태를 확인하지 못했습니다'));
+  assert.equal(text(tree).includes('private-native-error'), false);
+  assert.equal(button(tree, '개발용 모의 알림 보내기').props.disabled, true);
+  assert.equal(button(tree, '수신 설정 저장').props.disabled, false);
+});
+
+test('권한 요청 중 중복 클릭과 늦은 초기 조회가 허용 결과를 덮어쓰지 않는다', async t => {
+  let resolveRead, resolveRequest, reads = 0, prompts = 0;
+  const heldRead = new Promise(resolve => { resolveRead = resolve; });
+  const heldRequest = new Promise(resolve => { resolveRequest = resolve; });
+  t.after(() => { resolveRead('denied'); resolveRequest('granted'); });
+  const notifications = { readPermission: async () => ++reads === 1 ? heldRead : 'granted',
+    requestPermission: async () => { prompts++; return heldRequest; }, sendMock: async () => {}, clearMock: async () => {} };
+  const { tree } = await ready(t, {}, {}, { notifications, enableMockNotifications: true }); await login(tree);
+  await act(async () => button(tree, '배송지·알림').props.onPress());
+  await until(() => button(tree, 'Android 알림 권한 요청'));
+  const request = button(tree, 'Android 알림 권한 요청').props.onPress;
+  await act(async () => { request(); request(); });
+  assert.equal(prompts, 1);
+  await act(async () => resolveRequest('granted'));
+  await until(() => button(tree, '개발용 모의 알림 보내기')?.props.disabled === false);
+  await act(async () => resolveRead('denied'));
+  assert.equal(button(tree, '개발용 모의 알림 보내기').props.disabled, false);
+});
+
+test('권한 취소를 발송 직전에 재확인하고 OS 설정 변경은 명시 재조회로 반영한다', async t => {
+  let permission = 'granted', sends = 0;
+  const notifications = { readPermission: async () => permission, requestPermission: async () => permission,
+    sendMock: async () => { sends++; }, clearMock: async () => {} };
+  const { tree } = await ready(t, {}, {}, { notifications, enableMockNotifications: true }); await login(tree);
+  await act(async () => button(tree, '배송지·알림').props.onPress());
+  await until(() => button(tree, '개발용 모의 알림 보내기')?.props.disabled === false);
+  permission = 'blocked';
+  await act(async () => button(tree, '개발용 모의 알림 보내기').props.onPress());
+  await until(() => text(tree).includes('기기 알림이 허용되지 않았습니다'));
+  assert.equal(sends, 0);
+  permission = 'granted';
+  await act(async () => button(tree, '기기 알림 상태 다시 확인').props.onPress());
+  await until(() => button(tree, '개발용 모의 알림 보내기')?.props.disabled === false);
+});
 test('mobile search renders fetched products rather than construction notice', async t => {
   const { tree } = await ready(t);
   await until(() => text(tree).includes('시험 고추'));

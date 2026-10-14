@@ -4,6 +4,8 @@ import OrderSupport from './OrderSupport';
 import AccountRequest from './AccountRequest';
 import DeletionRequest from './DeletionRequest';
 import CatalogHome from './CatalogHome';
+import DeviceNotificationPanel from './DeviceNotificationPanel';
+import type { DeviceNotifications } from './device-notifications-core';
 import { CustomerApi, CustomerApiError, type Address, type AddressInput, type CartItem, type Order,
   type Preferences, type Product, type ProductSummary, type Question, type Quote, type Reservation,
   type Favorite, type RestockSubscription, type CouponSelector, type HeldCoupon, type PromotionQuote, type OrderInput,
@@ -27,8 +29,9 @@ function Field({ label, value, onChange, secret = false, numeric = false, disabl
     autoCorrect={false} keyboardType={numeric ? 'number-pad' : 'default'} style={styles.input} /></View>;
 }
 
-export default function CustomerApp({ api, enableMockPayment = false, imageOrigin, pickAttachment }: {
+export default function CustomerApp({ api, enableMockPayment = false, imageOrigin, pickAttachment, notifications, enableMockNotifications = false }: {
   api: CustomerApi; enableMockPayment?: boolean; imageOrigin?: string; pickAttachment?: PickAttachment;
+  notifications?: DeviceNotifications; enableMockNotifications?: boolean;
 }) {
   const [screen, setScreen] = useState<Screen>('products');
   const [signedIn, setSignedIn] = useState(false);
@@ -530,7 +533,8 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
           <Text>{['이메일 수신 동의', '문자 수신 동의'][i]}</Text><Switch accessibilityLabel={['이메일 수신 동의', '문자 수신 동의'][i]}
             value={preferences[field]} disabled={busy} onValueChange={value => setPreferences(previous => ({ ...previous, [field]: value }))} />
         </View>)}
-        <Text>기기 푸시 권한·실제 수신은 미확인입니다. 주문·내 문의에서 결과를 직접 확인하세요.</Text>
+        {notifications ? <DeviceNotificationPanel notifications={notifications} enableMock={enableMockNotifications} /> :
+          <Text>기기 푸시 권한·실제 수신은 미확인입니다. 주문·내 문의에서 결과를 직접 확인하세요.</Text>}
         <Button label="푸시 수신 동의 해제" disabled={busy || !preferences.push} onPress={() => setPreferences(previous => ({ ...previous, push: false }))} />
         <Button label="수신 설정 저장" disabled={busy} onPress={() => void run(async () => {
           await api.savePreferences(preferences); setPreferences(await api.preferences()); setMessage('서버 수신 설정을 저장했습니다. 실제 발송 시험은 아닙니다.');
