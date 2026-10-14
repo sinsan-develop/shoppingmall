@@ -10,11 +10,11 @@
 
 | 구분 | 완료 [0] | 테스트 중 [1] | 개발 중 [2] | 시작 안 함 [] | 합계 |
 |---|---:|---:|---:|---:|---:|
-| Web 화면·영역 | 19 | 26 | 1 | 1 | 47 |
+| Web 화면·영역 | 20 | 25 | 1 | 1 | 47 |
 | Android 화면·영역 | 12 | 4 | 0 | 2 | 18 |
-| **화면 합계** | **31** | **30** | **1** | **3** | **65** |
+| **화면 합계** | **32** | **29** | **1** | **3** | **65** |
 | 화면 외 기능·통합 | 4 | 0 | 3 | 2 | 9 |
-| **전체 기록 항목** | **35** | **30** | **4** | **5** | **74** |
+| **전체 기록 항목** | **36** | **29** | **4** | **5** | **74** |
 
 - 집계 근거: 아래 W01~W47·M01~M18·N01~N09의 상태 표기를 ID별로 읽어 중복 없이 계산했다. 상태 변경 시 표와 해당 항목을 함께 갱신한다.
 - 2026-10-15 W03 보완 후 본시험790건/588 pass/202 skip/0 fail 및 PR 검사8 pass. 이전 2026-10-14 기준은586 pass였다. '화면 시험90개·정산 시험5개·이번 실제 세 역할 로그인/조회 완료'는 이 실행 결과가 아니며 해당 통과 주장으로 기록하지 않는다.
@@ -67,12 +67,15 @@
 - 증거/정리: D:/tmp/shoppingmall-w03-20261015/evidence의 detail-public.png/detail-engagement.png/detail-mobile.png/result.json. public SHA25636841702BDA76AEAD4678DA56DA12BD5861FFD5EEE34062ADBBAFD09A29E9F67, mobile20E5961FCDAB905C243C82857C2B89E42578B191D646FF2C35B526F5C55EE75E, result28D6DB38096EC9193E8A98A8CBCBB9B4F3C06782AC22626EC287ACAD64C1EF04. 실제사진/16px색상표본의디코딩·옵션·430px배치육안대조. 전용PG/API/Web/network/QA소스0·Chrome/SSH종료·profile없음·Windows일회credential파일없음·9091/9092/9233 listener0. 시험DB상품1/주문0최종확인후전체폐기,공유QA/보호DB/정식main불변. 사진은실농산물사진이아닌시험표본이며실발송/인수성공으로확대하지않는다.
 - 오류·미확인: 날짜치환으로잘못된branch이름의clone1회실패→기존branch이름고정후재개. 최초상세준비대기1회실패는원인미확정이며동일제품다음관찰에서준비성공했고성공한최종경로만근거로한다. 두번째실제연결실패안내는위제품보완으로해소했다. 실패종료의Windows Node UV_HANDLE_CLOSING 출력과최종브라우저exit0을구분한다. PowerShell동적경로-LiteralPath미지정/없는파일명검색/조회cwd오류는쓰기0후정정. 개발서버issue표시의원인및데스크톱일부label줄바꿈은정밀UI미확인으로남기며전체인수/다기기통과를주장하지않는다. W03완료후다음은W04.
 
-#### W04. 기획전 상세 — 테스트 중 [1]
+#### W04. 기획전 상세 — 완료 [0]
 
 - 2026-10-15 순차 착수: W03 종료 후 W04만 in_progress. WSL shoppingmall-w04-20261015-pg/api/web·shoppingmall-w04-20261015-net, 새PG15 tmpfs·보호systemID거부·실제ID/migration28/초기계정0 gate의 가상상품1/진행·예정·종료기획전3/16px실파일사진1을 사용한다. Windows D:/tmp/shoppingmall-w04-20261015 전용Chrome9234/profile·9091/9092터널·증거만 사용하며 W04 정상·API오류·기간/없는기획전·품절전환·430px 확인 후 소유자원을 회수한다. 공유QA/보호DB·정식서비스·실발송/Secret·설계/계획변경0. 기존기획전뷰3/3·APItypecheck 통과, 실제PASS 전까지[1]유지. 이미완료한W01~W03전체시험은반복하지않는다.
 
 - 여는 곳: `/events/[id]`. 기획전 제목·설명·대표 사진·연결 상품·비공개/실패 안내.
-- 근거/남은 것: `/home/events/:id` 서버 조회 연결 확인. 현재 Web 실제 기획전 선택·상품 이동·실패 재조회의 완료 근거는 부족하다.
+- 2026-10-15 후속: 실제 사진 GET200/image-webp에도 Chromium CORP same-site가 직접 img를 차단했다. 5582e3c에서 해당 img만 기존 PublicImage(CORS fetch·credentials omit·Blob URL)로 전환했고 보안 헤더/API/schema는 불변이다. 관련6/6·Web typecheck/lint/build 성공; 최종 실증은 아직 미완료다. malformed ID는 기존 서버의 unavailable 계약이므로 시험의 오류 예상만 바로잡고 실제 전용 API 중단·복구 시험을 별도로 추가했다(7e7e6d1). 품절 시험을 정상 단계 완료 전 실행한 순서 오류는 실패로 남기며 통과에 합산하지 않는다. 이전 900초 실행 종료 뒤 전용 자원/소스0을 확인했다. 새 전용 PG systemID7696553585982726187에서 정상→품절→실제 API 중단→동일 DB·이미지 복구 순으로 확인하고 모든 소유 자원을 제거한다. 완료 전까지 [1] 유지.
+- 최종 근거: WSL exact7e7e6d1cd3f1612183719bd09eab8f73b7dde916·전용PG15/systemID7696554728381947948·migration28에서 실제 Chrome→API→DB 총7항목 PASS(정상4/품절1/서버중단1/복구1). 제목·설명·23,000원·실파일WebP 자연크기16px, 해당 상품 상세 이동, 예정/종료/없는/잘못된ID의 unavailable·구매상품0,430px 가로넘침0, 실제 재고0의 판매불가, 전용API 중단의 한글 오류/옛상품0/목록 이동, 동일DB 재고5 및 API 재시작 후 사진/상품 복구를 확인했다. 신규API/schema/보안헤더 변경0. 제품사진 차단 RED→기존 PublicImage로 표시 GREEN이며 기존 테스트 기대값을 낮추지 않았다. 루트790건/588pass/202조건부skip/0fail·PR8/8; 관련6/6·Web typecheck/lint/build33경로 성공은 제품보완5582e3c 근거다.
+- 증거/정리: D:/tmp/shoppingmall-w04-20261015/evidence의 result.json/empty-result.json/error-result.json/recovery-result.json 및 event-active/error/sold-out/mobile/recovery.png. 실제사진·오류·모바일 배치를 육안 대조했다. active SHA256700E20E372AFE39083CC2BC8E39A04DCB4196A90F48B08AECC78BA6884AD90A1, mobile57B0397B739A36A8B5C3568023FFE452B1EA4D38B936840FC8D2E7A713B2B197, recoveryFA2F1A80EB61563871547E6F0906A22985931FF13F4D9A9882262D6581009B0B. 모바일 캡처는 재방문 직후 사진 로딩 중이며 모바일 이미지 완료 증거로 사용하지 않는다; 실사진 완료는 정상/복구의16px 검사와 사진으로 확인했다. 데스크톱 한 상품 카드 폭/QA 식별자 줄바꿈은 정밀 UI 미확인이다. 최종 상품1/주문0 확인 후 전용PG/API/Web/network/QA소스0·Chrome/SSH 종료·전용 두profile0·9091/9092/9234 listener0. 보호DB/정식main 서비스 불변, 외부/인수 통과로 확대하지 않는다.
+- 오류/조치: 최초DB 생성 준비 경합1회→실제 대상DB SELECT1로 준비 확인. 직접img CORP차단1회 및 보완후 유지profile에서 로딩대기1회 실패→새profile에서 실제200/WebP16px 확인(유지profile 실패의 정확 원인은 미확정). malformed ID를 서버오류로 기대한 시험1회→기존 unavailable 계약에 맞추고 실제API중단을 별도 확인. 정상 marker 전 품절모드 실행1회는 순서오류/실패로 기록했다. 준비API의 의존성 설치 OOM2회(exit137)→실패자원 회수·동시작업 제한 및 가용2796MiB 확인 후2GB 한도에서 설치 성공; 다음부터 API 종료 즉시 실패/정리하도록 준비기를 보완했다. Git 원격 일시 Internal Server Error1회는 정확 SHA 확인 후 재전송 성공. 단축SHA 실행1회는 가드가 자원 생성 전 거부했다. 완료 상태를 실패 재시도로 위장하지 않았고 시험기준/보안헤더를 완화하지 않았다. W04만 [1]→[0]; 이미 완료한 W05~W08/W10~W11은 재실행하지 않으며 다음 [1] 순서는 W12다.
 
 #### W05. 로그인 — 완료 [0]
 
