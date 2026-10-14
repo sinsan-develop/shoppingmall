@@ -29,8 +29,8 @@ export function createKakaoMockFlow(config:{api:Pick<CustomerApi,'startKakaoMock
         const url=new URL(result.authorizeUrl),parts=fragments(url,['transactionId','decisionTicket']),expires=Date.parse(result.expiresAt);
         if(result.mockOnly!==true||url.origin!=='http://127.0.0.1:9091'||url.pathname!=='/auth/kakao-mock/authorize'||
           Object.keys(parts).length!==2||!pattern.test(parts.decisionTicket)||!pattern.test(result.transactionId)||
-          parts.transactionId!==result.transactionId||!Number.isFinite(expires)||expires<=Date.now()||expires>Date.now()+300000||current!==generation)throw failure();
-        pending={transactionId:result.transactionId,state,verifier,expires};await config.openUrl(result.authorizeUrl);
+          parts.transactionId!==result.transactionId||!Number.isFinite(expires)||expires<=Date.now()||current!==generation)throw failure();
+        pending={transactionId:result.transactionId,state,verifier,expires:Math.min(expires,Date.now()+300000)};await config.openUrl(result.authorizeUrl);
       }catch{pending=undefined;throw failure();}finally{starting=false;}
     },
     async handleReturn(value:string):Promise<boolean>{
@@ -54,6 +54,7 @@ export function createKakaoMockFlow(config:{api:Pick<CustomerApi,'startKakaoMock
     async cancel(){
       if(exchange){try{await exchange;}catch{/* The next auth action can now start. */}}
       if(starting)throw failure();
+      if(pending&&pending.expires<=Date.now()){pending=undefined;generation++;return;}
       if(pending){const flow=pending;await config.api.cancelKakaoMock({transactionId:flow.transactionId,state:flow.state,verifier:flow.verifier});pending=undefined;}
       generation++;
     },

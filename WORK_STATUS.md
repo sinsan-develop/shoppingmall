@@ -2,6 +2,12 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- Native실패원인좁힘: 명시버튼실행후시작안내실패/DB세션0을관찰했다. 브라우저Activity는설치돼있고Android-clock1791976307896에대해Windows왕복전/후1791976309081/9169로약1.2초기기지연을확인했다. 현재client의'서버expiresAt가로컬지금+5분보다조금이라도크면거부'조건이같은1.25초차이RED로재현됐다. 서버expiry/코드만료는불변이며client로컬deadline은min(서버expiry,지금+5분)으로제한해정상시작과5분후무발급을GREEN확인했다. 만료된로컬proof의cancel/새시작을막는추가RED도확인해로컬증명폐기로보완한다. 실제native재검증전성공으로표시하지않는다.
+- 진단오류: 긴node -e의PowerShell quoting실패1회는SDK접속전오류였다. 별도D:\tmp 진단스크립트의MetroJS inspector접속1회도실패해수단/계정정보조회0이며에뮬레이터/Metro/WSL을중복생성하지않았다. 시계차이의핵심상태는왕복시간/실제Date와제품RED를근거로하며SDK실제완료는다음native에서확인한다. 설치CLI최초pnpm11.25 표기는corepack11.19.0의offline/frozen Already up to date/357ms·임시Gitdiff0으로대조했고Metro에업데이트권고가나와도SDK/lock은변경하지않았다.
+
+- Native자원선언/사전확인: Windows장치0·8081/5580/5581 listener0·임시소스없음, 기존Android36.1 GooglePlay x86_64 이미지/SDK/AVDmanager존재를확인했다. 조회중SDK adb daemon5037이자동시작됐으며사용자장치연결/권한변경은없다. D:\tmp\s7kakao1014에승인Git branch exactfd74a55를clone하고짧은pnpm저장소로설치한다. 전용AVD shoppingmall_s7_kakao_20261014/5580(2GiB·snapshot없음)와AVD등록/데이터는 D:\tmp\shoppingmall-s7-kakao-20261014\avds에만둔다. Metro8081/SSHloopback9091/9092·전용WSL PG/Node/Web/내부망을이native시험동안만사용한다. 기존APKcd46457 SHA2568FFD2B8A9C47C8DF338D911F8B334636613CA6BF6ECD648571C2666DEE189C2E를자동권한부여없이설치하고nativeBinary/MetroJScommit을분리한다. 실제browser선택→scheme→HTTP/DB고객조회와취소/실패/증명소실을확인한뒤소유PID/AVD/임시소스/WSLQA만정리한다. 새SDK/OS권한/Secret·실공급자/정식배포변경0.
+- Chrome정리/추가GREEN: 소유31340/51844종료·QAprofile부재·9091/9092/9229 listener0. URI에임의port를붙인반례가로그인true로통과하는RED를확인해정확host+port없음으로보완했다. 변경core/Web표적17/17·양쪽type/변경lint/diffcheck성공. 기존APKscheme owoolmall-dev/권한·의존성불변을확인했고완료한APK빌드를반복하지않는다. 브라우저sourcefd74a55/실제사진개선은다음최종후보gate에합쳐확인한다.
+
 - Chrome실제core: 수정터널51844→Windows[::1]:9229의Chrome155를사용해6802c10/폐기systemID7696474955812409388/migration28·계정2 gate에서KAKAO_BROWSER_CORE_PASS(approve/cancel/fail/closed-popup/reload/no-opener/own-address/cross-tab-lock/logout), runnerexit0·WSL전용자원0을확인했다. 실제두탭에서mockDB잠금중두번째이메일제출은네트워크0/대기상태였고해제후최신고객B/로그아웃401을확인했다. 초기사진2개는동일한상단찜/재입고영역만담아hash가같았다. DOM/HTTP/DB판정은유효하지만사진을고객별주소의육안증거로쓰지않는다. 실행기에주소제목으로scroll을추가했고최종같은후보QA에서주소사진을다시확인한다.
 - Native복귀선행안전반례: 현재URIparser가custom-scheme의임의port를허용하는지새반례를추가한다. 기존정확scheme/host/path계약에따라port없는주소만허용하도록core/authorize 검증을대조하며SDK/app.json/권한/DB변경0이다. 다음은전용Android/Metro실제복귀검증, 실제동작확인전native완료를표시하지않는다.
 

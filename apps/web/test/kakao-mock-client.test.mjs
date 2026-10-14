@@ -36,12 +36,12 @@ test('브라우저 실행기는 mock QA 승인 환경 없이는 Chrome나 DB를 
     {env:{...process.env,KAKAO_AUTH_MODE:'disabled'},encoding:'utf8',timeout:10000});
   assert.notEqual(result.status,0);assert.match(result.stderr,/KAKAO_BROWSER_QA_FAILED/);assert.equal(result.stdout,'');
 });
-function setup(sendOverride){
+function setup(sendOverride,expiryMs=300000){
   const calls=[];
   const send=async(path,body)=>{
     calls.push({path,body});
     if(sendOverride){const result=await sendOverride(path,body);if(result!==undefined)return result;}
-    if(path.endsWith('/start'))return {transactionId:id,authorizeUrl:`${origin}/auth/kakao-mock/authorize#transactionId=${id}&decisionTicket=${ticket}`,expiresAt:new Date(Date.now()+300000).toISOString(),mockOnly:true};
+    if(path.endsWith('/start'))return {transactionId:id,authorizeUrl:`${origin}/auth/kakao-mock/authorize#transactionId=${id}&decisionTicket=${ticket}`,expiresAt:new Date(Date.now()+expiryMs).toISOString(),mockOnly:true};
     if(path==='/auth/me')return {role:'customer',accountId:'qa-customer'};
     return {status:'ok',mockOnly:true};
   };
@@ -49,6 +49,15 @@ function setup(sendOverride){
     randomBytes:()=>randomBytes(32),digest:async value=>createHash('sha256').update(value).digest()})};
 }
 const event=(start,source)=>({origin,source,data:{transactionId:id,state:start.state,code}});
+test('서버 시계 차이를 거부 사유로 삼지 않으며 클라이언트의 대기는 5분으로 제한한다',async()=>{
+  const original=Date.now,at=original();Date.now=()=>at;
+  try{const {client,calls}=setup(undefined,301250),source={};const start=await client.start();
+    Date.now=()=>at+300001;await assert.rejects(client.acceptReturn(event(start,source),source));
+    assert.equal(calls.filter(c=>c.path.endsWith('/complete')).length,0);
+    await client.cancel();assert.equal(calls.filter(c=>c.path.endsWith('/cancel')).length,0);
+    await client.start();assert.equal(calls.filter(c=>c.path.endsWith('/start')).length,2);
+  }finally{Date.now=original;}
+});
 test('인증 거부 응답은 이전 고객 cookie를 새 mock 성공으로 표시하지 않는다',async()=>{
   const {client,calls}=setup(async path=>{if(path.endsWith('/complete'))throw new KakaoMockHttpError(401);});
   const start=await client.start(),source={};await assert.rejects(client.acceptReturn(event(start,source),source));

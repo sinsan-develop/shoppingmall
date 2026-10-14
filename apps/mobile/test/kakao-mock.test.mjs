@@ -4,11 +4,11 @@ import { randomBytes,createHash } from 'node:crypto';
 import { createKakaoMockFlow } from '../src/kakao-mock-core.ts';
 import { CustomerApiError } from '../src/customer-api.ts';
 const id='T'.repeat(43),code='C'.repeat(43),ticket='D'.repeat(43);
-function setup(override={}){
+function setup(override={},expiryMs=300000){
   const calls=[],urls=[];let state;
   const api={startKakaoMock:async body=>{calls.push(['start',body]);state=body.state;return {transactionId:id,
     authorizeUrl:`http://127.0.0.1:9091/auth/kakao-mock/authorize#transactionId=${id}&decisionTicket=${ticket}`,
-    expiresAt:new Date(Date.now()+300000).toISOString(),mockOnly:true};},
+    expiresAt:new Date(Date.now()+expiryMs).toISOString(),mockOnly:true};},
     completeKakaoMock:async body=>{calls.push(['complete',body]);return {status:'ok',mockOnly:true};},
     cancelKakaoMock:async body=>{calls.push(['cancel',body]);return {status:'cancelled',mockOnly:true};},
     me:async()=>{calls.push(['me']);return {role:'customer'};},...override};
@@ -18,6 +18,13 @@ function setup(override={}){
 test('명시 인증 거부를 기존 고객 me 성공으로 대체하지 않는다',async()=>{
   const {flow,calls,returned}=setup({completeKakaoMock:async()=>{throw new CustomerApiError('unauthorized');}});
   await flow.start();await assert.rejects(flow.handleReturn(returned()));assert.equal(calls.some(c=>c[0]==='me'),false);
+});
+test('기기 시계가 서버보다 늦어도 정상 시작하되 로컬 대기는 5분을 넘기지 않는다',async()=>{
+  const original=Date.now,at=original();Date.now=()=>at;
+  try{const {flow,calls,urls,returned}=setup({},301250);await flow.start();assert.equal(urls.length,1);
+    Date.now=()=>at+300001;assert.equal(await flow.handleReturn(returned()),false);assert.equal(calls.some(c=>c[0]==='complete'),false);
+    await flow.cancel();assert.equal(calls.some(c=>c[0]==='cancel'),false);await flow.start();assert.equal(urls.length,2);
+  }finally{Date.now=original;}
 });
 test('명시 start→고정 브라우저→정확 scheme·S256 complete·me 고객 확인만 로그인한다',async()=>{
   const {flow,calls,urls,returned}=setup();assert.equal(urls.length,0);await flow.start();assert.equal(urls.length,1);

@@ -66,8 +66,8 @@ export function createKakaoMockClient(config:{apiOrigin:string;webOrigin:string;
         const value=await serialize(()=>config.send('/auth/kakao-mock/start',{client:'web',state,challenge:encode(digest),method:'S256'})) as MockStart;
         const authorization=parseKakaoMockAuthorize(value.authorizeUrl,config.webOrigin),expires=Date.parse(value.expiresAt);
         if(current!==generation || value.mockOnly!==true || authorization.transactionId!==value.transactionId ||
-          !Number.isFinite(expires)||expires<=Date.now()||expires>Date.now()+300000)throw failed();
-        pending={transactionId:value.transactionId,state,verifier,expires};return {...value,state};
+          !Number.isFinite(expires)||expires<=Date.now())throw failed();
+        pending={transactionId:value.transactionId,state,verifier,expires:Math.min(expires,Date.now()+300000)};return {...value,state};
       } catch {throw failed();} finally {starting=false;}
     },
     async acceptReturn(event:{origin:string;source:unknown;data:unknown},expectedWindow:unknown) {
@@ -88,6 +88,7 @@ export function createKakaoMockClient(config:{apiOrigin:string;webOrigin:string;
     async cancel() {
       if(exchanging){try{await exchanging;}catch{/* A following manual login can now safely start. */}}
       if(starting)throw failed();
+      if(pending&&pending.expires<=Date.now()){pending=undefined;generation++;return;}
       if(pending){const flow=pending;await config.send('/auth/kakao-mock/cancel',
         {transactionId:flow.transactionId,state:flow.state,verifier:flow.verifier});pending=undefined;}
       generation++;
