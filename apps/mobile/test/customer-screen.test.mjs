@@ -21,11 +21,12 @@ async function component() {
   const mod = { exports: {} }; new Function('require', 'module', 'exports', result.outputFiles[0].text)(require, mod, mod.exports);
   return mod.exports;
 }
-async function ready(t, status = {}, overrides = {}) {
+async function ready(t, status = {}, overrides = {}, props = {}) {
   const requests = [];
   const server = createServer(async (req, res) => {
-    let body = ''; for await (const chunk of req) body += chunk;
-    requests.push([req.url, req.method, body ? JSON.parse(body) : undefined]);
+    const chunks = []; for await (const chunk of req) chunks.push(chunk);
+    const body = Buffer.concat(chunks);
+    requests.push([req.url, req.method, body.length ? req.headers['content-type'] === 'application/json' ? JSON.parse(body.toString()) : [...body] : undefined]);
     if (status[req.url] === 'disconnect') { req.socket.destroy(); return; }
     const value = req.url.startsWith('/catalog/products?') ? [{ productId: key, title: '시험 고추', sellerName: '시험 농가', originLabel: '국내', minPriceWon: 3000 }] :
       req.url === '/auth/me' ? { role: 'customer' } : req.url === '/customer/cart/quote' ? { totalWon: 9000, goodsWon: 6000, shippingWon: 3000, shipments: [] } :
@@ -41,7 +42,7 @@ async function ready(t, status = {}, overrides = {}) {
   const { default: App, CustomerApi } = await component();
   const api = new CustomerApi({ apiOrigin: `http://127.0.0.1:${server.address().port}`, webOrigin: 'http://127.0.0.1:9091', createKey: () => key });
   let tree;
-  await act(async () => { tree = create(React.createElement(App, { api })); });
+  await act(async () => { tree = create(React.createElement(App, { api, ...props })); });
   t.after(() => act(() => tree.unmount()));
   return { tree, requests, status };
 }
@@ -198,6 +199,37 @@ test('confirmed claim creation followed by lost detail does not lock a cleared f
   assert.ok(text(tree).includes('클레임 접수 · 처리 완료 아님'));
   assert.equal(text(tree).includes('결과가 불명확하여 같은 입력'), false);
   assert.equal(reason().props.value, ''); assert.equal(reason().props.editable, true);
+});
+
+test('review attachment selection cancellation writes nothing; confirmed upload displays owned server image', async t => {
+  const order = { id: key, status: 'PAID', payableWon: 9000, shipments: [{ id: key, status: 'PAID', fulfillment: { status: 'SHIPPED' },
+    lines: [{ optionId: key, productName: '고추', optionName: '1kg', quantity: 2 }] }] };
+  const reviewPath = `/customer/support/reviews/${key}`; const uploadPath = `${reviewPath}/images`;
+  let chosen;
+  const overrides = { '/customer/checkout/orders?status=PAID&limit=20': { items: [order], nextCursor: null },
+    [`/customer/checkout/orders/${key}`]: order,
+    [`/customer/support/confirmations/${key}/${key}`]: { id: key, reviewId: key, reviewStatus: 'PENDING' },
+    [reviewPath]: { id: key, body: '후기', rating: 4, status: 'PENDING', images: [], events: [] },
+    [uploadPath]: { id: key } };
+  const { tree, requests } = await ready(t, {}, overrides, { pickAttachment: async () => chosen });
+  await login(tree); await act(async () => button(tree, '주문·배송').props.onPress());
+  await until(() => button(tree, `${key} · 9,000원`)?.props.disabled === false);
+  await act(async () => button(tree, `${key} · 9,000원`).props.onPress());
+  await until(() => button(tree, '1kg 구매확정·리뷰·클레임')?.props.disabled === false);
+  await act(async () => button(tree, '1kg 구매확정·리뷰·클레임').props.onPress());
+  await until(() => button(tree, '리뷰 사진 선택')?.props.disabled === false);
+  await act(async () => button(tree, '리뷰 사진 선택').props.onPress());
+  await until(() => text(tree).includes('파일 선택을 취소했습니다.'));
+  assert.equal(requests.filter(([p, m]) => p === uploadPath && m === 'POST').length, 0);
+  chosen = { name: '시험.png', mimeType: 'image/png', bytes: new Uint8Array([137, 80, 78, 71]).buffer };
+  await act(async () => button(tree, '리뷰 사진 선택').props.onPress());
+  await until(() => button(tree, '리뷰 사진 업로드')?.props.disabled === false);
+  overrides[reviewPath] = { ...overrides[reviewPath], images: [{ id: key, scanStatus: 'PENDING' }] };
+  await act(async () => button(tree, '리뷰 사진 업로드').props.onPress());
+  await until(() => text(tree).includes('서버 첨부 1건'));
+  assert.ok(text(tree).includes('검사·공개·심사 완료 아님'));
+  assert.deepEqual(requests.find(([p, m]) => p === uploadPath && m === 'POST')[2], [137, 80, 78, 71]);
+  assert.ok(tree.root.findAllByType('Image').some(x => x.props.source.uri.endsWith(`/images/${key}/preview`)));
 });
 
 test('held goods and shipment coupons remain identical across preview and order; returning cart invalidates preview', async t => {

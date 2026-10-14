@@ -46,6 +46,8 @@ export type ClaimSummary = { id: string; kind: string; status: string; shipmentO
 export type Claim = ClaimSummary & { reason: string; quantity: number; decisionReason: string | null;
   messages: { id: string; authorRole: string; body: string }[]; evidence: { id: string }[];
   events: { action: string; afterStatus: string; occurredAt: string }[] };
+export type Attachment = { name: string; mimeType: string; bytes: ArrayBuffer };
+export type PickAttachment = () => Promise<Attachment | undefined>;
 export type Question = { id: string; productId: string; body: string; status: string;
   messages?: { id: string; body: string; authorRole: string }[] };
 export type Page<T> = { items: T[]; nextCursor: string | null };
@@ -58,6 +60,7 @@ export type RestockSubscription = { id: string; productId: string; title: string
 export class CustomerApi {
   onSessionExpired?: () => void;
   private readonly keys = new Map<string, { signature: string; key: string }>();
+  private readonly uploadKeys = new Map<string, { bytes: ArrayBuffer; mimeType: string; key: string }>();
   constructor(private readonly config: { apiOrigin: string; webOrigin: string;
     createKey: () => string; send?: typeof fetch }) {
     for (const value of [config.apiOrigin, config.webOrigin]) {
@@ -74,19 +77,19 @@ export class CustomerApi {
     this.keys.set(scope, { signature, key });
     return key;
   }
-  async request<T>(path: string, method = 'GET', body?: unknown, key?: string): Promise<T> {
+  async request<T>(path: string, method = 'GET', body?: unknown, key?: string, binaryMime?: string): Promise<T> {
     let response: Response;
     try {
       response = await (this.config.send ?? fetch)(`${this.config.apiOrigin}${path}`, {
         method, credentials: 'include', cache: 'no-store', headers: {
           ...(method !== 'GET' ? { Origin: this.config.webOrigin } : {}),
-          ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+          ...(body !== undefined ? { 'content-type': binaryMime ?? 'application/json' } : {}),
           ...(key ? { 'idempotency-key': key } : {}),
-        }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        }, ...(body !== undefined ? { body: binaryMime ? body as ArrayBuffer : JSON.stringify(body) } : {}),
       });
     } catch { throw new CustomerApiError('offline'); }
     if (!response.ok) {
-      if (response.status === 401) { this.keys.clear(); this.onSessionExpired?.(); }
+      if (response.status === 401) { this.keys.clear(); this.uploadKeys.clear(); this.onSessionExpired?.(); }
       const code = ({ 401: 'unauthorized', 403: 'forbidden', 404: 'not_found', 409: 'conflict',
         400: 'invalid' } as Record<number, ApiErrorCode>)[response.status] ?? 'unavailable';
       throw new CustomerApiError(code);
@@ -103,7 +106,7 @@ export class CustomerApi {
   }
   async logout() {
     try { return await this.request('/auth/logout', 'POST'); }
-    finally { this.keys.clear(); this.onSessionExpired?.(); }
+    finally { this.keys.clear(); this.uploadKeys.clear(); this.onSessionExpired?.(); }
   }
   me() { return this.request<{ role: string }>('/auth/me'); }
   favorites() { return this.request<Favorite[]>('/customer/favorites'); }
@@ -178,6 +181,22 @@ export class CustomerApi {
   }
   claims(cursor = '') { return this.request<Page<ClaimSummary>>(`/customer/support/claims${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`); }
   claim(id: string) { return this.request<Claim>(`/customer/support/claims/${encodeURIComponent(id)}`); }
+  async uploadAttachment(kind: 'review' | 'claim', id: string, file: Attachment) {
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.mimeType) || !(file.bytes instanceof ArrayBuffer) ||
+        file.bytes.byteLength < 1 || file.bytes.byteLength > 5 * 1024 * 1024) throw new CustomerApiError('invalid');
+    const scope = `upload:${kind}:${id}`; const previous = this.uploadKeys.get(scope);
+    const key = previous?.bytes === file.bytes && previous.mimeType === file.mimeType ? previous.key : this.config.createKey();
+    this.uploadKeys.set(scope, { bytes: file.bytes, mimeType: file.mimeType, key });
+    const path = kind === 'review' ? `/customer/support/reviews/${encodeURIComponent(id)}/images` :
+      `/customer/support/claims/${encodeURIComponent(id)}/evidence`;
+    const result = await this.request<{ id: string }>(path, 'POST', file.bytes, key, file.mimeType);
+    this.uploadKeys.delete(scope); return result;
+  }
+  attachmentUrl(kind: 'review' | 'claim', id: string, imageId: string) {
+    const path = kind === 'review' ? `/customer/support/reviews/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/preview` :
+      `/customer/support/claims/${encodeURIComponent(id)}/evidence/${encodeURIComponent(imageId)}`;
+    return `${this.config.apiOrigin}${path}`;
+  }
   orders(cursor = '') {
     const params = new URLSearchParams({ status: 'PAID', limit: '20' });
     if (cursor) params.set('cursor', cursor);

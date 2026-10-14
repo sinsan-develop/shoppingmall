@@ -7,6 +7,10 @@ import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 import { replyToClaim } from '../src/support/claims.ts';
 import { CustomerApi } from '../../mobile/src/customer-api.ts';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import sharp from 'sharp';
 
 test('mobile customer client drives real HTTP DB coupon purchase, retry, engagement, delivery and preferences', {
   skip: !process.env.QA_S7_DB_SYSTEM_ID,
@@ -16,14 +20,18 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
   assert.equal(url.pathname, '/shoppingmall');
   const pool = new Pool({ connectionString: url.toString() });
   let app;
+  let uploadRoot;
   const previous = { APP_ENV: process.env.APP_ENV, API_HOST: process.env.API_HOST,
-    PAYMENT_MODE: process.env.PAYMENT_MODE, WEB_ORIGIN: process.env.WEB_ORIGIN };
+    PAYMENT_MODE: process.env.PAYMENT_MODE, WEB_ORIGIN: process.env.WEB_ORIGIN,
+    ENABLE_LOCAL_UPLOAD: process.env.ENABLE_LOCAL_UPLOAD, SHOPPINGMALL_UPLOAD_ROOT: process.env.SHOPPINGMALL_UPLOAD_ROOT };
   try {
     const identity = (await pool.query('SELECT current_database() AS db, system_identifier::text AS id FROM pg_control_system()')).rows[0];
     assert.equal(identity.db, 'shoppingmall');
     assert.equal(identity.id, process.env.QA_S7_DB_SYSTEM_ID);
     assert.notEqual(identity.id, '7622490131194466339');
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n, 0);
+    uploadRoot = await mkdtemp(join(tmpdir(), 'shoppingmall-s7-images-'));
+    process.env.ENABLE_LOCAL_UPLOAD = '1'; process.env.SHOPPINGMALL_UPLOAD_ROOT = uploadRoot;
     const runId = '7a141001';
     const password = 'Synthetic-mobile-password-1014';
     await runQaCatalogFixture('seed', runId, url.toString(), password);
@@ -54,11 +62,15 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
     let cookie = ''; let loseOrderReply = true; let loseRefundReply = true;
     let loseReviewReply = true; let loseClaimReply = true;
+    const lostUploads = new Set();
     const api = new CustomerApi({ apiOrigin: base, webOrigin: process.env.WEB_ORIGIN, createKey: randomUUID,
       send: async (address, options) => {
         const response = await fetch(address, { ...options, headers: { ...options.headers, ...(cookie ? { cookie } : {}) } });
         const setCookie = response.headers.get('set-cookie');
         if (setCookie) cookie = setCookie.split(';')[0];
+        if (options.method === 'POST' && /\/(images|evidence)$/.test(String(address)) && !lostUploads.has(String(address))) {
+          lostUploads.add(String(address)); await response.arrayBuffer(); throw new Error('Synthetic attachment response loss');
+        }
         if (String(address) === `${base}/customer/checkout/orders` && options.method === 'POST' && loseOrderReply) {
           loseOrderReply = false; await response.arrayBuffer(); throw new Error('Synthetic response loss after DB commit');
         }
@@ -178,6 +190,23 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     assert.equal(claimDetail.status, 'SELLER_REPLIED');
     assert.equal(claimDetail.messages.find(message => message.authorRole === 'customer').body, '가상 파손');
     assert.equal(claimDetail.messages.find(message => message.authorRole === 'seller').body, '가상 처리 안내');
+    const png = await sharp({ create: { width: 16, height: 16, channels: 4, background: '#dd8800' } }).png().toBuffer();
+    const attachment = { name: 'qa.png', mimeType: 'image/png', bytes: Uint8Array.from(png).buffer };
+    for (const [kind, target] of [['review', review.id], ['claim', claim.id]]) {
+      await assert.rejects(api.uploadAttachment(kind, target, attachment), e => e.code === 'offline');
+      const image = await api.uploadAttachment(kind, target, attachment);
+      const detail = kind === 'review' ? await api.review(target) : await api.claim(target);
+      const images = kind === 'review' ? detail.images : detail.evidence;
+      assert.equal(images.length, 1); assert.equal(images[0].id, image.id);
+      if (kind === 'review') { assert.equal(detail.status, 'PENDING'); assert.equal(images[0].scanStatus, 'PENDING'); }
+      const previewUrl = api.attachmentUrl(kind, target, image.id);
+      const preview = await fetch(previewUrl, { headers: { cookie } });
+      assert.equal(preview.status, 200); assert.equal(preview.headers.get('content-type'), 'image/webp');
+      assert.equal((await sharp(Buffer.from(await preview.arrayBuffer())).metadata()).width, 16);
+      assert.equal((await fetch(previewUrl)).status, 401);
+    }
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_review_images')).rows[0].n, 1);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_claim_evidence')).rows[0].n, 1);
     const asked = await api.askQuestion(product.productId, '가상 발송일 문의');
     assert.equal((await api.question(asked.id)).body, '가상 발송일 문의');
     assert.equal((await api.questions()).items[0].id, asked.id);
@@ -197,5 +226,6 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
     await pool.end();
+    if (uploadRoot) await rm(uploadRoot, { recursive: true });
   }
 });

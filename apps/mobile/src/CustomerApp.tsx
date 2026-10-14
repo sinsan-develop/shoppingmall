@@ -4,7 +4,7 @@ import OrderSupport from './OrderSupport';
 import { CustomerApi, CustomerApiError, type Address, type AddressInput, type CartItem, type Order,
   type Preferences, type Product, type ProductSummary, type Question, type Quote, type Reservation,
   type Favorite, type RestockSubscription, type CouponSelector, type HeldCoupon, type PromotionQuote, type OrderInput,
-  type RefundCase, type RefundInput } from './customer-api';
+  type RefundCase, type RefundInput, type PickAttachment } from './customer-api';
 
 const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
 type Screen = 'products' | 'product' | 'login' | 'cart' | 'orders' | 'profile' | 'questions' | 'engagement';
@@ -22,8 +22,8 @@ function Field({ label, value, onChange, secret = false, numeric = false, disabl
     autoCorrect={false} keyboardType={numeric ? 'number-pad' : 'default'} style={styles.input} /></View>;
 }
 
-export default function CustomerApp({ api, enableMockPayment = false, imageOrigin }: {
-  api: CustomerApi; enableMockPayment?: boolean; imageOrigin?: string;
+export default function CustomerApp({ api, enableMockPayment = false, imageOrigin, pickAttachment }: {
+  api: CustomerApi; enableMockPayment?: boolean; imageOrigin?: string; pickAttachment?: PickAttachment;
 }) {
   const [screen, setScreen] = useState<Screen>('products');
   const [signedIn, setSignedIn] = useState(false);
@@ -370,7 +370,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
               }} /> : viewedOrder.status === 'PAID' ? <Text>출고 후에는 클레임 경로를 이용합니다. 출고 상태가 미확인인 경우 다시 조회해 주세요.</Text> : null}
           </View>)}
           {viewedOrder.status === 'PAID' ? <>
-            <OrderSupport key={viewedOrder.id} api={api} order={viewedOrder} busy={busy} run={run} />
+            <OrderSupport key={viewedOrder.id} api={api} order={viewedOrder} busy={busy} run={run} pickAttachment={pickAttachment} />
             <Text style={styles.heading}>출고 전 취소·환불 요청</Text>
             <Text>요청 접수는 환불 완료가 아닙니다. 출고 여부와 실제 결제금액은 서버·담당자가 확인합니다.</Text>
             <Button label="환불 내역 새로고침" disabled={busy} onPress={() => void run(refreshRefunds)} />

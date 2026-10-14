@@ -7,9 +7,12 @@ const key2 = 'bf66b7c1-b0f6-4346-8333-d42ee1c8e299';
 async function serve(t, handler) {
   const requests = [];
   const server = createServer(async (req, res) => {
-    let body = ''; for await (const chunk of req) body += chunk;
+    const chunks = []; for await (const chunk of req) chunks.push(chunk);
+    const bytes = Buffer.concat(chunks);
+    const binary = bytes.length && req.headers['content-type'] !== 'application/json';
     requests.push({ path: req.url, method: req.method, origin: req.headers.origin,
-      key: req.headers['idempotency-key'], body: body ? JSON.parse(body) : undefined });
+      key: req.headers['idempotency-key'], body: bytes.length ? binary ? [...bytes] : JSON.parse(bytes.toString()) : undefined,
+      ...(binary ? { contentType: req.headers['content-type'] } : {}) });
     handler(req, res);
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -79,6 +82,26 @@ test('purchase confirmation, review and claim requests use customer-only contrac
   assert.deepEqual(requests[5].body, input);
   assert.equal(requests[7].path, '/customer/support/claims?cursor=older%20cursor');
   assert.ok(requests.filter(r => r.method !== 'GET').every(r => r.origin === 'http://127.0.0.1:9091' && r.key === key1));
+});
+
+test('image upload sends original binary MIME, retains ambiguous retry key and rejects size/type before network', async t => {
+  let lose = true;
+  const { base, requests } = await serve(t, (req, res) => {
+    if (lose) { lose = false; req.socket.destroy(); return; } json(res, { id: key2 });
+  });
+  let index = 0; const api = client(base, { createKey: () => [key1, key2][index++] });
+  const image = { name: '시험.png', mimeType: 'image/png', bytes: new Uint8Array([137, 80, 78, 71]).buffer };
+  await assert.rejects(api.uploadAttachment('review', key1, image), e => e.code === 'offline');
+  await api.uploadAttachment('review', key1, image);
+  await api.uploadAttachment('claim', key1, image);
+  assert.deepEqual(requests.map(r => r.key), [key1, key1, key2]);
+  assert.equal(requests[1].path, `/customer/support/reviews/${key1}/images`);
+  assert.equal(requests[2].path, `/customer/support/claims/${key1}/evidence`);
+  assert.deepEqual(requests[1].body, [137, 80, 78, 71]); assert.equal(requests[1].contentType, 'image/png');
+  assert.equal(requests[1].origin, 'http://127.0.0.1:9091');
+  await assert.rejects(api.uploadAttachment('review', key1, { ...image, mimeType: 'image/svg+xml' }), e => e.code === 'invalid');
+  await assert.rejects(api.uploadAttachment('review', key1, { ...image, bytes: new ArrayBuffer(5 * 1024 * 1024 + 1) }), e => e.code === 'invalid');
+  assert.equal(requests.length, 3);
 });
 test('server quote is authoritative and cart writes use existing customer contract', async t => {
   const { base, requests } = await serve(t, (req, res) => {

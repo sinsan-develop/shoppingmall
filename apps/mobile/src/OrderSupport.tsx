@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Pressable, Switch, Text, TextInput, View } from 'react-native';
 import { CustomerApi, CustomerApiError, type Order, type Confirmation, type Review,
-  type ClaimInput, type ClaimSummary, type Claim } from './customer-api';
+  type ClaimInput, type ClaimSummary, type Claim, type PickAttachment } from './customer-api';
+import AttachmentPanel from './AttachmentPanel';
 
 function Action({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }}
@@ -13,8 +14,8 @@ function Input({ label, value, onChange, disabled }: { label: string; value: str
     editable={!disabled} style={{ padding: 10, borderWidth: 1, borderColor: '#716850', marginVertical: 4 }} /></View>;
 }
 
-export default function OrderSupport({ api, order, busy, run }: {
-  api: CustomerApi; order: Order; busy: boolean; run: (task: () => Promise<void>) => Promise<void>;
+export default function OrderSupport({ api, order, busy, run, pickAttachment }: {
+  api: CustomerApi; order: Order; busy: boolean; run: (task: () => Promise<void>) => Promise<void>; pickAttachment?: PickAttachment;
 }) {
   const [subject, setSubject] = useState<{ shipmentId: string; optionId: string; quantity: number; name: string }>();
   const [confirmation, setConfirmation] = useState<Confirmation>();
@@ -65,7 +66,9 @@ export default function OrderSupport({ api, order, busy, run }: {
           const found = await api.review(saved.id); setReview(found); setRating(String(found.rating)); setReviewText(found.body);
         })} />
         {review ? <Text>내 리뷰 {review.status} · {review.body}</Text> : null}
-        <Text>리뷰 사진 첨부는 아직 모바일 미구현입니다.</Text>
+        {review ? <AttachmentPanel key={review.id} api={api} kind="review" targetId={review.id} items={review.images}
+          pickAttachment={pickAttachment} busy={busy} run={run} reload={async () => setReview(await api.review(review.id))} /> :
+          <Text>리뷰를 먼저 저장한 뒤 사진을 첨부합니다.</Text>}
       </View> : null}
       <Text>클레임 접수는 승인·교환·환불 완료가 아닙니다.</Text>
       {(['CLAIM', 'RETURN', 'EXCHANGE'] as const).map((value, i) => <Action key={value} label={['일반 클레임', '반품 요청', '교환 요청'][i]}
@@ -92,7 +95,7 @@ export default function OrderSupport({ api, order, busy, run }: {
         setReason(''); setClaimRetry(undefined); setNotice('클레임 접수 · 처리 완료 아님');
         await openClaim(created.id);
       })} />
-      <Text>클레임 증빙 첨부는 아직 모바일 미구현입니다. 첨부가 필요한 정책 심사 완료로 표시하지 않습니다.</Text>
+      <Text>클레임을 접수한 뒤 증빙을 첨부합니다. 첨부만으로 심사 완료가 아닙니다.</Text>
     </View> : null}
     <Action label="내 클레임 조회" disabled={busy} onPress={() => void run(async () => {
       setClaims([]); setCursor(null); setClaim(undefined); const result = await api.claims();
@@ -107,7 +110,9 @@ export default function OrderSupport({ api, order, busy, run }: {
       <Text>심사 사유 {claim.decisionReason ?? '미등록'}</Text>
       {claim.messages.map(message => <Text key={message.id}>{message.authorRole} · {message.body}</Text>)}
       {claim.events.map((event, i) => <Text key={i}>{event.action} · {event.afterStatus} · {event.occurredAt}</Text>)}
-      <Text>서버 증빙 {claim.evidence.length}건</Text>
+      {['REQUESTED', 'SELLER_REPLIED'].includes(claim.status) ? <AttachmentPanel key={claim.id} api={api} kind="claim" targetId={claim.id}
+        items={claim.evidence} pickAttachment={pickAttachment} busy={busy} run={run} reload={() => openClaim(claim.id)} /> :
+        <Text>처리가 진행된 클레임은 새 증빙을 첨부할 수 없습니다.</Text>}
     </View> : null}
   </View>;
 }
