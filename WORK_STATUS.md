@@ -69,6 +69,8 @@
 
 #### W04. 기획전 상세 — 테스트 중 [1]
 
+- 2026-10-15 순차 착수: W03 종료 후 W04만 in_progress. WSL shoppingmall-w04-20261015-pg/api/web·shoppingmall-w04-20261015-net, 새PG15 tmpfs·보호systemID거부·실제ID/migration28/초기계정0 gate의 가상상품1/진행·예정·종료기획전3/16px실파일사진1을 사용한다. Windows D:/tmp/shoppingmall-w04-20261015 전용Chrome9234/profile·9091/9092터널·증거만 사용하며 W04 정상·API오류·기간/없는기획전·품절전환·430px 확인 후 소유자원을 회수한다. 공유QA/보호DB·정식서비스·실발송/Secret·설계/계획변경0. 기존기획전뷰3/3·APItypecheck 통과, 실제PASS 전까지[1]유지. 이미완료한W01~W03전체시험은반복하지않는다.
+
 - 여는 곳: `/events/[id]`. 기획전 제목·설명·대표 사진·연결 상품·비공개/실패 안내.
 - 근거/남은 것: `/home/events/:id` 서버 조회 연결 확인. 현재 Web 실제 기획전 선택·상품 이동·실패 재조회의 완료 근거는 부족하다.
 
