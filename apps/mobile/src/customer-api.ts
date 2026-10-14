@@ -86,7 +86,7 @@ export class CustomerApi {
     this.keys.set(scope, { signature, key });
     return key;
   }
-  async request<T>(path: string, method = 'GET', body?: unknown, key?: string, binaryMime?: string): Promise<T> {
+  async request<T>(path: string, method = 'GET', body?: unknown, key?: string, binaryMime?: string, notifySessionExpired = true): Promise<T> {
     let response: Response;
     try {
       response = await (this.config.send ?? fetch)(`${this.config.apiOrigin}${path}`, {
@@ -98,7 +98,7 @@ export class CustomerApi {
       });
     } catch { throw new CustomerApiError('offline'); }
     if (!response.ok) {
-      if (response.status === 401) { this.keys.clear(); this.uploadKeys.clear(); this.onSessionExpired?.(); }
+      if (response.status === 401 && notifySessionExpired) { this.keys.clear(); this.uploadKeys.clear(); this.onSessionExpired?.(); }
       const code = ({ 401: 'unauthorized', 403: 'forbidden', 404: 'not_found', 409: 'conflict',
         400: 'invalid' } as Record<number, ApiErrorCode>)[response.status] ?? 'unavailable';
       throw new CustomerApiError(code);
@@ -130,7 +130,8 @@ export class CustomerApi {
     try { return await this.request('/auth/logout', 'POST'); }
     finally { this.keys.clear(); this.uploadKeys.clear(); this.onSessionExpired?.(); }
   }
-  me() { return this.request<{ role: string }>('/auth/me'); }
+  // Startup probes may finish after a newer login; they must not invalidate that session.
+  me(notifySessionExpired = true) { return this.request<{ role: string }>('/auth/me', 'GET', undefined, undefined, undefined, notifySessionExpired); }
   favorites() { return this.request<Favorite[]>('/customer/favorites'); }
   addFavorite(id: string) { return this.request<{ productId: string; favorite: true }>(`/customer/favorites/${encodeURIComponent(id)}`, 'PUT'); }
   removeFavorite(id: string) { return this.request<{ productId: string; favorite: false }>(`/customer/favorites/${encodeURIComponent(id)}`, 'DELETE'); }

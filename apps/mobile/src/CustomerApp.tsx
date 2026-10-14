@@ -32,6 +32,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
 }) {
   const [screen, setScreen] = useState<Screen>('products');
   const [signedIn, setSignedIn] = useState(false);
+  const authGeneration = useRef(0);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const [message, setMessage] = useState('');
@@ -85,6 +86,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const [refundReasonCode, setRefundReasonCode] = useState<RefundInput['reasonCode']>('customer_request');
   const [refundRetry, setRefundRetry] = useState<RefundInput>();
   const clearPrivate = useCallback(() => {
+    authGeneration.current += 1;
     setSignedIn(false); setEmail(''); setPassword(''); setCart([]); setQuote(undefined); setReservation(undefined);
     setPayable(undefined); setCoupon(''); setAddresses([]); setAddressId(''); setAddress({ ...initialAddress });
     setGoodsGrantId(''); setCoupons([]); setShippingChoices({}); setAppliedPromotion(undefined);
@@ -98,6 +100,22 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   useEffect(() => {
     api.onSessionExpired = clearPrivate;
     return () => { api.onSessionExpired = undefined; };
+  }, [api, clearPrivate]);
+  useEffect(() => {
+    let active = true;
+    const generation = authGeneration.current;
+    void api.me(false).then(actor => {
+      if (!active || generation !== authGeneration.current) return;
+      if (actor.role === 'customer') setSignedIn(true);
+      else clearPrivate();
+    }).catch(error => {
+      if (!active || generation !== authGeneration.current) return;
+      // Anonymous startup keeps public browsing available; private screens still require login.
+      if (!(error instanceof CustomerApiError && error.code === 'unauthorized')) {
+        setMessage('로그인 상태를 확인하지 못했습니다. 로그인 후 다시 확인해 주세요.');
+      }
+    });
+    return () => { active = false; };
   }, [api, clearPrivate]);
 
   const run = useCallback(async (task: () => Promise<void>) => {
@@ -229,7 +247,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         disabled={busy} onPress={() => navigate(next)} />)}
       <Button label="홈" disabled={busy} onPress={() => navigate('home')} />
       <Button label={signedIn ? '로그아웃' : '로그인'} disabled={busy}
-        onPress={() => signedIn ? void run(async () => { await api.logout(); clearPrivate(); }) : navigate('login')} />
+        onPress={() => signedIn ? void run(async () => { authGeneration.current += 1; await api.logout(); clearPrivate(); }) : navigate('login')} />
     </View>
     {busy ? <ActivityIndicator accessibilityLabel="처리 중" /> : null}
     {message ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}
@@ -306,6 +324,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         <Text style={styles.heading}>구매자 로그인</Text>
         <Field label="이메일" value={email} onChange={setEmail} /><Field label="비밀번호" value={password} onChange={setPassword} secret />
         <Button label="구매자 로그인" disabled={busy || !email.trim() || !password} onPress={() => void run(async () => {
+          authGeneration.current += 1;
           try {
             await api.login(email, password); const actor = await api.me();
             if (actor.role !== 'customer') { clearPrivate(); throw new CustomerApiError('forbidden'); }

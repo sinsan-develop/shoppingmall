@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 2026-10-14 S7 고객 세션 UI 복원 보완
+
+- 최종 검토: 읽기전용 C0/I0/M1(늦은 응답시험의50ms대기). 인증안전 검증누락 영향으로 Important로 재분류하고, 실제 CustomerApi→HTTP 호출의 종료를 관찰하는 시험유틸로 바꿔 응답처리 뒤 UI를 검사한다. 제품에 시험hook를 추가하지 않았다. 세대가드 제거 변이에서 현재만료 뒤 부활시험1fail을 실제 관찰했고 변이 실행이 다음시험에서 종료되지 않아 해당 소유시험만 중단했다. 가드는 원복했으며 최종 --import tsx 모바일53/53 pass·0skip·0fail, mobiletypecheck/eslint/diffcheck exit0. 고정대기로 합격시키지 않는다. 검토의 native/쿠키지속성 제외는 미검증으로, 서버/DB/OS권한 미변경과 기존401/로그인/조회 유지 판단은 실제 diff/시험과 대조해 채택했다. 잘못 채택하면 기기복원 공백이 남으므로 native 완료에 사용하지 않는다.
+
+- 담당 어울, 기준2ced082f1e40282d6b28250412ca9143e4df7432. 신산님이 기존쿠키 /auth/me 고객검증·로그인 UI 복원·장바구니/예약/주문 서버재조회 권고안을 직접 승인했다. 새 credential 저장·서버 인증정책/API경로/DB/OS권한·설계/계획은 불변이다. 기존 시작 signedIn=false고정→독립 서버확인에서 customer만복원으로 바꾼다. 느린 시작 조회는 공개상품/홈을 잠그지 않으며, 익명401은 공개 탐색을 유지하고 개인화면 진입 시 로그인 요구가 유지된다. 비고객이면 개인state를 지우고 로그인 화면으로 돌아간다.
+- 변경 전후: CustomerApp에 startup검증·unmount/인증세대 비교를 추가하고 수동로그인·로그아웃·현재401이 이전응답을 무효화한다. CustomerApi의 me(false)는 시작401이 새로그인 callback/멱등키를 지우지 않게 하는 내부클라이언트 경계이며 기존 me()·private401·logout 정리는 그대로다. 서버 /auth/me는 변경하지 않았다. 화면시험 서버는 익명/로그인/로그아웃 상태를 실제 HTTP응답으로 구분하도록 준비를 보정했다.
+- 시험: 시작복원 누락4건 RED→구현, active예약 fixture의 기존404기본값과 기대ACTIVE충돌1회→해당경로200준비로 보정(기준변경0). 직접node strip-only실행이 TSparameter property를 지원하지 않아 API시험 실행오류1회→정본 지정 --import tsx로 모바일 전체53/53 pass·0skip·0fail. 정상기존세션→cart/견적/ACTIVE조회·새로그인0, 시작401/503/admin 개인cart0, 지연401뒤 새로그인 유지, 지연성공뒤 현재만료/명시로그아웃 부활0, silent401뒤 새멱등키유지/일반401정리 및 기존구매/문의/첨부/환불 화면회귀를 확인했다. mobiletypecheck·변경eslint·gitdiffcheck exit0. 공개/개인 상태 시험은 실제 React+루프백 HTTP이며 DB/native/기기 쿠키 지속성 증거가 아니다.
+- React Native·TDD·독립코드검토 스킬을 필요한 범위만 적용했다. 미검증: 새복원 코드의 Android 강제종료/재실행 쿠키 지속성·native 신규 구매/정식 WSL반영. 서버 부하와 중단 경계를 유지하고 이번 코드검증에서는 WSL/DB/에뮬레이터를 생성하지 않았다. 검토결과 후 안전한 같은브랜치checkpoint로 보존하며 S7/전체개발 완료를 선언하지 않는다.
+
 ## 2026-10-14 S7 native 신규 구매 재개
 
 - 이번 실제 확인: 동일6107e3d APK로 가상 고객 Android 가입·복구 요청각1회 접수 안내, 로그인·홈 공개 메뉴/기획전/추천·기획전→고추 상세(23000원/판매가능3개)를 확인했다. signup-accepted.png/reset-accepted.png/home.png와 UI dump를 증거로 남겼으며 앞2개 화면을 육안 확인했다. DB systemID7696371453344591916의 기존 HTTP 준비가 native.ready까지 도달했으나, 상품 담기/장바구니 재조회 도중 SSH/API가 끊겼다. wsl list에서 Ubuntu Stopped 및 TCP22/9092false를 확인했다. 서버 종료 원인은 확인되지 않았고 신산님께 Ubuntu 시작·QA 재개를 요청했다. 신규 주문/결제·접수 신규DB행 최종 대조는 미완료, marker/PASS를 만들지 않았다.

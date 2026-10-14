@@ -168,6 +168,22 @@ test('session expiry requests login without leaking server error body', async t 
   await assert.rejects(api.addresses(), e => e.code === 'unauthorized' && !e.message.includes('secret'));
   assert.equal(expired, 1);
 });
+
+test('silent startup session expiry preserves newer request keys while normal expiry still clears them', async t => {
+  const { base, requests } = await serve(t, (req, res) => json(res, {}, req.url === '/auth/me' ? 401 : 200));
+  let sequence = 0; const api = client(base, { createKey: () => ++sequence === 1 ? key1 : key2 });
+  let expired = 0; api.onSessionExpired = () => { expired++; };
+  const input = { reservationId: key1, addressId: key2, expectedPayableWon: 9000, selections: {} };
+  await api.submitOrder(input);
+  await assert.rejects(api.me(false), error => error.code === 'unauthorized');
+  assert.equal(expired, 0);
+  await api.submitOrder(input);
+  assert.deepEqual(requests.filter(item => item.path === '/customer/checkout/orders').map(item => item.key), [key1, key1]);
+  await assert.rejects(api.me(), error => error.code === 'unauthorized');
+  assert.equal(expired, 1);
+  await api.submitOrder(input);
+  assert.deepEqual(requests.filter(item => item.path === '/customer/checkout/orders').map(item => item.key), [key1, key1, key2]);
+});
 test('stock conflict, disabled payment, and denied role are not successes', async t => {
   const { base } = await serve(t, (req, res) => json(res, {},
     req.url.includes('payment') ? 404 : req.url.includes('cart') ? 409 : 403));

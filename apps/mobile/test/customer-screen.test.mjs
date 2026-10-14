@@ -23,18 +23,23 @@ async function component() {
 }
 async function ready(t, status = {}, overrides = {}, props = {}, holds = {}) {
   const requests = [];
+  let signedIn = false;
   const server = createServer(async (req, res) => {
-    if (holds[req.url]) await holds[req.url];
+    const responseStatus = status[req.url] ?? (req.url === '/auth/me' && !signedIn && !overrides[req.url] ? 401 :
+      req.url === '/customer/checkout/reservations/active' ? 404 : 200);
     const chunks = []; for await (const chunk of req) chunks.push(chunk);
     const body = Buffer.concat(chunks);
     requests.push([req.url, req.method, body.length ? req.headers['content-type'] === 'application/json' ? JSON.parse(body.toString()) : [...body] : undefined]);
+    if (holds[req.url]) await (typeof holds[req.url] === 'function' ? holds[req.url](req) : holds[req.url]);
     if (status[req.url] === 'disconnect') { req.socket.destroy(); return; }
+    if (req.url === '/auth/login' && responseStatus === 200) signedIn = true;
+    if (req.url === '/auth/logout' && responseStatus === 200) signedIn = false;
     const value = req.url.startsWith('/catalog/products?') ? [{ productId: key, title: '시험 고추', sellerName: '시험 농가', originLabel: '국내', minPriceWon: 3000 }] :
       req.url === '/auth/me' ? { role: 'customer' } : req.url === '/customer/cart/quote' ? { totalWon: 9000, goodsWon: 6000, shippingWon: 3000, shipments: [] } :
       req.url === '/customer/cart' ? [{ optionId: key, productId: key, title: '시험 고추', optionName: '1kg', quantity: 2, unitPriceWon: 3000, availability: 'available' }] :
       req.url === '/customer/addresses' ? [{ id: key, label: '집', line1: '가상 주소', recipientName: 'QA' }] :
       req.url === '/customer/preferences' ? { marketingEmail: false, marketingSms: false, push: false } : { status: 'ok' };
-    res.writeHead(status[req.url] ?? (req.url === '/customer/checkout/reservations/active' ? 404 : 200),
+    res.writeHead(responseStatus,
       { 'content-type': 'application/json' }); res.end(JSON.stringify(overrides[req.url] ??
         (req.url === '/catalog/categories' || req.url === '/catalog/sellers' || req.url === '/customer/promotions/coupons' || req.url.endsWith('/refund-cases') ? [] :
           req.url === '/home/content' ? { menu: [], events: [], recommendations: [] } : value)));
@@ -43,10 +48,14 @@ async function ready(t, status = {}, overrides = {}, props = {}, holds = {}) {
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
   const { default: App, CustomerApi } = await component();
   const api = new CustomerApi({ apiOrigin: `http://127.0.0.1:${server.address().port}`, webOrigin: 'http://127.0.0.1:9091', createKey: () => key });
+  // Observe settlement of real HTTP client calls, without replacing their responses or effects.
+  const sessionSettled = [];
+  const readSession = api.me.bind(api);
+  api.me = (...args) => readSession(...args).finally(() => { sessionSettled.push(true); });
   let tree;
   await act(async () => { tree = create(React.createElement(App, { api, ...props })); });
   t.after(() => act(() => tree.unmount()));
-  return { tree, requests, status };
+  return { tree, requests, status, api, sessionSettled };
 }
 async function until(check, describe = () => '') {
   for (let i = 0; i < 50; i++) {
@@ -81,6 +90,71 @@ test('mobile search renders fetched products rather than construction notice', a
   await until(() => text(tree).includes('시험 고추'));
   assert.ok(button(tree, '시험 고추 상세'));
   assert.equal(text(tree).includes('앱 서비스 구축 중'), false);
+});
+
+test('existing customer session restores private cart and active reservation without another login', async t => {
+  const { tree, requests } = await ready(t, { '/customer/checkout/reservations/active': 200 }, { '/auth/me': { role: 'customer' },
+    '/customer/checkout/reservations/active': { id: key, status: 'ACTIVE', expiresAt: '2099-01-01T00:00:00Z',
+      quote: { totalWon: 9000, goodsWon: 6000, shippingWon: 3000, shipments: [] } } });
+  await until(() => button(tree, '로그아웃')?.props.disabled === false);
+  await act(async () => button(tree, '장바구니').props.onPress());
+  await until(() => text(tree).includes('합계 9,000원') && text(tree).includes('예약 ACTIVE'));
+  assert.equal(requests.some(([path]) => path === '/auth/login'), false);
+  assert.ok(requests.some(([path]) => path === '/customer/checkout/reservations/active'));
+});
+
+test('expired unavailable or non-customer startup session never exposes private cart', async t => {
+  for (const [code, actor] of [[401, undefined], [503, undefined], [200, { role: 'admin' }]]) {
+    const { tree, requests, sessionSettled } = await ready(t, { '/auth/me': code }, actor ? { '/auth/me': actor } : {});
+    await until(() => sessionSettled.length === 1);
+    await until(() => button(tree, '장바구니')?.props.disabled === false);
+    await act(async () => button(tree, '장바구니').props.onPress());
+    assert.ok(text(tree).includes('구매자 로그인'));
+    assert.equal(requests.some(([path]) => path === '/customer/cart'), false);
+    assert.equal(button(tree, '로그아웃'), undefined);
+  }
+});
+
+test('late startup expiry cannot clear a newer manual login and public search stays usable', async t => {
+  let release; const held = new Promise(resolve => { release = resolve; }); t.after(() => release());
+  let calls = 0;
+  const { tree, requests, sessionSettled } = await ready(t, {}, {}, {}, { '/auth/me': () => ++calls === 1 ? held : undefined });
+  await until(() => requests.some(([path]) => path === '/auth/me'));
+  await until(() => button(tree, '검색')?.props.disabled === false);
+  await login(tree);
+  await act(async () => { release(); });
+  await until(() => sessionSettled.length === 2);
+  await until(() => button(tree, '로그아웃')?.props.disabled === false);
+  await act(async () => button(tree, '장바구니').props.onPress());
+  await until(() => text(tree).includes('합계 9,000원'));
+});
+
+test('late startup success cannot revive an expired private session', async t => {
+  let release; const held = new Promise(resolve => { release = resolve; }); t.after(() => release());
+  const { tree, requests, api, sessionSettled } = await ready(t, { '/customer/addresses': 401 }, { '/auth/me': { role: 'customer' } }, {}, { '/auth/me': held });
+  await until(() => requests.some(([path]) => path === '/auth/me'));
+  await act(async () => { await assert.rejects(api.addresses(), error => error.code === 'unauthorized'); release(); });
+  await until(() => sessionSettled.length === 1);
+  await until(() => button(tree, '로그인')?.props.disabled === false);
+  await act(async () => button(tree, '장바구니').props.onPress());
+  assert.ok(text(tree).includes('구매자 로그인'));
+  assert.equal(requests.some(([path]) => path === '/customer/cart'), false);
+});
+
+test('late startup success cannot restore the customer after explicit logout', async t => {
+  let release; const held = new Promise(resolve => { release = resolve; }); t.after(() => release());
+  let calls = 0;
+  const { tree, requests, sessionSettled } = await ready(t, {}, { '/auth/me': { role: 'customer' } }, {},
+    { '/auth/me': () => ++calls === 1 ? held : undefined });
+  await until(() => requests.some(([path]) => path === '/auth/me'));
+  await login(tree);
+  await act(async () => button(tree, '로그아웃').props.onPress());
+  await until(() => button(tree, '로그인')?.props.disabled === false);
+  await act(async () => { release(); });
+  await until(() => sessionSettled.length === 2);
+  assert.equal(button(tree, '로그아웃'), undefined);
+  await act(async () => button(tree, '장바구니').props.onPress());
+  assert.equal(requests.some(([path]) => path === '/customer/cart'), false);
 });
 
 test('catalog pagination preserves applied category seller sort and resets when a new filter is applied', async t => {
