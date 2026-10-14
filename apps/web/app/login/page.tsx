@@ -2,6 +2,7 @@
 
 import { useCallback,useRef,useState, type FormEvent } from 'react';
 import { KakaoMockLogin } from '../../components/KakaoMockLogin';
+import { withKakaoAuthLock } from '../../lib/kakao-mock-client';
 
 type Role = 'customer' | 'seller' | 'admin';
 
@@ -25,11 +26,11 @@ export default function LoginPage() {
     const password = String(form.get('password') ?? '');
     try {
       await cancelMock.current?.();
-      const response = await fetch(`${apiOrigin}/auth/login`, {
+      const response = await withKakaoAuthLock(()=>fetch(`${apiOrigin}/auth/login`, {
         method: 'POST', credentials: 'include',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email, password, role }),
-      });
+      }));
       if (!response.ok) {
         setMessage(response.status === 401 ? '계정 정보 또는 권한을 확인해 주세요' : '로그인을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요');
         return;

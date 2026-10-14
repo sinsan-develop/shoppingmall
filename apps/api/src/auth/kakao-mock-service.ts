@@ -4,7 +4,7 @@ import { AuthRepository } from './repository.js';
 import { readToken } from './controller.js';
 import { assertKakaoMockBootConfig, assertKakaoMockRequest, attestKakaoMockDatabase,
   type KakaoQaBinding } from './kakao-mock-gate.js';
-import { KakaoMockError, KakaoMockRegistry } from './kakao-mock-registry.js';
+import { KakaoMockError, KakaoMockRegistry, type MockSession } from './kakao-mock-registry.js';
 
 export type KakaoMockRequest = {headers:{origin?:string;cookie?:string};
   socket?:{localAddress?:string;remoteAddress?:string}};
@@ -20,6 +20,10 @@ export class KakaoMockService {
     if (!pool) throw new KakaoMockError(503);
     this.binding = await attestKakaoMockDatabase(pool,process.env);
     this.registry = new KakaoMockRegistry({webOrigin:process.env.WEB_ORIGIN!,identifier:this.binding.identifier});
+  }
+  manualAuthStarted(request:KakaoMockRequest){
+    if(process.env.KAKAO_AUTH_MODE!=='mock')return;
+    this.ready(request).registry.invalidateAuth();
   }
   private ready(request:KakaoMockRequest) {
     assertKakaoMockRequest(request,process.env);
@@ -38,7 +42,11 @@ export class KakaoMockService {
     const {registry,binding,repository} = this.ready(request);
     const token = readToken(request.headers.cookie);
     if (token && await repository.getSession(token)) throw new KakaoMockError(409);
-    return registry.complete(input,()=>repository.loginMockKakao(binding));
+    return registry.complete(input,async(_identifier,assertCurrent)=>{
+      let issued:MockSession|undefined;
+      try{issued=await repository.loginMockKakao(binding,assertCurrent);assertCurrent();return issued;}
+      catch(error){if(issued)await repository.logout(issued.token);throw error;}
+    });
   }
   cancel(input:unknown,request:KakaoMockRequest) { return this.ready(request).registry.cancel(input); }
 }

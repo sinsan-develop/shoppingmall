@@ -1,7 +1,33 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomBytes,createHash } from 'node:crypto';
-import { createKakaoMockClient,parseKakaoMockReturn,parseKakaoMockAuthorize,KakaoMockHttpError } from '../lib/kakao-mock-client.ts';
+import { createKakaoMockClient,parseKakaoMockReturn,parseKakaoMockAuthorize,KakaoMockHttpError,withKakaoAuthLock } from '../lib/kakao-mock-client.ts';
+
+test('개발 인증 잠금은 서로 다른 탭의 HTTP 응답 처리까지 직렬화하고 미지원 mock은 거부한다',async()=>{
+  const oldWindow=globalThis.window,nav=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+  const mode=process.env.NODE_ENV,flag=process.env.NEXT_PUBLIC_ENABLE_KAKAO_MOCK;
+  const order=[];let release,chain=Promise.resolve();const held=new Promise(resolve=>release=resolve);
+  try{
+    process.env.NODE_ENV='development';process.env.NEXT_PUBLIC_ENABLE_KAKAO_MOCK='1';
+    globalThis.window={location:{origin:'http://127.0.0.1:9091'}};
+    Object.defineProperty(globalThis,'navigator',{configurable:true,value:{locks:{request(name,options,run){
+      assert.equal(name,'owoolmall-development-auth');assert.deepEqual(options,{mode:'exclusive'});
+      const pending=chain.then(run);chain=pending.catch(()=>{});return pending;
+    }}}});
+    const first=withKakaoAuthLock(async()=>{order.push('mock-start');await held;order.push('mock-response');},true);
+    const second=withKakaoAuthLock(async()=>{order.push('email-start');order.push('email-response');});
+    await Promise.resolve();assert.deepEqual(order,['mock-start']);release();await first;await second;
+    assert.deepEqual(order,['mock-start','mock-response','email-start','email-response']);
+    Object.defineProperty(globalThis,'navigator',{configurable:true,value:{}});
+    await assert.rejects(withKakaoAuthLock(async()=>assert.fail('unsupported mock must not send'),true));
+    assert.equal(await withKakaoAuthLock(async()=>'email-still-available'),'email-still-available');
+    process.env.NEXT_PUBLIC_ENABLE_KAKAO_MOCK='0';assert.equal(await withKakaoAuthLock(async()=>'normal'),'normal');
+  }finally{
+    globalThis.window=oldWindow;if(nav)Object.defineProperty(globalThis,'navigator',nav);else delete globalThis.navigator;
+    if(mode===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=mode;
+    if(flag===undefined)delete process.env.NEXT_PUBLIC_ENABLE_KAKAO_MOCK;else process.env.NEXT_PUBLIC_ENABLE_KAKAO_MOCK=flag;
+  }
+});
 
 const origin='http://127.0.0.1:9091',id='T'.repeat(43),ticket='D'.repeat(43),code='C'.repeat(43);
 function setup(sendOverride){

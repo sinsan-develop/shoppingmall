@@ -4,7 +4,7 @@ export class KakaoMockError extends Error {
   constructor(public readonly status: number) { super(status === 401 ? 'invalid_mock_auth' : 'mock_auth_unavailable'); }
 }
 export type MockSession = { token: string; expiresAt: Date };
-type Flow = { state: string; challenge: string; client: 'web'|'android'; ticketHash: Buffer;
+type Flow = { generation:number; state: string; challenge: string; client: 'web'|'android'; ticketHash: Buffer;
   codeHash?: Buffer; codeExpires?: number; expires: number; status: 'STARTED'|'APPROVED'|'EXCHANGING'|'CONSUMED'|'CANCELLED'|'FAILED' };
 const proof = /^[A-Za-z0-9_-]{43}$/;
 const hash = (value: string) => createHash('sha256').update(value).digest();
@@ -21,6 +21,8 @@ export function mockBody(input: unknown, keys: string[]): Record<string,string> 
 export class KakaoMockRegistry {
   private readonly flows = new Map<string,Flow>();
   private readonly rate = new Map<string,{ count:number; expires:number }>();
+  private generation=0;
+  invalidateAuth(){this.generation++;}
   private readonly now: () => number;
   private readonly bytes: (size:number) => Buffer;
   constructor(private readonly config: { webOrigin:string; identifier:string; now?:()=>number; randomBytes?:(size:number)=>Buffer }) {
@@ -51,7 +53,7 @@ export class KakaoMockRegistry {
     if (this.flows.size >= 1000 || (this.rate.get(remoteAddress)?.count ?? 0) >= 10) throw new KakaoMockError(429);
     const bucket = this.rate.get(remoteAddress) ?? {count:0,expires:now+300000}; bucket.count++; this.rate.set(remoteAddress,bucket);
     const transactionId = this.token(), ticket = this.token(), expires = now+300000;
-    this.flows.set(transactionId, {state:body.state,challenge:body.challenge,client:body.client as 'web'|'android',
+    this.flows.set(transactionId, {generation:this.generation,state:body.state,challenge:body.challenge,client:body.client as 'web'|'android',
       ticketHash:hash(ticket),expires,status:'STARTED'});
     const authorize = new URL('/auth/kakao-mock/authorize',this.config.webOrigin);
     authorize.hash = new URLSearchParams({transactionId,decisionTicket:ticket}).toString();
@@ -72,15 +74,17 @@ export class KakaoMockRegistry {
     returned.hash = new URLSearchParams(values).toString();
     return {returnUrl:returned.href,mockOnly:true as const};
   }
-  async complete(input: unknown, issueSession:(identifier:string)=>Promise<MockSession>): Promise<MockSession> {
+  async complete(input: unknown, issueSession:(identifier:string,assertCurrent:()=>void)=>Promise<MockSession>): Promise<MockSession> {
     const body = mockBody(input,['transactionId','state','code','verifier']);
     const flow = this.flow(body.transactionId); this.verify(flow,body.state,body.verifier);
+    const assertCurrent=()=>{if(flow.generation!==this.generation)throw new KakaoMockError(409);};
+    assertCurrent();
     if (flow.status !== 'APPROVED') throw new KakaoMockError(409);
     if (!flow.codeHash || !proof.test(body.code) || !same(body.code,flow.codeHash) || (flow.codeExpires ?? 0) <= this.now())
       throw new KakaoMockError(401);
     flow.status = 'EXCHANGING';
     try {
-      const session = await issueSession(this.config.identifier); flow.status = 'CONSUMED'; return session;
+      const session = await issueSession(this.config.identifier,assertCurrent); assertCurrent(); flow.status = 'CONSUMED'; return session;
     } catch (error) {
       flow.status = 'FAILED'; throw error instanceof KakaoMockError ? error : new KakaoMockError(503);
     }

@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '../db/service.js';
 import { AuthRepository } from './repository.js';
+import { KakaoMockService } from './kakao-mock-service.js';
 import { MockPhoneOtp, normalizePhone } from './mock-phone-otp.js';
 import { completeAdminSetup, completeCustomerSignup, startCustomerSignup } from './onboarding.js';
 import { getQaAuthSink } from './delivery.js';
@@ -42,7 +43,8 @@ export class AuthController {
     this.mockCodes.set(challengeId, code);
   });
 
-  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+  constructor(@Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(KakaoMockService) private readonly kakaoMock:KakaoMockService) {}
 
   private repository() {
     const pool = this.database.getPool();
@@ -191,6 +193,7 @@ export class AuthController {
       throw new BadRequestException();
     }
     try {
+      this.kakaoMock.manualAuthStarted(request);
       const session = await this.repository().loginEmail(
         input.email, input.password, (input.role as ActiveRole | undefined) ?? 'customer',
         input.sellerId as string | undefined,
@@ -390,6 +393,7 @@ export class AuthController {
     requireOrigin(request);
     const token = readToken(request.headers.cookie);
     if (!token) throw new UnauthorizedException();
+    this.kakaoMock.manualAuthStarted(request);
     await this.repository().logout(token);
     setSessionCookie(reply, '', 0);
     return { status: 'ok' };
@@ -408,6 +412,7 @@ export class AuthController {
       throw new BadRequestException();
     }
     try {
+      this.kakaoMock.manualAuthStarted(request);
       const session = await this.repository().switchRole(
         token, input.role as ActiveRole, input.sellerId as string | undefined,
       );

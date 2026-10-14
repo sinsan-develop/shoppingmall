@@ -24,14 +24,16 @@ export class AuthRepository {
     this.db = drizzle(pool, { schema });
   }
 
-  async loginMockKakao(binding: KakaoQaBinding): Promise<MockSession> {
+  async loginMockKakao(binding: KakaoQaBinding,assertCurrent:()=>void=()=>{}): Promise<MockSession> {
     if (!/^[0-9a-f]{8}$/.test(binding.runId) ||
       binding.dbName !== `shoppingmall_s7_kakao_${binding.runId}` ||
       binding.identifier !== `mock:s7:${binding.runId}:customer-a` ||
       binding.systemId === protectedKakaoSystemId) throw new KakaoMockError(503);
     const client = await this.pool.connect();
+    let committed=false,issuedToken:string|undefined;
     try {
       await client.query('BEGIN');
+      assertCurrent();
       const actual = (await client.query(`SELECT current_database() AS db,
         system_identifier::text AS system_id FROM pg_control_system()`)).rows[0];
       if (actual?.db !== binding.dbName || actual.system_id !== binding.systemId ||
@@ -44,15 +46,18 @@ export class AuthRepository {
       const roles = await client.query(`SELECT id FROM account_roles
         WHERE account_id=$1 AND role='customer' AND seller_id IS NULL FOR SHARE`, [binding.accountId]);
       if (roles.rowCount !== 1) throw new KakaoMockError(401);
+      assertCurrent();
       const token = createSessionToken(), expiresAt = new Date(Date.now() + sessionHours * 3600000);
+      issuedToken=token;
       await client.query(`INSERT INTO auth_sessions(token_hash,account_id,role,seller_id,expires_at)
         VALUES($1,$2,'customer',NULL,$3)`, [hashSessionToken(token),binding.accountId,expiresAt]);
       await client.query(`INSERT INTO audit_events(actor_account_id,active_role,seller_id,action,target_type,target_id)
         VALUES($1,'customer',NULL,'auth.kakao_mock.login','account',$2)`, [binding.accountId,binding.accountId]);
-      await client.query('COMMIT');
+      assertCurrent();await client.query('COMMIT');committed=true;assertCurrent();
       return {token,expiresAt};
     } catch (error) {
-      await client.query('ROLLBACK');
+      if(!committed)await client.query('ROLLBACK');
+      else if(issuedToken)await client.query('UPDATE auth_sessions SET revoked_at=now() WHERE token_hash=$1',[hashSessionToken(issuedToken)]);
       throw error instanceof KakaoMockError ? error : new KakaoMockError(503);
     } finally { client.release(); }
   }

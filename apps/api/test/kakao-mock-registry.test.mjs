@@ -28,6 +28,23 @@ test('S256 증명 확인 후만 가상 고객 세션을 정확히 한 번 발급
   await assert.rejects(reg.complete(flow.input, async () => { sessions++; }), e => e.status === 409);
   assert.equal(sessions, 1);
 });
+
+test('기존 인증 시작은 대기 mock을 무효화하며 교환중 DB 확정 가드도 거부한다',async()=>{
+  const reg=registry();assert.equal(typeof reg.invalidateAuth,'function');
+  const old=approve(reg);reg.invalidateAuth();let sessions=0;
+  await assert.rejects(reg.complete(old.input,async()=>{sessions++;}),e=>e.status===409);assert.equal(sessions,0);
+  assert.deepEqual(reg.cancel({transactionId:old.input.transactionId,state,verifier}),{status:'cancelled',mockOnly:true});
+  const current=approve(reg);let release,assertCurrent;
+  const held=new Promise(resolve=>release=resolve);
+  const result=reg.complete(current.input,async(_identifier,guard)=>{
+    assertCurrent=guard;await held;guard();sessions++;return {token:'synthetic',expiresAt:new Date(86400000)};
+  });
+  assert.equal(typeof assertCurrent,'function');reg.invalidateAuth();assert.throws(assertCurrent,e=>e.status===409);
+  const denied=assert.rejects(result,e=>e.status===409);release();await denied;assert.equal(sessions,0);
+  const fresh=approve(reg);await reg.complete(fresh.input,async(_identifier,guard)=>{
+    guard();sessions++;return {token:'synthetic',expiresAt:new Date(86400000)};
+  });assert.equal(sessions,1);
+});
 test('잘못된 증명·ticket과 주입 필드는 로그인 부작용 없이 거부한다', async () => {
   const reg = registry(); const flow = approve(reg); let sessions = 0;
   for (const patch of [{ state: 'Y'.repeat(43) }, { verifier: 'Z'.repeat(43) }, { code: 'Y'.repeat(43) }, { role: 'admin' }]) {

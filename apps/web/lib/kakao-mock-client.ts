@@ -1,4 +1,12 @@
 const proof = /^[A-Za-z0-9_-]{43}$/;
+export async function withKakaoAuthLock<T>(task:()=>Promise<T>,requireLock=false):Promise<T>{
+  const enabled=process.env.NODE_ENV!=='production'&&process.env.NEXT_PUBLIC_ENABLE_KAKAO_MOCK==='1';
+  if(enabled&&typeof window!=='undefined'&&window.location.origin==='http://127.0.0.1:9091'&&
+    typeof navigator!=='undefined'&&navigator.locks)
+    return navigator.locks.request('owoolmall-development-auth',{mode:'exclusive'},task);
+  if(requireLock)throw new Error('이 브라우저에서는 모의 인증을 사용할 수 없습니다. 이메일 로그인을 이용해 주세요');
+  return task();
+}
 export class KakaoMockHttpError extends Error {
   constructor(public readonly status:number){super('모의 인증 요청 실패');}
 }
@@ -35,12 +43,14 @@ export function parseKakaoMockAuthorize(url:string,origin:string) {
 }
 const encode = (value:Uint8Array) => btoa(String.fromCharCode(...value)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
 export function createKakaoMockClient(config:{apiOrigin:string;webOrigin:string;
-  send:(path:string,body?:unknown)=>Promise<unknown>;randomBytes:()=>Uint8Array;digest:(value:string)=>Promise<Uint8Array>}) {
+  send:(path:string,body?:unknown)=>Promise<unknown>;randomBytes:()=>Uint8Array;digest:(value:string)=>Promise<Uint8Array>;
+  serialize?:<T>(task:()=>Promise<T>)=>Promise<T>}) {
   const api = new URL(config.apiOrigin),web = new URL(config.webOrigin);
   if (api.protocol!=='http:' || api.hostname!=='127.0.0.1' || api.origin!==config.apiOrigin ||
     web.protocol!=='http:' || web.hostname!=='127.0.0.1' || web.origin!==config.webOrigin) throw failed();
   let generation=0,pending:{transactionId:string;state:string;verifier:string;expires:number}|undefined;
   let starting=false,exchanging:Promise<{role:string;accountId:string}>|undefined;
+  const serialize=config.serialize??(<T>(task:()=>Promise<T>)=>task());
   const random = () => {const bytes=config.randomBytes();if(bytes.length!==32)throw failed();return encode(bytes);};
   async function me() {
     const value=await config.send('/auth/me') as {role?:string;accountId?:string};
@@ -53,7 +63,7 @@ export function createKakaoMockClient(config:{apiOrigin:string;webOrigin:string;
       try {
         const state=random(),verifier=random(),digest=await config.digest(verifier);
         if(digest.length!==32)throw failed();
-        const value=await config.send('/auth/kakao-mock/start',{client:'web',state,challenge:encode(digest),method:'S256'}) as MockStart;
+        const value=await serialize(()=>config.send('/auth/kakao-mock/start',{client:'web',state,challenge:encode(digest),method:'S256'})) as MockStart;
         const authorization=parseKakaoMockAuthorize(value.authorizeUrl,config.webOrigin),expires=Date.parse(value.expiresAt);
         if(current!==generation || value.mockOnly!==true || authorization.transactionId!==value.transactionId ||
           !Number.isFinite(expires)||expires<=Date.now()||expires>Date.now()+300000)throw failed();
@@ -66,12 +76,12 @@ export function createKakaoMockClient(config:{apiOrigin:string;webOrigin:string;
       if(data.transactionId!==flow.transactionId || data.state!==flow.state || flow.expires<=Date.now())throw failed();
       pending=undefined;
       if(data.error)throw new Error(data.error==='cancelled'?'모의 로그인을 취소했습니다':'모의 공급자 실패입니다. 다시 시작해 주세요');
-      const exchange=(async()=>{
+      const exchange=serialize(async()=>{
         // Network loss may follow a committed Set-Cookie: query me, never retry the code.
         try {await config.send('/auth/kakao-mock/complete',{transactionId:flow.transactionId,state:flow.state,code:data.code,verifier:flow.verifier});}
         catch (error) { if(error instanceof KakaoMockHttpError)throw failed(); }
         const account=await me();if(current!==generation)throw failed();return account;
-      })();
+      });
       exchanging=exchange;
       try{return await exchange;}catch{throw failed();}finally{exchanging=undefined;}
     },

@@ -91,7 +91,7 @@ test('mock 인증 HTTP→DB는 고객 세션 한 번·계정 불변·실패 폐�
   const missing=await flow();await pool.query("DELETE FROM account_identities WHERE id=$1",[manifest.identityId]);
   assert.equal((await post('complete',missing)).status,401);
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM auth_sessions')).rows[0].n,1);
-  if(process.env.QA_KAKAO_COOKIE_RACE_REQUIRED==='1'){
+  if(process.env.QA_KAKAO_REQUIRED==='1'||process.env.QA_KAKAO_COOKIE_RACE_REQUIRED==='1'){
     // Two browser tabs share cookies, but an already sent request cannot see a later cookie.
     await pool.query("INSERT INTO account_identities(id,account_id,kind,identifier,verified_at) VALUES($1,$2,'kakao',$3,now())",
       [manifest.identityId,manifest.accounts.customerA,`mock:s7:${process.env.QA_KAKAO_RUN_ID}:customer-a`]);
@@ -111,9 +111,39 @@ test('mock 인증 HTTP→DB는 고객 세션 한 번·계정 불변·실패 폐�
       assert.ok(manual.ok);const latestCookie=manual.headers.get('set-cookie').split(';')[0];
       assert.equal((await (await fetch(`${base}/auth/me`,{headers:{cookie:latestCookie}})).json()).accountId,manifest.accounts.customerB);
       await hold.query('COMMIT');const late=await previousTab;
+      assert.equal(late.status,409);assert.equal(late.headers.get('set-cookie'),null);
       const finalCookie=late.headers.get('set-cookie')?.split(';')[0]??latestCookie;
       const finalActor=await (await fetch(`${base}/auth/me`,{headers:{cookie:finalCookie}})).json();
       assert.equal(finalActor.accountId,manifest.accounts.customerB,'late mock response must not overwrite the newer shared-cookie login');
+      // Each case starts a fresh process-local registry; existing DB customer sessions remain real.
+      let currentCookie=latestCookie;
+      for(const action of ['failed-login','switch-role','logout']){
+        await app.get(KakaoMockService).initialize();
+        const next=await flow(),lockedAccount=await pool.connect();await lockedAccount.query('BEGIN');
+        await lockedAccount.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE',[manifest.accounts.customerA]);
+        const pendingMock=post('complete',next);
+        try{
+          const until=Date.now()+5000;let waiting=false;
+          while(Date.now()<until){waiting=(await pool.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+            WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%i.kind=%kakao%'`)).rows[0].n>0;
+            if(waiting)break;await new Promise(resolve=>setTimeout(resolve,20));}
+          assert.equal(waiting,true);
+          const route=action==='failed-login'?'login':action;
+          const body=action==='failed-login'?{email:`s7-kakao-${process.env.QA_KAKAO_RUN_ID}-customer-b@example.invalid`,password:'wrong-password',role:'customer'}:
+            action==='switch-role'?{role:'customer'}:undefined;
+          const manual=await fetch(`${base}/auth/${route}`,{method:'POST',headers:{origin:'http://127.0.0.1:9091',cookie:currentCookie,
+            ...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
+          if(action==='failed-login')assert.equal(manual.status,401);else assert.ok(manual.ok);
+          const afterManual=(await pool.query('SELECT count(*)::int AS n FROM auth_sessions')).rows[0].n;
+          const cookieHeader=manual.headers.get('set-cookie');if(cookieHeader)currentCookie=cookieHeader.split(';')[0];
+          await lockedAccount.query('COMMIT');const refused=await pendingMock;
+          assert.equal(refused.status,409);assert.equal(refused.headers.get('set-cookie'),null);
+          assert.equal((await pool.query('SELECT count(*)::int AS n FROM auth_sessions')).rows[0].n,afterManual);
+          const actor=await fetch(`${base}/auth/me`,{headers:{cookie:currentCookie}});
+          if(action==='logout')assert.equal(actor.status,401);
+          else {assert.equal(actor.status,200);assert.equal((await actor.json()).accountId,manifest.accounts.customerB);}
+        }finally{await lockedAccount.query('ROLLBACK');lockedAccount.release();}
+      }
     }finally{await hold.query('ROLLBACK');hold.release();}
   }
   process.env.KAKAO_AUTH_MODE='disabled';assert.equal((await post('start',begin)).status,404);

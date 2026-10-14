@@ -1,6 +1,6 @@
 'use client';
 import { useEffect,useRef,useState } from 'react';
-import { createKakaoMockClient,parseKakaoMockAuthorize,parseKakaoMockReturn,KakaoMockHttpError } from '../lib/kakao-mock-client';
+import { createKakaoMockClient,parseKakaoMockAuthorize,parseKakaoMockReturn,KakaoMockHttpError,withKakaoAuthLock } from '../lib/kakao-mock-client';
 const api=process.env.NEXT_PUBLIC_API_ORIGIN??'http://127.0.0.1:9092',origin='http://127.0.0.1:9091';
 export const kakaoMockEnabled=process.env.NODE_ENV!=='production'&&process.env.NEXT_PUBLIC_ENABLE_KAKAO_MOCK==='1';
 const failure='모의 로그인을 완료하지 못했습니다. 다시 시작해 주세요';
@@ -17,7 +17,7 @@ export function KakaoMockLogin({enabled=kakaoMockEnabled,customer,onReady}: {
   useEffect(()=>{
     if(!enabled||!customer||window.location.origin!==origin)return;
     active.current=true;
-    const client=createKakaoMockClient({apiOrigin:api,webOrigin:origin,send,randomBytes:()=>crypto.getRandomValues(new Uint8Array(32)),
+    const client=createKakaoMockClient({apiOrigin:api,webOrigin:origin,send,serialize:task=>withKakaoAuthLock(task,true),randomBytes:()=>crypto.getRandomValues(new Uint8Array(32)),
       digest:async text=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)))});
     flow.current=client;
     const cancel=async()=>{await client.cancel();popup.current?.close();popup.current=null;if(active.current)setBusy(false);};

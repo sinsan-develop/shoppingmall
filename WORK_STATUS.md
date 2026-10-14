@@ -2,6 +2,9 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- 승인보완구현checkpoint: registry가거래시작세대를저장하고manual인증시증가, 기존AuthController의email/logout/switch-role접점만연결했다. mockDBtransaction은INSERT/COMMIT전·COMMIT후재확인하며확정대기중무효화는정확발급token만revoke/Set-Cookie0이다. 기존disabled/authHTTP회귀포함서버8/8 pass, APItypecheck/변경eslint 성공. Web기존파일의WebLocks응답직렬화/미지원mock거부·정상이메일유지RED→GREEN, Web11/11 pass·typecheck/변경eslint 성공. 일시RED의미구현Promise후속오류는제품런타임성공으로집계하지않는다. 별도미구현helper파일은폐기하고잠금함수를기존client파일에만두었다.
+- 실제DB확인대기: 기존cookie경합기준을유지하고late409/cookie0·실패로그인/역할변경/로그아웃후무발급반례를추가했다. QA_KAKAO_REQUIRED=1에는경합검사를항상포함해누락통과를막는다. 다음은동일checkpoint를승인원격/WSLGit으로받아기존선언이름의폐기PG/Node·내부망에서만실행한후잔류0정리이며보호DB/정식서비스변경0이다. 현재추가인증승인대기는해소됐지만실제GREEN/Chrome/native/독립review/StageGit gate가남아있다.
+
 - 추가승인수신: 신산님이 개발mock인증세대/탭간직렬화 및 기존login/logout/role·Web계정화면의보완범위를승인했다. 시작7338e77/clean. docs/design/S7_KAKAO_MOCK_AUTH_RACE_ADDENDUM.md에승인된제한보완을별도기록하며기존설계/계획/기본계약은불변이다. bounded기존흐름보완으로분류했으며동일승인내용의재승인을요구하지않는다. 순서는registry RED→서버transaction가드/기존인증접점→Weblock→같은DB경합GREEN→원래T2~4실제연결/독립review이다. 새쿠키·DBschema/Secret/실공급자/일반production정책변경0, 단일writer어울유지.
 
 - 독립T2보완결과: StrictMode증명소실RED(승인HTTP0)→GREEN, 연속승인RED(HTTP2)→await전증명점유GREEN. 재로드후fragment없음/버튼disabled/새요청0을같은React이벤트에서확인했고Web표적10 pass/0fail/0skip, typecheck/변경eslint/diffcheck·33경로Webbuild 성공이다. renderer deprecation은기존경고로보존했다. 승인화면diff는'cleanup이현재증명을삭제'→'컴포넌트수명중1회초기화/승인수단await전점유'이며browserstorage/기존인증정책을새로쓰지않는다.

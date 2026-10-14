@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { withKakaoAuthLock } from '../../lib/kakao-mock-client';
 
 type Session = { accountId: string; role: 'customer' | 'seller' | 'admin'; sellerId?: string };
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN ??
@@ -63,7 +64,7 @@ export default function AccountPage() {
     if (!apiOrigin || busy) return;
     setBusy(true);
     try {
-      const response = await fetch(`${apiOrigin}/auth/logout`, { method: 'POST', credentials: 'include' });
+      const response = await withKakaoAuthLock(()=>fetch(`${apiOrigin}/auth/logout`, { method: 'POST', credentials: 'include' }));
       if (response.ok) window.location.assign('/login');
       else setState('unavailable');
     } catch {
