@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { CustomerApi, CustomerApiError, type Address, type AddressInput, type CartItem, type Order,
   type Preferences, type Product, type ProductSummary, type Question, type Quote, type Reservation,
-  type Favorite, type RestockSubscription } from './customer-api';
+  type Favorite, type RestockSubscription, type CouponSelector, type HeldCoupon, type PromotionQuote, type OrderInput } from './customer-api';
 
 const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
 type Screen = 'products' | 'product' | 'login' | 'cart' | 'orders' | 'profile' | 'questions' | 'engagement';
@@ -12,11 +12,11 @@ function Button({ label, onPress, disabled = false }: { label: string; onPress: 
     disabled={disabled} onPress={onPress} style={[styles.button, disabled ? styles.disabled : undefined]}>
     <Text style={styles.buttonText}>{label}</Text></Pressable>;
 }
-function Field({ label, value, onChange, secret = false, numeric = false }: {
-  label: string; value: string; onChange: (value: string) => void; secret?: boolean; numeric?: boolean;
+function Field({ label, value, onChange, secret = false, numeric = false, disabled = false }: {
+  label: string; value: string; onChange: (value: string) => void; secret?: boolean; numeric?: boolean; disabled?: boolean;
 }) {
   return <View style={styles.field}><Text>{label}</Text><TextInput accessibilityLabel={label}
-    value={value} onChangeText={onChange} secureTextEntry={secret} autoCapitalize="none"
+    value={value} onChangeText={onChange} editable={!disabled} secureTextEntry={secret} autoCapitalize="none"
     autoCorrect={false} keyboardType={numeric ? 'number-pad' : 'default'} style={styles.input} /></View>;
 }
 
@@ -42,6 +42,10 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const [reservation, setReservation] = useState<Reservation>();
   const [payable, setPayable] = useState<number>();
   const [coupon, setCoupon] = useState('');
+  const [goodsGrantId, setGoodsGrantId] = useState('');
+  const [coupons, setCoupons] = useState<HeldCoupon[]>([]);
+  const [shippingChoices, setShippingChoices] = useState<Record<string, CouponSelector | undefined>>({});
+  const [appliedPromotion, setAppliedPromotion] = useState<PromotionQuote>();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressId, setAddressId] = useState('');
   const [address, setAddress] = useState<AddressInput>({ ...initialAddress });
@@ -60,6 +64,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const clearPrivate = useCallback(() => {
     setSignedIn(false); setEmail(''); setPassword(''); setCart([]); setQuote(undefined); setReservation(undefined);
     setPayable(undefined); setCoupon(''); setAddresses([]); setAddressId(''); setAddress({ ...initialAddress });
+    setGoodsGrantId(''); setCoupons([]); setShippingChoices({}); setAppliedPromotion(undefined);
     setOrder(undefined); setViewedOrder(undefined); setOrders([]); setLookupId(''); setQuestions([]); setQuestionCursor(null); setQuestion(undefined); setQuestionText('');
     setPreferences({ marketingEmail: false, marketingSms: false, push: false });
     setFavorites([]); setRestocks([]);
@@ -84,19 +89,35 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
     const found = await api.products(); setProducts(found); setHasMore(found.length === 24);
   }); }, [api, run]);
   async function loadCart() {
-    setQuote(undefined);
+    setQuote(undefined); invalidatePromotion();
     const items = await api.cart(); setCart(items);
     const savedAddresses = await api.addresses(); setAddresses(savedAddresses);
     setAddressId(current => savedAddresses.some(a => a.id === current) ? current : savedAddresses[0]?.id ?? '');
     const held = await api.activeReservation(); setReservation(held);
-    if (held?.quote) { setQuote(held.quote); if (!coupon.trim()) setPayable(held.quote.totalWon); }
+    if (held?.quote) {
+      setQuote(held.quote);
+      if (held.id !== reservation?.id) { resetSelection(); setPayable(held.quote.totalWon); }
+      else if (!hasSelections) setPayable(held.quote.totalWon);
+    }
     else { setPayable(undefined); if (items.length) setQuote(await api.quote()); }
     if (order) {
       const current = await api.order(order.id);
       if (current.status !== 'PENDING_PAYMENT') { setViewedOrder(current); setOrder(undefined); }
       else setOrder(current);
     }
+    setCoupons([]); setCoupons(await api.coupons());
   }
+  function invalidatePromotion() { setPayable(undefined); setAppliedPromotion(undefined); }
+  function resetSelection() { setCoupon(''); setGoodsGrantId(''); setShippingChoices({}); invalidatePromotion(); }
+  function selection(): OrderInput['selections'] {
+    const goodsCoupon = goodsGrantId ? { grantId: goodsGrantId } : coupon.trim() ? { code: coupon.trim() } : undefined;
+    const shippingCoupons = (quote?.shipments ?? []).flatMap(shipment => {
+      const chosen = shippingChoices[shipment.key];
+      return chosen ? [{ shipmentKey: shipment.key, ...chosen }] : [];
+    });
+    return { ...(goodsCoupon ? { goodsCoupon } : {}), ...(shippingCoupons.length ? { shippingCoupons } : {}) };
+  }
+  const hasSelections = Boolean(goodsGrantId || coupon.trim() || Object.values(shippingChoices).some(Boolean));
   function navigate(next: Screen) {
     setMessage('');
     if (!signedIn && !['products', 'product', 'login'].includes(next)) {
@@ -223,7 +244,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         </View> : null}
         <Button label="재고 예약" disabled={busy || !quote || activeReservation} onPress={() => void run(async () => {
           const started = await api.reserve(); const held = await api.reservation(started.id);
-          setReservation(held); setOrder(undefined); setCoupon('');
+          setReservation(held); setOrder(undefined); resetSelection();
           if (held.status !== 'ACTIVE' || !held.quote) { setPayable(undefined); throw new CustomerApiError('conflict'); }
           setQuote(held.quote); setPayable(held.quote.totalWon);
         })} />
@@ -232,11 +253,45 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
           <Button label="예약 해제" disabled={busy || !activeReservation || Boolean(order)} onPress={() => void run(async () => {
             setReservation(await api.release(reservation.id)); setPayable(undefined); await loadCart();
           })} />
-          <Field label="상품 할인 쿠폰 코드" value={coupon} onChange={value => { setCoupon(value); setPayable(undefined); }} />
+          <Text style={styles.heading}>상품 할인 쿠폰</Text>
+          <Text>보유 쿠폰과 입력 코드는 동시에 적용하지 않습니다. 혜택은 서버에서 다시 계산합니다.</Text>
+          {coupons.filter(item => item.rule.kind === 'goods_discount').map(item => <View key={item.grantId}>
+            <Button label={`상품 쿠폰 ${item.title}`} disabled={busy || !activeReservation || Boolean(order)}
+              onPress={() => { setGoodsGrantId(item.grantId); setCoupon(''); invalidatePromotion(); }} />
+            {goodsGrantId === item.grantId ? <Text>선택됨 · {item.title}</Text> : null}
+          </View>)}
+          <Field label="상품 할인 쿠폰 코드" value={coupon} disabled={busy || !activeReservation || Boolean(order)}
+            onChange={value => { setCoupon(value); setGoodsGrantId(''); invalidatePromotion(); }} />
+          <Button label="상품 쿠폰 사용 안 함" disabled={busy || !activeReservation || Boolean(order)}
+            onPress={() => { setCoupon(''); setGoodsGrantId(''); invalidatePromotion(); }} />
+          {quote?.shipments.map(shipment => <View key={shipment.key} style={styles.card}>
+            <Text>발송 {shipment.key} 배송 지원</Text>
+            {shipment.shippingWon === 0 ? <Text>무료배송 묶음에는 배송 지원을 적용하지 않습니다.</Text> : <>
+              {coupons.filter(item => item.rule.kind === 'shipping_support').map(item => <View key={item.grantId}>
+                <Button label={`배송 ${shipment.key} 쿠폰 ${item.title}`} disabled={busy || !activeReservation || Boolean(order)}
+                  onPress={() => { setShippingChoices(previous => ({ ...previous, [shipment.key]: { grantId: item.grantId } })); invalidatePromotion(); }} />
+                {shippingChoices[shipment.key]?.grantId === item.grantId ? <Text>선택됨 · {item.title}</Text> : null}
+              </View>)}
+              <Field label={`배송 ${shipment.key} 지원 코드`} value={shippingChoices[shipment.key]?.code ?? ''}
+                disabled={busy || !activeReservation || Boolean(order)} onChange={value => {
+                  setShippingChoices(previous => ({ ...previous, [shipment.key]: value.trim() ? { code: value.trim() } : undefined }));
+                  invalidatePromotion();
+                }} />
+              <Button label={`배송 ${shipment.key} 지원 사용 안 함`} disabled={busy || !activeReservation || Boolean(order)}
+                onPress={() => { setShippingChoices(previous => ({ ...previous, [shipment.key]: undefined })); invalidatePromotion(); }} />
+            </>}
+          </View>)}
           <Button label="혜택 재견적" disabled={busy || !activeReservation || Boolean(order)} onPress={() => void run(async () => {
-            const result = await api.promotionQuote(reservation.id, coupon.trim() ? { goodsCoupon: { code: coupon.trim() } } : {});
-            setPayable(result.payableTotalWon); setMessage(`할인 ${won(result.discountWon)} · 배송 지원 ${won(result.supportWon)}`);
+            invalidatePromotion();
+            const result = await api.promotionQuote(reservation.id, selection());
+            setAppliedPromotion(result); setPayable(result.payableTotalWon); setMessage(`할인 ${won(result.discountWon)} · 배송 지원 ${won(result.supportWon)}`);
           })} />
+          {appliedPromotion ? <View style={styles.card}>
+            {appliedPromotion.shipments.map(shipment => <Text key={shipment.key}>발송 {shipment.key} · 상품 할인 {won(shipment.discountWon)} ·
+              배송 지원 {won(shipment.supportWon)} · 결제 소계 {won(shipment.payableTotalWon)}</Text>)}
+            {appliedPromotion.message ? <Text>{appliedPromotion.message}</Text> : null}
+            <Text>견적이며 주문·결제 완료가 아닙니다.</Text>
+          </View> : null}
         </> : null}
         <Text style={styles.heading}>배송지 선택</Text>
         {addresses.length === 0 ? <Text>배송지·알림 화면에서 배송지를 먼저 저장해 주세요.</Text> : addresses.map(item =>
@@ -244,7 +299,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         {payable !== undefined ? <Text>서버 확인 결제금액 {won(payable)}</Text> : null}
         <Button label="주문 생성" disabled={busy || !canOrder} onPress={() => void run(async () => {
           const created = await api.submitOrder({ reservationId: reservation!.id, addressId,
-            expectedPayableWon: payable!, selections: coupon.trim() ? { goodsCoupon: { code: coupon.trim() } } : {} });
+            expectedPayableWon: payable!, selections: selection() });
           setOrder(created); setLookupId(created.id);
         })} />
         {order ? <>

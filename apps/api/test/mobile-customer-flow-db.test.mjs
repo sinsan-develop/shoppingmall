@@ -7,7 +7,7 @@ import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 import { CustomerApi } from '../../mobile/src/customer-api.ts';
 
-test('mobile customer client drives real HTTP DB purchase, retry, delivery, question and preferences', {
+test('mobile customer client drives real HTTP DB coupon purchase, retry, engagement, delivery and preferences', {
   skip: !process.env.QA_S7_DB_SYSTEM_ID,
 }, async () => {
   const url = new URL(process.env.DATABASE_URL);
@@ -26,6 +26,27 @@ test('mobile customer client drives real HTTP DB purchase, retry, delivery, ques
     const runId = '7a141001';
     const password = 'Synthetic-mobile-password-1014';
     await runQaCatalogFixture('seed', runId, url.toString(), password);
+    const accountIds = (await pool.query('SELECT identifier,account_id FROM account_identities WHERE identifier=ANY($1::text[])',
+      [qaNames(runId).emails])).rows;
+    const customerId = accountIds.find(row => row.identifier === qaNames(runId).emails[0]).account_id;
+    const adminId = accountIds.find(row => row.identifier === qaNames(runId).emails[4]).account_id;
+    const sellerId = accountIds.find(row => row.identifier === qaNames(runId).emails[1]).account_id;
+    async function grant(kind, amount, targetId = customerId) {
+      const campaignId = (await pool.query(`INSERT INTO promotion_campaigns
+        (title,kind,direct_issue_limit,total_use_limit,per_account_use_limit,created_by_account_id)
+        VALUES ($1,$2,5,10,3,$3) RETURNING id`, [`S7 QA ${kind}`, kind, adminId])).rows[0].id;
+      const versionId = (await pool.query(`INSERT INTO promotion_versions
+        (campaign_id,version,scope,starts_at,ends_at,minimum_eligible_goods_won,amount_kind,amount_value,created_by_account_id)
+        VALUES ($1,1,'all',$2,$3,0,'fixed',$4,$5) RETURNING id`,
+      [campaignId, new Date(Date.now() - 60000), new Date(Date.now() + 3600000), amount, adminId])).rows[0].id;
+      return (await pool.query(`INSERT INTO promotion_grants
+        (account_id,version_id,source,issued_by_account_id,idempotency_key,reason)
+        VALUES ($1,$2,'direct',$3,$4,'S7 disposable QA') RETURNING id`,
+      [targetId, versionId, adminId, randomUUID()])).rows[0].id;
+    }
+    const goodsGrant = await grant('goods_discount', 5000);
+    const shippingGrant = await grant('shipping_support', 3000);
+    const foreignGrant = await grant('goods_discount', 1000, sellerId);
     process.env.APP_ENV = 'development'; process.env.API_HOST = '127.0.0.1';
     process.env.PAYMENT_MODE = 'mock'; process.env.WEB_ORIGIN = 'http://127.0.0.1:9091';
     app = await createApp(); await app.listen(0, '127.0.0.1');
@@ -43,6 +64,7 @@ test('mobile customer client drives real HTTP DB purchase, retry, delivery, ques
       } });
     await api.login(qaNames(runId).emails[0], password);
     assert.equal((await api.me()).role, 'customer');
+    assert.deepEqual(new Set((await api.coupons()).map(item => item.grantId)), new Set([goodsGrant, shippingGrant]));
     const products = await api.products();
     assert.equal(products.length, 5);
     const summary = products.find(p => p.title === `qa-${runId}-고추`);
@@ -77,12 +99,20 @@ test('mobile customer client drives real HTTP DB purchase, retry, delivery, ques
     const reserved = await api.reserve();
     const held = await api.reservation(reserved.id);
     assert.equal(held.status, 'ACTIVE'); assert.equal(held.quote.totalWon, 49000);
-    const input = { reservationId: held.id, addressId: address.id, expectedPayableWon: 49000, selections: {} };
+    await assert.rejects(api.promotionQuote(held.id, { goodsCoupon: { grantId: foreignGrant } }), e => e.code === 'not_found');
+    const selections = { goodsCoupon: { grantId: goodsGrant },
+      shippingCoupons: [{ shipmentKey: held.quote.shipments[0].key, grantId: shippingGrant }] };
+    const preview = await api.promotionQuote(held.id, selections);
+    assert.equal(preview.discountWon, 5000); assert.equal(preview.supportWon, 3000);
+    assert.equal(preview.payableTotalWon, 41000);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM promotion_uses')).rows[0].n, 0);
+    const input = { reservationId: held.id, addressId: address.id, expectedPayableWon: 41000, selections };
     await assert.rejects(api.submitOrder(input), e => e.code === 'offline');
     const order = await api.submitOrder(input);
     assert.equal(order.status, 'PENDING_PAYMENT');
-    assert.equal(order.payableWon, 49000);
+    assert.equal(order.payableWon, 41000);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM checkout_orders')).rows[0].n, 1);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM promotion_uses')).rows[0].n, 2);
     assert.equal((await api.payMock(order.id, 'decline')).status, 'DECLINED');
     assert.equal((await api.order(order.id)).status, 'PENDING_PAYMENT');
     assert.equal((await api.payMock(order.id, 'approve')).status, 'APPROVED');
@@ -100,6 +130,7 @@ test('mobile customer client drives real HTTP DB purchase, retry, delivery, ques
     await assert.rejects(api.addresses(), e => e.code === 'unauthorized');
     await assert.rejects(api.favorites(), e => e.code === 'unauthorized');
     await assert.rejects(api.restockSubscriptions(), e => e.code === 'unauthorized');
+    await assert.rejects(api.coupons(), e => e.code === 'unauthorized');
   } finally {
     if (app) await app.close();
     for (const [key, value] of Object.entries(previous)) {

@@ -40,6 +40,16 @@ test('favorites and restock use owned customer routes and exact option identity'
   ]);
   assert.ok(requests.filter(r => r.method !== 'GET').every(r => r.origin === 'http://127.0.0.1:9091'));
 });
+
+test('owned coupons load from existing route and grant selectors survive preview and submission', async t => {
+  const { base, requests } = await serve(t, (_req, res) => json(res, []));
+  const api = client(base); await api.coupons();
+  const selections = { goodsCoupon: { grantId: key1 }, shippingCoupons: [{ shipmentKey: 'seller:qa', grantId: key2 }] };
+  await api.promotionQuote(key1, selections);
+  await api.submitOrder({ reservationId: key1, addressId: key2, expectedPayableWon: 4500, selections });
+  assert.equal(requests[0].path, '/customer/promotions/coupons');
+  assert.deepEqual(requests[1].body, selections); assert.deepEqual(requests[2].body.selections, selections);
+});
 test('server quote is authoritative and cart writes use existing customer contract', async t => {
   const { base, requests } = await serve(t, (req, res) => {
     json(res, req.url === '/customer/cart/quote' ? { totalWon: 57000, goodsWon: 66000, shippingWon: 0 } : []);

@@ -24,8 +24,12 @@ export type Order = { id: string; status: string; payableWon: number; expiresAt:
     lines: { optionId: string; productName: string; optionName: string; quantity: number }[];
     fulfillment?: { status: string; expectedShipDate: string | null; delayedReason: string | null;
       customerMessage: string | null; carrier: { displayName: string; code: string } | null; trackingNumber: string | null } | null }[] };
+export type CouponSelector = { grantId: string; code?: never } | { code: string; grantId?: never };
+export type HeldCoupon = { grantId: string; campaignId: string; title: string; rule: { kind: 'goods_discount' | 'shipping_support' } };
+export type PromotionQuote = Omit<Quote, 'shipments'> & { payableTotalWon: number; discountWon: number; supportWon: number; message?: string;
+  shipments: (Quote['shipments'][number] & { discountWon: number; supportWon: number; payableTotalWon: number })[] };
 export type OrderInput = { reservationId: string; addressId: string; expectedPayableWon: number;
-  selections: { goodsCoupon?: { code: string }; shippingCoupons?: { shipmentKey: string; code: string }[] } };
+  selections: { goodsCoupon?: CouponSelector; shippingCoupons?: ({ shipmentKey: string } & CouponSelector)[] } };
 export type Question = { id: string; productId: string; body: string; status: string;
   messages?: { id: string; body: string; authorRole: string }[] };
 export type Page<T> = { items: T[]; nextCursor: string | null };
@@ -116,9 +120,10 @@ export class CustomerApi {
     this.keys.delete('reserve'); return value;
   }
   promotionQuote(id: string, selections: OrderInput['selections']) {
-    return this.request<Quote & { payableTotalWon: number; discountWon: number; supportWon: number }>(
+    return this.request<PromotionQuote>(
       `/customer/checkout/reservations/${encodeURIComponent(id)}/promotions/quote`, 'POST', selections);
   }
+  coupons() { return this.request<HeldCoupon[]>('/customer/promotions/coupons'); }
   submitOrder(input: OrderInput) {
     return this.request<Order>('/customer/checkout/orders', 'POST', input, this.key('order', input));
   }

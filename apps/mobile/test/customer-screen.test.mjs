@@ -32,7 +32,8 @@ async function ready(t, status = {}, overrides = {}) {
       req.url === '/customer/addresses' ? [{ id: key, label: '집', line1: '가상 주소', recipientName: 'QA' }] :
       req.url === '/customer/preferences' ? { marketingEmail: false, marketingSms: false, push: false } : { status: 'ok' };
     res.writeHead(status[req.url] ?? (req.url === '/customer/checkout/reservations/active' ? 404 : 200),
-      { 'content-type': 'application/json' }); res.end(JSON.stringify(overrides[req.url] ?? value));
+      { 'content-type': 'application/json' }); res.end(JSON.stringify(overrides[req.url] ??
+        (req.url === '/customer/promotions/coupons' ? [] : value)));
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
@@ -76,6 +77,65 @@ test('mobile search renders fetched products rather than construction notice', a
   await until(() => text(tree).includes('시험 고추'));
   assert.ok(button(tree, '시험 고추 상세'));
   assert.equal(text(tree).includes('앱 서비스 구축 중'), false);
+});
+
+test('held goods and shipment coupons remain identical across preview and order; returning cart invalidates preview', async t => {
+  const shippingGrant = 'bf66b7c1-b0f6-4346-8333-d42ee1c8e299';
+  const held = { id: key, status: 'ACTIVE', expiresAt: '2099-01-01T00:00:00Z', quote: {
+    totalWon: 9000, goodsWon: 6000, shippingWon: 3000,
+    shipments: [{ key: 'seller:qa', shippingMode: 'seller_direct', goodsWon: 6000, shippingWon: 3000, totalWon: 9000 }] } };
+  const selections = { goodsCoupon: { grantId: key }, shippingCoupons: [{ shipmentKey: 'seller:qa', grantId: shippingGrant }] };
+  const { tree, requests } = await ready(t, { '/customer/checkout/reservations/active': 200 }, {
+    '/customer/checkout/reservations/active': held,
+    '/customer/promotions/coupons': [
+      { grantId: key, title: '상품 할인', rule: { kind: 'goods_discount' } },
+      { grantId: shippingGrant, title: '배송 지원', rule: { kind: 'shipping_support' } }],
+    [`/customer/checkout/reservations/${key}/promotions/quote`]: { ...held.quote, payableTotalWon: 4500,
+      discountWon: 1500, supportWon: 3000, shipments: [{ ...held.quote.shipments[0], discountWon: 1500, supportWon: 3000, payableTotalWon: 4500 }] },
+    '/customer/checkout/orders': { id: key, status: 'PENDING_PAYMENT', payableWon: 4500, shipments: [] },
+  });
+  await login(tree); await act(async () => button(tree, '장바구니').props.onPress());
+  await until(() => button(tree, '상품 쿠폰 상품 할인')?.props.disabled === false);
+  await act(async () => button(tree, '상품 쿠폰 상품 할인').props.onPress());
+  await act(async () => button(tree, '배송 seller:qa 쿠폰 배송 지원').props.onPress());
+  assert.equal(button(tree, '주문 생성').props.disabled, true);
+  await act(async () => button(tree, '혜택 재견적').props.onPress());
+  await until(() => button(tree, '주문 생성')?.props.disabled === false);
+  assert.ok(text(tree).includes('4,500원'));
+  await act(async () => button(tree, '배송지·알림').props.onPress());
+  await until(() => button(tree, '장바구니')?.props.disabled === false);
+  await act(async () => button(tree, '장바구니').props.onPress());
+  await until(() => button(tree, '혜택 재견적')?.props.disabled === false);
+  assert.equal(button(tree, '주문 생성').props.disabled, true, 'base quote must not revalidate selected benefits');
+  await act(async () => button(tree, '혜택 재견적').props.onPress());
+  await until(() => button(tree, '주문 생성')?.props.disabled === false);
+  await act(async () => button(tree, '주문 생성').props.onPress());
+  await until(() => requests.some(([path, method]) => path === '/customer/checkout/orders' && method === 'POST'));
+  assert.deepEqual(requests.find(([path]) => path.endsWith('/promotions/quote'))[2], selections);
+  const input = requests.find(([path, method]) => path === '/customer/checkout/orders' && method === 'POST')[2];
+  assert.deepEqual(input.selections, selections); assert.equal(input.expectedPayableWon, 4500);
+});
+
+test('coupon change and failed preview cannot reuse an earlier payable amount', async t => {
+  const path = `/customer/checkout/reservations/${key}/promotions/quote`;
+  const { tree, status } = await ready(t, { '/customer/checkout/reservations/active': 200 }, {
+    '/customer/checkout/reservations/active': { id: key, status: 'ACTIVE', expiresAt: '2099-01-01T00:00:00Z',
+      quote: { totalWon: 9000, goodsWon: 6000, shippingWon: 3000, shipments: [] } },
+    [path]: { totalWon: 9000, payableTotalWon: 8000, discountWon: 1000, supportWon: 0, shipments: [] },
+  });
+  await login(tree); await act(async () => button(tree, '장바구니').props.onPress());
+  await until(() => button(tree, '혜택 재견적')?.props.disabled === false);
+  const input = () => tree.root.findAllByType('TextInput').find(x => x.props.accessibilityLabel === '상품 할인 쿠폰 코드');
+  await act(async () => input().props.onChangeText('VALID'));
+  await act(async () => button(tree, '혜택 재견적').props.onPress());
+  await until(() => button(tree, '주문 생성')?.props.disabled === false);
+  status[path] = 409;
+  await act(async () => button(tree, '혜택 재견적').props.onPress());
+  await until(() => text(tree).includes('다시 조회해 주세요.'));
+  assert.equal(button(tree, '주문 생성').props.disabled, true);
+  assert.equal(text(tree).includes('서버 확인 결제금액 8,000원'), false);
+  await act(async () => input().props.onChangeText('CHANGED'));
+  assert.equal(button(tree, '주문 생성').props.disabled, true);
 });
 
 test('favorite list supports detail, removal and hides private items on session expiry', async t => {
