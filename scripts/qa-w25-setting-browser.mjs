@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {readFile,mkdir,writeFile} from 'node:fs/promises';
+import {openCdpPage,closeCdpPage,createCdpCommandChannel} from './qa-browser-cdp.mjs';
+const m=JSON.parse(await readFile(process.env.QA_W25_MANIFEST,'utf8'));const c=JSON.parse(await readFile(process.env.QA_W25_CREDENTIAL,'utf8'));assert.equal(c.email,'qa+a0150025-admin@example.invalid');assert.notEqual(m.systemId,'7622490131194466339');
+const evidence=process.env.QA_W25_EVIDENCE;assert.equal(evidence,'D:/tmp/shoppingmall-w25-20261015/evidence');await mkdir(evidence,{recursive:true});
+const debugging='http://127.0.0.1:9239',web='http://127.0.0.1:9091',api='http://127.0.0.1:9092';const {page,socket}=await openCdpPage({debugging});const {send}=createCdpCommandChannel(socket,{timeoutMs:20000});
+async function evaluate(expression){const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.text);return r.result.value;}
+async function wait(expression,label){const end=Date.now()+20000;while(Date.now()<end){try{if(await evaluate(`Boolean(${expression})`))return;}catch{/*navigation*/}await new Promise(r=>setTimeout(r,100));}throw Error(`W25 timeout: ${label}`);}
+async function set(selector,value){assert.equal(await evaluate(`(()=>{const i=document.querySelector(${JSON.stringify(selector)});if(!i)return false;const proto=i.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(i,${JSON.stringify(value)});i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`),true);}
+async function setting(){return evaluate(`fetch(${JSON.stringify(api+'/fulfillment/admin/settings')},{credentials:'include'}).then(async r=>{if(!r.ok)throw Error('setting unavailable');return r.json()})`);}
+async function shot(name){const r=await send('Page.captureScreenshot',{captureBeyondViewport:true});await writeFile(`${evidence}/${name}.png`,Buffer.from(r.data,'base64'));}
+const passes=[];
+try{
+ await send('Page.enable');await send('Runtime.enable');await send('Page.navigate',{url:web+'/login'});await wait(`document.querySelector('#login-email')&&Object.keys(document.querySelector('form')).some(k=>k.startsWith('__reactProps$'))`,'setup login');await evaluate(`(()=>{const s=document.querySelector('#login-role');s.value='admin';s.dispatchEvent(new Event('change',{bubbles:true}));return true;})()`);await set('#login-email',c.email);await set('#login-password',c.password);await evaluate(`document.querySelector('.account-form').requestSubmit();true`);await wait(`location.pathname==='/account'`,'session setup');
+ await send('Page.navigate',{url:web+'/account/admin/fulfillment'});await wait(`document.querySelector('#owool-seller-id')`,'setting form');const before=await setting();
+ await set('#owool-seller-id',m.sellerId);await set('#setting-reason','W25 격리 담당 설정');await evaluate(`document.querySelector('#owool-seller-id').closest('form').requestSubmit();true`);await wait(`document.body.textContent.includes('공동출고 담당 판매자 설정을 저장했습니다')`,'setting saved');const saved=await setting();assert.equal(saved.owoolSellerId,m.sellerId);assert.equal(saved.version,before.version+1);await shot('setting-saved');passes.push('setting form saves exact active seller and increments one version');
+ await send('Page.reload',{ignoreCache:true});await wait(`document.querySelector('#owool-seller-id')?.value===${JSON.stringify(m.sellerId)}`,'setting revisit');const again=await setting();assert.equal(again.owoolSellerId,m.sellerId);assert.equal(again.version,saved.version);await shot('setting-revisited');passes.push('revisit retains seller setting without another version change');
+ await writeFile(`${evidence}/result.json`,JSON.stringify({page:'W25',scope:'previously unverified fulfillment setting only',systemId:m.systemId,passes,version:saved.version},null,2));
+}finally{assert.equal((await closeCdpPage({debugging,page,socket})).length,0);}
+console.info(`W25_BROWSER_PASS=${passes.length}`);
