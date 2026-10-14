@@ -2,6 +2,11 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- Chrome실제core: 수정터널51844→Windows[::1]:9229의Chrome155를사용해6802c10/폐기systemID7696474955812409388/migration28·계정2 gate에서KAKAO_BROWSER_CORE_PASS(approve/cancel/fail/closed-popup/reload/no-opener/own-address/cross-tab-lock/logout), runnerexit0·WSL전용자원0을확인했다. 실제두탭에서mockDB잠금중두번째이메일제출은네트워크0/대기상태였고해제후최신고객B/로그아웃401을확인했다. 초기사진2개는동일한상단찜/재입고영역만담아hash가같았다. DOM/HTTP/DB판정은유효하지만사진을고객별주소의육안증거로쓰지않는다. 실행기에주소제목으로scroll을추가했고최종같은후보QA에서주소사진을다시확인한다.
+- Native복귀선행안전반례: 현재URIparser가custom-scheme의임의port를허용하는지새반례를추가한다. 기존정확scheme/host/path계약에따라port없는주소만허용하도록core/authorize 검증을대조하며SDK/app.json/권한/DB변경0이다. 다음은전용Android/Metro실제복귀검증, 실제동작확인전native완료를표시하지않는다.
+
+- Chrome초기연결오류1회: 실제WindowsChrome31340은::1:9229, 같은IPv4주소는WSL wslrelay23816이었다. SSH역전달이Windows127.0.0.1:9229로돌아가반복연결/ResponseEnded를일으켰다. 실제IPv6Chrome버전응답과프로세스소유명령으로원인을확인했다. 최초WSL브라우저명령은preflight실패/exit1·전용자원잔류0으로종료했으며28migration·계정2 gate까지만확인했다. timeout으로실행중작업을재시작하지않았다. 소유SSH42076만정리하고역전달목적지를[::1]:9229로수정했다. 사용자wslrelay/Chrome/서비스중단0이며실제browser성공은아직미확인이다.
+
 - T2browser실행기작성: scripts/qa-kakao-mock-browser.mjs는실제DB/서명manifest/계정소유·Chrome전용profile을확인한후새QA탭에서취소/실패/닫힘/재로드/no-opener/본인주소/타탭직렬화/로그아웃을검사한다. 비활성환경preflight RED→GREEN·문법/eslint/diffcheck성공이나아직실제실행PASS아니다. Target수명/fragment내비게이션조건을대조했다. 승인화면출력없는환경불일치는일반실패로거부하며사용자Chromeprofile을전용하지않는다.
 - 다음자원선언: 앞서승인한WSL QA경로/PG/Node/internalnetwork에shoppingmall-s7-kakao-20261014-web(Nextdevelopment/1CPU/1GiB/loopback9091)을추가해exactGit후보의API9092/Web9091만시험동안사용한다. Windows D:\tmp\shoppingmall-s7-kakao-20261014\chrome-20261014 전용headless Chrome9229/새profile·SSH루프백9091/9092와역방향9229를사용하고다른profile/탭을변경하지않는다. 캡처는Docker /tmp/shoppingmall-s7-kakao-browser-20261014와같은이름WSL호스트임시증거, Windows지정증거폴더로만보존한다. 종료시소유PID/profile/tunnel/container/network/QA경로를회수하고캡처확인후WSL임시증거도정리한다. 보호DB/정식서비스/외부발송변경0. 실제점유/부하를생성전에확인하고충돌이면기존서비스를중단하지않는다.
 

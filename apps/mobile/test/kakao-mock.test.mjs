@@ -28,6 +28,7 @@ test('명시 start→고정 브라우저→정확 scheme·S256 complete·me 고�
 test('cold start·다른scheme/거래/state·중복fragment·query는 세션을 만들지 않는다',async()=>{
   const {flow,calls,returned}=setup();assert.equal(await flow.handleReturn(returned()),false);await flow.start();
   for(const url of [returned().replace('owoolmall-dev:','https:'),returned().replace('/return','/wrong'),
+    returned().replace('://auth/','://auth:123/'),
     returned().replace('#','?role=admin#'),returned()+`&code=${code}`,returned().replace(`transactionId=${id}`,`transactionId=${'Z'.repeat(43)}`)])
     assert.equal(await flow.handleReturn(url),false);
   assert.equal(calls.length,1);flow.invalidate();assert.equal(await flow.handleReturn(returned()),false);

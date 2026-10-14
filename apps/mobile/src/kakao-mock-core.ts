@@ -38,7 +38,7 @@ export function createKakaoMockFlow(config:{api:Pick<CustomerApi,'startKakaoMock
       let parts:Record<string,string>;
       try{
         const url=new URL(value);parts=fragments(url,['transactionId','state','code','error']);
-        if(url.protocol!=='owoolmall-dev:'||url.hostname!=='auth'||url.pathname!=='/kakao-mock/return'||
+        if(url.protocol!=='owoolmall-dev:'||url.hostname!=='auth'||url.port||url.pathname!=='/kakao-mock/return'||
           Object.keys(parts).length!==3||parts.transactionId!==pending.transactionId||parts.state!==pending.state||
           !pattern.test(parts.transactionId)||!pattern.test(parts.state)||pending.expires<=Date.now()||
           (parts.code?!pattern.test(parts.code)||!!parts.error:!['cancelled','mock_failed'].includes(parts.error)))return false;

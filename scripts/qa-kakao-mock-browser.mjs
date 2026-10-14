@@ -54,6 +54,7 @@ async function popup(client){
 }
 async function evidence(client,name){
   assert.equal(await evaluate(client,'Boolean(location.hash)'),false);
+  await evaluate(client,"document.querySelector('#address-title')?.scrollIntoView({block:'start'})");
   const dir=process.env.QA_KAKAO_BROWSER_EVIDENCE_DIR;
   assert.ok(dir?.startsWith('/tmp/shoppingmall-s7-kakao-')||dir?.replaceAll('\\','/').startsWith('D:/tmp/shoppingmall-s7-kakao-'));
   await mkdir(dir,{recursive:true});const shot=await client.channel.send('Page.captureScreenshot',{format:'png'});

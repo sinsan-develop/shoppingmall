@@ -66,7 +66,7 @@ export function KakaoMockAuthorize(){
       const result=await send('/auth/kakao-mock/decision',{...input,outcome}) as {returnUrl:string;mockOnly:boolean};
       if(result.mockOnly!==true)throw new Error(failure);
       const returned=new URL(result.returnUrl);
-      if(returned.protocol==='owoolmall-dev:'&&returned.hostname==='auth'&&returned.pathname==='/kakao-mock/return'&&
+      if(returned.protocol==='owoolmall-dev:'&&returned.hostname==='auth'&&!returned.port&&returned.pathname==='/kakao-mock/return'&&
         !returned.search&&!returned.username&&!returned.password)
         parseKakaoMockReturn(`${origin}/auth/kakao-mock/return${returned.hash}`,origin);
       else parseKakaoMockReturn(result.returnUrl,origin);
