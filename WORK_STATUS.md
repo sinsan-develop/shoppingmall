@@ -2,6 +2,8 @@
 
 ## 2026-10-14 S7.1 가입·복구 진입 및 탈퇴 안내 연결
 
+- 최종: exact21c4be0d653a7018b4d9b26d27d8ae7b35cc85c1·폐기systemID7696353454837481516, 실제 CustomerApi→HTTP→DB1/1 pass·0skip·0fail 및 준비/정리shell exit0. 발송 disabled일 때 접수 거부/큐0→루프백 mock에서 신규 가입·기존/미등록 복구 모두accepted·큐3건/응답 전 token0→기존worker3건done·적격2건 mock sink 호출/계정수 불변, 탈퇴requested1건/중복409/본인 계정disabled_at null·로그인 유지·로그아웃후401을 확인했다. 외부 메일0건·계정 삭제0건·신규 가입 완료/비밀번호 실제 변경0건이다. 전용 runner/PG/network/QA checkout 잔류0, 기존main3d692a8/clean·ready200 별도 확인. 기존 서버 계약·인증 정책·DB schema는 변경하지 않았다. 모바일42/42 및 typecheck·변경eslint 통과는 위 같은 제품코드 결과다. 이번 새 화면은 실제 React/HTTP와 격리DB 검증이며 Android 조작은 미확인, 기존 APK/정식 WSL main에 반영하지 않았다. 설계·계획은 불변이며 다음은 홈/분류/필터/정렬 연결이다. 전체S7 완료를 선언하지 않는다.
+
 - 담당 어울, 시작3275873. 승인 DESIGN R12/R14/R16·WORK_PLAN S7의 기존 웹/서버 계정 경로를 모바일에 연결한다. 로그인→가입하기/비밀번호 찾기→이메일 요청 접수이며 완료·계정 존재를 추정하지 않는다. 받은 링크의 기존 웹 확인/설정 단계와 실제 메일/HTTPS는 보류·미확인으로 구분한다. 배송지·알림→탈퇴 안내·명시 확인→기존 본인 전용 요청 API를 연결하고 계정 삭제·권한 변경·주문/환불 변경은 수행하지 않는다. 새 공개 API/DB/schema/인증 정책·설계·계획 변경0.
 - RED 신규4건(API 메서드/로그인 진입/탈퇴 화면 누락)→GREEN 모바일40건, 이후 실패503·중복409·세션401 추가 포함42/42 pass·0skip·0fail. 모바일typecheck·변경eslint·diffcheck exit0. 정상 기능 전체 전수·부하·Android 불변 모듈 재빌드는 반복하지 않는다. 새 화면 native 동작은 미확인이다. 적용 중 문맥 불일치 patch1회는 변경 없이 거부되어 정확 위치로 적용했다.
 - 자원 사전 선언: 기존 exact-SHA 폐기 QA 절차의 WSL shoppingmall-s7-qa-node runner·shoppingmall-qa-s7-20261014-pg(PG15 tmpfs)·shoppingmall-s7-qa-20261014-net 내부network·/home/daon/deploy/shopping-qa-s7-20261014를 사용한다. 보호 systemID와 다른 DB/빈계정 확인 뒤 가상 본인·가입/복구 요청과 탈퇴 접수만 생성한다. 외부 네트워크 없는 runner의 루프백 mock auth sink로 영속 큐3건·계정 생성 없음·탈퇴1건/중복/401을 확인하고 종료 trap으로 정확 자원·업로드 임시 경로를 제거한다. 정식 WSL/main/고정QA/보호DB는 변경하지 않는다. 목적별 실제 메일/링크 열기/비밀번호 변경은 이번 실행의 결과로 주장하지 않는다.
