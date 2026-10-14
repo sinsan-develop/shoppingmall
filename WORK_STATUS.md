@@ -2,6 +2,8 @@
 
 ## 2026-10-14 S7.1 리뷰 사진·클레임 증빙 연결
 
+- 첫 exact59c09d4 실DB 시험은 첨부에서 unavailable로1회 실패했다. ImageQuarantine 생성자는 전용 절대 경로의 basename이 shoppingmall-upload로 시작해야 하며 시험의 shoppingmall-s7-images-*가 이 계약을 위반했다. 제품 guard를 완화하지 않고 시험 mkdtemp prefix만 shoppingmall-upload-s7-*로 수정한다. 앞선 시험 PASS 주장은 없으며 실패 종료 trap이 전용 자원을 제거했다. 후속 실행도 동일한 전용 자원/격리 경계이며 runner의 새 정확 임시 경로만 finally에서 제거한다.
+
 - 담당 어울. 기존 업로드 API에 PNG/JPEG/WebP 바이너리와 기존 5MB/5건 제한을 연결하고, 접수와 검사/공개/심사 완료를 구분한다. 시스템 파일 선택기 App 진입 연결, 선택 취소, 캐시 복사본 읽기/개별 삭제, 응답 유실 시 같은 파일·키 재시도를 구현한다. expo-document-picker 57.0.3은 OPEN_DOCUMENT query만 선언하며, expo-file-system57.0.7은 기존 Expo 잠금파일에 이미 포함된 모듈이다. 카메라·알림 권한/서명/인증 설정은 변경하지 않았다.
 - RED: 신규 API/화면 시험2건, 선택기 코어 누락1건. GREEN: 모바일36/36 pass·0skip·0fail, 모바일 typecheck·변경 파일 eslint·diff check exit0. 선택기 시험은 OS 경계 대체이며 실제 Android 선택창·쿠키 이미지 렌더링 증거가 아니다. 이전 APK에는 이번 변경이 없고 새 native 빌드/동작은 미확인이다.
 - 자원 사전 선언: 기존 exact-SHA 폐기 QA 절차로 WSL shoppingmall-s7-qa-node 일회성 runner, shoppingmall-qa-s7-20261014-pg(PG15 tmpfs), shoppingmall-s7-qa-20261014-net 전용 내부 network, /home/daon/deploy/shopping-qa-s7-20261014 QA checkout을 사용한다. runner 내부 /tmp/shoppingmall-s7-images-*는 시험에서 mkdtemp로 생성한 단일 업로드 격리 디렉터리이며 finally에서 해당 경로만 제거한다. 보호 systemID와 다른 DB·초기 계정0 확인 뒤에만 가상 자료를 생성한다. 종료 후 전용 자원 제거·잔류0 및 main/ready 불변을 확인한다. 고정 WSL main의 비loopback 업로드 제한은 변경하지 않는다. 실제 악성코드 검사·공개 승인·사용자 인수는 미확인이다.

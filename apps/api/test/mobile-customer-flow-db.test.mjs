@@ -30,7 +30,7 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     assert.equal(identity.id, process.env.QA_S7_DB_SYSTEM_ID);
     assert.notEqual(identity.id, '7622490131194466339');
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n, 0);
-    uploadRoot = await mkdtemp(join(tmpdir(), 'shoppingmall-s7-images-'));
+    uploadRoot = await mkdtemp(join(tmpdir(), 'shoppingmall-upload-s7-'));
     process.env.ENABLE_LOCAL_UPLOAD = '1'; process.env.SHOPPINGMALL_UPLOAD_ROOT = uploadRoot;
     const runId = '7a141001';
     const password = 'Synthetic-mobile-password-1014';
