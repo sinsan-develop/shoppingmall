@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 2026-10-14 S7 25124b3 native 복원·신규 구매 검증
+
+- 실제 결과: exactJS25124b3·네이티브APK6107e3d(SHA2560FE603FC5F0C9C78EB6592D5953A4C741820EF5254EB89344EC4D75767699F85), 폐기DBsystemID7696384898988769323에서 Android로그인→강제종료/재실행→재로그인 없이 로그아웃메뉴/본인41000원준비주문 조회를 확인했다. 홈추천고추→1개담기→23000+배송3000 견적→ACTIVE예약 뒤 다시강제종료/재실행→같은 만료시각의 ACTIVE/26000원복원을 확인했다. 입력credential 새저장/서버인증정책 변경0.
+- 신규 구매: Android UI로 주문000d14c2-1810-4e23-bcca-f3d6e0d944f9를 생성했다. 모의거절 뒤 PENDING_PAYMENT/26000원 유지→모의승인 뒤 본인 목록·상세 PAID/26000원·고추1개·출고READY 조회, 로그아웃 뒤 본인주문 로그인차단/이메일·비밀번호빈값을 확인했다. 읽기전용SQL에서 기존577a84a7-3ade-4220-907c-6c609f3be081 PAID41000과 별도 신규행 PAID26000 총2행, 가입/복구 UI추가접수 포함 intake5행/계정5행불변을 확인한 뒤에만 done표식을 전달했다. 실제 CustomerApi→HTTP→DB/native검증1/1 pass·0skip·0fail, 전체준비/정리shell exit0. 외부 실결제/메일·출고 실행은 아니다.
+- 증거: D:\tmp\shoppingmall-s7-verify-native-20261014의 restored-orders.png/restored-reservation.png/payment-declined.png/payment-paid.png/reset-accepted.png와 실행로그. 주문목록복원/PAID상세를 육안확인했고 API/DB값과 일치했다. 이번 제품코드/설계/계획/시험기준 변경0, 이전53건검사를 같은코드에서 반복하지 않았다. 일반배포용APK/release·iOS·OS푸시·실PG·실메일/HTTPS·전체S7/S8 완료로 확대하지 않는다.
+- 정리: 전용Android·Metro/SSH tunnel종료, AVD삭제·Windows임시소스/AVD부재·adb기기0·8081/9092/5580 listener0. WSL전용runner/PG/network/시험경로부재, 기존main3d692a88c62d567b8ab101c6510607784a3567cb/clean·ready200을 확인했다. 보호DB/고정QA/다른서비스 변경0. 완료된 신규구매·쿠키/세션/예약복원 장애기록은 실제근거를 보존한 뒤 제거하고 OS푸시미구현·native분류/농가/정렬/탈퇴화면 미확인·정식최신후보 반영 경계는 남긴다.
+
+- 담당 어울. 기준25124b303a59e7310ac1b7ce2c1f1e141807984a/clean, WSLload3.29/4.74/5.94·기존main3d692a8·ready200. 임시 D:\tmp\s7verify1014·증거 D:\tmp\shoppingmall-s7-verify-native-20261014, 전용 AVD shoppingmall_s7_verify_20261014/5580·Metro8081·SSH루프백9092와 명시 소유 QA runner/PG15tmpfs/internalnetwork를 시험 동안만 사용한다. APK6107e3d 네이티브 의존성/권한/잠금파일은 현25124b3과 동일하며 최신 Metro bundle을 사용해 JS복원 변경을 검증한다. APK/bundle commit을 혼동하지 않는다. 보호DB와 다른 systemID/빈 계정·대상DB SELECT1·native.ready를 먼저 확인한다. 로그인→강제종료/재실행→본인조회·새26000원 mock 구매/거절/승인·로그아웃을 확인하고 기존 기대값을 유지한다. 종료 시 정확한 소유자원만 제거하고 화면·DB증거를 보존한다. 실제 외부메일/PG/푸시·기존서비스/보호DB·설계/계획 변경0.
+
 ## 2026-10-14 S7 고객 세션 UI 복원 보완
 
 - 최종 검토: 읽기전용 C0/I0/M1(늦은 응답시험의50ms대기). 인증안전 검증누락 영향으로 Important로 재분류하고, 실제 CustomerApi→HTTP 호출의 종료를 관찰하는 시험유틸로 바꿔 응답처리 뒤 UI를 검사한다. 제품에 시험hook를 추가하지 않았다. 세대가드 제거 변이에서 현재만료 뒤 부활시험1fail을 실제 관찰했고 변이 실행이 다음시험에서 종료되지 않아 해당 소유시험만 중단했다. 가드는 원복했으며 최종 --import tsx 모바일53/53 pass·0skip·0fail, mobiletypecheck/eslint/diffcheck exit0. 고정대기로 합격시키지 않는다. 검토의 native/쿠키지속성 제외는 미검증으로, 서버/DB/OS권한 미변경과 기존401/로그인/조회 유지 판단은 실제 diff/시험과 대조해 채택했다. 잘못 채택하면 기기복원 공백이 남으므로 native 완료에 사용하지 않는다.
