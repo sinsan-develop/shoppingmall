@@ -5,6 +5,7 @@ import { mkdtemp,readFile,rm } from 'node:fs/promises';
 import { Pool } from 'pg';
 import { runQaKakaoMockFixture } from '../scripts/qa-kakao-mock-fixture.ts';
 import { createApp } from '../src/app.ts';
+import { AuthRepository } from '../src/auth/repository.ts';
 
 test('mock 인증 HTTP→DB는 고객 세션 한 번·계정 불변·실패 폐쇄를 보장한다',{
   skip:!process.env.QA_KAKAO_DB_SYSTEM_ID && process.env.QA_KAKAO_REQUIRED!=='1',
@@ -146,6 +147,30 @@ test('mock 인증 HTTP→DB는 고객 세션 한 번·계정 불변·실패 폐�
       }
     }finally{await hold.query('ROLLBACK');hold.release();}
   }
+  // Preserve real INSERT/COMMIT; schedule invalidation precisely after its response.
+  // Removing post-COMMIT guard/revocation must fail the observable HTTP/DB assertions.
+  await app.get(KakaoMockService).initialize();
+  const committedFlow=await flow();
+  const beforeCommit=(await pool.query('SELECT count(*)::int AS total,count(*) FILTER(WHERE revoked_at IS NULL)::int AS active FROM auth_sessions')).rows[0];
+  const originalLogin=AuthRepository.prototype.loginMockKakao;
+  let afterCommitInvalidated=false;
+  AuthRepository.prototype.loginMockKakao=function(binding,assertCurrent){
+    let guards=0;
+    return originalLogin.call(this,binding,()=>{
+      if(++guards===4){afterCommitInvalidated=true;app.get(KakaoMockService).manualAuthStarted({
+        headers:{origin:'http://127.0.0.1:9091'},socket:{localAddress:'127.0.0.1',remoteAddress:'127.0.0.1'}});}
+      assertCurrent();
+    });
+  };
+  try{
+    const stale=await post('complete',committedFlow);
+    assert.equal(afterCommitInvalidated,true,'exercise actual committed session boundary');
+    assert.equal(stale.status,409);assert.equal(stale.headers.get('set-cookie'),null);
+    const afterCommit=(await pool.query('SELECT count(*)::int AS total,count(*) FILTER(WHERE revoked_at IS NULL)::int AS active FROM auth_sessions')).rows[0];
+    assert.equal(afterCommit.total,beforeCommit.total+1,'committed history is preserved');
+    assert.equal(afterCommit.active,beforeCommit.active,'only newly issued stale token is revoked');
+    assert.equal((await post('complete',committedFlow)).status,409);
+  }finally{AuthRepository.prototype.loginMockKakao=originalLogin;}
   process.env.KAKAO_AUTH_MODE='disabled';assert.equal((await post('start',begin)).status,404);
   await assert.rejects(runQaKakaoMockFixture('reset',process.env.QA_KAKAO_RUN_ID,process.env.DATABASE_URL,process.env.QA_KAKAO_DB_SYSTEM_ID,file),
     'audit/history must not be deleted to make cleanup green; dispose the isolated DB instead');
