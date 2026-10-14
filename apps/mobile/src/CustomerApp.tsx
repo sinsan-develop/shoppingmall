@@ -3,13 +3,16 @@ import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleShe
 import OrderSupport from './OrderSupport';
 import AccountRequest from './AccountRequest';
 import DeletionRequest from './DeletionRequest';
+import CatalogHome from './CatalogHome';
 import { CustomerApi, CustomerApiError, type Address, type AddressInput, type CartItem, type Order,
   type Preferences, type Product, type ProductSummary, type Question, type Quote, type Reservation,
   type Favorite, type RestockSubscription, type CouponSelector, type HeldCoupon, type PromotionQuote, type OrderInput,
-  type RefundCase, type RefundInput, type PickAttachment } from './customer-api';
+  type RefundCase, type RefundInput, type PickAttachment, type ProductFilters, type CatalogCategory, type CatalogSeller,
+  type HomeContent, type HomeTarget, type HomeEventResult } from './customer-api';
 
 const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
-type Screen = 'products' | 'product' | 'login' | 'signup' | 'reset' | 'cart' | 'orders' | 'profile' | 'questions' | 'engagement';
+const sortNames = { latest: '최신순', price_asc: '낮은 가격순', price_desc: '높은 가격순' };
+type Screen = 'home' | 'event' | 'products' | 'product' | 'login' | 'signup' | 'reset' | 'cart' | 'orders' | 'profile' | 'questions' | 'engagement';
 const initialAddress: AddressInput = { label: '', recipientName: '', phone: '', postalCode: '', line1: '', line2: '', isDefault: true };
 function Button({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }}
@@ -34,6 +37,13 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const [message, setMessage] = useState('');
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
+  const [filters, setFilters] = useState<ProductFilters>({});
+  const [appliedFilters, setAppliedFilters] = useState<ProductFilters>({});
+  const [categories, setCategories] = useState<CatalogCategory[]>([]);
+  const [sellers, setSellers] = useState<CatalogSeller[]>([]);
+  const [catalogError, setCatalogError] = useState('');
+  const [home, setHome] = useState<HomeContent>();
+  const [homeEvent, setHomeEvent] = useState<HomeEventResult>();
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [products, setProducts] = useState<ProductSummary[]>([]);
@@ -95,12 +105,20 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
     catch (error) { setMessage(error instanceof CustomerApiError ? error.message : '처리를 완료하지 못했습니다. 다시 확인해 주세요.'); }
     finally { lock.current = false; setBusy(false); }
   }, []);
-  const search = useCallback(async () => {
-    const found = await api.products(query, 1); setProducts(found); setAppliedQuery(query); setPage(1); setHasMore(found.length === 24);
-  }, [api, query]);
+  const loadTaxonomy = useCallback(async () => {
+    setCatalogError('');
+    try { const [cats, farms] = await Promise.all([api.categories(), api.sellers()]); setCategories(cats); setSellers(farms); }
+    catch { setCategories([]); setSellers([]); setCatalogError('분류·농가를 불러오지 못했습니다. 상품 검색은 계속 사용할 수 있습니다.'); }
+  }, [api]);
+  const applySearch = useCallback(async (value: string, chosen: ProductFilters) => {
+    setProducts([]); setHasMore(false); setPage(1);
+    const found = await api.products(value, 1, chosen); setProducts(found); setAppliedQuery(value); setAppliedFilters({ ...chosen }); setHasMore(found.length === 24);
+  }, [api]);
+  const search = useCallback(() => applySearch(query, filters), [applySearch, query, filters]);
   useEffect(() => { void run(async () => {
     const found = await api.products(); setProducts(found); setHasMore(found.length === 24);
-  }); }, [api, run]);
+    await loadTaxonomy();
+  }); }, [api, run, loadTaxonomy]);
   async function loadCart() {
     setQuote(undefined); invalidatePromotion();
     const items = await api.cart(); setCart(items);
@@ -133,12 +151,13 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const hasSelections = Boolean(goodsGrantId || coupon.trim() || Object.values(shippingChoices).some(Boolean));
   function navigate(next: Screen) {
     setMessage('');
-    if (!signedIn && !['products', 'product', 'login', 'signup', 'reset'].includes(next)) {
+    if (!signedIn && !['home', 'event', 'products', 'product', 'login', 'signup', 'reset'].includes(next)) {
       setScreen('login'); setMessage('로그인 후 이용할 수 있습니다.'); return;
     }
     setScreen(next);
     void run(async () => {
       if (next === 'products') await search();
+      if (next === 'home') { setHome(undefined); await loadTaxonomy(); setHome(await api.home()); }
       if (next === 'cart') await loadCart();
       if (next === 'orders') { const result = await api.orders(); setOrders(result.items); setOrderCursor(result.nextCursor); }
       if (next === 'profile') {
@@ -147,6 +166,13 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
       if (next === 'questions') { const result = await api.questions(); setQuestion(undefined); setQuestions(result.items); setQuestionCursor(result.nextCursor); }
       if (next === 'engagement') { setFavorites([]); setRestocks([]); await loadEngagement(); }
     });
+  }
+  async function chooseHome(target: HomeTarget) {
+    if (target.type === 'home') { setHome(undefined); setHome(await api.home()); return; }
+    if (target.type === 'product') { await openProduct(target.id); return; }
+    if (target.type === 'event') { setHomeEvent(undefined); setScreen('event'); setHomeEvent(await api.homeEvent(target.id)); return; }
+    const chosen: ProductFilters = target.type === 'category' ? { categoryId: target.id } : target.type === 'seller' ? { sellerId: target.id } : {};
+    setQuery(''); setFilters(chosen); setScreen('products'); await applySearch('', chosen);
   }
   async function loadEngagement() {
     const savedFavorites = await api.favorites();
@@ -197,15 +223,39 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
     <View style={styles.menu}>{(['products', 'cart', 'orders', 'questions', 'profile', 'engagement'] as Screen[]).map((next, i) =>
       <Button key={next} label={['상품', '장바구니', '주문·배송', '내 문의', '배송지·알림', '찜·재입고'][i]}
         disabled={busy} onPress={() => navigate(next)} />)}
+      <Button label="홈" disabled={busy} onPress={() => navigate('home')} />
       <Button label={signedIn ? '로그아웃' : '로그인'} disabled={busy}
         onPress={() => signedIn ? void run(async () => { await api.logout(); clearPrivate(); }) : navigate('login')} />
     </View>
     {busy ? <ActivityIndicator accessibilityLabel="처리 중" /> : null}
     {message ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+      {screen === 'home' ? <CatalogHome content={home} categories={categories} sellers={sellers} busy={busy} imageOrigin={imageOrigin}
+        choose={target => void run(() => chooseHome(target))} /> : null}
+      {screen === 'event' ? <>
+        {homeEvent ? 'status' in homeEvent ? <Text>{homeEvent.message}</Text> : <>
+          <Text style={styles.heading}>{homeEvent.title}</Text><Text>{homeEvent.description}</Text>
+          {homeEvent.products.map(item => <Button key={item.productId} label={`기획전 상품 ${item.title}`} disabled={busy}
+            onPress={() => void run(() => openProduct(item.productId))} />)}
+        </> : <Text>기획전 정보를 다시 확인해 주세요.</Text>}
+        <Button label="전체 상품 둘러보기" disabled={busy} onPress={() => void run(() => chooseHome({ type: 'catalog' }))} />
+      </> : null}
       {screen === 'products' ? <>
         <Text style={styles.heading}>상품 검색</Text><Field label="상품명·판매자 검색" value={query} onChange={setQuery} />
+        <Text>상품 분류·농가·정렬을 선택한 뒤 검색을 누르세요.</Text>
+        <Button label="전체 분류" disabled={busy} onPress={() => setFilters(previous => ({ ...previous, categoryId: undefined }))} />
+        {categories.map(item => <Button key={item.id} label={`분류 ${item.parentId ? `${categories.find(parent => parent.id === item.parentId)?.name ?? ''} > ` : ''}${item.name}`}
+          disabled={busy} onPress={() => setFilters(previous => ({ ...previous, categoryId: item.id }))} />)}
+        <Button label="전체 농가" disabled={busy} onPress={() => setFilters(previous => ({ ...previous, sellerId: undefined }))} />
+        {sellers.map(item => <Button key={item.id} label={`농가 ${item.displayName}`} disabled={busy}
+          onPress={() => setFilters(previous => ({ ...previous, sellerId: item.id }))} />)}
+        {(['latest', 'price_asc', 'price_desc'] as const).map((sort, i) => <Button key={sort} label={['최신순', '낮은 가격순', '높은 가격순'][i]}
+          disabled={busy} onPress={() => setFilters(previous => ({ ...previous, sort }))} />)}
+        <Text>선택 조건 분류 {filters.categoryId ? categories.find(item => item.id === filters.categoryId)?.name ?? '선택한 분류' : '전체'} · 농가 {filters.sellerId ? sellers.find(item => item.id === filters.sellerId)?.displayName ?? '선택한 농가' : '전체'} · 정렬 {sortNames[filters.sort ?? 'latest']}</Text>
+        {catalogError ? <Text>{catalogError}</Text> : null}
+        <Button label="분류·농가 새로고침" disabled={busy} onPress={() => void run(loadTaxonomy)} />
         <Button label="검색" disabled={busy} onPress={() => void run(search)} />
+        <Text>적용 조건 검색 {appliedQuery || '전체'} · 분류 {appliedFilters.categoryId ? categories.find(item => item.id === appliedFilters.categoryId)?.name ?? '선택한 분류' : '전체'} · 농가 {appliedFilters.sellerId ? sellers.find(item => item.id === appliedFilters.sellerId)?.displayName ?? '선택한 농가' : '전체'} · 정렬 {sortNames[appliedFilters.sort ?? 'latest']}</Text>
         {!busy && products.length === 0 ? <Text>판매 가능한 상품이 없습니다.</Text> : null}
         {products.map(item => <View key={item.productId} style={styles.card}>
           <Text style={styles.heading}>{item.title}</Text><Text>{item.originLabel} · {item.sellerName}</Text>
@@ -213,7 +263,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
           <Button label={`${item.title} 상세`} disabled={busy} onPress={() => void run(() => openProduct(item.productId))} />
         </View>)}
         {hasMore ? <Button label="상품 더 보기" disabled={busy || page >= 1000} onPress={() => void run(async () => {
-          const found = await api.products(appliedQuery, page + 1); setProducts(previous => [...previous, ...found]);
+          const found = await api.products(appliedQuery, page + 1, appliedFilters); setProducts(previous => [...previous, ...found]);
           setPage(page + 1); setHasMore(found.length === 24);
         })} /> : null}
       </> : null}

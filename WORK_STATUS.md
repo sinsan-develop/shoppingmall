@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-14 S7.1 홈·분류·농가 필터·정렬 연결
+
+- 담당 어울, 시작fce16a4. 승인된 기존 /catalog/categories·sellers·products 및 /home/content·events API로 고객 앱 홈 공개 메뉴/기획전/추천→상품 상세·분류/농가 목록, 상품 대/소분류·농가·최신/낮은가격/높은가격 정렬을 연결한다. draft 조건과 적용 조건을 분리하여 페이지2는 기존 적용 조건을 유지하고 새 검색은1페이지/목록 교체부터 시작한다. 비공개/기간종료 기획전의 unavailable 응답은 구매 가능 목록으로 승격하지 않는다. 분류 조회 실패는 오류 표시/재조회로 남기되 기존 상품 검색은 계속한다. 사용자 표현은 분류/농가 이름·한국어 정렬명이며 하드코딩 상품/농가·새 공급자/도구·API/DB/schema·설계/계획 변경0.
+- RED 신규3건(공개 메서드/분류 조건/홈 진입 누락)→GREEN 모바일45건, 분류503/검색 유지 추가 포함46/46 pass·0skip·0fail. 모바일 typecheck·변경eslint·diffcheck exit0. React Native 스킬의 Text/조건부 렌더링/Pressable 규칙을 필요한 범위만 적용하고 구조/의존성 개편은 하지 않았다. 새 화면의 Android 동작은 아직 미확인이다.
+- 자원 사전 선언: 기존 WSL shoppingmall-s7-qa-node 일회 runner·shoppingmall-qa-s7-20261014-pg(PG15 tmpfs)·shoppingmall-s7-qa-20261014-net 내부network·/home/daon/deploy/shopping-qa-s7-20261014를 사용한다. 보호 systemID와 다른 DB/빈계정 gate 뒤에만 가상 분류·상품·home draft/publication을 준비해 실제 정렬/필터/홈 기획전·추천을 읽는다. 테스트 entity는 폐기 DB에만 존재하며 외부 메일/배포0, 정식 WSL main/고정QA/보호DB 변경0. 종료 trap으로 전용 container/network/QA checkout과 시험 업로드 경로를 제거하고 잔류0을 확인한다.
+
 ## 2026-10-14 S7.1 가입·복구 진입 및 탈퇴 안내 연결
 
 - 최종: exact21c4be0d653a7018b4d9b26d27d8ae7b35cc85c1·폐기systemID7696353454837481516, 실제 CustomerApi→HTTP→DB1/1 pass·0skip·0fail 및 준비/정리shell exit0. 발송 disabled일 때 접수 거부/큐0→루프백 mock에서 신규 가입·기존/미등록 복구 모두accepted·큐3건/응답 전 token0→기존worker3건done·적격2건 mock sink 호출/계정수 불변, 탈퇴requested1건/중복409/본인 계정disabled_at null·로그인 유지·로그아웃후401을 확인했다. 외부 메일0건·계정 삭제0건·신규 가입 완료/비밀번호 실제 변경0건이다. 전용 runner/PG/network/QA checkout 잔류0, 기존main3d692a8/clean·ready200 별도 확인. 기존 서버 계약·인증 정책·DB schema는 변경하지 않았다. 모바일42/42 및 typecheck·변경eslint 통과는 위 같은 제품코드 결과다. 이번 새 화면은 실제 React/HTTP와 격리DB 검증이며 Android 조작은 미확인, 기존 APK/정식 WSL main에 반영하지 않았다. 설계·계획은 불변이며 다음은 홈/분류/필터/정렬 연결이다. 전체S7 완료를 선언하지 않는다.

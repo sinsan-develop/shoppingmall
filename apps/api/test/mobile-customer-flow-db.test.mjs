@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { setQaAuthSink } from '../src/auth/delivery.ts';
 import { processAuthIntakeOnce } from '../src/auth/intake-worker.ts';
+import { HomeRepository } from '../src/home/repository.ts';
 
 test('mobile customer client drives real HTTP DB coupon purchase, retry, engagement, delivery and preferences', {
   skip: !process.env.QA_S7_DB_SYSTEM_ID,
@@ -98,6 +99,30 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     const summary = products.find(p => p.title === `qa-${runId}-고추`);
     assert.ok(summary);
     const product = await api.product(summary.productId);
+    const categories = await api.categories(); const sellers = await api.sellers();
+    assert.ok(categories.some(item => item.id === product.categoryId));
+    assert.ok(sellers.some(item => item.id === product.sellerId));
+    assert.deepEqual((await api.products('', 1, { sort: 'price_asc' })).map(item => item.minPriceWon), [12000, 16000, 18000, 23000, 28000]);
+    assert.deepEqual((await api.products('', 1, { sort: 'price_desc' })).map(item => item.minPriceWon), [28000, 23000, 18000, 16000, 12000]);
+    assert.deepEqual((await api.products('고추', 1, { categoryId: product.categoryId, sellerId: product.sellerId })).map(item => item.productId), [product.productId]);
+    const majorId = categories.find(item => item.id === product.categoryId).parentId ?? product.categoryId;
+    assert.equal((await api.products('', 1, { categoryId: majorId })).length, 3);
+    assert.equal((await api.products('', 2, { categoryId: majorId })).length, 0);
+    const homeRepo = new HomeRepository(pool); const draft = await homeRepo.getDraft(); const eventId = randomUUID();
+    const actor = { accountId: adminId, role: 'admin' };
+    const saved = await homeRepo.saveDraft(actor, draft.version, {
+      menu: [{ id: randomUUID(), label: '가상 채소 메뉴', displayOrder: 0, visible: true, target: { type: 'category', id: majorId } }],
+      events: [{ id: eventId, title: '가상 수확 기획전', description: '폐기 QA 전용', displayOrder: 0,
+        startAt: new Date(Date.now() - 60000).toISOString(), endAt: new Date(Date.now() + 3600000).toISOString(),
+        productIds: [product.productId], heroProductId: product.productId, heroImageId: null }],
+      recommendations: [product.productId],
+    });
+    await homeRepo.publish(actor, saved.version);
+    const home = await api.home();
+    assert.equal(home.menu[0].target.id, majorId); assert.equal(home.events[0].title, '가상 수확 기획전');
+    assert.equal(home.recommendations[0].productId, product.productId);
+    assert.deepEqual((await api.homeEvent(eventId)).products.map(item => item.productId), [product.productId]);
+    assert.equal((await api.homeEvent(randomUUID())).status, 'unavailable');
     await api.addFavorite(product.productId); await api.addFavorite(product.productId);
     assert.equal((await api.favorites()).filter(item => item.productId === product.productId).length, 1);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM customer_favorites')).rows[0].n, 1);

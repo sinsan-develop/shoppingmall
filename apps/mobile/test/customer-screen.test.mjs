@@ -35,7 +35,8 @@ async function ready(t, status = {}, overrides = {}, props = {}) {
       req.url === '/customer/preferences' ? { marketingEmail: false, marketingSms: false, push: false } : { status: 'ok' };
     res.writeHead(status[req.url] ?? (req.url === '/customer/checkout/reservations/active' ? 404 : 200),
       { 'content-type': 'application/json' }); res.end(JSON.stringify(overrides[req.url] ??
-        (req.url === '/customer/promotions/coupons' || req.url.endsWith('/refund-cases') ? [] : value)));
+        (req.url === '/catalog/categories' || req.url === '/catalog/sellers' || req.url === '/customer/promotions/coupons' || req.url.endsWith('/refund-cases') ? [] :
+          req.url === '/home/content' ? { menu: [], events: [], recommendations: [] } : value)));
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
@@ -79,6 +80,55 @@ test('mobile search renders fetched products rather than construction notice', a
   await until(() => text(tree).includes('시험 고추'));
   assert.ok(button(tree, '시험 고추 상세'));
   assert.equal(text(tree).includes('앱 서비스 구축 중'), false);
+});
+
+test('catalog pagination preserves applied category seller sort and resets when a new filter is applied', async t => {
+  const seller = 'bf66b7c1-b0f6-4346-8333-d42ee1c8e299';
+  const firstPage = `/catalog/products?q=&sort=price_asc&page=1&categoryId=${key}&sellerId=${seller}`;
+  const items = Array.from({ length: 24 }, (_, i) => ({ productId: `qa-${i}`, title: `첫 결과 ${i}`, sellerName: '시험 농가', originLabel: 'QA', minPriceWon: 3000 }));
+  const { tree, requests } = await ready(t, {}, { '/catalog/categories': [{ id: key, parentId: null, name: '채소' }],
+    '/catalog/sellers': [{ id: seller, displayName: '시험 농가' }], [firstPage]: items });
+  await until(() => button(tree, '분류 채소')?.props.disabled === false);
+  for (const label of ['분류 채소', '농가 시험 농가', '낮은 가격순']) await act(async () => { button(tree, label).props.onPress(); });
+  await act(async () => { button(tree, '검색').props.onPress(); });
+  await until(() => button(tree, '상품 더 보기')?.props.disabled === false);
+  await act(async () => { button(tree, '높은 가격순').props.onPress(); });
+  await act(async () => { button(tree, '상품 더 보기').props.onPress(); });
+  await until(() => requests.some(([path]) => path.includes('page=2')));
+  const page2 = new URL(requests.find(([path]) => path.includes('page=2'))[0], 'http://qa.test').searchParams;
+  assert.equal(page2.get('sort'), 'price_asc'); assert.equal(page2.get('categoryId'), key); assert.equal(page2.get('sellerId'), seller);
+  await act(async () => { button(tree, '검색').props.onPress(); });
+  await until(() => requests.some(([path]) => path.includes('sort=price_desc&page=1')));
+  await until(() => button(tree, '검색').props.disabled === false);
+  assert.equal(text(tree).includes('첫 결과 0'), false);
+});
+test('home renders server curation and opens recommended products and unavailable events safely', async t => {
+  const item = { productId: key, title: '서버 추천 고추', sellerName: '시험 농가', originLabel: 'QA', minPriceWon: 3000 };
+  const { tree, requests } = await ready(t, {}, { '/home/content': { menu: [], recommendations: [item],
+    events: [{ id: key, title: '수확 기획전', description: '기간 한정', heroProduct: item, heroImageId: null }] },
+    [`/home/events/${key}`]: { status: 'unavailable', message: '현재 이 기획전을 볼 수 없습니다. 전체 상품을 둘러보세요.' },
+    [`/catalog/products/${key}`]: { ...item, shippingMode: 'seller_direct', description: '실제 상세', options: [], images: [] } });
+  await until(() => button(tree, '홈')?.props.disabled === false);
+  await act(async () => { button(tree, '홈').props.onPress(); });
+  await until(() => button(tree, '추천 서버 추천 고추')?.props.disabled === false);
+  await act(async () => { button(tree, '추천 서버 추천 고추').props.onPress(); });
+  await until(() => text(tree).includes('실제 상세'));
+  await act(async () => { button(tree, '홈').props.onPress(); });
+  await until(() => button(tree, '기획전 수확 기획전')?.props.disabled === false);
+  await act(async () => { button(tree, '기획전 수확 기획전').props.onPress(); });
+  await until(() => text(tree).includes('현재 이 기획전을 볼 수 없습니다'));
+  assert.ok(requests.some(([path]) => path === `/home/events/${key}`));
+  assert.equal(button(tree, '추천 서버 추천 고추'), undefined);
+});
+
+test('taxonomy failure preserves catalog search and does not invent categories or farms', async t => {
+  const { tree, requests } = await ready(t, { '/catalog/categories': 503 });
+  await until(() => text(tree).includes('분류·농가를 불러오지 못했습니다'));
+  assert.ok(text(tree).includes('시험 고추'));
+  assert.equal(button(tree, '분류 채소'), undefined);
+  await act(async () => { button(tree, '검색').props.onPress(); });
+  await until(() => button(tree, '검색').props.disabled === false);
+  assert.equal(requests.filter(([path]) => path.startsWith('/catalog/products?')).length, 2);
 });
 
 test('login opens signup/reset intake, rejects invalid email, and does not claim account completion', async t => {

@@ -8,6 +8,15 @@ export class CustomerApiError extends Error {
   }
 }
 export type ProductSummary = { productId: string; title: string; sellerName: string; originLabel: string; minPriceWon: number };
+export type ProductFilters = { categoryId?: string; sellerId?: string; sort?: 'latest' | 'price_asc' | 'price_desc' };
+export type CatalogCategory = { id: string; parentId: string | null; name: string };
+export type CatalogSeller = { id: string; displayName: string };
+export type HomeTarget = { type: 'home' | 'catalog' } | { type: 'category' | 'seller' | 'event' | 'product'; id: string };
+export type HomeContent = { menu: { id: string; label: string; target: HomeTarget }[];
+  events: { id: string; title: string; description: string; heroProduct: ProductSummary; heroImageId: string | null }[];
+  recommendations: ProductSummary[] };
+export type HomeEventResult = { status: 'unavailable'; message: string } |
+  { id: string; title: string; description: string; products: ProductSummary[] };
 export type Product = ProductSummary & { description: string; shippingMode: string; saleStopped: boolean;
   images: { id: string }[]; options: { id: string; name: string; priceWon: number; sellableQuantity: number }[] };
 export type CartItem = { optionId: string; productId: string; title: string; optionName: string; quantity: number;
@@ -96,8 +105,21 @@ export class CustomerApi {
     }
     try { return await response.json() as T; } catch { throw new CustomerApiError('unavailable'); }
   }
-  products(query = '', page = 1) {
-    const params = new URLSearchParams({ q: query, sort: 'latest', page: String(page) });
+  categories() { return this.request<CatalogCategory[]>('/catalog/categories'); }
+  sellers() { return this.request<CatalogSeller[]>('/catalog/sellers'); }
+  home() { return this.request<HomeContent>('/home/content'); }
+  homeEvent(id: string) { return this.request<HomeEventResult>(`/home/events/${encodeURIComponent(id)}`); }
+  products(query = '', page = 1, filters: ProductFilters = {}) {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const sort = filters.sort ?? 'latest';
+    if (query.trim().length > 80 || !Number.isInteger(page) || page < 1 || page > 1000 ||
+        !['latest', 'price_asc', 'price_desc'].includes(sort) ||
+        (filters.categoryId && !uuid.test(filters.categoryId)) || (filters.sellerId && !uuid.test(filters.sellerId))) {
+      return Promise.reject(new CustomerApiError('invalid'));
+    }
+    const params = new URLSearchParams({ q: query, sort, page: String(page) });
+    if (filters.categoryId) params.set('categoryId', filters.categoryId);
+    if (filters.sellerId) params.set('sellerId', filters.sellerId);
     return this.request<ProductSummary[]>(`/catalog/products?${params}`);
   }
   product(id: string) { return this.request<Product>(`/catalog/products/${encodeURIComponent(id)}`); }

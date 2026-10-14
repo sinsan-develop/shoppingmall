@@ -28,6 +28,20 @@ function json(res, value, status = 200) {
   res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(value));
 }
 
+test('catalog filters and home use existing public contracts without unsupported conditions', async t => {
+  const { base, requests } = await serve(t, (_req, res) => json(res, []));
+  const api = client(base);
+  await api.categories(); await api.sellers(); await api.home(); await api.homeEvent(key1);
+  await api.products('고추', 2, { categoryId: key1, sellerId: key2, sort: 'price_asc' });
+  assert.deepEqual(requests.slice(0, 4).map(x => x.path), ['/catalog/categories', '/catalog/sellers', '/home/content', `/home/events/${key1}`]);
+  const params = new URL(requests.at(-1).path, base).searchParams;
+  assert.equal(params.get('q'), '고추'); assert.equal(params.get('page'), '2'); assert.equal(params.get('sort'), 'price_asc');
+  assert.equal(params.get('categoryId'), key1); assert.equal(params.get('sellerId'), key2);
+  await assert.rejects(api.products('', 1, { sort: 'popular' }), e => e.code === 'invalid');
+  await assert.rejects(api.products('', 1, { categoryId: 'bad' }), e => e.code === 'invalid');
+  assert.equal(requests.length, 5);
+});
+
 test('signup/reset use existing uniform intake routes without roles, tokens or passwords', async t => {
   const { base, requests } = await serve(t, (_req, res) => json(res, { status: 'accepted' }));
   const api = client(base);
