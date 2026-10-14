@@ -2,6 +2,8 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- 실제DB첫실행e5ce415: 기존migration적용후fixture1/1·registry/gate9/9통과, HTTP정상소비1건실패(503/409). 새audit INSERT가actor UUID/target text에같은매개변수를재사용한것을기존정상이메일INSERT와대조해분리했다. 감사실패시세션rollback·계정잠금/비활성화경쟁의실패폐쇄는그전단계에서통과했으며정상발급실패를숨기지않는다. 자동trap으로전용PG/Node/network/QA경로를회수했다. 다음은수정exactSHA의같은DB표적시험/영향회귀이며T1미완료다. 패치문맥오류1회는적용0후정정했다.
+
 - 신산님이 별도 실행계획 4bbf37513df8c7c40c5df6c994b1a3bb56d1559e의 권고 방식(어울 직접 단일writer·마지막 독립review)을 승인했다. 시작4bbf375/clean, T1서버→T2Web→T3Android→T4동일후보실제검증순서로진행한다. 기존완료구매/첨부/알림검사와환경이불변인전체회귀를반복하지않는다. 기존설계/계획/계약은불변이며현재단계는로컬/WSL1단계다.
 - 실행 ledger: T1 in_progress / T2 pending / T3 pending / T4 pending. Pre-flight: T1 네POST/고정복귀·HttpOnly세션→T2/T3동일입력·S256/메모리증명소비, T2고정Web주소→T3전용adb reverse로같은Origin유지, T1 QA binding/manifest→T4동일DB/systemID·소유정리. 현재인터페이스불일치없음.
 - Ruling: 실행 ledger는 PMO 정본인 WORK_STATUS의 위Task별상태로누적하며 별도프로젝트scratch/임시디렉터리와중복ledger를만들지않는다. 신산님의중복작업금지와Windows임시root D:\tmp 지시가스킬기본scratch절차보다우선한다. 잘못판정시실행추적손실위험이있으므로Task별commit/시험/오류/미검증/다음단계를항상함께남긴다.

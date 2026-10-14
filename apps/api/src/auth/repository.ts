@@ -48,7 +48,7 @@ export class AuthRepository {
       await client.query(`INSERT INTO auth_sessions(token_hash,account_id,role,seller_id,expires_at)
         VALUES($1,$2,'customer',NULL,$3)`, [hashSessionToken(token),binding.accountId,expiresAt]);
       await client.query(`INSERT INTO audit_events(actor_account_id,active_role,seller_id,action,target_type,target_id)
-        VALUES($1,'customer',NULL,'auth.kakao_mock.login','account',$1)`, [binding.accountId]);
+        VALUES($1,'customer',NULL,'auth.kakao_mock.login','account',$2)`, [binding.accountId,binding.accountId]);
       await client.query('COMMIT');
       return {token,expiresAt};
     } catch (error) {
