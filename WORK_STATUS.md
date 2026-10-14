@@ -2,6 +2,11 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- 현재ledger: T1 기본서버/실DB확인·공유인증gate미충족 / T2 Web부분구현·실제Chrome미확인 / T3 Android부분구현·native복귀미확인 / T4 인증보완추가승인필요. 전체카카오mock/Stage 완료나PR병합을선언하지않는다.
+- ea5cefb 필수경합실증: 보호DB와다른폐기systemID7696461402000007212, 기존migration적용·fixture외부FK반례/전체rollback·main boot실패listener0 포함12건11pass/1fail/0skip. DB잠금중mock완료요청→다른탭고객B이메일로그인/meB→잠금해제→늦은mock쿠키/meA로최신세션덮임을실제HTTP/DB로재현했다. 네트워크/client fixture의추측이아니다. 같은기준을완화하지않으며해당시험을실패로보존한다. 전용container/network/QA경로0/기존정식WSL불변.
+- 인증경계/조치: 기존AuthController의login/logout/role동작과Webaccount로그아웃은이번계획의수정범위밖이다. 개발mock에만인증세대무효화/완료전재확인과탭간직렬화를적용하는최소보완을권고하고정확파일·관련시험확장승인을요청한다. 승인전새context쿠키/DB/Secret·기존계정정책변경0. 불변설계/계획/계약은수정하지않고판정·영향·재개조건을docs/design_change.md에남겼다.
+- 최신정적검증: Web/mobile typecheck·변경eslint·diffcheck exit0. 마지막core Web/Android11/11 pass(명시HTTP거부오인RED2건보완포함); 고객화면/HTTP관련통합60/60은그보완직전근거로구분한다. Web33route build는Web오류class추가직전이며최종후보build로승격하지않는다. AndroidJSbundle·실제브라우저/네이티브·최종독립검토는미검증이다. 준비되지않은기능을실제사용완료로표시하지않는다.
+
 - T3 in_progress: Androidcore5/HTTPclient19/고객React화면37 중최근통합실행은60 pass/0fail/0skip(추가거부구분전), 명시HTTP거부를이전cookie성공으로대체하는추가Web/Android RED2건→GREEN/양core11 pass. 모바일typecheck·변경eslint exit0, Web새route포함33경로build exit0. 실제Linking/native/browser는아직미확인이다. Ruling: 설치되지않은expo-linking을새SDK로추가하지않고기존React Native Linking을사용한다. 승인계획의새native의존성/권한불변을지키며잘못판정시scheme복귀공백은T4native에서검사한다.
 - 다음T4선행고위험gate: actualHTTP에서mock complete가DB잠금을기다리는동안다른탭이customer-b 이메일로그인을마친경우뒤늦은mock Set-Cookie가최신공유cookie를덮지않는지새반례로확인한다. 실패하면기존계약의추가인증결합수단을임의도입하지않고정확한보완승인을요청한다. 일반전수검사/완료구매·native알림반복0, 보호DB/실공급자변경0.
 
