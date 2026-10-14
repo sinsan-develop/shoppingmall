@@ -33,7 +33,7 @@ async function ready(t, status = {}, overrides = {}) {
       req.url === '/customer/preferences' ? { marketingEmail: false, marketingSms: false, push: false } : { status: 'ok' };
     res.writeHead(status[req.url] ?? (req.url === '/customer/checkout/reservations/active' ? 404 : 200),
       { 'content-type': 'application/json' }); res.end(JSON.stringify(overrides[req.url] ??
-        (req.url === '/customer/promotions/coupons' ? [] : value)));
+        (req.url === '/customer/promotions/coupons' || req.url.endsWith('/refund-cases') ? [] : value)));
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
@@ -77,6 +77,51 @@ test('mobile search renders fetched products rather than construction notice', a
   await until(() => text(tree).includes('시험 고추'));
   assert.ok(button(tree, '시험 고추 상세'));
   assert.equal(text(tree).includes('앱 서비스 구축 중'), false);
+});
+
+test('paid shipment refund validates quantity, displays requested estimate and clears on session expiry', async t => {
+  const order = { id: key, status: 'PAID', payableWon: 9000, shipments: [{ id: key, status: 'PAID',
+    fulfillment: { status: 'READY' }, lines: [{ optionId: key, productName: '시험 고추', optionName: '1kg', quantity: 2 }] }] };
+  const path = `/customer/checkout/orders/${key}/refund-cases`;
+  const overrides = { '/customer/checkout/orders?status=PAID&limit=20': { items: [order], nextCursor: null },
+    [`/customer/checkout/orders/${key}`]: order, [path]: [] };
+  const { tree, requests, status } = await ready(t, {}, overrides);
+  await login(tree); await act(async () => button(tree, '주문·배송').props.onPress());
+  await until(() => button(tree, `${key} · 9,000원`)?.props.disabled === false);
+  await act(async () => button(tree, `${key} · 9,000원`).props.onPress());
+  await until(() => button(tree, `발송 ${key} 취소·환불 선택`)?.props.disabled === false);
+  await act(async () => button(tree, `발송 ${key} 취소·환불 선택`).props.onPress());
+  const field = label => tree.root.findAllByType('TextInput').find(x => x.props.accessibilityLabel === label);
+  await act(async () => { field('1kg 취소 수량').props.onChangeText('3'); field('취소 상세 사유').props.onChangeText('가상 취소'); });
+  assert.equal(button(tree, '취소·환불 요청 접수').props.disabled, true);
+  await act(async () => field('1kg 취소 수량').props.onChangeText('1'));
+  overrides[path] = { id: key, status: 'REQUESTED', shipmentOrderId: key, reason: '가상 취소',
+    totalRefundWon: 3000, amountFinal: false, estimateAvailable: true, lines: [], history: [] };
+  await act(async () => button(tree, '취소·환불 요청 접수').props.onPress());
+  await until(() => text(tree).includes('요청 접수 · 환불 완료 아님'));
+  assert.deepEqual(requests.find(([p, method]) => p === path && method === 'POST')[2], {
+    shipmentOrderId: key, lines: [{ optionId: key, quantity: 1 }], reasonCode: 'customer_request', reason: '가상 취소' });
+  overrides[path] = [{ ...overrides[path] }];
+  await act(async () => button(tree, '환불 내역 새로고침').props.onPress());
+  await until(() => text(tree).includes('예상 환불액 3,000원'));
+  assert.equal(text(tree).includes('환불 완료 ·'), false);
+  status[path] = 401;
+  await act(async () => button(tree, '환불 내역 새로고침').props.onPress());
+  await until(() => text(tree).includes('구매자 로그인'));
+  assert.equal(text(tree).includes('가상 취소'), false);
+});
+
+test('already shipped order does not offer pre-shipment refund form', async t => {
+  const order = { id: key, status: 'PAID', payableWon: 9000, shipments: [{ id: key, status: 'PAID',
+    fulfillment: { status: 'SHIPPED' }, lines: [{ optionId: key, productName: '고추', optionName: '1kg', quantity: 2 }] }] };
+  const { tree } = await ready(t, {}, { '/customer/checkout/orders?status=PAID&limit=20': { items: [order], nextCursor: null },
+    [`/customer/checkout/orders/${key}`]: order });
+  await login(tree); await act(async () => button(tree, '주문·배송').props.onPress());
+  await until(() => button(tree, `${key} · 9,000원`)?.props.disabled === false);
+  await act(async () => button(tree, `${key} · 9,000원`).props.onPress());
+  await until(() => text(tree).includes('출고 SHIPPED'));
+  assert.equal(button(tree, `발송 ${key} 취소·환불 선택`), undefined);
+  assert.ok(text(tree).includes('출고 후에는 클레임 경로'));
 });
 
 test('held goods and shipment coupons remain identical across preview and order; returning cart invalidates preview', async t => {

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { CustomerApi, CustomerApiError, type Address, type AddressInput, type CartItem, type Order,
   type Preferences, type Product, type ProductSummary, type Question, type Quote, type Reservation,
-  type Favorite, type RestockSubscription, type CouponSelector, type HeldCoupon, type PromotionQuote, type OrderInput } from './customer-api';
+  type Favorite, type RestockSubscription, type CouponSelector, type HeldCoupon, type PromotionQuote, type OrderInput,
+  type RefundCase, type RefundInput } from './customer-api';
 
 const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
 type Screen = 'products' | 'product' | 'login' | 'cart' | 'orders' | 'profile' | 'questions' | 'engagement';
@@ -61,6 +62,13 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const [question, setQuestion] = useState<Question>();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [restocks, setRestocks] = useState<RestockSubscription[]>([]);
+  const [refundCases, setRefundCases] = useState<RefundCase[]>([]);
+  const [refundsReady, setRefundsReady] = useState(false);
+  const [refundShipmentId, setRefundShipmentId] = useState('');
+  const [refundQuantities, setRefundQuantities] = useState<Record<string, string>>({});
+  const [refundReason, setRefundReason] = useState('');
+  const [refundReasonCode, setRefundReasonCode] = useState<RefundInput['reasonCode']>('customer_request');
+  const [refundRetry, setRefundRetry] = useState<RefundInput>();
   const clearPrivate = useCallback(() => {
     setSignedIn(false); setEmail(''); setPassword(''); setCart([]); setQuote(undefined); setReservation(undefined);
     setPayable(undefined); setCoupon(''); setAddresses([]); setAddressId(''); setAddress({ ...initialAddress });
@@ -68,6 +76,8 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
     setOrder(undefined); setViewedOrder(undefined); setOrders([]); setLookupId(''); setQuestions([]); setQuestionCursor(null); setQuestion(undefined); setQuestionText('');
     setPreferences({ marketingEmail: false, marketingSms: false, push: false });
     setFavorites([]); setRestocks([]);
+    setRefundCases([]); setRefundsReady(false); setRefundShipmentId(''); setRefundQuantities({});
+    setRefundReason(''); setRefundReasonCode('customer_request'); setRefundRetry(undefined);
     setScreen('login');
   }, []);
   useEffect(() => {
@@ -143,7 +153,30 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   async function openProduct(id: string) {
     setProduct(undefined); setProduct(await api.product(id)); setQuantity('1'); setScreen('product');
   }
-  async function openOrder(id: string) { setViewedOrder(undefined); setViewedOrder(await api.order(id)); setLookupId(id); }
+  async function openOrder(id: string) {
+    setViewedOrder(undefined); setRefundCases([]); setRefundsReady(false); setRefundShipmentId('');
+    setRefundQuantities({}); setRefundReason(''); setRefundReasonCode('customer_request'); setRefundRetry(undefined);
+    const found = await api.order(id); setViewedOrder(found); setLookupId(id);
+    if (found.status === 'PAID') { setRefundCases(await api.refunds(id)); setRefundsReady(true); }
+  }
+  async function refreshRefunds() {
+    if (!viewedOrder) return;
+    setRefundsReady(false); setRefundCases([]);
+    setRefundCases(await api.refunds(viewedOrder.id)); setRefundsReady(true);
+  }
+  const refundShipment = viewedOrder?.shipments.find(item => item.id === refundShipmentId);
+  const preShipment = (shipment: Order['shipments'][number]) => shipment.status === 'PAID' &&
+    ['READY', 'PACKING', 'DELAYED'].includes(shipment.fulfillment?.status ?? '');
+  const refundPending = refundCases.some(item => item.shipmentOrderId === refundShipmentId &&
+    !['REFUNDED', 'REJECTED'].includes(item.status));
+  const validRefundQuantities = Boolean(refundShipment) && refundShipment!.lines.every(line => {
+    const value = Number(refundQuantities[line.optionId] ?? '0');
+    return Number.isSafeInteger(value) && value >= 0 && value <= line.quantity;
+  });
+  const refundLines = refundShipment?.lines.map(line => ({ optionId: line.optionId,
+    quantity: Number(refundQuantities[line.optionId] ?? '0') })).filter(line => line.quantity > 0) ?? [];
+  const canRefund = viewedOrder?.status === 'PAID' && refundsReady && refundShipment && preShipment(refundShipment) &&
+    !refundPending && validRefundQuantities && refundLines.length > 0 && refundReason.trim().length > 0 && refundReason.trim().length <= 500;
   async function refreshCheckout() {
     if (!order) return;
     const current = await api.order(order.id);
@@ -330,7 +363,49 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
             <Text>예상 출고일 {shipment.fulfillment?.expectedShipDate ?? '미등록'}</Text>
             <Text>{shipment.fulfillment?.carrier?.displayName ?? '택배사 미등록'} · {shipment.fulfillment?.trackingNumber ?? '운송장 미등록'}</Text>
             <Text>{shipment.fulfillment?.customerMessage ?? shipment.fulfillment?.delayedReason ?? ''}</Text>
+            {viewedOrder.status === 'PAID' && preShipment(shipment) ? <Button label={`발송 ${shipment.id} 취소·환불 선택`}
+              disabled={busy || !refundsReady || Boolean(refundRetry)} onPress={() => {
+                setRefundShipmentId(shipment.id); setRefundQuantities({}); setRefundReason(''); setRefundReasonCode('customer_request');
+              }} /> : viewedOrder.status === 'PAID' ? <Text>출고 후에는 클레임 경로를 이용합니다. 출고 상태가 미확인인 경우 다시 조회해 주세요.</Text> : null}
           </View>)}
+          {viewedOrder.status === 'PAID' ? <>
+            <Text style={styles.heading}>출고 전 취소·환불 요청</Text>
+            <Text>요청 접수는 환불 완료가 아닙니다. 출고 여부와 실제 결제금액은 서버·담당자가 확인합니다.</Text>
+            <Button label="환불 내역 새로고침" disabled={busy} onPress={() => void run(refreshRefunds)} />
+            {refundShipment ? <View style={styles.card}>
+              {refundShipment.lines.map(line => <Field key={line.optionId} label={`${line.optionName} 취소 수량`} numeric
+                value={refundQuantities[line.optionId] ?? '0'} disabled={busy || refundPending || Boolean(refundRetry)}
+                onChange={value => setRefundQuantities(previous => ({ ...previous, [line.optionId]: value }))} />)}
+              <Text>0은 제외, 결제 수량 이내의 정수만 접수합니다.</Text>
+              {(['customer_request', 'other'] as const).map((code, i) => <Button key={code}
+                label={['구매자 요청 사유', '기타 사유'][i]} disabled={busy || refundPending || Boolean(refundRetry)}
+                onPress={() => setRefundReasonCode(code)} />)}
+              <Text>선택 사유: {refundReasonCode === 'customer_request' ? '구매자 요청' : '기타'}</Text>
+              <Field label="취소 상세 사유" value={refundReason} disabled={busy || refundPending || Boolean(refundRetry)} onChange={setRefundReason} />
+              {refundRetry ? <Text>접수 결과가 불명확합니다. 입력을 유지한 채 같은 요청으로 재시도합니다.</Text> : null}
+              {refundPending ? <Text>이 발송 주문의 기존 요청을 처리 중입니다.</Text> : null}
+              <Button label="취소·환불 요청 접수" disabled={busy || !canRefund} onPress={() => void run(async () => {
+                const input: RefundInput = refundRetry ?? { shipmentOrderId: refundShipment.id, lines: refundLines,
+                  reasonCode: refundReasonCode, reason: refundReason.trim() };
+                try {
+                  const created = await api.requestRefund(viewedOrder.id, input);
+                  setRefundCases(previous => [...previous.filter(item => item.id !== created.id), created]);
+                  setRefundRetry(undefined); setRefundQuantities({}); setRefundReason('');
+                  setMessage('요청 접수 · 환불 완료 아님. 처리 내역을 다시 확인하세요.');
+                } catch (error) {
+                  if (error instanceof CustomerApiError && error.code === 'offline') setRefundRetry(input);
+                  throw error;
+                }
+              })} />
+            </View> : null}
+            {refundCases.map(item => <View key={item.id} style={styles.card}>
+              <Text>환불 요청 {item.id} · {item.status}</Text><Text>{item.reason}</Text>
+              <Text>{item.status === 'REFUNDED' ? '환불 완료 · ' : item.amountFinal ? '확정 환불액 ' : '예상 환불액 '}
+                {item.amountFinal || item.estimateAvailable ? won(item.totalRefundWon) : '서버 확인 중'}</Text>
+              {item.lines.map(line => <Text key={line.optionId}>{line.productName} {line.optionName} {line.quantity}개</Text>)}
+              {item.history.map((event, i) => <Text key={i}>{event.toStatus} · {event.createdAt}</Text>)}
+            </View>)}
+          </> : null}
         </View> : null}
       </> : null}
       {screen === 'engagement' ? <>

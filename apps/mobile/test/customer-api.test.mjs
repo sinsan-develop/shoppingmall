@@ -50,6 +50,21 @@ test('owned coupons load from existing route and grant selectors survive preview
   assert.equal(requests[0].path, '/customer/promotions/coupons');
   assert.deepEqual(requests[1].body, selections); assert.deepEqual(requests[2].body.selections, selections);
 });
+
+test('refund response loss retries the same request key and confirmed request ends its intent', async t => {
+  let lose = true;
+  const { base, requests } = await serve(t, (req, res) => {
+    if (req.method === 'POST' && lose) { lose = false; req.socket.destroy(); return; }
+    json(res, req.method === 'POST' ? { id: key2, status: 'REQUESTED' } : []);
+  });
+  let index = 0; const api = client(base, { createKey: () => [key1, key2][index++] });
+  const input = { shipmentOrderId: key2, lines: [{ optionId: key1, quantity: 1 }], reasonCode: 'customer_request', reason: '가상 취소' };
+  await assert.rejects(api.requestRefund(key1, input), e => e.code === 'offline');
+  await api.requestRefund(key1, input); await api.requestRefund(key1, input); await api.refunds(key1);
+  assert.deepEqual(requests.slice(0, 3).map(r => r.key), [key1, key1, key2]);
+  assert.deepEqual(requests[1].body, input);
+  assert.equal(requests[3].path, `/customer/checkout/orders/${key1}/refund-cases`);
+});
 test('server quote is authoritative and cart writes use existing customer contract', async t => {
   const { base, requests } = await serve(t, (req, res) => {
     json(res, req.url === '/customer/cart/quote' ? { totalWon: 57000, goodsWon: 66000, shippingWon: 0 } : []);

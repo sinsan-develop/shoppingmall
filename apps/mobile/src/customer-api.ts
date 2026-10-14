@@ -30,6 +30,13 @@ export type PromotionQuote = Omit<Quote, 'shipments'> & { payableTotalWon: numbe
   shipments: (Quote['shipments'][number] & { discountWon: number; supportWon: number; payableTotalWon: number })[] };
 export type OrderInput = { reservationId: string; addressId: string; expectedPayableWon: number;
   selections: { goodsCoupon?: CouponSelector; shippingCoupons?: ({ shipmentKey: string } & CouponSelector)[] } };
+export type RefundInput = { shipmentOrderId: string; lines: { optionId: string; quantity: number }[];
+  reasonCode: 'customer_request' | 'other'; reason: string };
+export type RefundCase = { id: string; checkoutOrderId: string; shipmentOrderId: string; reasonCode: string; reason: string;
+  status: 'REQUESTED' | 'APPROVED' | 'PROCESSING' | 'REFUNDED' | 'REJECTED' | 'REVIEW_REQUIRED';
+  totalRefundWon: number; amountFinal: boolean; estimateAvailable: boolean;
+  lines: { optionId: string; productName: string; optionName: string; quantity: number }[];
+  history: { fromStatus: string | null; toStatus: string; createdAt: string }[] };
 export type Question = { id: string; productId: string; body: string; status: string;
   messages?: { id: string; body: string; authorRole: string }[] };
 export type Page<T> = { items: T[]; nextCursor: string | null };
@@ -128,6 +135,13 @@ export class CustomerApi {
     return this.request<Order>('/customer/checkout/orders', 'POST', input, this.key('order', input));
   }
   order(id: string) { return this.request<Order>(`/customer/checkout/orders/${encodeURIComponent(id)}`); }
+  refunds(orderId: string) { return this.request<RefundCase[]>(`/customer/checkout/orders/${encodeURIComponent(orderId)}/refund-cases`); }
+  async requestRefund(orderId: string, input: RefundInput) {
+    const scope = `refund:${orderId}:${input.shipmentOrderId}`;
+    const result = await this.request<RefundCase>(`/customer/checkout/orders/${encodeURIComponent(orderId)}/refund-cases`,
+      'POST', input, this.key(scope, input));
+    this.keys.delete(scope); return result;
+  }
   orders(cursor = '') {
     const params = new URLSearchParams({ status: 'PAID', limit: '20' });
     if (cursor) params.set('cursor', cursor);

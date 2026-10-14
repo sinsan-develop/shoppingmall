@@ -51,7 +51,7 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     process.env.PAYMENT_MODE = 'mock'; process.env.WEB_ORIGIN = 'http://127.0.0.1:9091';
     app = await createApp(); await app.listen(0, '127.0.0.1');
     const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
-    let cookie = ''; let loseOrderReply = true;
+    let cookie = ''; let loseOrderReply = true; let loseRefundReply = true;
     const api = new CustomerApi({ apiOrigin: base, webOrigin: process.env.WEB_ORIGIN, createKey: randomUUID,
       send: async (address, options) => {
         const response = await fetch(address, { ...options, headers: { ...options.headers, ...(cookie ? { cookie } : {}) } });
@@ -59,6 +59,9 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
         if (setCookie) cookie = setCookie.split(';')[0];
         if (String(address) === `${base}/customer/checkout/orders` && options.method === 'POST' && loseOrderReply) {
           loseOrderReply = false; await response.arrayBuffer(); throw new Error('Synthetic response loss after DB commit');
+        }
+        if (String(address).endsWith('/refund-cases') && options.method === 'POST' && loseRefundReply) {
+          loseRefundReply = false; await response.arrayBuffer(); throw new Error('Synthetic refund response loss after DB commit');
         }
         return response;
       } });
@@ -121,6 +124,18 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     assert.equal(paid.status, 'PAID'); assert.equal(paid.shipments.length, 1);
     assert.equal(paid.shipments[0].fulfillment.status, 'READY');
     assert.equal((await api.orders()).items[0].id, order.id);
+    const refundInput = { shipmentOrderId: paid.shipments[0].id, lines: [{ optionId: product.options[0].id, quantity: 1 }],
+      reasonCode: 'customer_request', reason: '가상 출고 전 일부 취소' };
+    await assert.rejects(api.requestRefund(order.id, refundInput), e => e.code === 'offline');
+    const refund = await api.requestRefund(order.id, refundInput);
+    assert.equal(refund.status, 'REQUESTED'); assert.equal(refund.amountFinal, false);
+    assert.equal(refund.estimateAvailable, true); assert.equal(refund.totalRefundWon, 20500);
+    assert.equal((await api.refunds(order.id))[0].id, refund.id);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM refund_cases')).rows[0].n, 1);
+    assert.equal((await pool.query('SELECT quantity FROM refund_case_lines WHERE refund_case_id=$1', [refund.id])).rows[0].quantity, 1);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM refund_attempts')).rows[0].n, 0);
+    assert.equal((await api.order(order.id)).payableWon, 41000);
+    assert.equal((await api.order(order.id)).status, 'PAID');
     const asked = await api.askQuestion(product.productId, '가상 발송일 문의');
     assert.equal((await api.question(asked.id)).body, '가상 발송일 문의');
     assert.equal((await api.questions()).items[0].id, asked.id);
@@ -131,6 +146,7 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     await assert.rejects(api.favorites(), e => e.code === 'unauthorized');
     await assert.rejects(api.restockSubscriptions(), e => e.code === 'unauthorized');
     await assert.rejects(api.coupons(), e => e.code === 'unauthorized');
+    await assert.rejects(api.refunds(order.id), e => e.code === 'unauthorized');
   } finally {
     if (app) await app.close();
     for (const [key, value] of Object.entries(previous)) {
