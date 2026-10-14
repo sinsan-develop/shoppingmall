@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { spawnSync } from 'node:child_process';
 import { randomBytes,createHash } from 'node:crypto';
 import { createKakaoMockClient,parseKakaoMockReturn,parseKakaoMockAuthorize,KakaoMockHttpError,withKakaoAuthLock } from '../lib/kakao-mock-client.ts';
 
@@ -30,6 +31,11 @@ test('개발 인증 잠금은 서로 다른 탭의 HTTP 응답 처리까지 직�
 });
 
 const origin='http://127.0.0.1:9091',id='T'.repeat(43),ticket='D'.repeat(43),code='C'.repeat(43);
+test('브라우저 실행기는 mock QA 승인 환경 없이는 Chrome나 DB를 쓰지 않고 거부한다',()=>{
+  const result=spawnSync(process.execPath,['--import','tsx','scripts/qa-kakao-mock-browser.mjs'],
+    {env:{...process.env,KAKAO_AUTH_MODE:'disabled'},encoding:'utf8',timeout:10000});
+  assert.notEqual(result.status,0);assert.match(result.stderr,/KAKAO_BROWSER_QA_FAILED/);assert.equal(result.stdout,'');
+});
 function setup(sendOverride){
   const calls=[];
   const send=async(path,body)=>{
