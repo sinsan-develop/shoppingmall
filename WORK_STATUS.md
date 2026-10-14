@@ -2,6 +2,8 @@
 
 ## 2026-10-14 S7.1 리뷰 사진·클레임 증빙 연결
 
+- 최종 격리 근거: exact1c025e89838bb3ee390fb709937f17be373c0eb9, 폐기 DB systemID7696343703392206892에서 CustomerApi→HTTP→실DB1/1 pass·0skip·0fail, shell exit0. 리뷰 사진/클레임 증빙 각각 응답 유실 후 같은 파일·키 재시도→1행/1첨부, 본인 프리뷰200/image-webp·실제 디코딩16px, 비로그인401, 리뷰PENDING 및 사진scanStatusPENDING을 확인했다. 실제 악성코드 검사·공개 승인은 실행하지 않았다. 모바일36/36·typecheck·변경 eslint는 앞서 같은 제품 코드에서 exit0이며 후속 변경은 fixture 경로 보정뿐이다. 전용 container/network/QA checkout 잔류0, 기존 main3d692a8·clean·ready200 확인. 코드는 저장/조회까지 연결됐으나 새 APK·Android 시스템 선택창·native cookie 이미지 표시는 아직 미확인이다. 현재 WSL 고정 서비스의 upload 비loopback 제한은 유지하므로 이번 후보가 기존 main에 배포됐다고 보고하지 않는다. 다음은 새 Android 후보의 선택·이미지 핵심 확인과 남은 고객 화면 연결이다.
+
 - 첫 exact59c09d4 실DB 시험은 첨부에서 unavailable로1회 실패했다. ImageQuarantine 생성자는 전용 절대 경로의 basename이 shoppingmall-upload로 시작해야 하며 시험의 shoppingmall-s7-images-*가 이 계약을 위반했다. 제품 guard를 완화하지 않고 시험 mkdtemp prefix만 shoppingmall-upload-s7-*로 수정한다. 앞선 시험 PASS 주장은 없으며 실패 종료 trap이 전용 자원을 제거했다. 후속 실행도 동일한 전용 자원/격리 경계이며 runner의 새 정확 임시 경로만 finally에서 제거한다.
 
 - 담당 어울. 기존 업로드 API에 PNG/JPEG/WebP 바이너리와 기존 5MB/5건 제한을 연결하고, 접수와 검사/공개/심사 완료를 구분한다. 시스템 파일 선택기 App 진입 연결, 선택 취소, 캐시 복사본 읽기/개별 삭제, 응답 유실 시 같은 파일·키 재시도를 구현한다. expo-document-picker 57.0.3은 OPEN_DOCUMENT query만 선언하며, expo-file-system57.0.7은 기존 Expo 잠금파일에 이미 포함된 모듈이다. 카메라·알림 권한/서명/인증 설정은 변경하지 않았다.
