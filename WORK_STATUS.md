@@ -2,6 +2,8 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- 추가승인수신: 신산님이 개발mock인증세대/탭간직렬화 및 기존login/logout/role·Web계정화면의보완범위를승인했다. 시작7338e77/clean. docs/design/S7_KAKAO_MOCK_AUTH_RACE_ADDENDUM.md에승인된제한보완을별도기록하며기존설계/계획/기본계약은불변이다. bounded기존흐름보완으로분류했으며동일승인내용의재승인을요구하지않는다. 순서는registry RED→서버transaction가드/기존인증접점→Weblock→같은DB경합GREEN→원래T2~4실제연결/독립review이다. 새쿠키·DBschema/Secret/실공급자/일반production정책변경0, 단일writer어울유지.
+
 - 독립T2보완결과: StrictMode증명소실RED(승인HTTP0)→GREEN, 연속승인RED(HTTP2)→await전증명점유GREEN. 재로드후fragment없음/버튼disabled/새요청0을같은React이벤트에서확인했고Web표적10 pass/0fail/0skip, typecheck/변경eslint/diffcheck·33경로Webbuild 성공이다. renderer deprecation은기존경고로보존했다. 승인화면diff는'cleanup이현재증명을삭제'→'컴포넌트수명중1회초기화/승인수단await전점유'이며browserstorage/기존인증정책을새로쓰지않는다.
 - AndroidJS export: 현재mobile제품ea5cefb와동일·기존Expo57/ReactNative0.86 의존성으로Android682modules/Hermes1.7MB export exit0. D:\tmp\shoppingmall-s7-kakao-20261014\bundle\_expo\static\js\android\AppEntry-4829650f9c067cf14b55ef50809cc058.hbc SHA2569B60AFB9E2882AD0281D0EB50533ACCC9855FE513BB5FED0E1A90CD75C362D2C, metadata153B. Metro명령종료/listener0, 새AVD/DB/외부서버없음. 생산번들검사는개발mock의native작동·실브라우저복귀증거가아니므로해당gate는미확인으로유지한다. NO_COLOR/FORCE_COLOR경고는숨기지않는다.
 - 여전한추가승인경계: 공유쿠키경합12건중1실패기준은변경하지않았다. 기존login/logout/role인증가드·Webaccount화면확장승인없이수정하지않으며현재목표는active/미완료다. 다음은승인된범위의실제QA브라우저/Android미확인연결검증이고, 인증보완승인시동일경합부터RED→GREEN으로진행한다. 완료항목은다시구현하지않는다.
