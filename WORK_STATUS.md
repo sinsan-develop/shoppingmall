@@ -2,6 +2,9 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- Native 실제 연결 `1d9849f`: WSL 폐기 DB systemID `7696486179654996013`·migration28/계정2, Windows Metro exact JS/기존 APK `cd46457`에서 실제 Chrome mock 승인→scheme→앱 고객 로그인→본인 `S7 Kakao customer-a` 배송지를 확인했다. 정상 세션1/customer/seller null·감사1, 계정2/식별자3/역할2 불변이다. 주소 사진 SHA256 `2A3A5CA0366BB6776942E6DD256526DD8A5026534E79ACE281DF868B4BE9FD9F`를 육안 확인했다. 모의 취소/실패 복귀는 로그인 없이 안내를 남기고 앱 취소 버튼으로 새 시작 가능했으며 총세션1/활성0/감사1 그대로였다. 브라우저 승인 대기 중 앱 force-stop→브라우저 승인→실제 cold scheme 실행도 메모리 proof 없이 무로그인/활성0/추가발급0이었다. 새 OS 권한/Google 계정/실제 공급자를 사용하지 않았다. Chrome 최초 준비와 약관 탭 이동은 mock 완료 증거로 집계하지 않는다.
+- 준비 원인 대조: 최신 실행은 설치완료 marker 뒤 ready200으로 성공했다. 이전90초 실패는 설치+기동 준비보다 짧은 제한시간 경계로 분류하되 당시 상세 원인은 로그 없이 확정하지 않는다. 현재300초 상한은 준비 감시만 변경하며 제품 TTL/검사 합격조건을 완화하지 않는다. 첫 adb 시작의 잘못된 package는 활동없음/변경0, 실제 app.json의 `kr.owool.mall.dev`로 수정했고 SQL dollar-quote shell 치환 읽기오류1회는 stdin으로 재조회해 확인했다. 다음은 해당 자원 정리→T4 commit 직후 revoke 경계·최종 동일후보 DB/Chrome·독립review다.
+
 - Native 보완 checkpoint: `98647a5`의 안전한 시작 오류 단계 구분 후, 설치된 React Native Linking.openURL이 `this._validateURL`을 사용하지만 bridge가 메서드를 분리 전달하는 원인을 확인했다. SDK 객체 문맥을 보존하는 한 줄 화살표 호출로 변경하고 실제 bridge 번들 시험을 추가했다. 앞선 RED는 browser 단계 거부였으며 현재 표적 8 pass/0 fail/0 skip, mobile typecheck·변경 lint·diffcheck exit0이다. SDK·native 설정·권한·DB 변경0. 아직 실제 Android 브라우저 복귀 성공 증거는 아니다.
 - QA 실행 오류/다음 조치: 이전 native 창은 실제 제한시간 만료(exit1), 다음 `98647a5` 실행은 API 준비 90초 안에 ready가 없어 curl exit7로 종료됐다. 종료 trap 뒤 전용 QA 경로·컨테이너 부재를 확인했다. 준비 실패 원인은 아직 미확인으로 분리한다. 현재 소유 AVD/Metro/터널은 유지하고 새 작업을 중복 실행하지 않는다. 다음 실행은 동일 선언 이름·폐기 DB에서 새 exact checkpoint를 사용하고 설치/ready 단계별 종료 상태만 비밀 없이 확인한다. 일반 서비스를 중단하거나 준비 실패를 PASS로 표시하지 않는다.
 
