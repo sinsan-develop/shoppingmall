@@ -2,6 +2,10 @@
 
 ## 2026-10-14 S7 최신 Android 계정·홈·신규 구매 확인 착수
 
+- 결과: Android 제품 소스는 e0dfcfb와 동일한 6107e3d APK(뒤3038223까지 mobile/잠금파일 diff0), 빌드 SUCCESS·설치·Metro 실제 번들·로그인→가입하기→이메일 입력/확인 링크 요청 버튼·인수 보류 안내를 확인했다. APK SHA256 0FE603FC5F0C9C78EB6592D5953A4C741820EF5254EB89344EC4D75767699F85, D:\tmp\shoppingmall-s7-new-native-20261014\owoolmall-dev-6107e3d-x86_64.apk. account-input.png를 육안 확인했다. 개발 Metro 의존 x86_64 debug이며 배포용 release가 아니다. OS 권한은 이전 APK와 동일, 자동 권한 부여0.
+- 미확인: 계정 요청 저장/복구/탈퇴 새 UI·홈 조회·분류/정렬·신규 구매 전체 native 흐름. 준비 실패2회(빈cart/잘못된식별자), PG 준비경합1회와 boot미완료1회는 기록대로 보정됐으나 최종 native 시험 GREEN은 얻지 못했다. 마지막3038223 준비 중 WSL load39.25/21.94/12.98·패키지GET error23/재시도를 관찰했다. 디스크360/1007G·inode11%·runner OOMfalse였으므로 디스크 고갈이나 제품 오류로 단정하지 않는다. 공유 부하 보호를 위해 정확한 이번 runner를 종료(exit137), trap 정리를 시행했다. 이전 실패/중단을 PASS로 바꾸지 않으며 테스트 기대값·제품/설계/계획은 변경하지 않았다. 다음은 자원 여유 때 대상DB SELECT1 gate→native.ready 확인 후에만 UI 요청을 시작해 신규26000원 주문1행·PAID 및 가입/복구 접수2행을 대조한다. 실제 메일/HTTPS·외부PG·OS푸시 보류는 불변.
+- 최종 정리: 이번 WSL runner/PG/network·QA 임시 경로 모두 부재, Windows 빌드 임시 폴더/AVD 부재·adb 기기0·8081/9092/5580 listener0을 확인했다. APK/로그/가입화면만 증거 폴더에 보존. 기존 WSL main3d692a88c62d567b8ab101c6510607784a3567cb/clean·ready200, mobile/잠금파일/설계/계획 diff0, 시험파일 node --check·git diff --check exit0. 첫 잔류 조회에서 WSL rg 부재로 조회2건 실패하여 정확 이름 docker inspect의 부재로 재확인했다. 최종 native DB 시험은 중단 상태이지 합격이 아니며 본 후보를 main/정식 배포로 승격하지 않았다. 모든 예약 취소 상태를 유지한다.
+
 - 준비 오류1회: HTTP 준비 구매는 장바구니를 자동 삭제하지 않아 신규 native 빈 장바구니 전제가 1!=0으로 실패했다. 기존 removeCartItem API로 이번 폐기 fixture 장바구니만 먼저 제거하며 빈 조건·신규 주문/26000원 기준은 유지한다. APK 빌드 SUCCESS(1m49s), 첫 설치 시 boot 미완료1회는 부팅 완료 확인 후 재개한다. 제품·서버 정책 변경0.
 - 추가 준비 오류: PG 임시 서버 ready 응답과 대상 DB 생성 사이 경합1회→대상 DB SELECT1 성공을 준비 gate로 사용. 장바구니 제거 fixture가 존재하지 않는 item.id를 넘겨 invalid1회→실제 CartItem.optionId 계약으로 보정. 기대값·제품 코드는 불변이며 이전 실패를 PASS로 합산하지 않는다.
 
