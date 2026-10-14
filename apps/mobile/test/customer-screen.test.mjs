@@ -21,9 +21,10 @@ async function component() {
   const mod = { exports: {} }; new Function('require', 'module', 'exports', result.outputFiles[0].text)(require, mod, mod.exports);
   return mod.exports;
 }
-async function ready(t, status = {}, overrides = {}, props = {}) {
+async function ready(t, status = {}, overrides = {}, props = {}, holds = {}) {
   const requests = [];
   const server = createServer(async (req, res) => {
+    if (holds[req.url]) await holds[req.url];
     const chunks = []; for await (const chunk of req) chunks.push(chunk);
     const body = Buffer.concat(chunks);
     requests.push([req.url, req.method, body.length ? req.headers['content-type'] === 'application/json' ? JSON.parse(body.toString()) : [...body] : undefined]);
@@ -129,6 +130,18 @@ test('taxonomy failure preserves catalog search and does not invent categories o
   await act(async () => { button(tree, '검색').props.onPress(); });
   await until(() => button(tree, '검색').props.disabled === false);
   assert.equal(requests.filter(([path]) => path.startsWith('/catalog/products?')).length, 2);
+});
+
+test('slow taxonomy never locks product search or delays home content', async t => {
+  let release; const hold = new Promise(resolve => { release = resolve; }); t.after(() => release());
+  const { tree } = await ready(t, {}, {}, {}, { '/catalog/categories': hold });
+  await until(() => text(tree).includes('시험 고추'));
+  await until(() => button(tree, '검색')?.props.disabled === false);
+  assert.equal(button(tree, '시험 고추 상세').props.disabled, false);
+  await act(async () => { button(tree, '홈').props.onPress(); });
+  await until(() => text(tree).includes('현재 진행 중인 기획전이 없습니다.'));
+  assert.equal(button(tree, '상품').props.disabled, false);
+  release();
 });
 
 test('login opens signup/reset intake, rejects invalid email, and does not claim account completion', async t => {

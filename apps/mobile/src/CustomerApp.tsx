@@ -42,6 +42,8 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [sellers, setSellers] = useState<CatalogSeller[]>([]);
   const [catalogError, setCatalogError] = useState('');
+  const [taxonomyBusy, setTaxonomyBusy] = useState(false);
+  const taxonomyLoading = useRef(false);
   const [home, setHome] = useState<HomeContent>();
   const [homeEvent, setHomeEvent] = useState<HomeEventResult>();
   const [page, setPage] = useState(1);
@@ -106,18 +108,20 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
     finally { lock.current = false; setBusy(false); }
   }, []);
   const loadTaxonomy = useCallback(async () => {
+    if (taxonomyLoading.current) return;
+    taxonomyLoading.current = true; setTaxonomyBusy(true);
     setCatalogError('');
     try { const [cats, farms] = await Promise.all([api.categories(), api.sellers()]); setCategories(cats); setSellers(farms); }
     catch { setCategories([]); setSellers([]); setCatalogError('분류·농가를 불러오지 못했습니다. 상품 검색은 계속 사용할 수 있습니다.'); }
+    finally { taxonomyLoading.current = false; setTaxonomyBusy(false); }
   }, [api]);
   const applySearch = useCallback(async (value: string, chosen: ProductFilters) => {
     setProducts([]); setHasMore(false); setPage(1);
     const found = await api.products(value, 1, chosen); setProducts(found); setAppliedQuery(value); setAppliedFilters({ ...chosen }); setHasMore(found.length === 24);
   }, [api]);
   const search = useCallback(() => applySearch(query, filters), [applySearch, query, filters]);
-  useEffect(() => { void run(async () => {
+  useEffect(() => { void loadTaxonomy(); void run(async () => {
     const found = await api.products(); setProducts(found); setHasMore(found.length === 24);
-    await loadTaxonomy();
   }); }, [api, run, loadTaxonomy]);
   async function loadCart() {
     setQuote(undefined); invalidatePromotion();
@@ -157,7 +161,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
     setScreen(next);
     void run(async () => {
       if (next === 'products') await search();
-      if (next === 'home') { setHome(undefined); await loadTaxonomy(); setHome(await api.home()); }
+      if (next === 'home') { setHome(undefined); void loadTaxonomy(); setHome(await api.home()); }
       if (next === 'cart') await loadCart();
       if (next === 'orders') { const result = await api.orders(); setOrders(result.items); setOrderCursor(result.nextCursor); }
       if (next === 'profile') {
@@ -253,7 +257,8 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
           disabled={busy} onPress={() => setFilters(previous => ({ ...previous, sort }))} />)}
         <Text>선택 조건 분류 {filters.categoryId ? categories.find(item => item.id === filters.categoryId)?.name ?? '선택한 분류' : '전체'} · 농가 {filters.sellerId ? sellers.find(item => item.id === filters.sellerId)?.displayName ?? '선택한 농가' : '전체'} · 정렬 {sortNames[filters.sort ?? 'latest']}</Text>
         {catalogError ? <Text>{catalogError}</Text> : null}
-        <Button label="분류·농가 새로고침" disabled={busy} onPress={() => void run(loadTaxonomy)} />
+        {taxonomyBusy ? <Text>분류·농가를 불러오는 중입니다. 상품 검색은 계속 사용할 수 있습니다.</Text> : null}
+        <Button label="분류·농가 새로고침" disabled={taxonomyBusy} onPress={() => void loadTaxonomy()} />
         <Button label="검색" disabled={busy} onPress={() => void run(search)} />
         <Text>적용 조건 검색 {appliedQuery || '전체'} · 분류 {appliedFilters.categoryId ? categories.find(item => item.id === appliedFilters.categoryId)?.name ?? '선택한 분류' : '전체'} · 농가 {appliedFilters.sellerId ? sellers.find(item => item.id === appliedFilters.sellerId)?.displayName ?? '선택한 농가' : '전체'} · 정렬 {sortNames[appliedFilters.sort ?? 'latest']}</Text>
         {!busy && products.length === 0 ? <Text>판매 가능한 상품이 없습니다.</Text> : null}
