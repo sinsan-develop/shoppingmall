@@ -138,7 +138,8 @@ test('shipped line confirms receipt, saves pending review and submits owned clai
     [`/customer/support/reviews/${key}`]: { id: key, body: '가상 후기', rating: 4, status: 'PENDING', images: [], events: [] },
     '/customer/support/claims': { id: key, status: 'REQUESTED' },
     [claimPath]: { id: key, status: 'SELLER_REPLIED', kind: 'RETURN', reason: '가상 파손', quantity: 1,
-      messages: [{ id: key, authorRole: 'seller', body: '가상 처리 안내' }], evidence: [], events: [] },
+      messages: [{ id: 'bf66b7c1-b0f6-4346-8333-d42ee1c8e299', authorRole: 'customer', body: '가상 파손' },
+        { id: key, authorRole: 'seller', body: '가상 처리 안내' }], evidence: [], events: [] },
     '/customer/support/claims?cursor=older': { items: [], nextCursor: null },
   };
   const { tree, requests, status } = await ready(t, { [confirmationPath]: 404 }, overrides);

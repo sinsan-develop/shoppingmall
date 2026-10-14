@@ -175,7 +175,9 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     await replyToClaim(pool, { claimId: claim.id, sellerId: fulfillmentSellerId, actorAccountId: sellerId,
       body: '가상 처리 안내', idempotencyKey: randomUUID() });
     const claimDetail = await api.claim(claim.id);
-    assert.equal(claimDetail.status, 'SELLER_REPLIED'); assert.equal(claimDetail.messages[0].body, '가상 처리 안내');
+    assert.equal(claimDetail.status, 'SELLER_REPLIED');
+    assert.equal(claimDetail.messages.find(message => message.authorRole === 'customer').body, '가상 파손');
+    assert.equal(claimDetail.messages.find(message => message.authorRole === 'seller').body, '가상 처리 안내');
     const asked = await api.askQuestion(product.productId, '가상 발송일 문의');
     assert.equal((await api.question(asked.id)).body, '가상 발송일 문의');
     assert.equal((await api.questions()).items[0].id, asked.id);
