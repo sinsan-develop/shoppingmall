@@ -2,6 +2,11 @@
 
 ## 2026-10-14 S7 남은 native 분류·농가·정렬·탈퇴 안내
 
+- 실제결과: exact7564c404529bc73f7e67f8bf3285db09f6e6df64(제품JS25124b3와동일)·네이티브APK6107e3d·폐기systemID7696393295821606957. Android 고추분류+seller-a농가를 함께선택/검색해 고추1상품23000원표시, 전체조건복귀 뒤 낮은가격 표시12000→16000→23000, 높은가격28000→23000→16000을 확인했다. 실제HTTP서버에서도 categoryId/sellerId 동시전달 및 price_asc/price_desc 요청을 관찰해 최종시험에서 검사했다. 스크롤 도중 처음 낮은가격 선택이 적용되지 않은 상태를 발견해 실제보이는 버튼으로 재선택했고, 적용조건/표시를 확인한 결과만 합격근거로 사용했다. 제품/합격기준 변경0.
+- 탈퇴: 명시확인전 native버튼disabled/시도후DB0건→Switch확인후접수버튼enabled→실제UI requested1건, 계정삭제아님안내/버튼차단. 화면을나갔다다시들어가 재접수하면 이미접수409안내를확인했다. 이후본인41000원기존주문조회유지, 로그아웃뒤개인화면login차단. SQL requested1/계정5·disabled_at0/주문1행을확인한뒤done표식을전달했다. CustomerApi→HTTP→DB/native1/1 pass·0skip·0fail/준비·정리shell exit0, 보호DB/외부발송/실계정삭제0. 신규native구매/첨부는 이전검증을 반복하지 않았으며 원래모드의 기준은 불변.
+- 증거: D:\tmp\shoppingmall-s7-catalog-native-20261014의 combined-filter.png/price-asc.png/price-desc.png/deletion-requested.png/deletion-duplicate.png. 높은가격결과/중복안내를육안확인했다. WSL전용runner/PG/network/QA경로0, Android/Metro/tunnel종료·AVD삭제·Windows임시소스/AVD부재·adb기기0·8081/9092/5580 listener0. 기존main3d692a8·ready200, API/Web/packages제품main대비diff0이다. 모바일단계 때문에 기존웹/API를다시배포하지않았다. 제품/설계/계획은불변, 이번추가변경은QAfixture와현황뿐이다.
+- 판정: 남았던 native분류/농가/정렬·탈퇴개별조작을확인해 해당장애기록을제거한다. S7.2의 AndroidOS권한/푸시기기등록·카카오/PGnative실연동은 별도승인/미구현·미확인경계이며 전체S7완료/병합을선언하지않는다. 다음권고는 새OS알림권한·거부대체경로·개발모의알림에한정한승인후구현이며 외부계정/Secret/비용/실푸시발송은포함하지않는다.
+
 - 담당 어울, 시작f6d90f55d87a62e4644ab8b6aefd91f59e8c1176/clean. 검증 스킬의 실제증거 기준과 QA 시험지침을 적용하며 제품/설계/계획은 불변. 이번 native fixture 모드는 원래 구매/첨부 검증 기준을 유지하되 해당 native 조작을 반복하지 않고 분류+농가 전달·낮은/높은가격 정렬·명시확인 후 탈퇴요청1행/계정비활성화없음·중복거부를 확인한다. 새OS권한/실푸시/실메일/지속DB변경0.
 - 자원선언: D:\tmp\s7catalog1014·증거 D:\tmp\shoppingmall-s7-catalog-native-20261014, 전용AVD shoppingmall_s7_catalog_20261014/5580·Metro8081·SSH루프백9092. WSL shoppingmall-s7-qa-node·shoppingmall-qa-s7-20261014-pg(PG15tmpfs)/shoppingmall-s7-qa-20261014-net 내부망·정확 QA 경로만 사용한다. 보호DB와 다른systemID/빈계정/대상DBSELECT1/native.ready gate 유지, 종료trap/Windows정리로 정확 소유자원만 회수하고 증거보존. API/Web/packages 제품은 main 대비diff0이므로 현재Web/API를 모바일진도 때문에 임의 재배포하지 않으며 S7 푸시·일반Stage병합 Gate를 별도 대조한다.
 
