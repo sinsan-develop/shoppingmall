@@ -7,7 +7,8 @@ import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
 import { replyToClaim } from '../src/support/claims.ts';
 import { CustomerApi } from '../../mobile/src/customer-api.ts';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -58,7 +59,8 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     const foreignGrant = await grant('goods_discount', 1000, sellerId);
     process.env.APP_ENV = 'development'; process.env.API_HOST = '127.0.0.1';
     process.env.PAYMENT_MODE = 'mock'; process.env.WEB_ORIGIN = 'http://127.0.0.1:9091';
-    app = await createApp(); await app.listen(0, '127.0.0.1');
+    const native = process.env.QA_S7_NATIVE_SMOKE === '1';
+    app = await createApp(); await app.listen(native ? 9092 : 0, '127.0.0.1');
     const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
     let cookie = ''; let loseOrderReply = true; let loseRefundReply = true;
     let loseReviewReply = true; let loseClaimReply = true;
@@ -207,6 +209,17 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     }
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_review_images')).rows[0].n, 1);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_claim_evidence')).rows[0].n, 1);
+    if (native) {
+      await writeFile('/tmp/shoppingmall-s7-native.ready', JSON.stringify({ orderId: order.id, reviewId: review.id, claimId: claim.id }));
+      const deadline = Date.now() + 20 * 60 * 1000;
+      let done = false;
+      while (Date.now() < deadline) {
+        try { await access('/tmp/shoppingmall-s7-native.done'); done = true; break; } catch { await delay(1000); }
+      }
+      assert.ok(done, 'Android native smoke completion marker required');
+      assert.equal((await api.review(review.id)).images.length, 2, 'native review upload must persist');
+      assert.equal((await api.claim(claim.id)).evidence.length, 2, 'native claim upload must persist');
+    }
     const asked = await api.askQuestion(product.productId, '가상 발송일 문의');
     assert.equal((await api.question(asked.id)).body, '가상 발송일 문의');
     assert.equal((await api.questions()).items[0].id, asked.id);
