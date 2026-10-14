@@ -51,6 +51,8 @@
 
 #### W02. 상품 검색·목록 — 테스트 중 [1]
 
+- 순차 착수: W01 완료/정리 후 W02 in_progress. 전용 WSL shoppingmall-w02-20261014-pg/api/web·shoppingmall-w02-20261014-net, 보호 systemID를 거부하는 새 PG15/tmpfs shoppingmall_qa_20261010_2·migration28·빈계정 gate 후 고유a0140002 상품25개를 사용한다. Windows D:/tmp/shoppingmall-w02-20261014의 전용Chrome9232/profile·9091/9092 SSH·증거만 사용하며 이번 W02 동안 생성→검증→소유 잔류0 정리한다. 공유/보호DB·기존서비스·실발송 변경0. 기존14개 검색/페이지 자동시험·APItypecheck 통과. 실제 브라우저 PASS는 아직 없고 W03은 미착수.
+
 - 여는 곳: `/products`. 검색·분류·판매자·정렬·더 보기·빈 목록.
 - 근거/남은 것: 카탈로그 API 호출·검색/페이지 시험 확인. 기존 상품/권한 DB·일부 화면 근거가 있으나 Web 전체 필터·오류 재조회 완료로 확대하지 않는다.
 
