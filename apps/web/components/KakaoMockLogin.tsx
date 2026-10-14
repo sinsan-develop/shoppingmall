@@ -49,17 +49,21 @@ export function KakaoMockLogin({enabled=kakaoMockEnabled,customer,onReady}: {
 }
 export function KakaoMockAuthorize(){
   const proof=useRef<ReturnType<typeof parseKakaoMockAuthorize>|undefined>(undefined);
+  const initialized=useRef(false);
   const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   useEffect(()=>{
+    if(initialized.current)return;initialized.current=true;
     const url=window.location.href;window.history.replaceState(null,'',window.location.pathname);
     if(!kakaoMockEnabled||window.location.origin!==origin){setMessage(failure);return;}
     try{proof.current=parseKakaoMockAuthorize(url,origin);setReady(true);}catch{setMessage(failure);}
-    return()=>{proof.current=undefined;};
+    // The proof belongs only to this mounted component. Strict effect replay must
+    // not erase it; a real reload creates a new component with no fragment/proof.
   },[]);
   async function decide(outcome:'approve'|'cancel'|'fail'){
-    if(!proof.current||busy)return;setBusy(true);
+    if(!proof.current||busy)return;
+    const input=proof.current;proof.current=undefined;setBusy(true);
     try{
-      const result=await send('/auth/kakao-mock/decision',{...proof.current,outcome}) as {returnUrl:string;mockOnly:boolean};
+      const result=await send('/auth/kakao-mock/decision',{...input,outcome}) as {returnUrl:string;mockOnly:boolean};
       if(result.mockOnly!==true)throw new Error(failure);
       const returned=new URL(result.returnUrl);
       if(returned.protocol==='owoolmall-dev:'&&returned.hostname==='auth'&&returned.pathname==='/kakao-mock/return'&&

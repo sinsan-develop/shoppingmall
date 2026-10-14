@@ -2,6 +2,13 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- 독립T2보완결과: StrictMode증명소실RED(승인HTTP0)→GREEN, 연속승인RED(HTTP2)→await전증명점유GREEN. 재로드후fragment없음/버튼disabled/새요청0을같은React이벤트에서확인했고Web표적10 pass/0fail/0skip, typecheck/변경eslint/diffcheck·33경로Webbuild 성공이다. renderer deprecation은기존경고로보존했다. 승인화면diff는'cleanup이현재증명을삭제'→'컴포넌트수명중1회초기화/승인수단await전점유'이며browserstorage/기존인증정책을새로쓰지않는다.
+- AndroidJS export: 현재mobile제품ea5cefb와동일·기존Expo57/ReactNative0.86 의존성으로Android682modules/Hermes1.7MB export exit0. D:\tmp\shoppingmall-s7-kakao-20261014\bundle\_expo\static\js\android\AppEntry-4829650f9c067cf14b55ef50809cc058.hbc SHA2569B60AFB9E2882AD0281D0EB50533ACCC9855FE513BB5FED0E1A90CD75C362D2C, metadata153B. Metro명령종료/listener0, 새AVD/DB/외부서버없음. 생산번들검사는개발mock의native작동·실브라우저복귀증거가아니므로해당gate는미확인으로유지한다. NO_COLOR/FORCE_COLOR경고는숨기지않는다.
+- 여전한추가승인경계: 공유쿠키경합12건중1실패기준은변경하지않았다. 기존login/logout/role인증가드·Webaccount화면확장승인없이수정하지않으며현재목표는active/미완료다. 다음은승인된범위의실제QA브라우저/Android미확인연결검증이고, 인증보완승인시동일경합부터RED→GREEN으로진행한다. 완료항목은다시구현하지않는다.
+
+- 목표연속실행: 직전86f4df5까지는구현·필수경합증거를추가한progress였으며현재추가인증승인은아직없다. 인증정책/범위확장은대기하되독립적인T2React검증을진행했다. StrictMode효과재실행이fragment제거후proof를지워승인HTTP0건이되는RED와동일버튼연속호출시2건전송RED를각각재현했다. 컴포넌트메모리의1회초기화/await전proof점유로보완한다. 실제재로드는fragment가없어거부하며history/storage에proof를보관하지않는다. 변경은KakaoMockLogin.tsx/login.test.mjs와현황뿐이고기존AuthController/정책·frozen문서변경0이다.
+- 다음독립검증자원: Windows D:\tmp\shoppingmall-s7-kakao-20261014\bundle의Android JS export를기존의존성/현재소스에서수행한다. 수명은단일번들명령동안이며기존SDK/권한/app.json/OS·DB·외부서비스변경없음. 종료시프로세스완료/산출물확인하고JS/hash증거는보존한다. 이는native브라우저/scheme/실기기검증이아니다.
+
 - 현재ledger: T1 기본서버/실DB확인·공유인증gate미충족 / T2 Web부분구현·실제Chrome미확인 / T3 Android부분구현·native복귀미확인 / T4 인증보완추가승인필요. 전체카카오mock/Stage 완료나PR병합을선언하지않는다.
 - ea5cefb 필수경합실증: 보호DB와다른폐기systemID7696461402000007212, 기존migration적용·fixture외부FK반례/전체rollback·main boot실패listener0 포함12건11pass/1fail/0skip. DB잠금중mock완료요청→다른탭고객B이메일로그인/meB→잠금해제→늦은mock쿠키/meA로최신세션덮임을실제HTTP/DB로재현했다. 네트워크/client fixture의추측이아니다. 같은기준을완화하지않으며해당시험을실패로보존한다. 전용container/network/QA경로0/기존정식WSL불변.
 - 인증경계/조치: 기존AuthController의login/logout/role동작과Webaccount로그아웃은이번계획의수정범위밖이다. 개발mock에만인증세대무효화/완료전재확인과탭간직렬화를적용하는최소보완을권고하고정확파일·관련시험확장승인을요청한다. 승인전새context쿠키/DB/Secret·기존계정정책변경0. 불변설계/계획/계약은수정하지않고판정·영향·재개조건을docs/design_change.md에남겼다.
