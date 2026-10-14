@@ -7,6 +7,7 @@ import { EngagementControls } from './engagement-controls';
 import { ProductCartControls } from './cart-controls';
 import { ProductQuestions } from './questions';
 import { PublicCustomerReviews } from './customer-reviews';
+import { productLoadFailureMessage } from '../product-load-error';
 
 type Option = { id: string; name: string; priceWon: number; sellableQuantity: number };
 type ProductImage = { id: string; purpose: 'thumbnail' | 'detail'; displayOrder: number };
@@ -81,7 +82,7 @@ export default function ProductDetailPage() {
         return response.json();
       }).then((value: Product) => { setProduct(value); setError(undefined); })
       .catch((reason: unknown) => { if (!controller.signal.aborted) {
-        setError(reason instanceof Error ? reason.message : '상품을 불러올 수 없습니다');
+        setError(productLoadFailureMessage(reason));
       } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [productId]);
