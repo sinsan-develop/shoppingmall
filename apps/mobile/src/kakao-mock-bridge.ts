@@ -9,7 +9,7 @@ export function createKakaoMockBridge(api:CustomerApi):KakaoMockBridge {
     digest:async text=>{
       const hex=await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,text,{encoding:Crypto.CryptoEncoding.HEX});
       return Uint8Array.from(hex.match(/../g)??[],part=>parseInt(part,16));
-    },openUrl:Linking.openURL});
+    },openUrl:url=>Linking.openURL(url)});
   return {flow,subscribe(handler){
     let active=true;
     const listener=Linking.addEventListener('url',event=>{if(active)handler(event.url);});

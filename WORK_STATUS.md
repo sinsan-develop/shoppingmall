@@ -2,6 +2,9 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- Native 보완 checkpoint: `98647a5`의 안전한 시작 오류 단계 구분 후, 설치된 React Native Linking.openURL이 `this._validateURL`을 사용하지만 bridge가 메서드를 분리 전달하는 원인을 확인했다. SDK 객체 문맥을 보존하는 한 줄 화살표 호출로 변경하고 실제 bridge 번들 시험을 추가했다. 앞선 RED는 browser 단계 거부였으며 현재 표적 8 pass/0 fail/0 skip, mobile typecheck·변경 lint·diffcheck exit0이다. SDK·native 설정·권한·DB 변경0. 아직 실제 Android 브라우저 복귀 성공 증거는 아니다.
+- QA 실행 오류/다음 조치: 이전 native 창은 실제 제한시간 만료(exit1), 다음 `98647a5` 실행은 API 준비 90초 안에 ready가 없어 curl exit7로 종료됐다. 종료 trap 뒤 전용 QA 경로·컨테이너 부재를 확인했다. 준비 실패 원인은 아직 미확인으로 분리한다. 현재 소유 AVD/Metro/터널은 유지하고 새 작업을 중복 실행하지 않는다. 다음 실행은 동일 선언 이름·폐기 DB에서 새 exact checkpoint를 사용하고 설치/ready 단계별 종료 상태만 비밀 없이 확인한다. 일반 서비스를 중단하거나 준비 실패를 PASS로 표시하지 않는다.
+
 - Native실패원인좁힘: 명시버튼실행후시작안내실패/DB세션0을관찰했다. 브라우저Activity는설치돼있고Android-clock1791976307896에대해Windows왕복전/후1791976309081/9169로약1.2초기기지연을확인했다. 현재client의'서버expiresAt가로컬지금+5분보다조금이라도크면거부'조건이같은1.25초차이RED로재현됐다. 서버expiry/코드만료는불변이며client로컬deadline은min(서버expiry,지금+5분)으로제한해정상시작과5분후무발급을GREEN확인했다. 만료된로컬proof의cancel/새시작을막는추가RED도확인해로컬증명폐기로보완한다. 실제native재검증전성공으로표시하지않는다.
 - 진단오류: 긴node -e의PowerShell quoting실패1회는SDK접속전오류였다. 별도D:\tmp 진단스크립트의MetroJS inspector접속1회도실패해수단/계정정보조회0이며에뮬레이터/Metro/WSL을중복생성하지않았다. 시계차이의핵심상태는왕복시간/실제Date와제품RED를근거로하며SDK실제완료는다음native에서확인한다. 설치CLI최초pnpm11.25 표기는corepack11.19.0의offline/frozen Already up to date/357ms·임시Gitdiff0으로대조했고Metro에업데이트권고가나와도SDK/lock은변경하지않았다.
 

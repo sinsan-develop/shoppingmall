@@ -1,8 +1,27 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 import { randomBytes,createHash } from 'node:crypto';
 import { createKakaoMockFlow,KakaoMockStartError } from '../src/kakao-mock-core.ts';
 import { CustomerApiError } from '../src/customer-api.ts';
+test('실제 bridge는 SDK Linking 객체 컨텍스트를 유지해 명시 브라우저를 연다',async()=>{
+  const result=await build({stdin:{contents:'export {createKakaoMockBridge} from "./src/kakao-mock-bridge"; export {Linking} from "react-native";',
+    resolveDir:fileURLToPath(new URL('../',import.meta.url)),loader:'ts'},bundle:true,write:false,platform:'node',format:'cjs',
+    define:{__DEV__:'true'},plugins:[{name:'native-sdk-boundaries',setup(builder){
+      builder.onResolve({filter:/^(react-native|expo-crypto)$/},args=>({path:args.path,namespace:'sdk'}));
+      builder.onLoad({filter:/.*/,namespace:'sdk'},args=>({loader:'js',contents:args.path==='react-native'?
+        'export const Linking={opened:[],_validateURL(url){if(typeof url!=="string")throw Error("invalid URL")},openURL(url){this._validateURL(url);this.opened.push(url);return Promise.resolve()},addEventListener(){return {remove(){}}},getInitialURL(){return Promise.resolve(null)}};':
+        'import {randomBytes,createHash} from "node:crypto";export const CryptoDigestAlgorithm={SHA256:"SHA-256"},CryptoEncoding={HEX:"hex"};export const getRandomBytes=randomBytes;export const digestStringAsync=async(_algorithm,text)=>createHash("sha256").update(text).digest("hex");'}));
+    }}]});
+  const mod={exports:{}};new Function('require','module','exports',result.outputFiles[0].text)(createRequire(import.meta.url),mod,mod.exports);
+  const api={startKakaoMock:async()=>({transactionId:'T'.repeat(43),mockOnly:true,expiresAt:new Date(Date.now()+300000).toISOString(),
+    authorizeUrl:`http://127.0.0.1:9091/auth/kakao-mock/authorize#transactionId=${'T'.repeat(43)}&decisionTicket=${'D'.repeat(43)}`})};
+  const bridge=mod.exports.createKakaoMockBridge(api);assert.equal(mod.exports.Linking.opened.length,0);
+  await bridge.flow.start();assert.equal(mod.exports.Linking.opened.length,1);
+  assert.equal(new URL(mod.exports.Linking.opened[0]).pathname,'/auth/kakao-mock/authorize');
+});
 const id='T'.repeat(43),code='C'.repeat(43),ticket='D'.repeat(43);
 function setup(override={},expiryMs=300000){
   const calls=[],urls=[];let state;
