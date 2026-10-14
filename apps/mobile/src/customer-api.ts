@@ -29,6 +29,10 @@ export type OrderInput = { reservationId: string; addressId: string; expectedPay
 export type Question = { id: string; productId: string; body: string; status: string;
   messages?: { id: string; body: string; authorRole: string }[] };
 export type Page<T> = { items: T[]; nextCursor: string | null };
+export type Favorite = { productId: string; title: string | null; published: boolean; saleStopped: boolean; createdAt: string };
+export type RestockSubscription = { id: string; productId: string; title: string | null; optionName: string;
+  status: 'active' | 'cancelled' | 'notified'; optionState: 'unpublished' | 'sale_stopped' | 'missing' | 'available' | 'sold_out';
+  currentOptionId: string | null; saleStopped: boolean; requestedAt: string; cancelledAt: string | null; notifiedAt: string | null };
 
 /** All amounts, ownership and inventory are decided by the existing server. No local price policy. */
 export class CustomerApi {
@@ -82,6 +86,14 @@ export class CustomerApi {
     finally { this.keys.clear(); this.onSessionExpired?.(); }
   }
   me() { return this.request<{ role: string }>('/auth/me'); }
+  favorites() { return this.request<Favorite[]>('/customer/favorites'); }
+  addFavorite(id: string) { return this.request<{ productId: string; favorite: true }>(`/customer/favorites/${encodeURIComponent(id)}`, 'PUT'); }
+  removeFavorite(id: string) { return this.request<{ productId: string; favorite: false }>(`/customer/favorites/${encodeURIComponent(id)}`, 'DELETE'); }
+  restockSubscriptions() { return this.request<RestockSubscription[]>('/customer/restock-subscriptions'); }
+  subscribeRestock(productId: string, optionId: string) {
+    return this.request<{ id: string; status: 'active' }>('/customer/restock-subscriptions', 'POST', { productId, optionId });
+  }
+  cancelRestock(id: string) { return this.request<{ id: string; status: 'cancelled' }>(`/customer/restock-subscriptions/${encodeURIComponent(id)}`, 'DELETE'); }
   cart() { return this.request<CartItem[]>('/customer/cart'); }
   quote() { return this.request<Quote>('/customer/cart/quote'); }
   setCartItem(id: string, quantity: number) {

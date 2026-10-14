@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { CustomerApi, CustomerApiError, type Address, type AddressInput, type CartItem, type Order,
-  type Preferences, type Product, type ProductSummary, type Question, type Quote, type Reservation } from './customer-api';
+  type Preferences, type Product, type ProductSummary, type Question, type Quote, type Reservation,
+  type Favorite, type RestockSubscription } from './customer-api';
 
 const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
-type Screen = 'products' | 'product' | 'login' | 'cart' | 'orders' | 'profile' | 'questions';
+type Screen = 'products' | 'product' | 'login' | 'cart' | 'orders' | 'profile' | 'questions' | 'engagement';
 const initialAddress: AddressInput = { label: '', recipientName: '', phone: '', postalCode: '', line1: '', line2: '', isDefault: true };
 function Button({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }}
@@ -54,11 +55,14 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionCursor, setQuestionCursor] = useState<string | null>(null);
   const [question, setQuestion] = useState<Question>();
+  const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const [restocks, setRestocks] = useState<RestockSubscription[]>([]);
   const clearPrivate = useCallback(() => {
     setSignedIn(false); setEmail(''); setPassword(''); setCart([]); setQuote(undefined); setReservation(undefined);
     setPayable(undefined); setCoupon(''); setAddresses([]); setAddressId(''); setAddress({ ...initialAddress });
     setOrder(undefined); setViewedOrder(undefined); setOrders([]); setLookupId(''); setQuestions([]); setQuestionCursor(null); setQuestion(undefined); setQuestionText('');
     setPreferences({ marketingEmail: false, marketingSms: false, push: false });
+    setFavorites([]); setRestocks([]);
     setScreen('login');
   }, []);
   useEffect(() => {
@@ -107,7 +111,16 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         const list = await api.addresses(); setAddresses(list); setPreferences(await api.preferences());
       }
       if (next === 'questions') { const result = await api.questions(); setQuestion(undefined); setQuestions(result.items); setQuestionCursor(result.nextCursor); }
+      if (next === 'engagement') { setFavorites([]); setRestocks([]); await loadEngagement(); }
     });
+  }
+  async function loadEngagement() {
+    const savedFavorites = await api.favorites();
+    const savedRestocks = await api.restockSubscriptions();
+    setFavorites(savedFavorites); setRestocks(savedRestocks);
+  }
+  async function openProduct(id: string) {
+    setProduct(undefined); setProduct(await api.product(id)); setQuantity('1'); setScreen('product');
   }
   async function openOrder(id: string) { setViewedOrder(undefined); setViewedOrder(await api.order(id)); setLookupId(id); }
   async function refreshCheckout() {
@@ -124,8 +137,8 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   return <SafeAreaView style={styles.container}>
     <View style={styles.header}><Text style={styles.title}>어울몰</Text>
       <Text>개발판 · 실제 결제·발송 아님</Text></View>
-    <View style={styles.menu}>{(['products', 'cart', 'orders', 'questions', 'profile'] as Screen[]).map((next, i) =>
-      <Button key={next} label={['상품', '장바구니', '주문·배송', '내 문의', '배송지·알림'][i]}
+    <View style={styles.menu}>{(['products', 'cart', 'orders', 'questions', 'profile', 'engagement'] as Screen[]).map((next, i) =>
+      <Button key={next} label={['상품', '장바구니', '주문·배송', '내 문의', '배송지·알림', '찜·재입고'][i]}
         disabled={busy} onPress={() => navigate(next)} />)}
       <Button label={signedIn ? '로그아웃' : '로그인'} disabled={busy}
         onPress={() => signedIn ? void run(async () => { await api.logout(); clearPrivate(); }) : navigate('login')} />
@@ -140,9 +153,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         {products.map(item => <View key={item.productId} style={styles.card}>
           <Text style={styles.heading}>{item.title}</Text><Text>{item.originLabel} · {item.sellerName}</Text>
           <Text>{won(item.minPriceWon)}부터</Text>
-          <Button label={`${item.title} 상세`} disabled={busy} onPress={() => void run(async () => {
-            setProduct(await api.product(item.productId)); setQuantity('1'); setScreen('product');
-          })} />
+          <Button label={`${item.title} 상세`} disabled={busy} onPress={() => void run(() => openProduct(item.productId))} />
         </View>)}
         {hasMore ? <Button label="상품 더 보기" disabled={busy || page >= 1000} onPress={() => void run(async () => {
           const found = await api.products(appliedQuery, page + 1); setProducts(previous => [...previous, ...found]);
@@ -155,6 +166,10 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         {imageOrigin ? product.images?.map(image => <Image key={image.id} accessibilityLabel={`${product.title} 상품 사진`}
           style={styles.image} source={{ uri: `${imageOrigin}/catalog/products/${encodeURIComponent(product.productId)}/images/${encodeURIComponent(image.id)}` }} />) : null}
         <Text>{product.description}</Text><Field label="담을 수량" numeric value={quantity} onChange={setQuantity} />
+        <Button label="찜 추가" disabled={busy} onPress={() => {
+          if (!signedIn) { navigate('login'); return; }
+          void run(async () => { await api.addFavorite(product.productId); setMessage('찜에 저장했습니다.'); });
+        }} />
         {product.options.map(option => <View key={option.id} style={styles.card}>
           <Text>{option.name} · {won(option.priceWon)} · 판매 가능 {option.sellableQuantity}개</Text>
           <Button label={`${option.name} 담기`} disabled={busy || product.saleStopped || option.sellableQuantity < Number(quantity) ||
@@ -162,6 +177,12 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
             if (!signedIn) { navigate('login'); return; }
             void run(async () => { await api.setCartItem(option.id, Number(quantity)); setMessage('장바구니에 저장했습니다.'); });
           }} />
+          {option.sellableQuantity === 0 && !product.saleStopped ? <Button label={`${option.name} 재입고 신청`} disabled={busy}
+            onPress={() => {
+              if (!signedIn) { navigate('login'); return; }
+              void run(async () => { await api.subscribeRestock(product.productId, option.id);
+                setMessage('재입고 신청을 저장했습니다. 신청 상태는 찜·재입고에서 확인하세요. 실제 알림 수신은 미확인입니다.'); });
+            }} /> : null}
         </View>)}
         <Field label="상품 문의" value={questionText} onChange={setQuestionText} />
         <Button label="문의 접수" disabled={busy || !questionText.trim()} onPress={() => {
@@ -256,6 +277,31 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
             <Text>{shipment.fulfillment?.customerMessage ?? shipment.fulfillment?.delayedReason ?? ''}</Text>
           </View>)}
         </View> : null}
+      </> : null}
+      {screen === 'engagement' ? <>
+        <Text style={styles.heading}>내 찜 상품</Text>
+        {!busy && favorites.length === 0 ? <Text>찜한 상품이 없습니다.</Text> : null}
+        {favorites.map(item => <View key={item.productId} style={styles.card}>
+          <Text>{item.title ?? '현재 비공개 상품'}</Text>
+          {!item.published ? <Text>비공개 상품</Text> : item.saleStopped ? <Text>판매 중지 상품</Text> : null}
+          <Button label={`${item.title ?? '현재 비공개 상품'} 상세`} disabled={busy || !item.published}
+            onPress={() => void run(() => openProduct(item.productId))} />
+          <Button label={`${item.title ?? '현재 비공개 상품'} 찜 제거`} disabled={busy}
+            onPress={() => void run(async () => { await api.removeFavorite(item.productId); await loadEngagement(); })} />
+        </View>)}
+        <Text style={styles.heading}>내 재입고 신청</Text>
+        <Text>신청 상태를 서버에서 조회합니다. 실제 푸시·메일 수신 시험은 아닙니다.</Text>
+        {!busy && restocks.length === 0 ? <Text>재입고 신청이 없습니다.</Text> : null}
+        {restocks.map(item => <View key={item.id} style={styles.card}>
+          <Text>{item.title ?? '현재 비공개 상품'} · {item.optionName}</Text>
+          <Text>{{ active: '신청 중', cancelled: '신청 취소됨', notified: '알림 처리됨 · 실제 수신 미확인' }[item.status]}</Text>
+          <Text>{{ unpublished: '비공개 상품', sale_stopped: '판매 중지', missing: '현재 옵션 없음',
+            available: '현재 구매 가능', sold_out: '현재 품절' }[item.optionState]}</Text>
+          {item.optionState === 'available' ? <Button label={`${item.optionName} 상품 보기`} disabled={busy}
+            onPress={() => void run(() => openProduct(item.productId))} /> : null}
+          {item.status === 'active' ? <Button label={`${item.optionName} 재입고 취소`} disabled={busy}
+            onPress={() => void run(async () => { await api.cancelRestock(item.id); await loadEngagement(); })} /> : null}
+        </View>)}
       </> : null}
       {screen === 'profile' ? <>
         <Text style={styles.heading}>배송지 저장</Text>

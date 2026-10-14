@@ -77,6 +77,63 @@ test('mobile search renders fetched products rather than construction notice', a
   assert.ok(button(tree, '시험 고추 상세'));
   assert.equal(text(tree).includes('앱 서비스 구축 중'), false);
 });
+
+test('favorite list supports detail, removal and hides private items on session expiry', async t => {
+  const overrides = {
+    '/customer/favorites': [{ productId: key, title: '내 찜 고추', published: true, saleStopped: false }],
+    '/customer/restock-subscriptions': [],
+    [`/catalog/products/${key}`]: { productId: key, title: '내 찜 고추', description: '설명', options: [], images: [] },
+  };
+  const { tree, requests, status } = await ready(t, {}, overrides);
+  await login(tree);
+  assert.ok(button(tree, '찜·재입고'), '찜·재입고 메뉴 미구현');
+  await act(async () => button(tree, '찜·재입고').props.onPress());
+  await until(() => button(tree, '내 찜 고추 상세')?.props.disabled === false);
+  await act(async () => button(tree, '내 찜 고추 상세').props.onPress());
+  await until(() => button(tree, '찜 추가')?.props.disabled === false);
+  await act(async () => button(tree, '찜 추가').props.onPress());
+  await until(() => text(tree).includes('찜에 저장했습니다.'));
+  assert.ok(requests.some(([path, method]) => path === `/customer/favorites/${key}` && method === 'PUT'));
+  await act(async () => button(tree, '찜·재입고').props.onPress());
+  await until(() => button(tree, '내 찜 고추 찜 제거')?.props.disabled === false);
+  overrides['/customer/favorites'] = [];
+  await act(async () => button(tree, '내 찜 고추 찜 제거').props.onPress());
+  await until(() => text(tree).includes('찜한 상품이 없습니다.'));
+  assert.ok(requests.some(([path, method]) => path === `/customer/favorites/${key}` && method === 'DELETE'));
+  overrides['/customer/favorites'] = [{ productId: key, title: '비공개 내 찜', published: false, saleStopped: true }];
+  await act(async () => button(tree, '찜·재입고').props.onPress());
+  await until(() => text(tree).includes('비공개 내 찜'));
+  assert.equal(button(tree, '비공개 내 찜 상세').props.disabled, true);
+  status['/customer/favorites'] = 401;
+  await act(async () => button(tree, '찜·재입고').props.onPress());
+  await until(() => text(tree).includes('구매자 로그인'));
+  assert.equal(text(tree).includes('비공개 내 찜'), false);
+});
+
+test('sold-out option requests restock then cancellation refreshes server state', async t => {
+  const overrides = {
+    [`/catalog/products/${key}`]: { productId: key, title: '시험 고추', description: '설명', saleStopped: false,
+      images: [], options: [{ id: key, name: '품절 1kg', priceWon: 3000, sellableQuantity: 0 }] },
+    '/customer/favorites': [], '/customer/restock-subscriptions': [],
+  };
+  const { tree, requests } = await ready(t, {}, overrides);
+  await login(tree);
+  await act(async () => button(tree, '시험 고추 상세').props.onPress());
+  await until(() => button(tree, '품절 1kg 재입고 신청')?.props.disabled === false);
+  await act(async () => button(tree, '품절 1kg 재입고 신청').props.onPress());
+  await until(() => text(tree).includes('재입고 신청을 저장했습니다.'));
+  assert.ok(requests.some(([path, method, body]) => path === '/customer/restock-subscriptions' && method === 'POST' &&
+    body.productId === key && body.optionId === key));
+  overrides['/customer/restock-subscriptions'] = [{ id: key, productId: key, title: '시험 고추', optionName: '품절 1kg',
+    status: 'active', optionState: 'sold_out', currentOptionId: key, saleStopped: false }];
+  await act(async () => button(tree, '찜·재입고').props.onPress());
+  await until(() => button(tree, '품절 1kg 재입고 취소')?.props.disabled === false);
+  overrides['/customer/restock-subscriptions'][0].status = 'cancelled';
+  await act(async () => button(tree, '품절 1kg 재입고 취소').props.onPress());
+  await until(() => text(tree).includes('신청 취소됨'));
+  assert.equal(button(tree, '품절 1kg 재입고 취소'), undefined);
+  assert.ok(requests.some(([path, method]) => path === `/customer/restock-subscriptions/${key}` && method === 'DELETE'));
+});
 test('login is validated by customer session before cart displays server quote', async t => {
   const { tree, requests } = await ready(t);
   await until(() => button(tree, '로그인')?.props.disabled === false);

@@ -48,6 +48,25 @@ test('mobile customer client drives real HTTP DB purchase, retry, delivery, ques
     const summary = products.find(p => p.title === `qa-${runId}-고추`);
     assert.ok(summary);
     const product = await api.product(summary.productId);
+    await api.addFavorite(product.productId); await api.addFavorite(product.productId);
+    assert.equal((await api.favorites()).filter(item => item.productId === product.productId).length, 1);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM customer_favorites')).rows[0].n, 1);
+    await api.removeFavorite(product.productId);
+    assert.equal((await api.favorites()).length, 0);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM customer_favorites')).rows[0].n, 0);
+    await assert.rejects(api.subscribeRestock(product.productId, product.options[0].id), e => e.code === 'conflict');
+    const restockProduct = await api.product(products.find(p => p.productId !== product.productId).productId);
+    const restockOption = restockProduct.options[0];
+    await pool.query('UPDATE inventory_levels SET on_hand_quantity=0,sellable_quantity=0 WHERE option_id=$1', [restockOption.id]);
+    const subscribed = await api.subscribeRestock(restockProduct.productId, restockOption.id);
+    assert.equal((await api.subscribeRestock(restockProduct.productId, restockOption.id)).id, subscribed.id);
+    const subscription = (await api.restockSubscriptions()).find(item => item.id === subscribed.id);
+    assert.equal(subscription.optionName, restockOption.name); assert.equal(subscription.optionState, 'sold_out');
+    assert.equal(subscription.status, 'active');
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM restock_subscriptions')).rows[0].n, 1);
+    await api.cancelRestock(subscribed.id);
+    assert.equal((await api.restockSubscriptions()).find(item => item.id === subscribed.id).status, 'cancelled');
+    assert.equal((await pool.query('SELECT status FROM restock_subscriptions WHERE id=$1', [subscribed.id])).rows[0].status, 'cancelled');
     await api.setCartItem(product.options[0].id, 2);
     assert.equal((await api.cart())[0].quantity, 2);
     const quote = await api.quote();
@@ -79,6 +98,8 @@ test('mobile customer client drives real HTTP DB purchase, retry, delivery, ques
     assert.deepEqual(await api.preferences(), { marketingEmail: true, marketingSms: false, push: false });
     await api.logout();
     await assert.rejects(api.addresses(), e => e.code === 'unauthorized');
+    await assert.rejects(api.favorites(), e => e.code === 'unauthorized');
+    await assert.rejects(api.restockSubscriptions(), e => e.code === 'unauthorized');
   } finally {
     if (app) await app.close();
     for (const [key, value] of Object.entries(previous)) {

@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 2026-10-14 S7.1 모바일 찜·재입고 연결
+
+- 담당 어울, 시작65a660d. 승인된 DESIGN R12/WORK_PLAN S7.1과 최신 미구현 우선 지시로 기존 고객 API의 찜 목록/추가/삭제, 품절 옵션 재입고 신청/취소/상태 화면을 연결한다. 서버 계약·DB schema·권한·실제 발송·설계·계획은 변경하지 않는다. 새 HTTP/실제 React 화면3건 RED(메서드/메뉴/신청 미구현)→GREEN, 영향 범위21/21 pass·0 skip·0 fail, 모바일 typecheck exit0. 개인 목록은401/로그아웃 시 제거하며 비공개 상세를 비활성화하고 취소/신청 결과는 서버 재조회한다. 이는 네이티브 구매·실제 알림 수신 증거가 아니다.
+- 자원 사전 선언: 기존 폐기 QA 절차의 WSL `shoppingmall-qa-s7-20261014-pg`(PG15 tmpfs·전용 network `shoppingmall-s7-qa-20261014-net`), `shoppingmall-s7-qa-node` 일회성 runner와 exact-SHA QA checkout `/home/daon/deploy/shopping-qa-s7-20261014`를 생성한다. 보호 클러스터와 다른 systemID·DB identity·초기 계정0 gate 뒤에만 가상 품절 재고/찜/신청을 만든다. 실제 DB 저장/중복/취소/401을 확인한 뒤 전용 container/network/QA checkout을 제거하고 잔류0을 확인한다. 고정 QA·보호DB와 현재main서비스는 변경하지 않는다.
+
 ## 2026-10-14 승인 앱 아이콘 적용·Android 확인 착수
 
 - 결과: 제품 코드 SHA `dec83fb04d93e61f4f2e08c783f743b86475f683`, 임시 설치에 `--virtual-store-dir node_modules/.p --config.virtual-store-dir-max-length=20`을 사용한 동일 frozen lockfile 빌드는57초/160 tasks/exit0. 앱/잠금파일 diff0을 확인했다. APK를 emulator5580에 권한 자동 부여 없이 설치해 성공했고 실제 런처의 바구니·새싹 아이콘과 어울몰 상품 검색 화면을 확인했다. 초기 실행은 Metro가::1만 수신하여1회 JS 로딩 실패했고 해당 프로세스만 `NODE_OPTIONS=--dns-result-order=ipv4first`로 재실행해 IPv4 상태 응답·716모듈 bundle·화면 시작을 확인했다. 의존성·전역 SDK·서명·권한 설정 변경0. SafeAreaView/Gradle deprecated 경고는 남아 있으며 이번 아이콘 범위에서 관련 없는 구조 변경은 하지 않았다.

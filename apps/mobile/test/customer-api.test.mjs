@@ -24,6 +24,22 @@ function client(base, options = {}) {
 function json(res, value, status = 200) {
   res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(value));
 }
+
+test('favorites and restock use owned customer routes and exact option identity', async t => {
+  const { base, requests } = await serve(t, (_req, res) => json(res, []));
+  const api = client(base);
+  await api.favorites(); await api.addFavorite(key1); await api.removeFavorite(key1);
+  await api.restockSubscriptions(); await api.subscribeRestock(key1, key2); await api.cancelRestock(key2);
+  assert.deepEqual(requests.map(({ path, method, body }) => ({ path, method, body })), [
+    { path: '/customer/favorites', method: 'GET', body: undefined },
+    { path: `/customer/favorites/${key1}`, method: 'PUT', body: undefined },
+    { path: `/customer/favorites/${key1}`, method: 'DELETE', body: undefined },
+    { path: '/customer/restock-subscriptions', method: 'GET', body: undefined },
+    { path: '/customer/restock-subscriptions', method: 'POST', body: { productId: key1, optionId: key2 } },
+    { path: `/customer/restock-subscriptions/${key2}`, method: 'DELETE', body: undefined },
+  ]);
+  assert.ok(requests.filter(r => r.method !== 'GET').every(r => r.origin === 'http://127.0.0.1:9091'));
+});
 test('server quote is authoritative and cart writes use existing customer contract', async t => {
   const { base, requests } = await serve(t, (req, res) => {
     json(res, req.url === '/customer/cart/quote' ? { totalWon: 57000, goodsWon: 66000, shippingWon: 0 } : []);
