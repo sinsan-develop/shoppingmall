@@ -152,8 +152,8 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     await pool.query(`INSERT INTO shipment_fulfillment_events
       (shipment_order_id,action,from_status,to_status,actor_account_id,actor_role,actor_seller_id,
        before_snapshot,after_snapshot,idempotency_scope,idempotency_key,request_fingerprint)
-      VALUES ($1,'MARK_SHIPPED','PACKING','SHIPPED',$2,'seller',$3,
-       '{"status":"PACKING"}'::jsonb,'{"status":"SHIPPED"}'::jsonb,$2,$4,$5)`,
+      VALUES ($1,'MARK_SHIPPED','PACKING','SHIPPED',$2::uuid,'seller',$3,
+       '{"status":"PACKING"}'::jsonb,'{"status":"SHIPPED"}'::jsonb,$2::uuid::text,$4,$5)`,
     [shipmentId, sellerId, fulfillmentSellerId, randomUUID(), 'a'.repeat(64)]);
     const confirmed = await api.confirmPurchase(order.id, shipmentId, product.options[0].id);
     assert.equal((await api.confirmPurchase(order.id, shipmentId, product.options[0].id)).id, confirmed.id);

@@ -2,6 +2,7 @@
 
 ## 2026-10-14 S7.1 구매확정·텍스트 리뷰·클레임 기본 연결
 
+- 첫 exact fc24101 폐기 DB 실행은 출고 fixture 이벤트 INSERT의 actor UUID와 idempotency_scope text에 동일 미지정 매개변수를 써42P08로1회 중단했다. 제품 동작이나 기대값을 바꾸지 않고 해당 fixture 매개변수에 uuid 및 uuid::text를 명시한다. 실패 실행의 종료 trap은 전용 자원을 제거했으며 전체 통합 PASS로 기록하지 않는다.
 - 담당 어울, 시작5a0a385. 승인 S7.1의 기존 customer/support API로 출고 완료 상품의 수령 확인 후 구매확정, 본인 리뷰 등록/수정/조회, 클레임 유형/사유/수량 접수·커서 목록·판매자 답변/심사 상태 조회를 연결한다. 고객에게 판매자 답변 작성·심사·환불 실행 권한을 주지 않는다. 서버 자격·수량·증빙 정책과 기존 설계/계획은 유지한다. 리뷰 사진·클레임 증빙 첨부는 명시 미구현이고 이 기본 연결을 전체 리뷰/클레임 완료로 승격하지 않는다.
 - HTTP/실제 React 화면2건 RED→GREEN. 추가 실제 연결 끊김 시험으로 접수 POST 성공 뒤 상세 GET 유실을 접수 불명확으로 오분류/빈 폼 잠금하는 오류1회를 재현하고 POST 오류 범위만 좁혀 수정했다. 최신 모바일31/31 pass·0 skip·0 fail, typecheck/변경 eslint exit0. 이 화면 결과는 native/실제 이미지 업로드 증거가 아니다.
 - QA 사전 선언: 직전 동일 이름의 WSL 폐기 PG15 tmpfs shoppingmall-qa-s7-20261014-pg·internal network shoppingmall-s7-qa-20261014-net·--rm runner shoppingmall-s7-qa-node 및 exact checkout /home/daon/deploy/shopping-qa-s7-20261014를 생성한다. 보호systemID 배제·초기계정0 뒤에만 가상 출고 사건과 구매확정/텍스트 리뷰/클레임·판매자 답변 자료를 만든다. 미출고 확정 거부·응답 유실 중복 방지·과다 클레임 수량 거부·본인조회·401을 확인한 뒤 해당 자원을 모두 제거한다. 가상 출고 준비는 실제 판매자 출고/외부 배송 증거가 아니며 보호DB/고정QA·main 실행기는 변경하지 않는다.
