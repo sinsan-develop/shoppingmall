@@ -30,7 +30,7 @@ export function requireOrigin(request: RequestHeaders) {
   if (!allowed || request.headers.origin !== allowed) throw new ForbiddenException();
 }
 
-function setSessionCookie(reply: CookieResponse, token: string, maxAge = 86400) {
+export function setSessionCookie(reply: CookieResponse, token: string, maxAge = 86400) {
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   reply.setHeader('Set-Cookie', `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`);
 }

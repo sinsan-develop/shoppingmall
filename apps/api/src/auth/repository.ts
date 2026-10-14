@@ -4,6 +4,8 @@ import type { Pool } from 'pg';
 import type { AccessContext, ActiveRole } from '../access.js';
 import * as schema from '../db/schema.js';
 import { createSessionToken, hashPassword, hashSessionToken, verifyPassword } from './credentials.js';
+import { protectedKakaoSystemId, type KakaoQaBinding } from './kakao-mock-gate.js';
+import { KakaoMockError, type MockSession } from './kakao-mock-registry.js';
 
 const sessionHours = 24;
 
@@ -20,6 +22,39 @@ export class AuthRepository {
 
   constructor(private readonly pool: Pool) {
     this.db = drizzle(pool, { schema });
+  }
+
+  async loginMockKakao(binding: KakaoQaBinding): Promise<MockSession> {
+    if (!/^[0-9a-f]{8}$/.test(binding.runId) ||
+      binding.dbName !== `shoppingmall_s7_kakao_${binding.runId}` ||
+      binding.identifier !== `mock:s7:${binding.runId}:customer-a` ||
+      binding.systemId === protectedKakaoSystemId) throw new KakaoMockError(503);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const actual = (await client.query(`SELECT current_database() AS db,
+        system_identifier::text AS system_id FROM pg_control_system()`)).rows[0];
+      if (actual?.db !== binding.dbName || actual.system_id !== binding.systemId ||
+        actual.system_id === protectedKakaoSystemId) throw new KakaoMockError(503);
+      const identities = (await client.query(`SELECT i.account_id,a.disabled_at
+        FROM account_identities i JOIN accounts a ON a.id=i.account_id
+        WHERE i.kind='kakao' AND i.identifier=$1 FOR UPDATE OF i,a`, [binding.identifier])).rows;
+      if (identities.length !== 1 || identities[0].account_id !== binding.accountId ||
+        identities[0].disabled_at) throw new KakaoMockError(401);
+      const roles = await client.query(`SELECT id FROM account_roles
+        WHERE account_id=$1 AND role='customer' AND seller_id IS NULL FOR SHARE`, [binding.accountId]);
+      if (roles.rowCount !== 1) throw new KakaoMockError(401);
+      const token = createSessionToken(), expiresAt = new Date(Date.now() + sessionHours * 3600000);
+      await client.query(`INSERT INTO auth_sessions(token_hash,account_id,role,seller_id,expires_at)
+        VALUES($1,$2,'customer',NULL,$3)`, [hashSessionToken(token),binding.accountId,expiresAt]);
+      await client.query(`INSERT INTO audit_events(actor_account_id,active_role,seller_id,action,target_type,target_id)
+        VALUES($1,'customer',NULL,'auth.kakao_mock.login','account',$1)`, [binding.accountId]);
+      await client.query('COMMIT');
+      return {token,expiresAt};
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error instanceof KakaoMockError ? error : new KakaoMockError(503);
+    } finally { client.release(); }
   }
 
   async createCustomerAccount(emailInput: string, password: string): Promise<string> {

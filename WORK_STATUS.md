@@ -1,5 +1,16 @@
 # 어울몰 작업현황
 
+## 2026-10-14 S7.2 실행 승인·T1 진행
+
+- 신산님이 별도 실행계획 4bbf37513df8c7c40c5df6c994b1a3bb56d1559e의 권고 방식(어울 직접 단일writer·마지막 독립review)을 승인했다. 시작4bbf375/clean, T1서버→T2Web→T3Android→T4동일후보실제검증순서로진행한다. 기존완료구매/첨부/알림검사와환경이불변인전체회귀를반복하지않는다. 기존설계/계획/계약은불변이며현재단계는로컬/WSL1단계다.
+- 실행 ledger: T1 in_progress / T2 pending / T3 pending / T4 pending. Pre-flight: T1 네POST/고정복귀·HttpOnly세션→T2/T3동일입력·S256/메모리증명소비, T2고정Web주소→T3전용adb reverse로같은Origin유지, T1 QA binding/manifest→T4동일DB/systemID·소유정리. 현재인터페이스불일치없음.
+- Ruling: 실행 ledger는 PMO 정본인 WORK_STATUS의 위Task별상태로누적하며 별도프로젝트scratch/임시디렉터리와중복ledger를만들지않는다. 신산님의중복작업금지와Windows임시root D:\tmp 지시가스킬기본scratch절차보다우선한다. 잘못판정시실행추적손실위험이있으므로Task별commit/시험/오류/미검증/다음단계를항상함께남긴다.
+- 현재수행은T1registry/gate의RED부터이며새DB/AVD/공급자/Secret/OS권한·환경쓰기0. QA자원은계획의정확이름/수명·정리와실제점유를확인해선언후생성한다. 완료모듈의재작성이나main직접개발은하지않는다.
+
+- T1 checkpoint: registry/gate 신규9건과 기존auth HTTP1건, 총10 pass/0fail/0skip. API typecheck/build·변경eslint·diffcheck exit0. 서버4POST/기존cookie helper export·고객전용transaction/폐기QA fixture를 구현했지만 실제DB/HTTP 연결·감사실패/잠금경쟁은 아직 미확인이다. T1을완료로표시하지않는다. 신규DB시험의최초실행은fixture미구현 import오류였으며 실제DB RED/PASS와구분한다.
+- Ruling: 교환중cancel은409/점유불변이며후속클라이언트에서complete종료후인증동작을직렬화한다. 소비중취소가세션발급의두번째경로를만들지않게하는계약해석이며, 잘못판정시늦은cookie경쟁이남아T4필수gate로확인한다.
+- QA자원선언: 점유확인에서전용이름/경로없음을확인했다. WSL /home/daon/deploy/shopping-qa-s7-kakao-20261014, shoppingmall-s7-kakao-20261014-pg/node, shoppingmall-s7-kakao-20261014-net을T1실제DB시험동안사용한다. PG15 tmpfs/공개포트0·512MiB/0.5CPU, Node24 1GiB/1CPU, DB shoppingmall_s7_kakao_7a141001·보호systemID거부·기존migration28/빈계정확인후가상customer2명만seed한다. HMAC키는일회runtime환경으로만사용하고비밀값출력0. 승인원격에현재작업branchcheckpoint를push→WSLGitexactSHA로받으며소스압축복사없음. 종료/실패시정확소유container/network/QA경로만회수하고잔류0을확인한다. 기존정식WSL·보호DB·외부공급자변경0.
+
 ## 2026-10-14 S7.2 카카오 계약 승인·별도 실행계획
 
 - 신산님이 카카오 mock 계약안 aec85126955f8631027265f6a50eb0efc441c29f 내용을 승인했다. 이는 직전 요청인 계약검토 승인/별도 계획 작성 범위이며 아직 제품 실행 승인이 아니다. docs/superpowers/plans/2026-10-14-s7-kakao-mock.md에 T1서버/폐기QA→T2Web→T3Android→T4실제연결/리뷰/정리, 정확파일/인터페이스·RED/실제DB/창·scheme/응답유실·최신세션보존·동의아닌인증쓰기·보호DB·rollback을 작성한다.

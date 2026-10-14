@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { HealthController } from './health.controller.js';
 import { DatabaseService } from './db/service.js';
 import { AuthController } from './auth/controller.js';
+import { KakaoMockController } from './auth/kakao-mock-controller.js';
+import { KakaoMockService } from './auth/kakao-mock-service.js';
 import { CustomerController } from './customer/controller.js';
 import { CatalogController } from './catalog/controller.js';
 import { ShippingController } from './shipping/controller.js';
@@ -25,7 +27,7 @@ import { AdminSupportClaimController, CustomerSupportClaimController,
 import { AdminMonitoringController } from './monitoring/controller.js';
 import { AdminSettlementController, SellerSettlementController } from './settlement/controller.js';
 
-@Module({ controllers: [HealthController, AuthController, CustomerController, CustomerCartController,
+@Module({ controllers: [HealthController, AuthController, KakaoMockController, CustomerController, CustomerCartController,
   CustomerReservationController, AdminReservationController, CatalogController, ShippingController,
   HomeAdminController, HomePublicController, PromotionAdminController, CustomerPromotionController,
   CustomerOrderController, CustomerRefundController, AdminRefundController,
@@ -35,5 +37,5 @@ import { AdminSettlementController, SellerSettlementController } from './settlem
   AdminSupportReviewController, PublicSupportReviewController, CustomerSupportClaimController,
   SellerSupportClaimController, AdminSupportClaimController, AdminMonitoringController,
   AdminSettlementController, SellerSettlementController],
-  providers: [DatabaseService] })
+  providers: [DatabaseService, KakaoMockService] })
 export class AppModule {}

@@ -5,11 +5,16 @@ import { resolveMockNotificationMode } from './notifications/mock.js';
 import { startMockNotificationLoop } from './notifications/runtime.js';
 import { startAuthIntakeLoop } from './auth/intake-worker.js';
 import { assertAuthDeliveryBootConfig } from './auth/delivery.js';
+import { assertKakaoMockBootConfig } from './auth/kakao-mock-gate.js';
+import { KakaoMockService } from './auth/kakao-mock-service.js';
 
 assertPaymentBootConfig(process.env);
 assertAuthDeliveryBootConfig(process.env);
+assertKakaoMockBootConfig(process.env);
 const notificationMode = resolveMockNotificationMode(process.env);
 const app = await createApp();
+try { await app.get(KakaoMockService).initialize(); }
+catch { await app.close(); throw new Error('Mock authentication unavailable'); }
 if (process.env.QA_LOAD_MODE === '1') {
   const pool = app.get(DatabaseService).getPool();
   try {
