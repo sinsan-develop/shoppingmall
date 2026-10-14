@@ -276,7 +276,7 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     await api.savePreferences({ marketingEmail: true, marketingSms: false, push: false });
     assert.deepEqual(await api.preferences(), { marketingEmail: true, marketingSms: false, push: false });
     if (native && process.env.QA_S7_NATIVE_PURCHASE === '1') {
-      for (const item of await api.cart()) await api.removeCartItem(item.id);
+      for (const item of await api.cart()) await api.removeCartItem(item.optionId);
       assert.equal((await api.cart()).length, 0, 'native purchase must start with an empty cart');
       await writeFile('/tmp/shoppingmall-s7-native.ready', JSON.stringify({ previousOrderId: order.id, productId: product.productId }));
       const deadline = Date.now() + 20 * 60 * 1000;

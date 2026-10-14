@@ -3,6 +3,7 @@
 ## 2026-10-14 S7 최신 Android 계정·홈·신규 구매 확인 착수
 
 - 준비 오류1회: HTTP 준비 구매는 장바구니를 자동 삭제하지 않아 신규 native 빈 장바구니 전제가 1!=0으로 실패했다. 기존 removeCartItem API로 이번 폐기 fixture 장바구니만 먼저 제거하며 빈 조건·신규 주문/26000원 기준은 유지한다. APK 빌드 SUCCESS(1m49s), 첫 설치 시 boot 미완료1회는 부팅 완료 확인 후 재개한다. 제품·서버 정책 변경0.
+- 추가 준비 오류: PG 임시 서버 ready 응답과 대상 DB 생성 사이 경합1회→대상 DB SELECT1 성공을 준비 gate로 사용. 장바구니 제거 fixture가 존재하지 않는 item.id를 넘겨 invalid1회→실제 CartItem.optionId 계약으로 보정. 기대값·제품 코드는 불변이며 이전 실패를 PASS로 합산하지 않는다.
 
 - 담당 어울, 시작 e0dfcfb4df20a2bb7a3aeebd56b88aea4f9a0c53. 최신 고객 화면을 Android에서 확인하며 제품·설계·계획은 변경하지 않는다. 기존 HTTP 준비 주문과 별개로 앱에서 고추1개 신규 주문·모의 거절/승인·본인 재조회까지 진행하고 23000+배송3000=26000원 및 DB 신규 주문1행을 대조한다. 실제 발송·PG·OS 푸시·재시작 복원·정식 WSL 배포는 이번 합격으로 표시하지 않는다.
 - 자원: 정확한 임시 빌드 D:\tmp\s7new1014, 증거 D:\tmp\shoppingmall-s7-new-native-20261014, 전용 AVD shoppingmall_s7_new_20261014/5580, Metro8081·SSH 루프백9092. WSL 전용 shoppingmall-s7-qa-node·shoppingmall-qa-s7-20261014-pg·shoppingmall-s7-qa-20261014-net만 사용하며 systemID!=보호DB·빈 계정 gate를 유지한다. 기존 서비스/사용자 AVD·고정 QA/보호 DB는 불변. 종료 시 정확히 소유한 자원을 회수하고 APK·화면 증거만 남긴다.
