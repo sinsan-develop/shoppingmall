@@ -237,7 +237,7 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     }
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_review_images')).rows[0].n, 1);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_claim_evidence')).rows[0].n, 1);
-    if (native) {
+    if (native && process.env.QA_S7_NATIVE_PURCHASE !== '1') {
       await writeFile('/tmp/shoppingmall-s7-native.ready', JSON.stringify({ orderId: order.id, reviewId: review.id, claimId: claim.id }));
       const deadline = Date.now() + 20 * 60 * 1000;
       let done = false;
@@ -275,6 +275,25 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     assert.equal((await api.questions()).items[0].id, asked.id);
     await api.savePreferences({ marketingEmail: true, marketingSms: false, push: false });
     assert.deepEqual(await api.preferences(), { marketingEmail: true, marketingSms: false, push: false });
+    if (native && process.env.QA_S7_NATIVE_PURCHASE === '1') {
+      assert.equal((await api.cart()).length, 0, 'native purchase must start with an empty cart');
+      await writeFile('/tmp/shoppingmall-s7-native.ready', JSON.stringify({ previousOrderId: order.id, productId: product.productId }));
+      const deadline = Date.now() + 20 * 60 * 1000;
+      let done = false;
+      while (Date.now() < deadline) {
+        try { await access('/tmp/shoppingmall-s7-native.done'); done = true; break; } catch { await delay(1000); }
+      }
+      assert.ok(done, 'Android native purchase completion marker required');
+      const orders = (await api.orders()).items;
+      assert.equal(orders.length, 2, 'native UI must create exactly one new order');
+      const newOrder = await api.order(orders.find(item => item.id !== order.id).id);
+      assert.equal(newOrder.status, 'PAID');
+      assert.equal(newOrder.payableWon, 26000, 'one 23000 won item plus 3000 won shipping without coupons');
+      assert.equal((await pool.query('SELECT count(*)::int AS n FROM checkout_orders')).rows[0].n, 2);
+      assert.equal((await pool.query('SELECT count(*)::int AS n FROM auth_intake_jobs')).rows[0].n, 5,
+        'Android signup and recovery must each persist one intake, without external delivery');
+      assert.equal((await pool.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n, beforeAccounts);
+    }
     await api.logout();
     await assert.rejects(api.addresses(), e => e.code === 'unauthorized');
     await assert.rejects(api.favorites(), e => e.code === 'unauthorized');

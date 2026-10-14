@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 2026-10-14 S7 최신 Android 계정·홈·신규 구매 확인 착수
+
+- 담당 어울, 시작 e0dfcfb4df20a2bb7a3aeebd56b88aea4f9a0c53. 최신 고객 화면을 Android에서 확인하며 제품·설계·계획은 변경하지 않는다. 기존 HTTP 준비 주문과 별개로 앱에서 고추1개 신규 주문·모의 거절/승인·본인 재조회까지 진행하고 23000+배송3000=26000원 및 DB 신규 주문1행을 대조한다. 실제 발송·PG·OS 푸시·재시작 복원·정식 WSL 배포는 이번 합격으로 표시하지 않는다.
+- 자원: 정확한 임시 빌드 D:\tmp\s7new1014, 증거 D:\tmp\shoppingmall-s7-new-native-20261014, 전용 AVD shoppingmall_s7_new_20261014/5580, Metro8081·SSH 루프백9092. WSL 전용 shoppingmall-s7-qa-node·shoppingmall-qa-s7-20261014-pg·shoppingmall-s7-qa-20261014-net만 사용하며 systemID!=보호DB·빈 계정 gate를 유지한다. 기존 서비스/사용자 AVD·고정 QA/보호 DB는 불변. 종료 시 정확히 소유한 자원을 회수하고 APK·화면 증거만 남긴다.
+
 ## 2026-10-14 S7.1 홈·분류·농가 필터·정렬 연결
 
 - 실DB 근거: exact06d10ce12fb5021ee41c50a487a073284c1fab0e·폐기systemID7696357357325410348에서 CustomerApi→HTTP→DB1/1 pass·0skip·0fail, shell exit0. 가상5상품의 낮은가격[12000,16000,18000,23000,28000]/역순 정렬, 고추+본인농가+상품분류1개, 대분류채소3개/2페이지0개, 기존HomeRepository로 준비·공개한 가상기획전/메뉴/추천 조회 및 없는 기획전unavailable을 확인했다. 기존 계정/구매/첨부 핵심 흐름도 같은 폐기 시나리오에서 유지됐다. 전용 runner/PG/network/QA checkout 잔류0, main3d692a8·clean·ready200 확인. 정식 WSL/main/고정QA/보호DB 변경0.
