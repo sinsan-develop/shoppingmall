@@ -115,7 +115,7 @@ test('Android 알림 허용은 서버 동의와 독립이며 모의 알림은 �
   await until(() => button(tree, '개발용 모의 알림 보내기')?.props.disabled === false);
   assert.equal(sends, 0);
   await act(async () => button(tree, '개발용 모의 알림 보내기').props.onPress());
-  await until(() => text(tree).includes('모의 알림을 표시했습니다'));
+  await until(() => text(tree).includes('모의 알림 표시를 요청했습니다'));
   assert.equal(sends, 1);
   assert.equal(requests.some(([path, method]) => path === '/customer/preferences' && method !== 'GET'), false);
   const normal = await ready(t, {}, {}, { notifications });

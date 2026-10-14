@@ -33,7 +33,7 @@ export default function DeviceNotificationPanel({ notifications, enableMock = fa
         setPermission(value);
         if (value !== 'granted') { setMessage('기기 알림이 허용되지 않았습니다. 주문·내 문의에서 직접 확인하세요.'); return; }
         await notifications.sendMock();
-        if (active.current) setMessage('개발용 모의 알림을 표시했습니다. 실제 푸시 수신 시험은 아닙니다.');
+        if (active.current) setMessage('개발용 모의 알림 표시를 요청했습니다. 알림창에서 확인하세요. 실제 푸시 수신 시험은 아닙니다.');
       } else {
         await notifications.clearMock();
         if (active.current) setMessage('개발용 모의 알림만 지웠습니다.');

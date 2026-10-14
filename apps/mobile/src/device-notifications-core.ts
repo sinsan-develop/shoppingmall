@@ -24,7 +24,7 @@ export function createDeviceNotifications(native: NativePort, platform: string, 
   const read = async (): Promise<DevicePermission> => {
     if (platform !== 'android') return 'unsupported';
     const permission = await native.getPermissionsAsync();
-    if (permission.granted) {
+    if (permission.granted && permission.status === 'granted') {
       const channel = await native.getNotificationChannelAsync(channelId);
       return channel?.importance === native.AndroidImportance.NONE ? 'blocked' : 'granted';
     }

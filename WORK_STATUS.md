@@ -5,6 +5,7 @@
 - 담당 어울, 시작 f36355d77a4e3738c171913ceee655c24c354485/clean. 신산님이 OS 권한의 명시 버튼 요청·거부/오류 대체 확인·개발판 개인정보 없는 모의 알림을 승인했다. 기존 배송지·알림 화면에 연결하고 OS 권한과 서버 수신 동의는 분리한다. 외부 푸시/토큰·기기등록/공급자 계정·Secret·지속 DB·설계/계획 변경은 제외한다.
 - 시험 선행: 자동 권한 요청 없음, 허용/거부/재요청 불가/오류 안내, 늦은 응답·중복 클릭, 개발 모드 밖 모의 발송 차단 및 실제 OS 상태 재확인, 서버 동의 불변을 검증한다. 공식 SDK57 expo-notifications를 모바일 의존성에만 추가한다. native 새 모듈/POST_NOTIFICATIONS가 포함되므로 이전 APK를 새 기능의 검증으로 재사용하지 않는다.
 - 예정 자원: D:\tmp\s7notify1014 임시 소스·개발 APK 빌드, D:\tmp\shoppingmall-s7-notify-20261014 증거, 전용 AVD shoppingmall_s7_notify_20261014/5580·Metro8081. 필요한 로그인 자료는 기존 승인 폐기 QA 자원만 사용하며 별도 자원 선언/대상 확인 후 생성한다. 종료 시 소유 프로세스/AVD/임시 소스를 정리하고 APK·화면 증거를 보존한다. 현재는 시험 작성 단계이며 native/실푸시 성공을 선언하지 않는다.
+- QA 자원 선언: WSL /home/daon/deploy/shopping-qa-s7-20261014, shoppingmall-s7-qa-node·shoppingmall-qa-s7-20261014-pg(PG15 tmpfs)·shoppingmall-s7-qa-20261014-net(내부망), Windows SSH 루프백9092를 이 알림 시험 동안만 사용한다. 정확 commit e34af0167f9f4d343d3c3c1d733b981707845aab·보호 DB와 다른 systemID/빈계정 gate 이후 가상 고객으로 native 권한/모의 표시를 확인한다. OS 조작 중 서버 preferences 쓰기0/기존 동의 불변/새 주문0을 시험한다. 종료 trap으로 WSL 전용 자원과 QA 경로를 회수하고, Windows AVD/Metro/tunnel/임시 소스를 정리한다. 정식 WSL main/고정QA/보호DB 변경0이며 기존 구매/첨부 기준은 유지한다.
 
 ## 2026-10-14 S7 남은 native 분류·농가·정렬·탈퇴 안내
 

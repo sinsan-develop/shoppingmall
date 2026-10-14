@@ -56,3 +56,11 @@ test('정리는 우리 모의 알림만 대상으로 하며 다른 알림 전체
   const native = nativePort(); await createDeviceNotifications(native.port, 'android', true).clearMock();
   assert.deepEqual(native.calls, [['cancel', 'owoolmall-development-mock'], ['dismiss', 'owoolmall-development-mock']]);
 });
+
+test('런타임 granted와 앱 알림 denied가 불일치하면 OS 차단을 우선한다', async () => {
+  const native = nativePort({ granted: true, status: 'denied', canAskAgain: false });
+  const client = createDeviceNotifications(native.port, 'android', true);
+  assert.equal(await client.readPermission(), 'blocked');
+  await assert.rejects(client.sendMock(), /permission_required/);
+  assert.equal(native.calls.some(x => x[0] === 'schedule'), false);
+});
