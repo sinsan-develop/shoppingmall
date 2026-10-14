@@ -19,6 +19,12 @@ test('auth HTTP rejects role-spoofing headers and unconfigured login', {
     });
     assert.equal(login.status, 503);
     assert.equal(login.headers.get('set-cookie'), null);
+    for(const route of ['start','decision','complete','cancel']){
+      const mock=await fetch(`${base}/auth/kakao-mock/${route}`,{method:'POST',headers:{'content-type':'application/json',origin:'http://127.0.0.1:9091'},body:'{}'});
+      assert.equal(mock.status,404);
+      assert.equal(mock.headers.get('cache-control'),'no-store');
+      assert.equal(mock.headers.get('set-cookie'),null);
+    }
   } finally {
     await app.close();
   }

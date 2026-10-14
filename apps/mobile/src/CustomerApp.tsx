@@ -40,7 +40,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const authGeneration = useRef(0);
   const cancelKakao=useRef<(()=>Promise<void>)|undefined>(undefined);
   const kakaoReady=useCallback((cancel:(()=>Promise<void>)|undefined)=>{cancelKakao.current=cancel;},[]);
-  const kakaoBegin=useCallback(()=>{authGeneration.current++;},[]);
+  const kakaoBegin=useCallback(()=>{if(lock.current)return false;authGeneration.current++;return true;},[]);
   const kakaoSignedIn=useCallback(()=>{authGeneration.current++;setSignedIn(true);setEmail('');setPassword('');setScreen('products');},[]);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
@@ -342,7 +342,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
           } finally { setPassword(''); }
         })} />
         <Button label="가입하기" disabled={busy} onPress={() => navigate('signup')} />
-        {kakaoMock?<KakaoMockLogin bridge={kakaoMock} onBegin={kakaoBegin} onSignedIn={kakaoSignedIn} onReady={kakaoReady}/>:null}
+        {kakaoMock?<KakaoMockLogin bridge={kakaoMock} authBusy={busy} onBegin={kakaoBegin} onSignedIn={kakaoSignedIn} onReady={kakaoReady}/>:null}
         <Button label="비밀번호 찾기" disabled={busy} onPress={() => navigate('reset')} />
         <Text>가입·비밀번호 복구의 실제 메일과 HTTPS 링크 확인은 인수테스트에 보류되어 있습니다.</Text>
       </> : null}

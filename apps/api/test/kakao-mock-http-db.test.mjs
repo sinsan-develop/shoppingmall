@@ -23,7 +23,10 @@ test('mock 인증 HTTP→DB는 고객 세션 한 번·계정 불변·실패 폐�
   const app=await createApp();t.after(()=>app.close());
   const {KakaoMockService}=await import('../src/auth/kakao-mock-service.ts');await app.get(KakaoMockService).initialize();
   await app.listen(0,'127.0.0.1');const base=`http://127.0.0.1:${app.getHttpServer().address().port}`;
-  const post=(route,body,headers={})=>fetch(`${base}/auth/kakao-mock/${route}`,{method:'POST',headers:{'content-type':'application/json',origin:'http://127.0.0.1:9091',...headers},body:JSON.stringify(body)});
+  const post=async(route,body,headers={})=>{
+    const response=await fetch(`${base}/auth/kakao-mock/${route}`,{method:'POST',headers:{'content-type':'application/json',origin:'http://127.0.0.1:9091',...headers},body:JSON.stringify(body)});
+    assert.equal(response.headers.get('cache-control'),'no-store');return response;
+  };
   const state=randomBytes(32).toString('base64url'),verifier=randomBytes(32).toString('base64url');
   const begin={client:'web',state,challenge:createHash('sha256').update(verifier).digest('base64url'),method:'S256'};
   const flow=async(outcome='approve')=>{

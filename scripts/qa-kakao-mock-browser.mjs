@@ -55,6 +55,8 @@ async function popup(client){
 async function evidence(client,name){
   assert.equal(await evaluate(client,'Boolean(location.hash)'),false);
   await evaluate(client,"document.querySelector('#address-title')?.scrollIntoView({block:'start'})");
+  await evaluate(client,"document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true)))))");
+  await pause(200);
   const dir=process.env.QA_KAKAO_BROWSER_EVIDENCE_DIR;
   assert.ok(dir?.startsWith('/tmp/shoppingmall-s7-kakao-')||dir?.replaceAll('\\','/').startsWith('D:/tmp/shoppingmall-s7-kakao-'));
   await mkdir(dir,{recursive:true});const shot=await client.channel.send('Page.captureScreenshot',{format:'png'});
@@ -150,11 +152,18 @@ async function run(){
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM account_identities')).rows[0].n,3);
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM account_roles')).rows[0].n,2);
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM audit_events WHERE action='auth.kakao_mock.login'")).rows[0].n,2);
-  console.log('KAKAO_BROWSER_CORE_PASS popup-blocked approve cancel fail closed-popup reload no-opener owned-address cross-tab-lock logout');
 }
 try{await run();}catch{console.error(`KAKAO_BROWSER_QA_FAILED step=${step}`);process.exitCode=1;}
 finally{
-  if(lockedAccount){await lockedAccount.query('ROLLBACK');lockedAccount.release();}
-  for(const client of owned.values())await closeCdpPage({debugging,...client});
-  if(browserSocket)browserSocket.close();if(pool)await pool.end();
+  const errors=[];let live;
+  if(owned.size){try{live=new Set((await(await fetch(debugging+'/json/list')).json()).map(page=>page.id));}catch{errors.push('inventory');}}
+  if(lockedAccount){try{await lockedAccount.query('ROLLBACK');}catch{errors.push('rollback');}finally{lockedAccount.release();}}
+  for(const client of owned.values()){
+    try{const failures=await closeCdpPage({debugging,...client,page:live&&!live.has(client.page.id)?undefined:client.page});
+      if(failures.length)errors.push('page');}catch{errors.push('page');}
+  }
+  try{if(browserSocket)browserSocket.close();}catch{errors.push('socket');}
+  try{if(pool)await pool.end();}catch{errors.push('pool');}
+  if(errors.length){console.error('KAKAO_BROWSER_CLEANUP_FAILED');process.exitCode=1;}
 }
+if(!process.exitCode)console.log('KAKAO_BROWSER_CORE_PASS popup-blocked wrong-window wrong-origin approve cancel fail closed-popup reload no-opener owned-address cross-tab-lock logout cleanup');

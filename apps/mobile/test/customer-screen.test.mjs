@@ -61,6 +61,29 @@ async function ready(t, status = {}, overrides = {}, props = {}, holds = {}) {
   return { tree, requests, status, api, sessionSettled };
 }
 
+test('이메일 HTTP 처리 중 이전 mock 버튼 핸들러도 새 인증을 시작하지 않는다',async t=>{
+  let release;const hold=new Promise(resolve=>{release=resolve;});const urls=[],id='T'.repeat(43);
+  const {tree,requests}=await ready(t,{}, {'/auth/kakao-mock/start':{transactionId:id,mockOnly:true,
+    expiresAt:new Date(Date.now()+300000).toISOString(),authorizeUrl:`http://127.0.0.1:9091/auth/kakao-mock/authorize#transactionId=${id}&decisionTicket=${'D'.repeat(43)}`}},
+    api=>({kakaoMock:{flow:createKakaoMockFlow({api,randomBytes:()=>randomBytes(32),digest:async x=>createHash('sha256').update(x).digest(),openUrl:async x=>urls.push(x)}),subscribe:()=>()=>{}}}),
+    {'/auth/login':hold});
+  await until(()=>button(tree,'로그인')?.props.disabled===false);
+  await act(async()=>button(tree,'로그인').props.onPress());
+  await act(async()=>{
+    tree.root.findAllByType('TextInput').find(x=>x.props.accessibilityLabel==='이메일').props.onChangeText('qa@example.test');
+    tree.root.findAllByType('TextInput').find(x=>x.props.accessibilityLabel==='비밀번호').props.onChangeText('Test-passphrase-1014');
+  });
+  const oldMock=button(tree,'카카오 모의 로그인').props.onPress;
+  try{
+    await act(async()=>{button(tree,'구매자 로그인').props.onPress();oldMock();});
+    await until(()=>requests.some(r=>r[0]==='/auth/login'));
+    await act(async()=>oldMock());
+    assert.equal(requests.filter(r=>r[0]==='/auth/kakao-mock/start').length,0);
+    assert.equal(urls.length,0);
+    assert.equal(button(tree,'카카오 모의 로그인').props.disabled,true);
+  }finally{release();}
+  await until(()=>button(tree,'로그아웃'));
+});
 test('모의 브라우저 복귀는 실제 HTTP complete·me 뒤만 개인 배송지 화면을 연다',async t=>{
   let listener;const urls=[],id='T'.repeat(43),ticket='D'.repeat(43);
   const {tree,requests}=await ready(t,{}, {'/auth/kakao-mock/start':{transactionId:id,

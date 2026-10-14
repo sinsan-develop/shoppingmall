@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpException, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Header, HttpCode, HttpException, Inject, Post, Req, Res } from '@nestjs/common';
 import { setSessionCookie } from './controller.js';
 import { KakaoMockService, type KakaoMockRequest } from './kakao-mock-service.js';
 import { KakaoMockError } from './kakao-mock-registry.js';
@@ -14,15 +14,19 @@ export class KakaoMockController {
     }
   }
   @Post('start')
+  @Header('Cache-Control','no-store')
   @HttpCode(200)
   start(@Body() body:unknown,@Req() request:KakaoMockRequest) { return this.safe(()=>this.service.start(body,request)); }
   @Post('decision')
+  @Header('Cache-Control','no-store')
   @HttpCode(200)
   decision(@Body() body:unknown,@Req() request:KakaoMockRequest) { return this.safe(()=>this.service.decision(body,request)); }
   @Post('cancel')
+  @Header('Cache-Control','no-store')
   @HttpCode(200)
   cancel(@Body() body:unknown,@Req() request:KakaoMockRequest) { return this.safe(()=>this.service.cancel(body,request)); }
   @Post('complete')
+  @Header('Cache-Control','no-store')
   @HttpCode(200)
   complete(@Body() body:unknown,@Req() request:KakaoMockRequest,
     @Res({passthrough:true}) reply:{setHeader:(name:string,value:string)=>void}) {
