@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useCallback,useRef,useState, type FormEvent } from 'react';
+import { KakaoMockLogin } from '../../components/KakaoMockLogin';
 
 type Role = 'customer' | 'seller' | 'admin';
 
@@ -11,6 +12,8 @@ export default function LoginPage() {
   const [role, setRole] = useState<Role>('customer');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const cancelMock=useRef<(()=>Promise<void>)|undefined>(undefined);
+  const mockReady=useCallback((cancel:(()=>Promise<void>)|undefined)=>{cancelMock.current=cancel;},[]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -21,6 +24,7 @@ export default function LoginPage() {
     const email = String(form.get('email') ?? '');
     const password = String(form.get('password') ?? '');
     try {
+      await cancelMock.current?.();
       const response = await fetch(`${apiOrigin}/auth/login`, {
         method: 'POST', credentials: 'include',
         headers: { 'content-type': 'application/json' },
@@ -62,6 +66,7 @@ export default function LoginPage() {
             {busy ? '확인 중' : '로그인'}
           </button>
         </form>
+        <KakaoMockLogin customer={role==='customer'} onReady={mockReady}/>
         <nav className="account-entry-links" aria-label="계정 도움말">
           <a className="text-link" href="/signup">가입하기</a>
           <a className="text-link" href="/forgot-password">비밀번호 찾기</a>

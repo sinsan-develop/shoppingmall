@@ -126,6 +126,16 @@ export class CustomerApi {
   login(email: string, password: string) {
     return this.request<{ status: string }>('/auth/login', 'POST', { email, password, role: 'customer' });
   }
+  startKakaoMock(input:{client:'android';state:string;challenge:string;method:'S256'}) {
+    return this.request<{transactionId:string;authorizeUrl:string;expiresAt:string;mockOnly:true}>(
+      '/auth/kakao-mock/start','POST',input,undefined,undefined,false);
+  }
+  completeKakaoMock(input:{transactionId:string;state:string;code:string;verifier:string}) {
+    return this.request<{status:'ok';mockOnly:true}>('/auth/kakao-mock/complete','POST',input,undefined,undefined,false);
+  }
+  cancelKakaoMock(input:{transactionId:string;state:string;verifier:string}) {
+    return this.request<{status:'cancelled';mockOnly:true}>('/auth/kakao-mock/cancel','POST',input,undefined,undefined,false);
+  }
   async logout() {
     try { return await this.request('/auth/logout', 'POST'); }
     finally { this.keys.clear(); this.uploadKeys.clear(); this.onSessionExpired?.(); }

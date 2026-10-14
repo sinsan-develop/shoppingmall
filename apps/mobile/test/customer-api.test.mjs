@@ -2,6 +2,20 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 const implementation = await import('../src/customer-api.ts');
+
+test('카카오 mock 세 요청은 정확 body·Origin·cookie를 사용하며 401은 기존 세션을 지우지 않는다',async t=>{
+  let deny=false;const options=[];
+  const {base,requests}=await serve(t,(_req,res)=>json(res,{status:'ok',mockOnly:true},deny?401:200));
+  const api=client(base,{send:async(url,init)=>{options.push(init);return fetch(url,init);}});
+  let expired=0;api.onSessionExpired=()=>expired++;
+  const proof={transactionId:'T'.repeat(43),state:'S'.repeat(43),verifier:'V'.repeat(43)};
+  await api.startKakaoMock({client:'android',state:proof.state,challenge:'D'.repeat(43),method:'S256'});
+  await api.completeKakaoMock({...proof,code:'C'.repeat(43)});await api.cancelKakaoMock(proof);
+  assert.deepEqual(requests.map(r=>r.path),['/auth/kakao-mock/start','/auth/kakao-mock/complete','/auth/kakao-mock/cancel']);
+  assert.deepEqual(requests[1].body,{...proof,code:'C'.repeat(43)});
+  assert.equal(requests[0].origin,'http://127.0.0.1:9091');assert.ok(options.every(o=>o.credentials==='include'));
+  deny=true;await assert.rejects(api.completeKakaoMock({...proof,code:'C'.repeat(43)}),e=>e.code==='unauthorized');assert.equal(expired,0);
+});
 const key1 = 'b243a3fc-a728-4cde-a43c-3f898c963900';
 const key2 = 'bf66b7c1-b0f6-4346-8333-d42ee1c8e299';
 async function serve(t, handler) {

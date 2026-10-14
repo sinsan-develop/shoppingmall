@@ -24,6 +24,11 @@ test('폐기 DB fixture는 서명·소유·systemID를 확인하고 타자료를
   const extra=(await pool.query('INSERT INTO accounts DEFAULT VALUES RETURNING id')).rows[0].id;
   await assert.rejects(runQaKakaoMockFixture('reset',run,url,id,file)); assert.equal(await count(),3);
   await pool.query('DELETE FROM accounts WHERE id=$1',[extra]);
+  const reference=(await pool.query('INSERT INTO account_deletion_requests(account_id) VALUES($1) RETURNING id',[manifest.accounts.customerA])).rows[0].id;
+  await assert.rejects(runQaKakaoMockFixture('reset',run,url,id,file));assert.equal(await count(),2);
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM customer_addresses')).rows[0].n,2);
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM account_deletion_requests WHERE id=$1',[reference])).rows[0].n,1);
+  await pool.query('DELETE FROM account_deletion_requests WHERE id=$1',[reference]);
   await runQaKakaoMockFixture('reset',run,url,id,file); assert.equal(await count(),0);
   await runQaKakaoMockFixture('reset',run,url,id,file); assert.equal(await count(),0);
 });

@@ -91,6 +91,31 @@ test('mock 인증 HTTP→DB는 고객 세션 한 번·계정 불변·실패 폐�
   const missing=await flow();await pool.query("DELETE FROM account_identities WHERE id=$1",[manifest.identityId]);
   assert.equal((await post('complete',missing)).status,401);
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM auth_sessions')).rows[0].n,1);
+  if(process.env.QA_KAKAO_COOKIE_RACE_REQUIRED==='1'){
+    // Two browser tabs share cookies, but an already sent request cannot see a later cookie.
+    await pool.query("INSERT INTO account_identities(id,account_id,kind,identifier,verified_at) VALUES($1,$2,'kakao',$3,now())",
+      [manifest.identityId,manifest.accounts.customerA,`mock:s7:${process.env.QA_KAKAO_RUN_ID}:customer-a`]);
+    const logout=await fetch(`${base}/auth/logout`,{method:'POST',headers:{origin:'http://127.0.0.1:9091',cookie}});
+    assert.ok(logout.ok);
+    const race=await flow(),hold=await pool.connect();await hold.query('BEGIN');
+    await hold.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE',[manifest.accounts.customerA]);
+    const previousTab=post('complete',race);
+    try{
+      const deadline=Date.now()+5000;let blocked=false;
+      while(Date.now()<deadline){blocked=(await pool.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+        WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%i.kind=%kakao%'`)).rows[0].n>0;
+        if(blocked)break;await new Promise(resolve=>setTimeout(resolve,20));}
+      assert.equal(blocked,true);
+      const manual=await fetch(`${base}/auth/login`,{method:'POST',headers:{origin:'http://127.0.0.1:9091','content-type':'application/json'},
+        body:JSON.stringify({email:`s7-kakao-${process.env.QA_KAKAO_RUN_ID}-customer-b@example.invalid`,password:`S7-Kakao-${process.env.QA_KAKAO_RUN_ID}-fixture-only`,role:'customer'})});
+      assert.ok(manual.ok);const latestCookie=manual.headers.get('set-cookie').split(';')[0];
+      assert.equal((await (await fetch(`${base}/auth/me`,{headers:{cookie:latestCookie}})).json()).accountId,manifest.accounts.customerB);
+      await hold.query('COMMIT');const late=await previousTab;
+      const finalCookie=late.headers.get('set-cookie')?.split(';')[0]??latestCookie;
+      const finalActor=await (await fetch(`${base}/auth/me`,{headers:{cookie:finalCookie}})).json();
+      assert.equal(finalActor.accountId,manifest.accounts.customerB,'late mock response must not overwrite the newer shared-cookie login');
+    }finally{await hold.query('ROLLBACK');hold.release();}
+  }
   process.env.KAKAO_AUTH_MODE='disabled';assert.equal((await post('start',begin)).status,404);
   await assert.rejects(runQaKakaoMockFixture('reset',process.env.QA_KAKAO_RUN_ID,process.env.DATABASE_URL,process.env.QA_KAKAO_DB_SYSTEM_ID,file),
     'audit/history must not be deleted to make cleanup green; dispose the isolated DB instead');

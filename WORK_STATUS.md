@@ -2,6 +2,12 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- T3 in_progress: Androidcore5/HTTPclient19/고객React화면37 중최근통합실행은60 pass/0fail/0skip(추가거부구분전), 명시HTTP거부를이전cookie성공으로대체하는추가Web/Android RED2건→GREEN/양core11 pass. 모바일typecheck·변경eslint exit0, Web새route포함33경로build exit0. 실제Linking/native/browser는아직미확인이다. Ruling: 설치되지않은expo-linking을새SDK로추가하지않고기존React Native Linking을사용한다. 승인계획의새native의존성/권한불변을지키며잘못판정시scheme복귀공백은T4native에서검사한다.
+- 다음T4선행고위험gate: actualHTTP에서mock complete가DB잠금을기다리는동안다른탭이customer-b 이메일로그인을마친경우뒤늦은mock Set-Cookie가최신공유cookie를덮지않는지새반례로확인한다. 실패하면기존계약의추가인증결합수단을임의도입하지않고정확한보완승인을요청한다. 일반전수검사/완료구매·native알림반복0, 보호DB/실공급자변경0.
+
+- f52e871 실제WSL: 폐기systemID7696456487092756524에서카카오4파일11 pass/0fail/0skip, 기존이메일/전화DB회귀2 pass/0fail/0skip, APItypecheck/build exit0. 정상HTTP→고객me/본인배송지·동시소비1성공/1거부·audit실패rollback·계정잠금disabled경쟁401을확인했다. 종료소유container/network/QA경로0. 이는격리DB기능증거이며공유/실카카오/인수PASS아니다. T1잔여bootlistener0/외부참조reset반례와T4타탭cookie경쟁은아직미확인이다.
+- T2 in_progress: 새S256복귀client5건RED→GREEN/기존로그인·공급자정적화면포함8 pass/0fail/0skip, Webtypecheck·변경eslint exit0. popup·고정route·즉시fragment제거·no-referrer·고객me확인·이메일제출전cancel대기연결을구현했다. 실제브라우저/React이벤트·Android/native·타탭경쟁은미확인이고SSR검사를실제팝업성공으로승격하지않는다. 현재개발flag기본OFF이며제품을정식WSL에배포하지않았다. 신규폴더쓰기제약2회는정확계획폴더준비후패치했고타파일변경0, client반환타입오류1회는엄격field반환으로수정했다.
+
 - 실제DB첫실행e5ce415: 기존migration적용후fixture1/1·registry/gate9/9통과, HTTP정상소비1건실패(503/409). 새audit INSERT가actor UUID/target text에같은매개변수를재사용한것을기존정상이메일INSERT와대조해분리했다. 감사실패시세션rollback·계정잠금/비활성화경쟁의실패폐쇄는그전단계에서통과했으며정상발급실패를숨기지않는다. 자동trap으로전용PG/Node/network/QA경로를회수했다. 다음은수정exactSHA의같은DB표적시험/영향회귀이며T1미완료다. 패치문맥오류1회는적용0후정정했다.
 
 - 신산님이 별도 실행계획 4bbf37513df8c7c40c5df6c994b1a3bb56d1559e의 권고 방식(어울 직접 단일writer·마지막 독립review)을 승인했다. 시작4bbf375/clean, T1서버→T2Web→T3Android→T4동일후보실제검증순서로진행한다. 기존완료구매/첨부/알림검사와환경이불변인전체회귀를반복하지않는다. 기존설계/계획/계약은불변이며현재단계는로컬/WSL1단계다.

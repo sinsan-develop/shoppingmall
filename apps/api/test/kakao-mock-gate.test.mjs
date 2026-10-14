@@ -2,6 +2,27 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import test from 'node:test';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
+
+test('mock main의 잘못된 설정·DB 식별 실패는 listener를 열지 않고 종료한다',async()=>{
+  const free=async()=>{const server=createServer();await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(9092,'127.0.0.1',resolve);});await new Promise(resolve=>server.close(resolve));};
+  await free();
+  for(const mode of ['unknown','mock']){
+    const child=spawn(process.execPath,['--import','tsx','apps/api/src/main.ts'],{env:{...process.env,
+      KAKAO_AUTH_MODE:mode,APP_ENV:'development',NODE_ENV:'development',API_HOST:'127.0.0.1',API_PORT:'9092',
+      QA_KAKAO_RUN_ID:'7a141001',QA_KAKAO_DB_NAME:'shoppingmall_s7_kakao_7a141001',QA_KAKAO_DB_SYSTEM_ID:'12345',
+      QA_KAKAO_MANIFEST_PATH:process.platform==='win32'?'D:/tmp/s7-kakao-nonexistent.json':'/tmp/s7-kakao-nonexistent.json',
+      QA_KAKAO_MANIFEST_KEY:'synthetic-test-key-32-characters-only',DATABASE_URL:'postgres://qa:private-value@127.0.0.1:1/shoppingmall_s7_kakao_7a141001',
+      WEB_ORIGIN:'http://127.0.0.1:9091',AUTH_DELIVERY_MODE:'disabled',QA_LOAD_MODE:'0'},stdio:['ignore','ignore','pipe']});
+    let stderr='';child.stderr.on('data',chunk=>stderr+=chunk);
+    const timer=setTimeout(()=>child.kill(),20000);
+    try{const result=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',(code,signal)=>resolve({code,signal}));});
+      assert.notEqual(result.code,0);assert.equal(result.signal,null);assert.doesNotMatch(stderr,/private-value|postgres:\/\//);
+    }finally{clearTimeout(timer);}
+    await free();
+  }
+});
 import { assertKakaoMockBootConfig, assertKakaoMockRequest, attestKakaoMockDatabase,
   signKakaoQaManifest } from '../src/auth/kakao-mock-gate.ts';
 

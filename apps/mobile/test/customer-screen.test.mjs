@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
+import { randomBytes,createHash } from 'node:crypto';
+import { createKakaoMockFlow } from '../src/kakao-mock-core.ts';
 import { test } from 'node:test';
 import { build } from 'esbuild';
 import React from 'react';
@@ -33,6 +35,7 @@ async function ready(t, status = {}, overrides = {}, props = {}, holds = {}) {
     if (holds[req.url]) await (typeof holds[req.url] === 'function' ? holds[req.url](req) : holds[req.url]);
     if (status[req.url] === 'disconnect') { req.socket.destroy(); return; }
     if (req.url === '/auth/login' && responseStatus === 200) signedIn = true;
+    if (req.url === '/auth/kakao-mock/complete' && responseStatus === 200) signedIn = true;
     if (req.url === '/auth/logout' && responseStatus === 200) signedIn = false;
     const value = req.url.startsWith('/catalog/products?') ? [{ productId: key, title: '시험 고추', sellerName: '시험 농가', originLabel: '국내', minPriceWon: 3000 }] :
       req.url === '/auth/me' ? { role: 'customer' } : req.url === '/customer/cart/quote' ? { totalWon: 9000, goodsWon: 6000, shippingWon: 3000, shipments: [] } :
@@ -53,10 +56,31 @@ async function ready(t, status = {}, overrides = {}, props = {}, holds = {}) {
   const readSession = api.me.bind(api);
   api.me = (...args) => readSession(...args).finally(() => { sessionSettled.push(true); });
   let tree;
-  await act(async () => { tree = create(React.createElement(App, { api, ...props })); });
+  await act(async () => { tree = create(React.createElement(App, { api, ...(typeof props==='function'?props(api):props) })); });
   t.after(() => act(() => tree.unmount()));
   return { tree, requests, status, api, sessionSettled };
 }
+
+test('모의 브라우저 복귀는 실제 HTTP complete·me 뒤만 개인 배송지 화면을 연다',async t=>{
+  let listener;const urls=[],id='T'.repeat(43),ticket='D'.repeat(43);
+  const {tree,requests}=await ready(t,{}, {'/auth/kakao-mock/start':{transactionId:id,
+    authorizeUrl:`http://127.0.0.1:9091/auth/kakao-mock/authorize#transactionId=${id}&decisionTicket=${ticket}`,
+    expiresAt:new Date(Date.now()+300000).toISOString(),mockOnly:true}},api=>({kakaoMock:{
+      flow:createKakaoMockFlow({api,randomBytes:()=>randomBytes(32),digest:async x=>createHash('sha256').update(x).digest(),openUrl:async x=>urls.push(x)}),
+      subscribe:handler=>{listener=handler;return()=>{listener=undefined;};},
+    }}));
+  await until(()=>button(tree,'로그인')?.props.disabled===false);
+  await act(async()=>button(tree,'로그인').props.onPress());
+  assert.ok(button(tree,'카카오 모의 로그인'),'명시 개발 mock 버튼');assert.equal(urls.length,0);
+  await act(async()=>button(tree,'카카오 모의 로그인').props.onPress());await until(()=>urls.length===1);
+  assert.equal(requests.filter(r=>r[0]==='/auth/kakao-mock/complete').length,0);
+  const state=requests.find(r=>r[0]==='/auth/kakao-mock/start')[2].state;
+  await act(async()=>listener(`owoolmall-dev://auth/kakao-mock/return#transactionId=${id}&state=${state}&code=${'C'.repeat(43)}`));
+  await until(()=>button(tree,'로그아웃'));
+  assert.equal(requests.filter(r=>r[0]==='/auth/kakao-mock/complete').length,1);
+  await act(async()=>button(tree,'배송지·알림').props.onPress());await until(()=>text(tree).includes('가상 주소'));
+  assert.ok(requests.some(r=>r[0]==='/customer/addresses'));
+});
 async function until(check, describe = () => '') {
   for (let i = 0; i < 50; i++) {
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });

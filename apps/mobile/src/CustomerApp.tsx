@@ -5,6 +5,7 @@ import AccountRequest from './AccountRequest';
 import DeletionRequest from './DeletionRequest';
 import CatalogHome from './CatalogHome';
 import DeviceNotificationPanel from './DeviceNotificationPanel';
+import { KakaoMockLogin } from './KakaoMockLogin';
 import type { DeviceNotifications } from './device-notifications-core';
 import { CustomerApi, CustomerApiError, type Address, type AddressInput, type CartItem, type Order,
   type Preferences, type Product, type ProductSummary, type Question, type Quote, type Reservation,
@@ -29,13 +30,18 @@ function Field({ label, value, onChange, secret = false, numeric = false, disabl
     autoCorrect={false} keyboardType={numeric ? 'number-pad' : 'default'} style={styles.input} /></View>;
 }
 
-export default function CustomerApp({ api, enableMockPayment = false, imageOrigin, pickAttachment, notifications, enableMockNotifications = false }: {
+export default function CustomerApp({ api, enableMockPayment = false, imageOrigin, pickAttachment, notifications, enableMockNotifications = false, kakaoMock }: {
   api: CustomerApi; enableMockPayment?: boolean; imageOrigin?: string; pickAttachment?: PickAttachment;
   notifications?: DeviceNotifications; enableMockNotifications?: boolean;
+  kakaoMock?: import('./kakao-mock-bridge').KakaoMockBridge;
 }) {
   const [screen, setScreen] = useState<Screen>('products');
   const [signedIn, setSignedIn] = useState(false);
   const authGeneration = useRef(0);
+  const cancelKakao=useRef<(()=>Promise<void>)|undefined>(undefined);
+  const kakaoReady=useCallback((cancel:(()=>Promise<void>)|undefined)=>{cancelKakao.current=cancel;},[]);
+  const kakaoBegin=useCallback(()=>{authGeneration.current++;},[]);
+  const kakaoSignedIn=useCallback(()=>{authGeneration.current++;setSignedIn(true);setEmail('');setPassword('');setScreen('products');},[]);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const [message, setMessage] = useState('');
@@ -250,7 +256,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         disabled={busy} onPress={() => navigate(next)} />)}
       <Button label="홈" disabled={busy} onPress={() => navigate('home')} />
       <Button label={signedIn ? '로그아웃' : '로그인'} disabled={busy}
-        onPress={() => signedIn ? void run(async () => { authGeneration.current += 1; await api.logout(); clearPrivate(); }) : navigate('login')} />
+        onPress={() => signedIn ? void run(async () => { await cancelKakao.current?.(); authGeneration.current += 1; await api.logout(); clearPrivate(); }) : navigate('login')} />
     </View>
     {busy ? <ActivityIndicator accessibilityLabel="처리 중" /> : null}
     {message ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}
@@ -327,6 +333,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
         <Text style={styles.heading}>구매자 로그인</Text>
         <Field label="이메일" value={email} onChange={setEmail} /><Field label="비밀번호" value={password} onChange={setPassword} secret />
         <Button label="구매자 로그인" disabled={busy || !email.trim() || !password} onPress={() => void run(async () => {
+          await cancelKakao.current?.();
           authGeneration.current += 1;
           try {
             await api.login(email, password); const actor = await api.me();
@@ -335,6 +342,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
           } finally { setPassword(''); }
         })} />
         <Button label="가입하기" disabled={busy} onPress={() => navigate('signup')} />
+        {kakaoMock?<KakaoMockLogin bridge={kakaoMock} onBegin={kakaoBegin} onSignedIn={kakaoSignedIn} onReady={kakaoReady}/>:null}
         <Button label="비밀번호 찾기" disabled={busy} onPress={() => navigate('reset')} />
         <Text>가입·비밀번호 복구의 실제 메일과 HTTPS 링크 확인은 인수테스트에 보류되어 있습니다.</Text>
       </> : null}
