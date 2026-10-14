@@ -1,6 +1,11 @@
 import { CustomerApiError,type CustomerApi } from './customer-api';
 const pattern=/^[A-Za-z0-9_-]{43}$/;
 const failure=()=>new Error('모의 로그인을 완료하지 못했습니다. 다시 시작해 주세요');
+export class KakaoMockStartError extends Error {
+  constructor(public readonly phase:'random'|'digest'|'request'|'response'|'browser'){
+    super('모의 로그인을 시작하지 못했습니다. 다시 시도해 주세요');
+  }
+}
 function base64url(bytes:Uint8Array){
   const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';let out='';
   for(let i=0;i<bytes.length;i+=3){
@@ -23,15 +28,18 @@ export function createKakaoMockFlow(config:{api:Pick<CustomerApi,'startKakaoMock
   return {
     async start(){
       if(starting||exchange||pending)throw failure();starting=true;const current=++generation;
+      let phase:KakaoMockStartError['phase']='random';
       try{
-        const state=random(),verifier=random(),digest=await config.digest(verifier);if(digest.length!==32)throw failure();
+        const state=random(),verifier=random();phase='digest';const digest=await config.digest(verifier);if(digest.length!==32)throw failure();
+        phase='request';
         const result=await config.api.startKakaoMock({client:'android',state,challenge:base64url(digest),method:'S256'});
+        phase='response';
         const url=new URL(result.authorizeUrl),parts=fragments(url,['transactionId','decisionTicket']),expires=Date.parse(result.expiresAt);
         if(result.mockOnly!==true||url.origin!=='http://127.0.0.1:9091'||url.pathname!=='/auth/kakao-mock/authorize'||
           Object.keys(parts).length!==2||!pattern.test(parts.decisionTicket)||!pattern.test(result.transactionId)||
           parts.transactionId!==result.transactionId||!Number.isFinite(expires)||expires<=Date.now()||current!==generation)throw failure();
-        pending={transactionId:result.transactionId,state,verifier,expires:Math.min(expires,Date.now()+300000)};await config.openUrl(result.authorizeUrl);
-      }catch{pending=undefined;throw failure();}finally{starting=false;}
+        pending={transactionId:result.transactionId,state,verifier,expires:Math.min(expires,Date.now()+300000)};phase='browser';await config.openUrl(result.authorizeUrl);
+      }catch{pending=undefined;throw new KakaoMockStartError(phase);}finally{starting=false;}
     },
     async handleReturn(value:string):Promise<boolean>{
       if(!pending||exchange)return false;

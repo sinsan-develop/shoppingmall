@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomBytes,createHash } from 'node:crypto';
-import { createKakaoMockFlow } from '../src/kakao-mock-core.ts';
+import { createKakaoMockFlow,KakaoMockStartError } from '../src/kakao-mock-core.ts';
 import { CustomerApiError } from '../src/customer-api.ts';
 const id='T'.repeat(43),code='C'.repeat(43),ticket='D'.repeat(43);
 function setup(override={},expiryMs=300000){
@@ -18,6 +18,12 @@ function setup(override={},expiryMs=300000){
 test('명시 인증 거부를 기존 고객 me 성공으로 대체하지 않는다',async()=>{
   const {flow,calls,returned}=setup({completeKakaoMock:async()=>{throw new CustomerApiError('unauthorized');}});
   await flow.start();await assert.rejects(flow.handleReturn(returned()));assert.equal(calls.some(c=>c[0]==='me'),false);
+});
+test('시작 오류는 원문 수단 없이 서버 연결·응답·브라우저 단계를 구분한다',async()=>{
+  const request=setup({startKakaoMock:async()=>{throw new Error('private credentials');}});
+  await assert.rejects(request.flow.start(),e=>e instanceof KakaoMockStartError&&e.phase==='request'&&!e.message.includes('private'));
+  const response=setup({startKakaoMock:async()=>({mockOnly:false})});
+  await assert.rejects(response.flow.start(),e=>e instanceof KakaoMockStartError&&e.phase==='response');
 });
 test('기기 시계가 서버보다 늦어도 정상 시작하되 로컬 대기는 5분을 넘기지 않는다',async()=>{
   const original=Date.now,at=original();Date.now=()=>at;
