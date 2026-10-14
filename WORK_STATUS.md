@@ -1,5 +1,12 @@
 # 어울몰 작업현황
 
+## 2026-10-14 최신 지시 — 지정 다섯 개발 항목만 완료
+
+- 담당 어울·단일 writer, 시작 `codex/s7-mobile-20261014@2ba7985`. 신산님이 완료 대상을 PG mock 브라우저/앱 복귀, 원격 Android 푸시 기능, 정식 초기 관리자 설정, 모바일 통합/배포판·main/WSL배포/branch정리, S8 연결/매뉴얼 리허설로 한정했다. 실제 메일/HTTPS·실제 카카오/PG/푸시·실기기·OS PDF 확인은 명시 보류이며 개발 완료 blocker로 취급하지 않는다. 기존 DESIGN/WORK_PLAN은 불변이다.
+- 현재 PG 계약 초안은 기존 문서 작성 승인 범위에서 자체 점검했고, 시작 slot의 API 프로세스 범위·proof 소실 시409/만료 안내를 명시해 없는 분산 잠금/자동 복구를 약속하지 않는다. `docs/design/S7_PG_MOCK_RETURN_CONTRACT_PROPOSAL.md`와 `S7_FIVE_ITEMS_COMPLETION_SCOPE_PROPOSAL.md`는 내용 검토용 제안이며 아직 제품 구현/새 schema/인증·지속DB 권한을 받은 것으로 취급하지 않는다.
+- 새 승인 경계의 실제 근거: 현행 초기 관리자 CLI는 QA DB에만 제한돼 있다. WSL `local-postgres/shoppingmall` systemID7622490131194466339·migration26·admin0을 읽기 확인했다. 루트 EMAIL_TO 설정 존재만 확인(값 출력0); Expo/FCM 설정 키와 app projectId/google-services 설정은 없다. 권고는 Expo 기기등록/실제 DB 채널 선택/adapter 코드 개발·외부발송 보류, 명시 owner 확인 후 최초admin1개/소유자 전용30분 수단 전달, 기존 개발 서명의 standalone WSL 개발 후보(운영판아님)다. 실제 공유 migration은 SQL/백업/복구 증거 뒤 따로 판단한다.
+- 오류/변경: 최초 읽기 명령은 자동 권한 검토의 deadline 초과로 실행 전 거부됐고 1회 재시도해 읽기만 수행했다. 제안문서 수정의 context 불일치1회는 파일 변경0·정확한 문장으로 바로잡았다. 신규 문서·현황 외 제품/환경/QA 자원·DB 행·Secret·SDK/권한 변경0. 다음은 구체 계약 내용/소유·배포판 정의 승인→별도 실행 계획→단일 writer 구현이다. 전체 완료로 표시하지 않는다.
+
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
 - 카카오 mock 구현·핵심 연결 정리 checkpoint: 제품 후보 `775feaf`(API/mobile/Web는`0786847`과diff0), 실제DB15/15·0skip(systemID7696492577495007276), Chrome·Native 동일Git775feaf/systemID7696493719781912618·migration28에서 통과했다. Chrome의 실제popup차단(start0), 유효code의wrong-window/wrong-real-origin(complete0), 정상/취소/실패/닫힘/재로드/no-opener·본인주소·최신B/로그아웃·소유탭cleanup PASS. Native는기존cd46457 APK/최신775feaf MetroJS로실제Chrome선택→scheme→me고객·A배송지·로그아웃을확인했다. DB모의감사3은browser2+native1이고계정2/identity3/role2불변; 기존browser인증전환의이전세션이력은변경하지않고폐기DB전체를제거했다. 선행1d9849f의취소/실패/coldstart추가발급0과변경인증UI의실제HTTP경합RED→GREEN65/65를구분한다.
