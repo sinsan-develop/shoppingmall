@@ -1,5 +1,14 @@
 # 어울몰 작업현황
 
+## 2026-10-14 S7 native 신규 구매 재개
+
+- 이번 실제 확인: 동일6107e3d APK로 가상 고객 Android 가입·복구 요청각1회 접수 안내, 로그인·홈 공개 메뉴/기획전/추천·기획전→고추 상세(23000원/판매가능3개)를 확인했다. signup-accepted.png/reset-accepted.png/home.png와 UI dump를 증거로 남겼으며 앞2개 화면을 육안 확인했다. DB systemID7696371453344591916의 기존 HTTP 준비가 native.ready까지 도달했으나, 상품 담기/장바구니 재조회 도중 SSH/API가 끊겼다. wsl list에서 Ubuntu Stopped 및 TCP22/9092false를 확인했다. 서버 종료 원인은 확인되지 않았고 신산님께 Ubuntu 시작·QA 재개를 요청했다. 신규 주문/결제·접수 신규DB행 최종 대조는 미완료, marker/PASS를 만들지 않았다.
+- 최신 계속 지시 후 Ubuntu는 이미 Running, 기존main3d692a8·ready200으로 확인돼 담당자가 시작/재시작하지 않았다. load31.39→33.46으로 높아 구매 시험을 재시작하지 않았다. 중단 trap의 부분정리로 QA .git은 없고 node_modules가 남았으며 전용PG exited/OOMfalse·internalnetwork만 잔류했다. 정확한 전용PG/network 및 readlink확인된 시험 경로를 제거해 owned_qa_removed를 확인했다. 보호DB/다른 서비스·사용자 자료는 변경하지 않았다.
+- 독립 미구현 후보: 앱 시작 signedIn=false가 고정돼 기존 유효 고객 세션을 조회/복원하지 않는다. bounded 설계 권고안은 기존 /auth/me 검증으로 고객 UI 상태만 복원하고, 개인 데이터는 서버 재조회하며 신규 token/password 저장·서버 인증 정책/DB/권한을 변경하지 않는 것이다. 정상/만료/비고객·늦은 응답이 로그아웃/새 로그인 상태를 덮어쓰지 않는 시험을 먼저 추가한다. 설계 검토 스킬의 승인 gate를 신산님께 제시했으며 아직 제품·시험 코드는 변경하지 않았다.
+- 사후 정리: WSL 전용runner/PG/network/시험경로0, Windows 임시소스/AVD부재·adb기기0·8081/9092/5580 listener0 확인. 보존 증거는 D:\tmp\shoppingmall-s7-resume-native-20261014의 가입/복구/home/disconnected PNG 및 로그다. 이번 제품/API/설계/계획 diff0, git diff --check exit0. 앱 신규 구매·반영/전체S7 완료는 주장하지 않는다. 다음은 세션 복원 권고안의 사용자 판단 및 WSL 정상 실행 여건에서 신규구매 재개이며 예약은 재생성하지 않았다.
+
+- 담당 어울, 시작 f108d99cf3c9e37d0df89077cfc76f4b0af47500. WSL load5.58/11.03/10.94(2CPU), 기존main3d692a8/ready200 확인. 동일 제품 소스의 기존6107e3d APK를 해시 확인 후 재사용하고 빌드는 반복하지 않는다. 임시 D:\tmp\s7resume1014·증거 D:\tmp\shoppingmall-s7-resume-native-20261014, 전용 AVD shoppingmall_s7_resume_20261014/5580, Metro8081·SSH 루프백9092, 기존 명명 규칙의 전용 QA runner/PG15 tmpfs/internalnetwork만 사용한다. API 준비는 대상DB SELECT1·native.ready를 먼저 확인하며 CPU1/memory1g 제한을 유지한다. 원인 같은 실패를3회 반복하지 않고 공유 자원 영향 시 정확한 이번 자원만 종료한다. 보호DB/기존 서비스/설계/계획·실제 메일/PG/푸시는 불변. 종료 시 전용 자원과 임시 소스/AVD를 제거하고 실제 화면·DB 증거만 보존한다.
+
 ## 2026-10-14 S7 최신 Android 계정·홈·신규 구매 확인 착수
 
 - 결과: Android 제품 소스는 e0dfcfb와 동일한 6107e3d APK(뒤3038223까지 mobile/잠금파일 diff0), 빌드 SUCCESS·설치·Metro 실제 번들·로그인→가입하기→이메일 입력/확인 링크 요청 버튼·인수 보류 안내를 확인했다. APK SHA256 0FE603FC5F0C9C78EB6592D5953A4C741820EF5254EB89344EC4D75767699F85, D:\tmp\shoppingmall-s7-new-native-20261014\owoolmall-dev-6107e3d-x86_64.apk. account-input.png를 육안 확인했다. 개발 Metro 의존 x86_64 debug이며 배포용 release가 아니다. OS 권한은 이전 APK와 동일, 자동 권한 부여0.
