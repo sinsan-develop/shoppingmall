@@ -37,6 +37,15 @@ export type RefundCase = { id: string; checkoutOrderId: string; shipmentOrderId:
   totalRefundWon: number; amountFinal: boolean; estimateAvailable: boolean;
   lines: { optionId: string; productName: string; optionName: string; quantity: number }[];
   history: { fromStatus: string | null; toStatus: string; createdAt: string }[] };
+export type Confirmation = { id: string; reviewId: string | null; reviewStatus: string | null };
+export type Review = { id: string; status: string; rating: number; body: string; images: { id: string; scanStatus: string }[] };
+export type ClaimInput = { orderId: string; shipmentOrderId: string; optionId: string;
+  kind: 'CLAIM' | 'RETURN' | 'EXCHANGE'; reasonCode: 'quality_issue' | 'damaged' | 'wrong_delivery' | 'change_of_mind' | 'other';
+  reason: string; quantity: number };
+export type ClaimSummary = { id: string; kind: string; status: string; shipmentOrderId: string };
+export type Claim = ClaimSummary & { reason: string; quantity: number; decisionReason: string | null;
+  messages: { id: string; authorRole: string; body: string }[]; evidence: { id: string }[];
+  events: { action: string; afterStatus: string; occurredAt: string }[] };
 export type Question = { id: string; productId: string; body: string; status: string;
   messages?: { id: string; body: string; authorRole: string }[] };
 export type Page<T> = { items: T[]; nextCursor: string | null };
@@ -142,6 +151,33 @@ export class CustomerApi {
       'POST', input, this.key(scope, input));
     this.keys.delete(scope); return result;
   }
+  confirmPurchase(orderId: string, shipmentOrderId: string, optionId: string) {
+    const input = { orderId, shipmentOrderId, optionId };
+    return this.request<{ id: string }>('/customer/support/confirmations', 'POST', input,
+      this.key(`confirmation:${shipmentOrderId}:${optionId}`, input));
+  }
+  async confirmation(shipmentId: string, optionId: string) {
+    try { return await this.request<Confirmation>(`/customer/support/confirmations/${encodeURIComponent(shipmentId)}/${encodeURIComponent(optionId)}`); }
+    catch (error) { if (error instanceof CustomerApiError && error.code === 'not_found') return undefined; throw error; }
+  }
+  review(id: string) { return this.request<Review>(`/customer/support/reviews/${encodeURIComponent(id)}`); }
+  async createReview(confirmationId: string, rating: number, text: string) {
+    const input = { confirmationId, rating, text }; const scope = `review:${confirmationId}`;
+    const result = await this.request<{ id: string; status: string }>('/customer/support/reviews', 'POST', input, this.key(scope, input));
+    this.keys.delete(scope); return result;
+  }
+  async editReview(id: string, rating: number, text: string) {
+    const input = { rating, text }; const scope = `review-edit:${id}`;
+    const result = await this.request<{ id: string; status: string }>(`/customer/support/reviews/${encodeURIComponent(id)}`,
+      'PUT', input, this.key(scope, input)); this.keys.delete(scope); return result;
+  }
+  async createClaim(input: ClaimInput) {
+    const scope = `claim:${input.orderId}:${input.shipmentOrderId}:${input.optionId}`;
+    const result = await this.request<{ id: string; status: string }>('/customer/support/claims', 'POST', input, this.key(scope, input));
+    this.keys.delete(scope); return result;
+  }
+  claims(cursor = '') { return this.request<Page<ClaimSummary>>(`/customer/support/claims${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`); }
+  claim(id: string) { return this.request<Claim>(`/customer/support/claims/${encodeURIComponent(id)}`); }
   orders(cursor = '') {
     const params = new URLSearchParams({ status: 'PAID', limit: '20' });
     if (cursor) params.set('cursor', cursor);

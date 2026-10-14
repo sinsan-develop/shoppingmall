@@ -65,6 +65,21 @@ test('refund response loss retries the same request key and confirmed request en
   assert.deepEqual(requests[1].body, input);
   assert.equal(requests[3].path, `/customer/checkout/orders/${key1}/refund-cases`);
 });
+
+test('purchase confirmation, review and claim requests use customer-only contracts', async t => {
+  const { base, requests } = await serve(t, (req, res) => json(res, req.url.includes('/confirmations/') ? {} : { id: key2, status: 'PENDING' }));
+  const api = client(base);
+  await api.confirmPurchase(key1, key2, key1); await api.confirmation(key2, key1);
+  await api.createReview(key2, 4, '가상 후기'); await api.review(key2); await api.editReview(key2, 5, '수정 후기');
+  const input = { orderId: key1, shipmentOrderId: key2, optionId: key1, kind: 'RETURN', reasonCode: 'damaged', reason: '가상 파손', quantity: 1 };
+  await api.createClaim(input); await api.claim(key2); await api.claims('older cursor');
+  assert.deepEqual(requests[0].body, { orderId: key1, shipmentOrderId: key2, optionId: key1 });
+  assert.deepEqual(requests[2].body, { confirmationId: key2, rating: 4, text: '가상 후기' });
+  assert.equal(requests[4].method, 'PUT'); assert.deepEqual(requests[4].body, { rating: 5, text: '수정 후기' });
+  assert.deepEqual(requests[5].body, input);
+  assert.equal(requests[7].path, '/customer/support/claims?cursor=older%20cursor');
+  assert.ok(requests.filter(r => r.method !== 'GET').every(r => r.origin === 'http://127.0.0.1:9091' && r.key === key1));
+});
 test('server quote is authoritative and cart writes use existing customer contract', async t => {
   const { base, requests } = await serve(t, (req, res) => {
     json(res, req.url === '/customer/cart/quote' ? { totalWon: 57000, goodsWon: 66000, shippingWon: 0 } : []);

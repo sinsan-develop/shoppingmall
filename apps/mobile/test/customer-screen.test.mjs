@@ -26,6 +26,7 @@ async function ready(t, status = {}, overrides = {}) {
   const server = createServer(async (req, res) => {
     let body = ''; for await (const chunk of req) body += chunk;
     requests.push([req.url, req.method, body ? JSON.parse(body) : undefined]);
+    if (status[req.url] === 'disconnect') { req.socket.destroy(); return; }
     const value = req.url.startsWith('/catalog/products?') ? [{ productId: key, title: '시험 고추', sellerName: '시험 농가', originLabel: '국내', minPriceWon: 3000 }] :
       req.url === '/auth/me' ? { role: 'customer' } : req.url === '/customer/cart/quote' ? { totalWon: 9000, goodsWon: 6000, shippingWon: 3000, shipments: [] } :
       req.url === '/customer/cart' ? [{ optionId: key, productId: key, title: '시험 고추', optionName: '1kg', quantity: 2, unitPriceWon: 3000, availability: 'available' }] :
@@ -122,6 +123,80 @@ test('already shipped order does not offer pre-shipment refund form', async t =>
   await until(() => text(tree).includes('출고 SHIPPED'));
   assert.equal(button(tree, `발송 ${key} 취소·환불 선택`), undefined);
   assert.ok(text(tree).includes('출고 후에는 클레임 경로'));
+});
+
+test('shipped line confirms receipt, saves pending review and submits owned claim with history pagination', async t => {
+  const order = { id: key, status: 'PAID', payableWon: 9000, shipments: [{ id: key, status: 'PAID',
+    fulfillment: { status: 'SHIPPED' }, lines: [{ optionId: key, productName: '고추', optionName: '1kg', quantity: 2 }] }] };
+  const confirmationPath = `/customer/support/confirmations/${key}/${key}`;
+  const claimPath = `/customer/support/claims/${key}`;
+  const overrides = { '/customer/checkout/orders?status=PAID&limit=20': { items: [order], nextCursor: null },
+    [`/customer/checkout/orders/${key}`]: order,
+    '/customer/support/confirmations': { id: key },
+    [confirmationPath]: { id: key, reviewId: null, reviewStatus: null },
+    '/customer/support/reviews': { id: key, status: 'PENDING' },
+    [`/customer/support/reviews/${key}`]: { id: key, body: '가상 후기', rating: 4, status: 'PENDING', images: [], events: [] },
+    '/customer/support/claims': { id: key, status: 'REQUESTED' },
+    [claimPath]: { id: key, status: 'SELLER_REPLIED', kind: 'RETURN', reason: '가상 파손', quantity: 1,
+      messages: [{ id: key, authorRole: 'seller', body: '가상 처리 안내' }], evidence: [], events: [] },
+    '/customer/support/claims?cursor=older': { items: [], nextCursor: null },
+  };
+  const { tree, requests, status } = await ready(t, { [confirmationPath]: 404 }, overrides);
+  await login(tree); await act(async () => button(tree, '주문·배송').props.onPress());
+  await until(() => button(tree, `${key} · 9,000원`)?.props.disabled === false);
+  await act(async () => button(tree, `${key} · 9,000원`).props.onPress());
+  await until(() => button(tree, '1kg 구매확정·리뷰·클레임')?.props.disabled === false);
+  await act(async () => button(tree, '1kg 구매확정·리뷰·클레임').props.onPress());
+  await until(() => button(tree, '구매확정') !== undefined);
+  assert.equal(button(tree, '구매확정').props.disabled, true);
+  await act(async () => tree.root.findAllByType('Switch').find(x => x.props.accessibilityLabel === '상품 수령 확인').props.onValueChange(true));
+  status[confirmationPath] = 200;
+  await act(async () => button(tree, '구매확정').props.onPress());
+  await until(() => text(tree).includes('구매확정 완료'));
+  const field = label => tree.root.findAllByType('TextInput').find(x => x.props.accessibilityLabel === label);
+  await act(async () => { field('리뷰 별점').props.onChangeText('6'); field('리뷰 내용').props.onChangeText('가상 후기'); });
+  assert.equal(button(tree, '리뷰 저장').props.disabled, true);
+  await act(async () => field('리뷰 별점').props.onChangeText('4'));
+  await act(async () => button(tree, '리뷰 저장').props.onPress());
+  await until(() => text(tree).includes('리뷰 상태 PENDING · 공개 완료 아님'));
+  await act(async () => { button(tree, '반품 요청').props.onPress(); button(tree, '파손 사유').props.onPress(); });
+  await act(async () => { field('클레임 수량').props.onChangeText('1'); field('클레임 상세 사유').props.onChangeText('가상 파손'); });
+  await act(async () => button(tree, '클레임 접수').props.onPress());
+  await until(() => text(tree).includes('가상 처리 안내'));
+  assert.ok(requests.some(([path, method, body]) => path === '/customer/support/claims' && method === 'POST' &&
+    body.kind === 'RETURN' && body.reasonCode === 'damaged' && body.quantity === 1));
+  overrides['/customer/support/claims'] = { items: [{ id: key, kind: 'RETURN', status: 'SELLER_REPLIED' }], nextCursor: 'older' };
+  await act(async () => button(tree, '내 클레임 조회').props.onPress());
+  await until(() => button(tree, '클레임 더 보기')?.props.disabled === false);
+  await act(async () => button(tree, '클레임 더 보기').props.onPress());
+  await until(() => requests.some(([path]) => path === '/customer/support/claims?cursor=older'));
+  status['/customer/support/claims'] = 401;
+  await act(async () => button(tree, '내 클레임 조회').props.onPress());
+  await until(() => text(tree).includes('구매자 로그인'));
+  assert.equal(text(tree).includes('가상 후기'), false); assert.equal(text(tree).includes('가상 처리 안내'), false);
+});
+
+test('confirmed claim creation followed by lost detail does not lock a cleared form as uncertain submission', async t => {
+  const order = { id: key, status: 'PAID', payableWon: 9000, shipments: [{ id: key, status: 'PAID',
+    fulfillment: { status: 'SHIPPED' }, lines: [{ optionId: key, productName: '고추', optionName: '1kg', quantity: 2 }] }] };
+  const { tree, requests } = await ready(t, { [`/customer/support/confirmations/${key}/${key}`]: 404,
+    [`/customer/support/claims/${key}`]: 'disconnect' }, {
+    '/customer/checkout/orders?status=PAID&limit=20': { items: [order], nextCursor: null },
+    [`/customer/checkout/orders/${key}`]: order, '/customer/support/claims': { id: key, status: 'REQUESTED' } });
+  await login(tree); await act(async () => button(tree, '주문·배송').props.onPress());
+  await until(() => button(tree, `${key} · 9,000원`)?.props.disabled === false);
+  await act(async () => button(tree, `${key} · 9,000원`).props.onPress());
+  await until(() => button(tree, '1kg 구매확정·리뷰·클레임')?.props.disabled === false);
+  await act(async () => button(tree, '1kg 구매확정·리뷰·클레임').props.onPress());
+  await until(() => button(tree, '클레임 접수') !== undefined);
+  const reason = () => tree.root.findAllByType('TextInput').find(x => x.props.accessibilityLabel === '클레임 상세 사유');
+  await act(async () => reason().props.onChangeText('가상 접수'));
+  await act(async () => button(tree, '클레임 접수').props.onPress());
+  await until(() => text(tree).includes('연결하지 못했습니다.') && button(tree, '내 클레임 조회')?.props.disabled === false);
+  assert.equal(requests.filter(([path, method]) => path === '/customer/support/claims' && method === 'POST').length, 1);
+  assert.ok(text(tree).includes('클레임 접수 · 처리 완료 아님'));
+  assert.equal(text(tree).includes('결과가 불명확하여 같은 입력'), false);
+  assert.equal(reason().props.value, ''); assert.equal(reason().props.editable, true);
 });
 
 test('held goods and shipment coupons remain identical across preview and order; returning cart invalidates preview', async t => {

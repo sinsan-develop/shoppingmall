@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import OrderSupport from './OrderSupport';
 import { CustomerApi, CustomerApiError, type Address, type AddressInput, type CartItem, type Order,
   type Preferences, type Product, type ProductSummary, type Question, type Quote, type Reservation,
   type Favorite, type RestockSubscription, type CouponSelector, type HeldCoupon, type PromotionQuote, type OrderInput,
@@ -369,6 +370,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
               }} /> : viewedOrder.status === 'PAID' ? <Text>출고 후에는 클레임 경로를 이용합니다. 출고 상태가 미확인인 경우 다시 조회해 주세요.</Text> : null}
           </View>)}
           {viewedOrder.status === 'PAID' ? <>
+            <OrderSupport key={viewedOrder.id} api={api} order={viewedOrder} busy={busy} run={run} />
             <Text style={styles.heading}>출고 전 취소·환불 요청</Text>
             <Text>요청 접수는 환불 완료가 아닙니다. 출고 여부와 실제 결제금액은 서버·담당자가 확인합니다.</Text>
             <Button label="환불 내역 새로고침" disabled={busy} onPress={() => void run(refreshRefunds)} />

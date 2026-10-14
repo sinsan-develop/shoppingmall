@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-14 S7.1 구매확정·텍스트 리뷰·클레임 기본 연결
+
+- 담당 어울, 시작5a0a385. 승인 S7.1의 기존 customer/support API로 출고 완료 상품의 수령 확인 후 구매확정, 본인 리뷰 등록/수정/조회, 클레임 유형/사유/수량 접수·커서 목록·판매자 답변/심사 상태 조회를 연결한다. 고객에게 판매자 답변 작성·심사·환불 실행 권한을 주지 않는다. 서버 자격·수량·증빙 정책과 기존 설계/계획은 유지한다. 리뷰 사진·클레임 증빙 첨부는 명시 미구현이고 이 기본 연결을 전체 리뷰/클레임 완료로 승격하지 않는다.
+- HTTP/실제 React 화면2건 RED→GREEN. 추가 실제 연결 끊김 시험으로 접수 POST 성공 뒤 상세 GET 유실을 접수 불명확으로 오분류/빈 폼 잠금하는 오류1회를 재현하고 POST 오류 범위만 좁혀 수정했다. 최신 모바일31/31 pass·0 skip·0 fail, typecheck/변경 eslint exit0. 이 화면 결과는 native/실제 이미지 업로드 증거가 아니다.
+- QA 사전 선언: 직전 동일 이름의 WSL 폐기 PG15 tmpfs shoppingmall-qa-s7-20261014-pg·internal network shoppingmall-s7-qa-20261014-net·--rm runner shoppingmall-s7-qa-node 및 exact checkout /home/daon/deploy/shopping-qa-s7-20261014를 생성한다. 보호systemID 배제·초기계정0 뒤에만 가상 출고 사건과 구매확정/텍스트 리뷰/클레임·판매자 답변 자료를 만든다. 미출고 확정 거부·응답 유실 중복 방지·과다 클레임 수량 거부·본인조회·401을 확인한 뒤 해당 자원을 모두 제거한다. 가상 출고 준비는 실제 판매자 출고/외부 배송 증거가 아니며 보호DB/고정QA·main 실행기는 변경하지 않는다.
+
 ## 2026-10-14 S7.1 모바일 출고 전 취소·환불 요청
 
 - 결과: exact `d077e532eb621387c80af03cf12d43c3fa86bcc2`, 폐기 DB systemID `7696334998520148012`의 실제 CustomerApi→HTTP→DB1/1 pass·0 skip·0 fail, 준비/시험/정리 shell exit0. 41000원 결제 완료 주문 일부1개 취소 접수→응답 유실→동일 키 재시도 환불사례1행/수량1, REQUESTED·예상20500원/미확정, 본인 내역 조회·로그아웃401을 확인했다. refund_attempts0·원주문PAID/41000원 불변으로 실제 환불을 실행하지 않았음을 확인했다. 모바일28/28·typecheck·변경eslint exit0, 오류0. 전용 container/network/checkout 잔류0 및 기존 main3d692a8/clean·ready200을 별도 확인했다. native 환불 상호작용·관리자 심사/실PG 환불은 이번 확인이 아니며 전체 S7 완료가 아니다. 다음은 구매확정·리뷰·클레임의 기존 고객 API 연결이다.

@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { createApp } from '../src/app.ts';
 import { qaNames } from '../scripts/qa-fixture.ts';
 import { runQaCatalogFixture } from '../scripts/qa-catalog-fixture.ts';
+import { replyToClaim } from '../src/support/claims.ts';
 import { CustomerApi } from '../../mobile/src/customer-api.ts';
 
 test('mobile customer client drives real HTTP DB coupon purchase, retry, engagement, delivery and preferences', {
@@ -52,6 +53,7 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     app = await createApp(); await app.listen(0, '127.0.0.1');
     const base = `http://127.0.0.1:${app.getHttpServer().address().port}`;
     let cookie = ''; let loseOrderReply = true; let loseRefundReply = true;
+    let loseReviewReply = true; let loseClaimReply = true;
     const api = new CustomerApi({ apiOrigin: base, webOrigin: process.env.WEB_ORIGIN, createKey: randomUUID,
       send: async (address, options) => {
         const response = await fetch(address, { ...options, headers: { ...options.headers, ...(cookie ? { cookie } : {}) } });
@@ -62,6 +64,12 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
         }
         if (String(address).endsWith('/refund-cases') && options.method === 'POST' && loseRefundReply) {
           loseRefundReply = false; await response.arrayBuffer(); throw new Error('Synthetic refund response loss after DB commit');
+        }
+        if (String(address) === `${base}/customer/support/reviews` && options.method === 'POST' && loseReviewReply) {
+          loseReviewReply = false; await response.arrayBuffer(); throw new Error('Synthetic review response loss');
+        }
+        if (String(address) === `${base}/customer/support/claims` && options.method === 'POST' && loseClaimReply) {
+          loseClaimReply = false; await response.arrayBuffer(); throw new Error('Synthetic claim response loss');
         }
         return response;
       } });
@@ -136,6 +144,38 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM refund_attempts')).rows[0].n, 0);
     assert.equal((await api.order(order.id)).payableWon, 41000);
     assert.equal((await api.order(order.id)).status, 'PAID');
+    await assert.rejects(api.confirmPurchase(order.id, paid.shipments[0].id, product.options[0].id), e => e.code === 'not_found');
+    const shipmentId = paid.shipments[0].id;
+    const fulfillmentSellerId = (await pool.query(`UPDATE shipment_fulfillments SET status='SHIPPED',
+      carrier_code='hanjin',tracking_number='S7QA1014',packed_at=now(),first_shipped_at=now(),shipped_at=now()
+      WHERE shipment_order_id=$1 RETURNING fulfillment_seller_id`, [shipmentId])).rows[0].fulfillment_seller_id;
+    await pool.query(`INSERT INTO shipment_fulfillment_events
+      (shipment_order_id,action,from_status,to_status,actor_account_id,actor_role,actor_seller_id,
+       before_snapshot,after_snapshot,idempotency_scope,idempotency_key,request_fingerprint)
+      VALUES ($1,'MARK_SHIPPED','PACKING','SHIPPED',$2,'seller',$3,
+       '{"status":"PACKING"}'::jsonb,'{"status":"SHIPPED"}'::jsonb,$2,$4,$5)`,
+    [shipmentId, sellerId, fulfillmentSellerId, randomUUID(), 'a'.repeat(64)]);
+    const confirmed = await api.confirmPurchase(order.id, shipmentId, product.options[0].id);
+    assert.equal((await api.confirmPurchase(order.id, shipmentId, product.options[0].id)).id, confirmed.id);
+    assert.equal((await api.confirmation(shipmentId, product.options[0].id)).id, confirmed.id);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_purchase_confirmations')).rows[0].n, 1);
+    await assert.rejects(api.createReview(confirmed.id, 4, '가상 구매 후기'), e => e.code === 'offline');
+    const review = await api.createReview(confirmed.id, 4, '가상 구매 후기');
+    assert.equal(review.status, 'PENDING'); assert.equal((await api.review(review.id)).body, '가상 구매 후기');
+    await api.editReview(review.id, 5, '가상 수정 후기');
+    assert.equal((await api.review(review.id)).body, '가상 수정 후기');
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_reviews')).rows[0].n, 1);
+    const claimInput = { orderId: order.id, shipmentOrderId: shipmentId, optionId: product.options[0].id,
+      kind: 'RETURN', reasonCode: 'damaged', reason: '가상 파손', quantity: 1 };
+    await assert.rejects(api.createClaim(claimInput), e => e.code === 'offline');
+    const claim = await api.createClaim(claimInput); assert.equal(claim.status, 'REQUESTED');
+    assert.equal((await api.claims()).items[0].id, claim.id);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_claims')).rows[0].n, 1);
+    await assert.rejects(api.createClaim({ ...claimInput, quantity: 2 }), e => e.code === 'conflict');
+    await replyToClaim(pool, { claimId: claim.id, sellerId: fulfillmentSellerId, actorAccountId: sellerId,
+      body: '가상 처리 안내', idempotencyKey: randomUUID() });
+    const claimDetail = await api.claim(claim.id);
+    assert.equal(claimDetail.status, 'SELLER_REPLIED'); assert.equal(claimDetail.messages[0].body, '가상 처리 안내');
     const asked = await api.askQuestion(product.productId, '가상 발송일 문의');
     assert.equal((await api.question(asked.id)).body, '가상 발송일 문의');
     assert.equal((await api.questions()).items[0].id, asked.id);
@@ -147,6 +187,8 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     await assert.rejects(api.restockSubscriptions(), e => e.code === 'unauthorized');
     await assert.rejects(api.coupons(), e => e.code === 'unauthorized');
     await assert.rejects(api.refunds(order.id), e => e.code === 'unauthorized');
+    await assert.rejects(api.review(review.id), e => e.code === 'unauthorized');
+    await assert.rejects(api.claim(claim.id), e => e.code === 'unauthorized');
   } finally {
     if (app) await app.close();
     for (const [key, value] of Object.entries(previous)) {
