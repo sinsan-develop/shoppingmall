@@ -144,6 +144,7 @@
 #### W15. 주문 목록·출고 상세 — 테스트 중 [1]
 
 - 여는 곳: `/account/seller/orders`. 담당 발송 주문·상태·택배사·운송장·이력.
+- 2026-10-15 W15 순차 착수: 943a8cd/39f3fe8의actualChrome포장시작→출고/운송장·판매자B로딩/503복구·DELAYED조회/빈상태필터·공동출고/타담당404·1920/1440/430/키보드·signed정리의실제기록을대조했다. 943a8cd..70f4e1e의seller/orders/page.tsx·fulfillment-ui.ts diff exit0,제품동일이다. 이기존시험/기존DB·HTTP권한시험은반복하지않는다. 다만판매자가직접지연등록폼을제출한기록은찾지못해날짜/사유/고객안내저장→재방문유지만새로확인한다. 전용WSL shoppingmall-w15-20261015-pg/api/web/net·새PG15 tmpfs의기존fixture정확DB명shoppingmall_s5_fulfillment_ui_a0150015·systemID보호값거부/실제대조·28migration/초기계정0,기존기본격리모드fixture의a0150015가상계정5/상품3/주문3/발송3을사용한다. 승인QA모드의고정systemID가드를완화하거나보호DB에쓰지않는다. Windows D:/tmp/shoppingmall-w15-20261015 Chrome9237/profile·SSH9091/9092·난수QA암호일회파일비출력/사용후폐기/새증거,검증후정확소유자원전량제거·잔류0확인。실제택배/발송·정식서비스/지속DB/스키마/Secret/설계·계획변경0。[1]유지하며새전체회귀0。
 - 근거/남은 것: 출고 API와 역할 화면/직렬화 시험 확인. 판매자 빈 목록·권한 차단만의 근거를 실제 주문 출고 처리 완료로 확대하지 않는다.
 
 #### W16. 판매자 배송 정책 — 테스트 중 [1]
