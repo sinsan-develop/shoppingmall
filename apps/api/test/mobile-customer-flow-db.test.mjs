@@ -12,6 +12,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import { setQaAuthSink } from '../src/auth/delivery.ts';
+import { processAuthIntakeOnce } from '../src/auth/intake-worker.ts';
 
 test('mobile customer client drives real HTTP DB coupon purchase, retry, engagement, delivery and preferences', {
   skip: !process.env.QA_S7_DB_SYSTEM_ID,
@@ -24,7 +26,8 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
   let uploadRoot;
   const previous = { APP_ENV: process.env.APP_ENV, API_HOST: process.env.API_HOST,
     PAYMENT_MODE: process.env.PAYMENT_MODE, WEB_ORIGIN: process.env.WEB_ORIGIN,
-    ENABLE_LOCAL_UPLOAD: process.env.ENABLE_LOCAL_UPLOAD, SHOPPINGMALL_UPLOAD_ROOT: process.env.SHOPPINGMALL_UPLOAD_ROOT };
+    ENABLE_LOCAL_UPLOAD: process.env.ENABLE_LOCAL_UPLOAD, SHOPPINGMALL_UPLOAD_ROOT: process.env.SHOPPINGMALL_UPLOAD_ROOT,
+    AUTH_DELIVERY_MODE: process.env.AUTH_DELIVERY_MODE, AUTH_LINK_ORIGIN: process.env.AUTH_LINK_ORIGIN };
   try {
     const identity = (await pool.query('SELECT current_database() AS db, system_identifier::text AS id FROM pg_control_system()')).rows[0];
     assert.equal(identity.db, 'shoppingmall');
@@ -220,6 +223,28 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
       assert.equal((await api.review(review.id)).images.length, 2, 'native review upload must persist');
       assert.equal((await api.claim(claim.id)).evidence.length, 2, 'native claim upload must persist');
     }
+    await assert.rejects(api.startAccountRequest('signup', 'new-mobile@example.invalid'), e => e.code === 'unavailable');
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM auth_intake_jobs')).rows[0].n, 0);
+    process.env.AUTH_DELIVERY_MODE = 'mock'; process.env.AUTH_LINK_ORIGIN = 'http://127.0.0.1:9091';
+    const deliveredPurposes = [];
+    const sink = async message => { deliveredPurposes.push(message.purpose); };
+    setQaAuthSink(sink);
+    const beforeAccounts = (await pool.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n;
+    assert.deepEqual(await api.startAccountRequest('signup', 'new-mobile@example.invalid'), { status: 'accepted' });
+    assert.deepEqual(await api.startAccountRequest('reset', qaNames(runId).emails[0]), { status: 'accepted' });
+    assert.deepEqual(await api.startAccountRequest('reset', 'missing-mobile@example.invalid'), { status: 'accepted' });
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM auth_intake_jobs')).rows[0].n, 3);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM auth_action_tokens')).rows[0].n, 0);
+    for (let i = 0; i < 3; i++) assert.equal((await processAuthIntakeOnce(pool, new Date(), sink)).processed, true);
+    assert.deepEqual(deliveredPurposes.sort(), ['customer_signup', 'password_reset']);
+    assert.equal((await pool.query("SELECT count(*)::int AS n FROM auth_intake_jobs WHERE status='done'")).rows[0].n, 3);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n, beforeAccounts);
+    const deletion = await api.requestDeletion(); assert.equal(deletion.status, 'requested');
+    await assert.rejects(api.requestDeletion(), e => e.code === 'conflict');
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM account_deletion_requests WHERE account_id=$1', [customerId])).rows[0].n, 1);
+    assert.equal((await pool.query('SELECT disabled_at FROM accounts WHERE id=$1', [customerId])).rows[0].disabled_at, null);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n, beforeAccounts);
+    assert.equal((await api.me()).role, 'customer');
     const asked = await api.askQuestion(product.productId, '가상 발송일 문의');
     assert.equal((await api.question(asked.id)).body, '가상 발송일 문의');
     assert.equal((await api.questions()).items[0].id, asked.id);
@@ -233,7 +258,9 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     await assert.rejects(api.refunds(order.id), e => e.code === 'unauthorized');
     await assert.rejects(api.review(review.id), e => e.code === 'unauthorized');
     await assert.rejects(api.claim(claim.id), e => e.code === 'unauthorized');
+    await assert.rejects(api.requestDeletion(), e => e.code === 'unauthorized');
   } finally {
+    setQaAuthSink(undefined);
     if (app) await app.close();
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;

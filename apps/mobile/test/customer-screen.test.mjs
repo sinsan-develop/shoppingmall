@@ -81,6 +81,75 @@ test('mobile search renders fetched products rather than construction notice', a
   assert.equal(text(tree).includes('앱 서비스 구축 중'), false);
 });
 
+test('login opens signup/reset intake, rejects invalid email, and does not claim account completion', async t => {
+  const { tree, requests } = await ready(t, {}, { '/auth/customer-signup/start': { status: 'accepted' }, '/auth/password-reset/start': { status: 'accepted' } });
+  await until(() => button(tree, '로그인')?.props.disabled === false);
+  await act(async () => { button(tree, '로그인').props.onPress(); });
+  for (const label of ['가입하기', '비밀번호 찾기']) {
+    assert.ok(button(tree, label), `${label} 진입 미구현`);
+    await act(async () => { button(tree, label).props.onPress(); });
+    await until(() => button(tree, '확인 링크 요청') !== undefined);
+    assert.equal(button(tree, '확인 링크 요청').props.disabled, true);
+    const field = tree.root.findAllByType('TextInput').find(x => x.props.accessibilityLabel === '요청 이메일');
+    await act(async () => { field.props.onChangeText('qa@example.invalid'); });
+    await act(async () => { button(tree, '확인 링크 요청').props.onPress(); });
+    await until(() => text(tree).includes('요청을 접수했습니다'));
+    assert.ok(text(tree).includes('가입·비밀번호 변경 완료가 아닙니다'));
+    assert.ok(!requests.some(([path]) => path.endsWith('/complete')));
+    await act(async () => { button(tree, '로그인으로 돌아가기').props.onPress(); });
+    await until(() => button(tree, '구매자 로그인') !== undefined);
+  }
+  assert.ok(requests.some(([path]) => path === '/auth/customer-signup/start'));
+  assert.ok(requests.some(([path]) => path === '/auth/password-reset/start'));
+});
+
+test('deletion needs explicit acknowledgement, records request only and resets confirmation on logout', async t => {
+  const { tree, requests } = await ready(t, {}, { '/customer/deletion-request': { id: key, status: 'requested' } });
+  await login(tree);
+  await act(async () => { button(tree, '배송지·알림').props.onPress(); });
+  await until(() => button(tree, '탈퇴 요청 접수') !== undefined);
+  assert.equal(button(tree, '탈퇴 요청 접수').props.disabled, true);
+  assert.ok(text(tree).includes('계정은 즉시 삭제되지 않습니다'));
+  await act(async () => { tree.root.findAllByType('Switch').find(x => x.props.accessibilityLabel === '탈퇴 요청 안내 확인').props.onValueChange(true); });
+  await act(async () => { button(tree, '탈퇴 요청 접수').props.onPress(); });
+  await until(() => text(tree).includes('탈퇴 요청이 접수되었습니다'));
+  assert.equal(button(tree, '탈퇴 요청 접수').props.disabled, true);
+  assert.equal(requests.filter(([path]) => path === '/customer/deletion-request').length, 1);
+  await act(async () => { button(tree, '로그아웃').props.onPress(); });
+  await until(() => button(tree, '구매자 로그인') !== undefined);
+  assert.equal(text(tree).includes('탈퇴 요청이 접수되었습니다'), false);
+});
+
+test('unavailable signup stays retryable and never displays accepted status', async t => {
+  const { tree } = await ready(t, { '/auth/customer-signup/start': 503 });
+  await until(() => button(tree, '로그인')?.props.disabled === false);
+  await act(async () => { button(tree, '로그인').props.onPress(); });
+  await act(async () => { button(tree, '가입하기').props.onPress(); });
+  await act(async () => { tree.root.findAllByType('TextInput').find(x => x.props.accessibilityLabel === '요청 이메일').props.onChangeText('qa@example.invalid'); });
+  await act(async () => { button(tree, '확인 링크 요청').props.onPress(); });
+  await until(() => text(tree).includes('서버 기능을 사용할 수 없습니다'));
+  assert.equal(text(tree).includes('요청을 접수했습니다'), false);
+  assert.equal(button(tree, '확인 링크 요청').props.disabled, false);
+});
+test('existing deletion request is not reported as a new deletion; expired session clears the form', async t => {
+  for (const code of [409, 401]) {
+    const { tree } = await ready(t, { '/customer/deletion-request': code });
+    await login(tree);
+    await act(async () => { button(tree, '배송지·알림').props.onPress(); });
+    await until(() => button(tree, '탈퇴 요청 접수')?.props.disabled === true);
+    await act(async () => { tree.root.findAllByType('Switch').find(x => x.props.accessibilityLabel === '탈퇴 요청 안내 확인').props.onValueChange(true); });
+    await act(async () => { button(tree, '탈퇴 요청 접수').props.onPress(); });
+    if (code === 409) {
+      await until(() => text(tree).includes('탈퇴 요청이 이미 접수되어 있습니다'));
+      assert.equal(button(tree, '탈퇴 요청 접수').props.disabled, true);
+    } else {
+      await until(() => button(tree, '구매자 로그인') !== undefined);
+      assert.equal(button(tree, '탈퇴 요청 접수'), undefined);
+      assert.equal(text(tree).includes('탈퇴 요청이 접수되었습니다'), false);
+    }
+  }
+});
+
 test('paid shipment refund validates quantity, displays requested estimate and clears on session expiry', async t => {
   const order = { id: key, status: 'PAID', payableWon: 9000, shipments: [{ id: key, status: 'PAID',
     fulfillment: { status: 'READY' }, lines: [{ optionId: key, productName: '시험 고추', optionName: '1kg', quantity: 2 }] }] };

@@ -209,6 +209,19 @@ export class CustomerApi {
   }
   addresses() { return this.request<Address[]>('/customer/addresses'); }
   addAddress(input: AddressInput) { return this.request<{ id: string }>('/customer/addresses', 'POST', input); }
+  async startAccountRequest(kind: 'signup' | 'reset', emailInput: string) {
+    const email = emailInput.trim();
+    if (!['signup', 'reset'].includes(kind) || !/^[^@\s,<>]+@[^@\s,<>]+\.[^@\s,<>]+$/.test(email)) throw new CustomerApiError('invalid');
+    const path = kind === 'signup' ? '/auth/customer-signup/start' : '/auth/password-reset/start';
+    const result = await this.request<{ status: string }>(path, 'POST', { email });
+    if (result?.status !== 'accepted') throw new CustomerApiError('unavailable');
+    return { status: 'accepted' as const };
+  }
+  async requestDeletion() {
+    const result = await this.request<{ id: string; status: string }>('/customer/deletion-request', 'POST');
+    if (!result?.id || result.status !== 'requested') throw new CustomerApiError('unavailable');
+    return result;
+  }
   preferences() { return this.request<Preferences>('/customer/preferences'); }
   savePreferences(input: Preferences) { return this.request('/customer/preferences', 'PUT', input); }
   questions(cursor = '') { return this.request<Page<Question>>(`/customer/support/questions${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`); }

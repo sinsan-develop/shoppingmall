@@ -1,5 +1,11 @@
 # 어울몰 작업현황
 
+## 2026-10-14 S7.1 가입·복구 진입 및 탈퇴 안내 연결
+
+- 담당 어울, 시작3275873. 승인 DESIGN R12/R14/R16·WORK_PLAN S7의 기존 웹/서버 계정 경로를 모바일에 연결한다. 로그인→가입하기/비밀번호 찾기→이메일 요청 접수이며 완료·계정 존재를 추정하지 않는다. 받은 링크의 기존 웹 확인/설정 단계와 실제 메일/HTTPS는 보류·미확인으로 구분한다. 배송지·알림→탈퇴 안내·명시 확인→기존 본인 전용 요청 API를 연결하고 계정 삭제·권한 변경·주문/환불 변경은 수행하지 않는다. 새 공개 API/DB/schema/인증 정책·설계·계획 변경0.
+- RED 신규4건(API 메서드/로그인 진입/탈퇴 화면 누락)→GREEN 모바일40건, 이후 실패503·중복409·세션401 추가 포함42/42 pass·0skip·0fail. 모바일typecheck·변경eslint·diffcheck exit0. 정상 기능 전체 전수·부하·Android 불변 모듈 재빌드는 반복하지 않는다. 새 화면 native 동작은 미확인이다. 적용 중 문맥 불일치 patch1회는 변경 없이 거부되어 정확 위치로 적용했다.
+- 자원 사전 선언: 기존 exact-SHA 폐기 QA 절차의 WSL shoppingmall-s7-qa-node runner·shoppingmall-qa-s7-20261014-pg(PG15 tmpfs)·shoppingmall-s7-qa-20261014-net 내부network·/home/daon/deploy/shopping-qa-s7-20261014를 사용한다. 보호 systemID와 다른 DB/빈계정 확인 뒤 가상 본인·가입/복구 요청과 탈퇴 접수만 생성한다. 외부 네트워크 없는 runner의 루프백 mock auth sink로 영속 큐3건·계정 생성 없음·탈퇴1건/중복/401을 확인하고 종료 trap으로 정확 자원·업로드 임시 경로를 제거한다. 정식 WSL/main/고정QA/보호DB는 변경하지 않는다. 목적별 실제 메일/링크 열기/비밀번호 변경은 이번 실행의 결과로 주장하지 않는다.
+
 ## 2026-10-14 S7.1 Android 첨부 native 확인 착수
 
 - 결과: 제품 기준c8f29c1(후속8af109f는 시험 전용이며 apps/mobile·잠금파일 diff0), Android x86_64 debug 빌드69초/201tasks/exit0, 권한 자동 부여 없이 설치 성공. 이전 dec83fb APK와 aapt permission diff0. 실제 고객 앱 로그인→본인41,000원 PAID 주문·SHIPPED 조회→기존 구매확정/리뷰 확인→Android OPEN_DOCUMENT 선택/취소→146bytes PNG 읽기→리뷰 사진 업로드/2건 조회→동일 클레임 증빙 업로드/2건 조회→두 프리뷰의 주황/새 자홍색 이미지 실제 렌더링→로그아웃/개인 화면 로그인 요구를 확인했다. 앱 DocumentPicker/선택 파일 cache 잔류0. 리뷰는 PENDING·사진 검사PENDING이며 검사/공개/심사/환불은 실행하지 않았다. 이번 구매 주문은 격리 HTTP fixture에서 준비한 것으로 native에서 신규 구매한 증거가 아니다. 앱 종료 후 UI 로그인 상태 복원은 확인하지 않았고 재진입은 재로그인으로 수행했다.

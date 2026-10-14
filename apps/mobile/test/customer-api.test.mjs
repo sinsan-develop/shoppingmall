@@ -28,6 +28,27 @@ function json(res, value, status = 200) {
   res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(value));
 }
 
+test('signup/reset use existing uniform intake routes without roles, tokens or passwords', async t => {
+  const { base, requests } = await serve(t, (_req, res) => json(res, { status: 'accepted' }));
+  const api = client(base);
+  assert.deepEqual(await api.startAccountRequest('signup', ' qa@example.invalid '), { status: 'accepted' });
+  assert.deepEqual(await api.startAccountRequest('reset', 'qa@example.invalid'), { status: 'accepted' });
+  assert.deepEqual(requests.map(({ path, body, origin }) => ({ path, body, origin })), [
+    { path: '/auth/customer-signup/start', body: { email: 'qa@example.invalid' }, origin: 'http://127.0.0.1:9091' },
+    { path: '/auth/password-reset/start', body: { email: 'qa@example.invalid' }, origin: 'http://127.0.0.1:9091' },
+  ]);
+  await assert.rejects(api.startAccountRequest('signup', 'invalid'), e => e.code === 'invalid');
+  assert.equal(requests.length, 2);
+});
+test('unavailable intake is not accepted and deletion request does not delete the account', async t => {
+  const { base, requests } = await serve(t, (req, res) => req.url === '/customer/deletion-request'
+    ? json(res, { id: key1, status: 'requested' }) : json(res, { secret: 'never display' }, 503));
+  const api = client(base);
+  await assert.rejects(api.startAccountRequest('reset', 'qa@example.invalid'), e => e.code === 'unavailable' && !e.message.includes('never display'));
+  assert.deepEqual(await api.requestDeletion(), { id: key1, status: 'requested' });
+  assert.equal(requests.at(-1).method, 'POST'); assert.equal(requests.at(-1).body, undefined);
+});
+
 test('favorites and restock use owned customer routes and exact option identity', async t => {
   const { base, requests } = await serve(t, (_req, res) => json(res, []));
   const api = client(base);

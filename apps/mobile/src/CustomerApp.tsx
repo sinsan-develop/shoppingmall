@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import OrderSupport from './OrderSupport';
+import AccountRequest from './AccountRequest';
+import DeletionRequest from './DeletionRequest';
 import { CustomerApi, CustomerApiError, type Address, type AddressInput, type CartItem, type Order,
   type Preferences, type Product, type ProductSummary, type Question, type Quote, type Reservation,
   type Favorite, type RestockSubscription, type CouponSelector, type HeldCoupon, type PromotionQuote, type OrderInput,
   type RefundCase, type RefundInput, type PickAttachment } from './customer-api';
 
 const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
-type Screen = 'products' | 'product' | 'login' | 'cart' | 'orders' | 'profile' | 'questions' | 'engagement';
+type Screen = 'products' | 'product' | 'login' | 'signup' | 'reset' | 'cart' | 'orders' | 'profile' | 'questions' | 'engagement';
 const initialAddress: AddressInput = { label: '', recipientName: '', phone: '', postalCode: '', line1: '', line2: '', isDefault: true };
 function Button({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }}
@@ -131,7 +133,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
   const hasSelections = Boolean(goodsGrantId || coupon.trim() || Object.values(shippingChoices).some(Boolean));
   function navigate(next: Screen) {
     setMessage('');
-    if (!signedIn && !['products', 'product', 'login'].includes(next)) {
+    if (!signedIn && !['products', 'product', 'login', 'signup', 'reset'].includes(next)) {
       setScreen('login'); setMessage('로그인 후 이용할 수 있습니다.'); return;
     }
     setScreen(next);
@@ -255,8 +257,12 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
             setSignedIn(true); setScreen('products');
           } finally { setPassword(''); }
         })} />
+        <Button label="가입하기" disabled={busy} onPress={() => navigate('signup')} />
+        <Button label="비밀번호 찾기" disabled={busy} onPress={() => navigate('reset')} />
         <Text>가입·비밀번호 복구의 실제 메일과 HTTPS 링크 확인은 인수테스트에 보류되어 있습니다.</Text>
       </> : null}
+      {screen === 'signup' || screen === 'reset' ? <AccountRequest key={screen} api={api} kind={screen} busy={busy} run={run}
+        back={() => navigate('login')} /> : null}
       {screen === 'cart' ? <>
         <Text style={styles.heading}>장바구니</Text>
         {cart.length === 0 ? <Text>장바구니가 비어 있습니다.</Text> : cart.map(item => <View key={item.optionId} style={styles.card}>
@@ -444,6 +450,7 @@ export default function CustomerApp({ api, enableMockPayment = false, imageOrigi
           await api.addAddress(address); setAddresses(await api.addresses()); setAddress({ ...initialAddress }); setMessage('배송지를 저장했습니다.');
         })} />
         {addresses.map(item => <Text key={item.id}>{item.label} · {item.line1}</Text>)}
+        <DeletionRequest api={api} busy={busy} run={run} />
         <Text style={styles.heading}>수신 동의 설정</Text>
         {(['marketingEmail', 'marketingSms'] as const).map((field, i) => <View key={field} style={styles.row}>
           <Text>{['이메일 수신 동의', '문자 수신 동의'][i]}</Text><Switch accessibilityLabel={['이메일 수신 동의', '문자 수신 동의'][i]}
