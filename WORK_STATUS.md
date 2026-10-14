@@ -2,6 +2,9 @@
 
 ## 2026-10-14 S7.2 실행 승인·T1 진행
 
+- a4e47cb 実DBGREEN: 폐기systemID7696470122891296811·정확Git SHA에서카카오필수13 pass/0fail/0skip, 기존email/phoneDB2 pass/0fail/0skip. 앞서실패했던late-cookie검사는409/Set-Cookie0/최신customer-b보존으로통과했고, 같은잠금조건의실패로그인·역할변경·로그아웃에서도새mock세션추가0/최신상태보존을확인했다. 초기목표기준/expectation을낮추지않고거부status와cookie0까지추가했다. APItypecheck/build exit0·전용PG/Node/network/QA경로잔류0이며정식WSL/보호DB불변이다.
+- Web승인계정화면영향회귀4/4·앞선mock/login11/11, 변경type/lint·33route빌드성공. 서버/웹generation·WebLocks보완의핵심DB기능은확인됐지만실제Chrome탭간잠금/팝업·Androidscheme·확정후revocation별도경계·최종독립review는아직미확인이다. 다음은원래T2browser실행기→같은후보Chrome→T3Android→T4전체필수gate/정리순서이며완료검사반복이나전체완료선언을하지않는다.
+
 - 승인보완구현checkpoint: registry가거래시작세대를저장하고manual인증시증가, 기존AuthController의email/logout/switch-role접점만연결했다. mockDBtransaction은INSERT/COMMIT전·COMMIT후재확인하며확정대기중무효화는정확발급token만revoke/Set-Cookie0이다. 기존disabled/authHTTP회귀포함서버8/8 pass, APItypecheck/변경eslint 성공. Web기존파일의WebLocks응답직렬화/미지원mock거부·정상이메일유지RED→GREEN, Web11/11 pass·typecheck/변경eslint 성공. 일시RED의미구현Promise후속오류는제품런타임성공으로집계하지않는다. 별도미구현helper파일은폐기하고잠금함수를기존client파일에만두었다.
 - 실제DB확인대기: 기존cookie경합기준을유지하고late409/cookie0·실패로그인/역할변경/로그아웃후무발급반례를추가했다. QA_KAKAO_REQUIRED=1에는경합검사를항상포함해누락통과를막는다. 다음은동일checkpoint를승인원격/WSLGit으로받아기존선언이름의폐기PG/Node·내부망에서만실행한후잔류0정리이며보호DB/정식서비스변경0이다. 현재추가인증승인대기는해소됐지만실제GREEN/Chrome/native/독립review/StageGit gate가남아있다.
 
