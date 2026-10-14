@@ -54,6 +54,7 @@ async function popup(client){
 }
 async function evidence(client,name){
   assert.equal(await evaluate(client,'Boolean(location.hash)'),false);
+  await client.channel.send('Page.bringToFront');
   await evaluate(client,"document.querySelector('#address-title')?.scrollIntoView({block:'start'})");
   await evaluate(client,"document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true)))))");
   await pause(200);
@@ -108,7 +109,7 @@ async function run(){
   observer(approved.socket,event=>{if(event.method==='Fetch.requestPaused')paused=event.params;});
   await approved.channel.send('Fetch.enable',{patterns:[{urlPattern:api+'/auth/kakao-mock/decision',requestStage:'Response'}]});
   await button(approved,'모의 승인');await wait(()=>Boolean(paused),'hold decision response');
-  const response=await approved.channel.send('Fetch.getResponseBody',{requestId:paused.requestId});
+  step='valid-proof-source';const response=await approved.channel.send('Fetch.getResponseBody',{requestId:paused.requestId});
   const decision=JSON.parse(response.base64Encoded?Buffer.from(response.body,'base64').toString():response.body);
   const returned=new URL(decision.returnUrl);assert.equal(returned.origin,web);
   const proof=Object.fromEntries(new URLSearchParams(returned.hash.slice(1)));
@@ -119,17 +120,17 @@ async function run(){
   assert.equal(original.requests.filter(path=>path==='/auth/kakao-mock/complete').length,completesBefore,'valid code from wrong window is refused');
   await approved.channel.send('Fetch.failRequest',{requestId:paused.requestId,errorReason:'Aborted'});
   await approved.channel.send('Fetch.disable');
-  await approved.channel.send('Page.navigate',{url:api+'/health'});
+  step='valid-proof-origin';await approved.channel.send('Page.navigate',{url:api+'/health'});
   await wait(()=>evaluate(approved,`location.origin==='${api}'&&document.readyState==='complete'`),'different real origin');
   await evaluate(approved,`window.opener.postMessage(${JSON.stringify(proof)},'${web}')`);
   await pause(150);
   assert.equal(original.requests.filter(path=>path==='/auth/kakao-mock/complete').length,completesBefore,'expected window from wrong origin is refused');
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM auth_sessions')).rows[0].n,0);
-  await approved.channel.send('Page.navigate',{url:decision.returnUrl});
+  step='valid-proof-return';await approved.channel.send('Page.navigate',{url:decision.returnUrl});
   await wait(()=>evaluate(original,"location.pathname==='/account'&&document.body.innerText.includes('로그아웃')"),'customer login');
   assert.equal((await session(original)).actor.accountId,binding.accountId);
   await visit(original,'/account/customer');await wait(()=>evaluate(original,"document.body.innerText.includes('S7 Kakao customer-a')"),'owned address UI');
-  assert.equal(await evaluate(original,"document.body.innerText.includes('S7 Kakao customer-b')"),false);await evidence(original,'customer-a');
+  assert.equal(await evaluate(original,"document.body.innerText.includes('S7 Kakao customer-b')"),false);step='customer-a-paint';await evidence(original,'customer-a');
   await visit(original,'/account');await button(original,'로그아웃');await wait(()=>evaluate(original,"location.pathname==='/login'"),'logout');
   assert.equal((await session(original)).status,401);
   step='cross-tab-lock';const race=await popup(original);lockedAccount=await pool.connect();await lockedAccount.query('BEGIN');
