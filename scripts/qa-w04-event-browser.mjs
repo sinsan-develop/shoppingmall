@@ -13,17 +13,20 @@ const passes=[];function pass(name){passes.push(name);console.info(`W04 PASS: ${
 try{
  socket.addEventListener('message',event=>{const data=JSON.parse(event.data);if(data.method==='Network.loadingFailed')console.info('W04 NETWORK_FAILURE',JSON.stringify({error:data.params.errorText,blocked:data.params.blockedReason}));});
  await send('Page.enable');await send('Runtime.enable');await send('Network.enable');await send('Page.bringToFront');
- if(process.env.QA_W04_EMPTY==='1'){
+ if(process.env.QA_W04_PHASE==='error'){
+  await event(m.activeId,'기획전을 불러오지 못했습니다');assert.equal(await evaluate(`document.querySelectorAll('.product-link').length`),0);await shot('event-error');
+  await evaluate(`document.querySelector('a[href="/products"]').click();true`);await wait(`location.pathname==='/products'`,'catalog fallback');pass('actual stopped API error, no stale products, catalog fallback');
+ }else if(process.env.QA_W04_PHASE==='recovery'){
+  await event(m.activeId,'W04 진행 기획전');await wait(`document.querySelector('.home-product-photo')?.complete&&document.querySelector('.home-product-photo')?.naturalWidth===16`,'recovered stored image');assert.equal(await evaluate(`document.querySelector('.product-link').textContent`),m.title);await shot('event-recovery');pass('actual API restart and DB stock restoration recover event and image');
+ }else if(process.env.QA_W04_EMPTY==='1'){
   await event(m.activeId,'지금은 볼 수 없는 기획전입니다');assert.equal(await evaluate(`document.querySelectorAll('.product-link').length`),0);await shot('event-sold-out');pass('actual DB sold-out event unavailable, no stale product');
  }else{
   await event(m.activeId,'W04 진행 기획전');await wait(`document.querySelector('.home-product-photo')?.complete&&document.querySelector('.home-product-photo')?.naturalWidth===16`,'stored image');
   assert.equal(await evaluate(`document.body.textContent.includes('W04 격리 상품 상세 확인')&&document.querySelector('.product-price')?.textContent==='23,000원부터'`),true);assert.equal(await evaluate(`document.querySelector('.product-link').textContent`),m.title);await shot('event-active');pass('actual event title/description/product/price/image');
   await evaluate(`document.querySelector('.product-link').click();true`);await wait(`location.pathname==='/products/${m.productId}'&&document.querySelector('h1')?.textContent===${JSON.stringify(m.title)}`,'selected product link');pass('event product link reaches matching actual detail');
-  for(const id of [m.futureId,m.expiredId,'00000000-0000-4000-8000-000000000004']){await event(id,'지금은 볼 수 없는 기획전입니다');assert.equal(await evaluate(`document.querySelectorAll('.product-link').length`),0);}await shot('event-unavailable');pass('future/expired/missing event excludes purchase products');
-  await event('invalid-event-id','기획전을 불러오지 못했습니다');assert.equal(await evaluate(`document.querySelectorAll('.product-link').length`),0);await shot('event-error');
-  await evaluate(`document.querySelector('a[href="/products"]').click();true`);await wait(`location.pathname==='/products'`,'catalog fallback');pass('real API invalid-target error and usable catalog fallback');
+  for(const id of [m.futureId,m.expiredId,'00000000-0000-4000-8000-000000000004','invalid-event-id']){await event(id,'지금은 볼 수 없는 기획전입니다');assert.equal(await evaluate(`document.querySelectorAll('.product-link').length`),0);}await shot('event-unavailable');pass('future/expired/missing/malformed event excludes purchase products');
   await event(m.activeId,'W04 진행 기획전');await send('Emulation.setDeviceMetricsOverride',{width:430,height:844,deviceScaleFactor:1,mobile:true});assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true);await shot('event-mobile');pass('valid revisit and 430px no overflow');
  }
- await writeFile(`${evidence}/${process.env.QA_W04_EMPTY==='1'?'empty-result':'result'}.json`,JSON.stringify({page:'W04',systemId:m.systemId,passes},null,2));
+ await writeFile(`${evidence}/${process.env.QA_W04_PHASE ? process.env.QA_W04_PHASE+'-result' : process.env.QA_W04_EMPTY==='1'?'empty-result':'result'}.json`,JSON.stringify({page:'W04',systemId:m.systemId,passes},null,2));
 }finally{assert.equal((await closeCdpPage({debugging,page,socket})).length,0,'owned page cleanup');}
 console.info(`W04_BROWSER_PASS=${passes.length}`);
