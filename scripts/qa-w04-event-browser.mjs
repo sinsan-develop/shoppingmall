@@ -6,12 +6,13 @@ const evidence=process.env.QA_W04_EVIDENCE;assert.equal(evidence,'D:/tmp/shoppin
 const web='http://127.0.0.1:9091',debugging='http://127.0.0.1:9234';
 const {page,socket}=await openCdpPage({debugging});const {send}=createCdpCommandChannel(socket,{timeoutMs:20000});
 async function evaluate(expression){const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.text);return r.result.value;}
-async function wait(expression,label){const until=Date.now()+20000;while(Date.now()<until){try{if(await evaluate(`Boolean(${expression})`))return;}catch{/*navigation context*/}await new Promise(r=>setTimeout(r,100));}throw Error(`W04 timeout: ${label}`);}
+async function wait(expression,label){const until=Date.now()+20000;while(Date.now()<until){try{if(await evaluate(`Boolean(${expression})`))return;}catch{/*navigation context*/}await new Promise(r=>setTimeout(r,100));}const state=await evaluate(`({title:document.querySelector('h1')?.textContent,images:[...document.querySelectorAll('img')].map(i=>({src:i.currentSrc,complete:i.complete,width:i.naturalWidth}))})`).catch(()=>({}));await shot('failure').catch(()=>{});throw Error(`W04 timeout: ${label}; ${JSON.stringify(state)}`);}
 async function event(id,title){await send('Page.navigate',{url:web+'/events/'+id});await wait(`document.querySelector('h1')?.textContent===${JSON.stringify(title)}`,title);}
 async function shot(name){const r=await send('Page.captureScreenshot',{captureBeyondViewport:true});await writeFile(`${evidence}/${name}.png`,Buffer.from(r.data,'base64'));}
 const passes=[];function pass(name){passes.push(name);console.info(`W04 PASS: ${name}`);}
 try{
- await send('Page.enable');await send('Runtime.enable');await send('Page.bringToFront');
+ socket.addEventListener('message',event=>{const data=JSON.parse(event.data);if(data.method==='Network.loadingFailed')console.info('W04 NETWORK_FAILURE',JSON.stringify({error:data.params.errorText,blocked:data.params.blockedReason}));});
+ await send('Page.enable');await send('Runtime.enable');await send('Network.enable');await send('Page.bringToFront');
  if(process.env.QA_W04_EMPTY==='1'){
   await event(m.activeId,'지금은 볼 수 없는 기획전입니다');assert.equal(await evaluate(`document.querySelectorAll('.product-link').length`),0);await shot('event-sold-out');pass('actual DB sold-out event unavailable, no stale product');
  }else{

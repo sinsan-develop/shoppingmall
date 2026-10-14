@@ -1,3 +1,5 @@
+import { PublicImage } from '../../account/private-image';
+
 type Product = { productId: string; title: string; sellerName: string; originLabel: string;
   minPriceWon: number; images: { id: string }[] };
 type Event = { id: string; title: string; description: string; products: Product[] };
@@ -17,7 +19,7 @@ export function EventDetailView({ event, error = false }: { event?: Event | { st
         <><p className="eyebrow">어울몰 기획전</p><h1>{event.title}</h1><p>{event.description}</p>
           <div className="search-results home-products">{event.products.map((product) =>
             <article className="search-product" key={product.productId}>
-              {product.images[0] && apiOrigin ? <img className="home-product-photo" alt="" loading="lazy"
+              {product.images[0] && apiOrigin ? <PublicImage className="home-product-photo" alt={`${product.title} 사진`}
                 src={`${apiOrigin}/catalog/products/${encodeURIComponent(product.productId)}/images/${encodeURIComponent(product.images[0].id)}`} /> :
                 <span className="ms-ph home-product-photo">상품 사진 준비 중</span>}
               <p className="eyebrow">{product.originLabel}</p>
