@@ -237,7 +237,7 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     }
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_review_images')).rows[0].n, 1);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM support_claim_evidence')).rows[0].n, 1);
-    if (native && process.env.QA_S7_NATIVE_PURCHASE !== '1') {
+    if (native && process.env.QA_S7_NATIVE_PURCHASE !== '1' && process.env.QA_S7_NATIVE_CATALOG !== '1') {
       await writeFile('/tmp/shoppingmall-s7-native.ready', JSON.stringify({ orderId: order.id, reviewId: review.id, claimId: claim.id }));
       const deadline = Date.now() + 20 * 60 * 1000;
       let done = false;
@@ -264,7 +264,31 @@ test('mobile customer client drives real HTTP DB coupon purchase, retry, engagem
     assert.deepEqual(deliveredPurposes.sort(), ['customer_signup', 'password_reset']);
     assert.equal((await pool.query("SELECT count(*)::int AS n FROM auth_intake_jobs WHERE status='done'")).rows[0].n, 3);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM accounts')).rows[0].n, beforeAccounts);
-    const deletion = await api.requestDeletion(); assert.equal(deletion.status, 'requested');
+    if (native && process.env.QA_S7_NATIVE_CATALOG === '1') {
+      assert.equal((await pool.query('SELECT count(*)::int AS n FROM account_deletion_requests')).rows[0].n, 0);
+      const nativeQueries = [];
+      const observe = req => {
+        if (req.url.startsWith('/catalog/products?')) nativeQueries.push(new URL(req.url, base).searchParams);
+      };
+      app.getHttpServer().on('request', observe);
+      try {
+        await writeFile('/tmp/shoppingmall-s7-native.ready', JSON.stringify({ productId: product.productId }));
+        const deadline = Date.now() + 20 * 60 * 1000;
+        let done = false;
+        while (Date.now() < deadline) {
+          try { await access('/tmp/shoppingmall-s7-native.done'); done = true; break; } catch { await delay(1000); }
+        }
+        assert.ok(done, 'Android native catalog and deletion completion marker required');
+        assert.ok(nativeQueries.some(query => query.get('sort') === 'price_asc'));
+        assert.ok(nativeQueries.some(query => query.get('sort') === 'price_desc'));
+        assert.ok(nativeQueries.some(query => query.get('categoryId') === product.categoryId && query.get('sellerId') === product.sellerId),
+          'native category and farm choices must reach the real server together');
+        assert.equal((await pool.query('SELECT count(*)::int AS n FROM checkout_orders')).rows[0].n, 1,
+          'catalog verification must not repeat the already verified native purchase');
+      } finally { app.getHttpServer().off('request', observe); }
+    } else {
+      const deletion = await api.requestDeletion(); assert.equal(deletion.status, 'requested');
+    }
     await assert.rejects(api.requestDeletion(), e => e.code === 'conflict');
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM account_deletion_requests WHERE account_id=$1', [customerId])).rows[0].n, 1);
     assert.equal((await pool.query('SELECT disabled_at FROM accounts WHERE id=$1', [customerId])).rows[0].disabled_at, null);

@@ -1,5 +1,10 @@
 # 어울몰 작업현황
 
+## 2026-10-14 S7 남은 native 분류·농가·정렬·탈퇴 안내
+
+- 담당 어울, 시작f6d90f55d87a62e4644ab8b6aefd91f59e8c1176/clean. 검증 스킬의 실제증거 기준과 QA 시험지침을 적용하며 제품/설계/계획은 불변. 이번 native fixture 모드는 원래 구매/첨부 검증 기준을 유지하되 해당 native 조작을 반복하지 않고 분류+농가 전달·낮은/높은가격 정렬·명시확인 후 탈퇴요청1행/계정비활성화없음·중복거부를 확인한다. 새OS권한/실푸시/실메일/지속DB변경0.
+- 자원선언: D:\tmp\s7catalog1014·증거 D:\tmp\shoppingmall-s7-catalog-native-20261014, 전용AVD shoppingmall_s7_catalog_20261014/5580·Metro8081·SSH루프백9092. WSL shoppingmall-s7-qa-node·shoppingmall-qa-s7-20261014-pg(PG15tmpfs)/shoppingmall-s7-qa-20261014-net 내부망·정확 QA 경로만 사용한다. 보호DB와 다른systemID/빈계정/대상DBSELECT1/native.ready gate 유지, 종료trap/Windows정리로 정확 소유자원만 회수하고 증거보존. API/Web/packages 제품은 main 대비diff0이므로 현재Web/API를 모바일진도 때문에 임의 재배포하지 않으며 S7 푸시·일반Stage병합 Gate를 별도 대조한다.
+
 ## 2026-10-14 S7 25124b3 native 복원·신규 구매 검증
 
 - 실제 결과: exactJS25124b3·네이티브APK6107e3d(SHA2560FE603FC5F0C9C78EB6592D5953A4C741820EF5254EB89344EC4D75767699F85), 폐기DBsystemID7696384898988769323에서 Android로그인→강제종료/재실행→재로그인 없이 로그아웃메뉴/본인41000원준비주문 조회를 확인했다. 홈추천고추→1개담기→23000+배송3000 견적→ACTIVE예약 뒤 다시강제종료/재실행→같은 만료시각의 ACTIVE/26000원복원을 확인했다. 입력credential 새저장/서버인증정책 변경0.
